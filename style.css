@@ -6,10 +6,11 @@ body {
 
   main {
     padding: 29px;
+    margin: 30px;
     background-color: #ffffff;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
     border-radius: 10px;
-    margin: 30px;
+    
   }
 
 .minhaFotoPrincipal{
