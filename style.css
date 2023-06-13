@@ -3,6 +3,7 @@ body {
     padding: 0;
     background-color: hsl(180, 3%, 21%);
   }
+
   main {
     padding: 29px;
     background-color: #ffffff;
@@ -10,3 +11,8 @@ body {
     border-radius: 10px;
     margin: 30px;
   }
+
+.minhaFotoPrincipal{
+    width: 200px;
+    height: 200px;
+}
