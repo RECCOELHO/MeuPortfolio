@@ -5,7 +5,7 @@ body {
     align-items: center;
   }
 
-  main {
+main {
     padding: 29px;
     margin: 23px auto; /* o primeiro parametro é a distancia do top e o segundo das laterais se deixar so um vai valer para todos os lados */
     width: 1500px;
@@ -14,8 +14,7 @@ body {
     border-radius: 10px; /* deixar o principal acima do fundo */
 
   }
-
 .minhaFotoPrincipal{
     width: 200px;
     height: 200px;/* tamanho da foto */
-}
+  }
