@@ -8,12 +8,12 @@ body {
     padding: 29px;
     margin: 30px;
     background-color: #ffffff;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(1, 1, 1, 0.2);
+    border-radius: 10px; /* deixar o principal acima do fundo */
     
   }
 
 .minhaFotoPrincipal{
     width: 200px;
-    height: 200px;
+    height: 200px;/* tamanho da foto */
 }
