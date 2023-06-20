@@ -17,8 +17,7 @@ header{
     box-shadow: 5px 5px 5px rgba(1, 1, 1, 0.738);/* colocar uma sombra */
     border-radius: 10px; /* deixar o principal acima do fundo */
     position: fixed;
-
-    top: 10px;
+    top: 1px;
   }
 main {
     padding: 29px;
