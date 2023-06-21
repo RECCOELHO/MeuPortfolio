@@ -6,17 +6,22 @@ body {
   }
 
 header{
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-around;
     padding: 29px;
     margin: 23px auto; /* o primeiro parametro é a distancia do top e o segundo das laterais se deixar so um vai valer para todos os lados */
     width: 1500px;
     background-color: #ffffff;
-    box-shadow: 5px 5px 50px rgba(1, 1, 1, 0.738);/* colocar uma sombra */
+    box-shadow: 5px 5px 5px rgba(1, 1, 1, 0.738);/* colocar uma sombra */
     border-radius: 10px; /* deixar o principal acima do fundo */
-
-}
+    position: fixed;
+    top: 1px;
+  }
 main {
     padding: 29px;
-    margin: 23px auto; /* o primeiro parametro é a distancia do top e o segundo das laterais se deixar so um vai valer para todos os lados */
+    margin: 155px auto; /* o primeiro parametro é a distancia do top e o segundo das laterais se deixar so um vai valer para todos os lados */
     width: 1500px;
     background-color: #ffffff;
     box-shadow: 5px 5px 50px rgba(1, 1, 1, 0.738);/* colocar uma sombra */
@@ -24,6 +29,7 @@ main {
 
   }
 .minhaFotoPrincipal{
-    width: 200px;
-    height: 200px;/* tamanho da foto */
+  width: 190px;
+  border-radius: 50%;
+  box-shadow: 15px 10px 5px #052c3677;
   }
