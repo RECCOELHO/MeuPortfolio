@@ -30,7 +30,6 @@ main {
 
   }
 .minhaFotoPrincipal{
-  width: 190px;
   border-radius: 50%;
-  box-shadow: 15px 10px 5px #052c3677;
+  box-shadow: 5px 5px 5px #00000077;
   }
