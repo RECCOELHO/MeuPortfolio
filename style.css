@@ -6,13 +6,13 @@ body {
   }
 
 header{
-    display: flex;
-    flex-direction: row;
+    display: flex; /* vou colocar  */
+    flex-direction: row; /* Deicei tudo em linha */
     align-items: center;
     justify-content: space-around;
      /* o primeiro parametro é a distancia do top e o segundo das laterais se deixar so um vai valer para todos os lados */
     width: 100%;
-    background-color: #ffffff;
+    background-color: #ffffff17;
     box-shadow: 5px 5px 5px rgba(1, 1, 1, 0.738);/* colocar uma sombra */
     position: fixed;
     top: 0;
