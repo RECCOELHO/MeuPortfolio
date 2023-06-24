@@ -1,47 +1,53 @@
 body {
-    margin: 0;
-    padding: 0;
-    background-image: linear-gradient( 45deg  , #590202,      #F20505,     #032340    );/* mudando a cor e os parametros do fundo da tela */
-    align-items: center;
-    background-repeat: no-repeat;
-    background-size: 100% 100%;
-  }
+  margin: 0;
+  padding: 0;
+  background-image: linear-gradient( 45deg  , #590202,      #F20505,     #032340    );/* mudando a cor e os parametros do fundo da tela */
+  align-items: center;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+}
 
 header{
-    display: flex; /* vou colocar  */
-    flex-direction: row; /* Deicei tudo em linha */
-    align-items: center;
-    justify-content: space-around;
-     /* o primeiro parametro é a distancia do top e o segundo das laterais se deixar so um vai valer para todos os lados */
-    width: 100%;
-    background-color: #ffffff17;
-    box-shadow: 5px 5px 5px rgba(1, 1, 1, 0.738);/* colocar uma sombra */
-    position: fixed;
-    top: 0;
-  }
-main {
-    padding: 29px;
-    margin-top: 100px;
-    margin-left: 29px; /* o primeiro parametro é a distancia do top e o segundo das laterais se deixar so um vai valer para todos os lados */
-    width: 80%;
-    background-color:     #5888A6;
-    box-shadow: 5px 5px 50px rgba(1, 1, 1, 0.738);/* colocar uma sombra */
-    border-radius: 10px; /* deixar o principal acima do fundo */
-    display: flex;
-    flex-direction: column; /* Deixa em Coluna */
-  }
+  display: flex; /* vou colocar  */
+  flex-direction: row; /* Deicei tudo em linha */
+  align-items: center;
+  justify-content: space-around;
+  width: 100%;
+  background-color: #ffffff17;
+  box-shadow: 5px 5px 5px rgba(1, 1, 1, 0.738);/* colocar uma sombra */
+  position: fixed;
+  top: 0;
+}
+
+.telaInicial{
+  padding: 29px;
+  margin-top: 100px;
+  background-color:#04090c;
+  box-shadow: 5px 5px 50px rgba(1, 1, 1, 0.738);/* colocar uma sombra */
+  color:  #F20505;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-around;
+}
+.telaInicial-escrito{
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+
 .minhaFotoPrincipal{
   border-radius: 50%;
   box-shadow: 5px 5px 5px #00000077;
   width: 20%;
-  }
+}
 
-
-  /* 
-    cores principais
-    #590202
-    #8C0303
-    #F20505
-    #5888A6
-    #032340
-  */
+/* 
+  vou ter que trocar
+  cores principais
+  #590202
+  #8C0303
+  #F20505
+  #5888A6
+  #032340
+*/
