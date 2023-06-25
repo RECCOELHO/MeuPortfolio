@@ -22,7 +22,7 @@ header{
 .telaInicial{
   padding: 29px;
   margin-top: 100px;
-  background-color:#04090c;
+  background-color:#173c539a;
   box-shadow: 5px 5px 50px rgba(1, 1, 1, 0.738);/* colocar uma sombra */
   color:  #F20505;
   display: flex;
