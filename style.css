@@ -1,9 +1,17 @@
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Libre+Bodoni&display=swap');
+
+* {
+  margin: 0;
+  padding: 0; 
+  box-sizing: border-box;
+  text-decoration: none;
+}
+
 body {
   margin: 0;
   padding: 0;
   background-image: linear-gradient( 45deg  , #590202,      #F20505,     #032340    );/* mudando a cor e os parametros do fundo da tela */
-  align-items: center;
-  background-repeat: no-repeat;
+  background-repeat: auto; /* dizendo que o fundo vai repetir ou nao */
   background-size: 100% 100%;
 }
 
@@ -46,6 +54,17 @@ header{
   background-color: #173c539a;
 }
 
+.roda-pe{
+  position: inherit;
+  bottom: 0;
+}
+
+.roda-pe-escrito{
+  text-align: center;
+  align-items: center;
+  display: flex;
+  
+}
 /* 
   vou ter que trocar
   cores principais
