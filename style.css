@@ -1,4 +1,7 @@
-@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Libre+Bodoni&display=swap');
+@font-face {
+  font-family: 'emoji';
+  src: url(fonts/NotoColorEmoji-Regular.ttf);
+}
 
 * {
   margin: 0;
@@ -74,3 +77,7 @@ header{
   #5888A6
   #032340
 */
+
+.emoji{
+  font-family: emoji;
+}
