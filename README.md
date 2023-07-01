@@ -1,2 +1,4 @@
-# MeuPortfolio
- Meu Portfolio para mostrar o que eu sei fazer e cursos.
+# Meu Portfolio
+ ## Objetivo:
+ Ser um espaço aonde vou colocar meus cursos e aprimoramentos e ser um primeiro contato com Algum recrutador em potencial.
+ 
