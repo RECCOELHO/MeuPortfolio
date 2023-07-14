@@ -1,0 +1,32 @@
+@font-face {
+    font-family: 'emoji';
+    src: url(../../fonts/NotoColorEmoji-Regular.ttf);
+  }
+@font-face{
+    font-family: '8bit';
+    src: url(../../fonts/BungeeInline-Regular.ttf);
+}
+
+/* criando barra de navegação */
+.barra {
+    display: flex;
+    flex-direction: row; 
+    align-items: center;
+    justify-content: space-around;
+    width: 100%;
+    background-color: #ffffff17;
+    box-shadow: 5px 5px 5px rgba(1, 1, 1, 0.738);/* colocar uma sombra */
+    position: fixed;
+    top: 0;
+    padding: 15px;
+}
+
+.barra-nome{
+    font-family: '8bit';
+    font-size: 37px;
+    
+}
+
+.barra-menu{
+    
+}

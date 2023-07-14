@@ -18,17 +18,7 @@ body {
   background-size: 100% 100%;
 }
 
-header{
-  display: flex; /* vou colocar  */
-  flex-direction: row; /* Deicei tudo em linha */
-  align-items: center;
-  justify-content: space-around;
-  width: 100%;
-  background-color: #ffffff17;
-  box-shadow: 5px 5px 5px rgba(1, 1, 1, 0.738);/* colocar uma sombra */
-  position: fixed;
-  top: 0;
-}
+
 
 .telaInicial{
   padding: 29px;
@@ -78,6 +68,3 @@ header{
   #032340
 */
 
-.emoji{
-  font-family: emoji;
-}
