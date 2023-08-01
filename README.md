@@ -2,7 +2,7 @@
 
 ![logo tipo para twitch moderno rosa branco ](https://github.com/RECCOELHO/MeuPortfolio/assets/63757384/38d49a4a-1137-4f80-a943-21bdd80b33ed)
 
-##Sobre Mim
+## Sobre Mim
 Olá! Meu nome é Carlos Jessé Coelho, e este é o README do meu portfolio, onde apresento minhas experiências profissionais e projetos desenvolvidos ao longo da minha carreira. Sou um Analsita de Sistemas com paixão por aprender e desenvolver soluções.
 
 Neste portfolio, você encontrará uma seleção de trabalhos e projetos que demonstrem minhas habilidades, conhecimentos e dedicação ao longo do tempo. Meu objetivo é compartilhar um pouco sobre quem eu sou como profissional e destacar algumas das minhas realizações mais significativas.
