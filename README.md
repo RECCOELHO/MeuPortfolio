@@ -1,5 +1,6 @@
 # Portfolio e Experiências Profissionais
-Logo do seu nome ou do seu negócio
+
+![logo tipo para twitch moderno rosa branco ](https://github.com/RECCOELHO/MeuPortfolio/assets/63757384/38d49a4a-1137-4f80-a943-21bdd80b33ed)
 
 Sobre Mim
 Olá! Meu nome é [Seu Nome] e este é o README do meu portfolio, onde apresento minhas experiências profissionais e projetos desenvolvidos ao longo da minha carreira. Sou um(a) [Sua Profissão ou Área de Atuação] com paixão por [Destacar suas principais habilidades ou interesses profissionais].
