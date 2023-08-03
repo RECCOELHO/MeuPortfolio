@@ -7,11 +7,11 @@ Olá! Meu nome é Carlos Jessé Coelho, e este é o README do meu portfolio, ond
 
 Neste portfolio, você encontrará uma seleção de trabalhos e projetos que demonstrem minhas habilidades, conhecimentos e dedicação ao longo do tempo. Meu objetivo é compartilhar um pouco sobre quem eu sou como profissional e destacar algumas das minhas realizações mais significativas.
 
-Experiências Profissionais
-[Nome da Empresa / Cliente]
-Período: Data de início - Data de término (ou "Presente" se ainda estiver empregado)
-Cargo ou Função: Descrição breve do cargo ou função que você exerceu.
-Descrição: Resuma as principais responsabilidades e realizações nesta posição. Destaque projetos importantes ou qualquer contribuição significativa que tenha feito para a empresa ou cliente.
+## Experiências Profissionais
+### Exercito Brasileiro
+Período: 03/2020 - Presente. <br>
+Soldado de Comunicações: Diversas atribuições entre elas desenvolvedor e adm de serviço de redes.
+
 [Nome da Empresa / Cliente]
 Período: Data de início - Data de término (ou "Presente" se ainda estiver empregado)
 Cargo ou Função: Descrição breve do cargo ou função que você exerceu.
