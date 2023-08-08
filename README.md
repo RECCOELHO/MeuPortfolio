@@ -12,11 +12,6 @@ Neste portfolio, você encontrará uma seleção de trabalhos e projetos que dem
 Período: 03/2020 - Presente. <br>
 Soldado de Comunicações: Diversas atribuições entre elas desenvolvedor e adm de serviço de redes.
 
-[Nome da Empresa / Cliente]
-Período: Data de início - Data de término (ou "Presente" se ainda estiver empregado)
-Cargo ou Função: Descrição breve do cargo ou função que você exerceu.
-Descrição: Resuma as principais responsabilidades e realizações nesta posição. Novamente, se houver projetos relevantes ou reconhecimentos, mencione-os aqui.
-Repita essa estrutura para cada uma de suas experiências profissionais relevantes.
 
 Projetos Destacados
 [Nome do Projeto]
