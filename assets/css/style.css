@@ -13,7 +13,7 @@
 body {
   margin: 0;
   padding: 0;
-  background-image: linear-gradient( 45deg  , #590202,      #F20505,     #032340    );/* mudando a cor e os parametros do fundo da tela */
+  background:#dfdbdb ;/* mudando a cor e os parametros do fundo da tela */
   background-repeat: auto; /* dizendo que o fundo vai repetir ou nao */
   background-size: 100% 100%;
 }
@@ -23,9 +23,8 @@ body {
 .telaInicial{
   padding: 29px;
   margin-top: 100px;
-  background-color:#173c539a;
   box-shadow: 5px 5px 50px rgba(1, 1, 1, 0.738);/* colocar uma sombra */
-  color:  #F20505;
+  color:  #000000;
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -43,28 +42,5 @@ body {
   width: 20%;
 }
 
-.sobre-mim{
-  background-color: #173c539a;
-}
 
-.roda-pe{
-  position: inherit;
-  bottom: 0;
-}
-
-.roda-pe-escrito{
-  text-align: center;
-  align-items: center;
-  display: flex;
-  
-}
-/* 
-  vou ter que trocar
-  cores principais
-  #590202
-  #8C0303
-  #F20505
-  #5888A6
-  #032340
-*/
 

@@ -1,32 +1,45 @@
-@font-face {
-    font-family: 'emoji';
-    src: url(../../fonts/NotoColorEmoji-Regular.ttf);
-  }
 @font-face{
-    font-family: '8bit';
-    src: url(../../fonts/BungeeInline-Regular.ttf);
+    font-family: 'montserrat';
+    src: url(../../fonts/Montserrat-VariableFont_wght.ttf);
+
 }
 
-/* criando barra de navegação */
-.barra {
+
+
+/* criando menu de navegação */
+.menu {
     display: flex;
     flex-direction: row; 
     align-items: center;
     justify-content: space-around;
     width: 100%;
-    background-color: #ffffff17;
+    background-color: #5f5f5f1e;
     box-shadow: 5px 5px 5px rgba(1, 1, 1, 0.738);/* colocar uma sombra */
     position: fixed;
     top: 0;
     padding: 15px;
 }
 
-.barra-nome{
-    font-family: '8bit';
-    font-size: 37px;
+.menu-nome{
+    font-family: "montserrat";
+    font-size: 58px;
+    font-weight: bold;
+    color: #0258c9;
     
+}
+.menu-nome-sobre{
+    font-size: 38px;
+    font-weight: 500;
+    tr
+
 }
 
-.barra-menu{
-    
-}
+.gradiente-barra {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 200px; /* Defina a largura da barra conforme necessário */
+    height: 100%; /* Define a altura da barra como 100% para cobrir toda a altura da janela */
+    background: linear-gradient(790deg, #004aad ,#2c03e4, #cb6ce6 ); /* Defina o gradiente conforme necessário */
+    z-index: -999; /* Garante que a barra fique sobre outros elementos */
+  }
