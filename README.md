@@ -13,18 +13,12 @@ Período: 03/2020 - Presente. <br>
 Soldado de Comunicações: Diversas atribuições entre elas desenvolvedor e adm de serviço de redes.
 
 
-Projetos Destacados
-[Nome do Projeto]
-Descrição: Breve resumo do projeto, incluindo o contexto e os objetivos.
-Minha Contribuição: Descreva sua participação específica no projeto, quais foram suas responsabilidades e o que você realizou.
-Tecnologias Utilizadas: Liste as principais tecnologias, ferramentas ou linguagens utilizadas no projeto.
-Resultado/Resultado: Se possível, compartilhe o resultado ou impacto do projeto.
-[Nome do Projeto]
-Descrição: Breve resumo do projeto, incluindo o contexto e os objetivos.
-Minha Contribuição: Descreva sua participação específica no projeto, suas responsabilidades e conquistas.
-Tecnologias Utilizadas: Liste as principais tecnologias, ferramentas ou linguagens utilizadas no projeto.
-Resultado/Resultado: Se possível, compartilhe o resultado ou impacto do projeto.
-Repita essa estrutura para alguns dos projetos mais relevantes do seu portfolio.
+## Projetos Destacados
+### Aprenda Libras
+Descrição: Aplicativo baseado no duoLingo para aprender Libras.
+Minha Contribuição: Criador e Idealizador, na verdade estou sozinho.
+Tecnologias Utilizadas: HTML, CSS, BOOTSTRAP, JavaScript , php e python.
+
 
 Formação Acadêmica
 [Nome da Instituição de Ensino]
