@@ -20,10 +20,10 @@ Minha Contribuição: Criador e Idealizador, na verdade estou sozinho.
 Tecnologias Utilizadas: HTML, CSS, BOOTSTRAP, JavaScript , php e python.
 
 
-Formação Acadêmica
-[Nome da Instituição de Ensino]
-Curso: Nome do curso concluído ou em andamento.
-Período: Ano de início - Ano de conclusão (ou "Previsto para Ano de Conclusão" se ainda estiver estudando).
+## Formação Acadêmica
+### UNIVERSIDADE DE FRANCA
+Curso: Analise e desenvolvimento de Sistemas
+Período: De 2021 - A 2023.
 Descrição: Descreva alguns dos principais aprendizados ou realizações durante o curso, se relevante.
 Repita essa estrutura para outras formações acadêmicas relevantes, como cursos complementares ou certificações.
 
