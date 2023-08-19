@@ -4,7 +4,7 @@
 
 ## Sobre Mim
 
-Olá! Meu nome é [Seu Nome] e este é o README do meu portfolio, onde apresento minhas experiências profissionais e projetos desenvolvidos ao longo da minha carreira. Sou um(a) [Sua Profissão ou Área de Atuação] com paixão por [Destacar suas principais habilidades ou interesses profissionais].
+Olá! Meu nome é Carlos Jessé e este é o README do meu portfolio, onde apresento minhas experiências profissionais e projetos desenvolvidos ao longo da minha carreira. Sou um Analista de Sistemas com paixão por Desenvolvimento e aprender sempre.
 
 Neste portfolio, você encontrará uma seleção de trabalhos e projetos que demonstrem minhas habilidades, conhecimentos e dedicação ao longo do tempo. Meu objetivo é compartilhar um pouco sobre quem eu sou como profissional e destacar algumas das minhas realizações mais significativas.
 
