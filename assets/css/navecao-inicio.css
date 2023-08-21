@@ -24,7 +24,7 @@
     font-family: "montserrat";
     font-size: 58px;
     font-weight: bold;
-    color: #0258c9;
+    color: #f8f0f0;
     
 }
 .menu-nome-sobre{
@@ -33,12 +33,12 @@
 
 }
 
-.gradiente-barra {
-    position: fixed;
-    top: 0;
-    right: 0;
-    width: 250px; /* Defina a largura da barra conforme necessário */
-    height: 100%; /* Define a altura da barra como 100% para cobrir toda a altura da janela */
-    background: linear-gradient(790deg, #004aad ,#2c03e4, #cb6ce6 ); /* Defina o gradiente conforme necessário */
-    z-index: -999; /* Garante que a barra fique sobre outros elementos */
-  }
+.menu-barra{
+    color: #f8f0f0;
+    justify-content: space-around;
+    font-size: 18px;
+}
+
+.menu-barra-inicio{
+    padding: 10px;
+}

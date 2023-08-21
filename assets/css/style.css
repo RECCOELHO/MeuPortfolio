@@ -16,6 +16,7 @@ body {
   background:#dfdbdb ;/* mudando a cor e os parametros do fundo da tela */
   background-repeat: auto; /* dizendo que o fundo vai repetir ou nao */
   background-size: 100% 100%;
+  background-image: linear-gradient(to right, #4c6c81, #083263);
 }
 
 
