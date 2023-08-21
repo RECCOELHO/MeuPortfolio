@@ -34,11 +34,31 @@
 }
 
 .menu-barra{
+    font-family: "montserrat";
     color: #f8f0f0;
     justify-content: space-around;
-    font-size: 18px;
+    font-size: 15px;
+
 }
+
 
 .menu-barra-inicio{
     padding: 10px;
+    border-left: 1px solid #ccc; /* Adiciona uma linha divisória na parte inferior */
+}
+
+.menu-barra-sobremim{
+    padding: 10px;
+    border-left: 1px solid #ccc; /* Adiciona uma linha divisória na parte inferior */
+}
+
+.menu-barra-projeto{
+    padding: 10px;
+    border-left: 1px solid #ccc; /* Adiciona uma linha divisória na parte inferior */
+}
+
+.menu-barra-certificados{
+    padding: 10px;
+    border-left: 1px solid #ccc; /* Adiciona uma linha divisória na parte inferior */
+    border-right: 1px solid #ccc; /* Adiciona uma linha divisória na parte inferior */
 }
