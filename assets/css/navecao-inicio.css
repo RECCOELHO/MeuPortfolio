@@ -45,6 +45,11 @@
 .menu-barra-inicio{
     padding: 10px;
     border-left: 1px solid #ccc; /* Adiciona uma linha divisória na parte inferior */
+    color: #f8f0f0;
+}
+
+.menu-barra-inicio:hover{
+ color:red ;
 }
 
 .menu-barra-sobremim{
