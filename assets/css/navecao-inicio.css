@@ -43,27 +43,43 @@
 
 
 .menu-barra-inicio{
-    padding: 10px;
+    padding: 20px;
     border-left: 1px solid #ccc; /* Adiciona uma linha divisória na parte inferior */
     color: #f8f0f0;
 }
 
 .menu-barra-inicio:hover{
- color:red ;
+ color:yellowgreen ;
+ text-transform: uppercase;
 }
 
 .menu-barra-sobremim{
-    padding: 10px;
+    padding: 20px;
     border-left: 1px solid #ccc; /* Adiciona uma linha divisória na parte inferior */
+}
+
+.menu-barra-sobremim:hover{
+    color: yellowgreen;
+    text-transform: uppercase;
 }
 
 .menu-barra-projeto{
-    padding: 10px;
+    padding: 20px;
     border-left: 1px solid #ccc; /* Adiciona uma linha divisória na parte inferior */
 }
 
+.menu-barra-projeto:hover{
+    color: yellowgreen;
+    text-transform: uppercase;
+}
+
 .menu-barra-certificados{
-    padding: 10px;
+    padding: 20px;
     border-left: 1px solid #ccc; /* Adiciona uma linha divisória na parte inferior */
     border-right: 1px solid #ccc; /* Adiciona uma linha divisória na parte inferior */
+}
+
+.menu-barra-certificados:hover{
+    color: yellowgreen;
+    text-transform: uppercase;
 }
