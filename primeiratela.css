@@ -5,15 +5,12 @@
   
 #inicio{
     height: 100vh;
-    background-image:linear-gradient(63.13deg, #4c6c81 51.04%, #083263 51.05%)
+    background-image:linear-gradient(63.13deg, #4c6c81 51.04%, #083263 51.05%); 
+    display: flex;
+    align-items: center;
 }
 
-  * {
-    margin: 0;
-    padding: 0; 
-    box-sizing: border-box;
-    text-decoration: none;
-  }
+
   
   body {
     margin: 0;
