@@ -49,8 +49,9 @@
 }
 
 .menu-barra-inicio:hover{
- color:yellowgreen ;
- text-transform: uppercase;
+    color: yellowgreen;
+    text-transform: uppercase;
+    padding: 18px;
 }
 
 .menu-barra-sobremim{
@@ -61,6 +62,7 @@
 .menu-barra-sobremim:hover{
     color: yellowgreen;
     text-transform: uppercase;
+    padding: 18px;
 }
 
 .menu-barra-projeto{
@@ -71,6 +73,7 @@
 .menu-barra-projeto:hover{
     color: yellowgreen;
     text-transform: uppercase;
+    padding: 18px;
 }
 
 .menu-barra-certificados{
@@ -82,4 +85,5 @@
 .menu-barra-certificados:hover{
     color: yellowgreen;
     text-transform: uppercase;
+    padding: 18px;
 }
