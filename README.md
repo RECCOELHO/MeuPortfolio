@@ -16,22 +16,15 @@ Neste portfolio, você encontrará uma seleção de trabalhos e projetos que dem
 - **Cargo ou Função:** Descrição breve do cargo ou função que você exerceu.
 - **Descrição:** Resuma as principais responsabilidades e realizações nesta posição. Destaque projetos importantes ou qualquer contribuição significativa que tenha feito para a empresa ou cliente.
 
-### [Nome da Empresa / Cliente]
-
-- **Período:** Data de início - Data de término (ou "Presente" se ainda estiver empregado)
-- **Cargo ou Função:** Descrição breve do cargo ou função que você exerceu.
-- **Descrição:** Resuma as principais responsabilidades e realizações nesta posição. Novamente, se houver projetos relevantes ou reconhecimentos, mencione-os aqui.
-
-*Repita essa estrutura para cada uma de suas experiências profissionais relevantes.*
 
 ## Projetos Destacados
 
-### [Nome do Projeto]
+### Aprenda Libras
 
-- **Descrição:** Breve resumo do projeto, incluindo o contexto e os objetivos.
-- **Minha Contribuição:** Descreva sua participação específica no projeto, quais foram suas responsabilidades e o que você realizou.
-- **Tecnologias Utilizadas:** Liste as principais tecnologias, ferramentas ou linguagens utilizadas no projeto.
-- **Resultado/Resultado:** Se possível, compartilhe o resultado ou impacto do projeto.
+- **Descrição:** E literalmente uma copia do duolingo para aprender Libras
+- **Minha Contribuição:** Idealizador e Programador
+- **Tecnologias Utilizadas:** Por enquanto JavaScript HTML5 e CCS3
+- **Resultado/Resultado:** Ainda nao terminei
 
 ### [Nome do Projeto]
 
