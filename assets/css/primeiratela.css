@@ -2,8 +2,14 @@
     font-family: 'emoji';
     src: url(fonts/NotoColorEmoji-Regular.ttf);
   }
+  @font-face{
+    font-family: 'montserrat';
+    src: url(../../fonts/Montserrat-VariableFont_wght.ttf);
+
+}
+
   
-#inicio{
+.telaInicial{
     height: 100vh;
     background-image:linear-gradient(63deg, #4c6c81 50%, #083263 50%); 
     display: flex;
@@ -23,12 +29,17 @@
   
   
   .telaInicial-escrito{
-    display: flex;
-    flex-direction: column;
     gap: 40px;
+    font-family: 'montserrat';
+    font-size: 45px;
+    font-weight: 500;
+    color: #dfdbdb;
+    text-align: center;
+    margin: 0px;
   }
   
-  .minhaFotoPrincipal{
+
+  .telaInicial-escrito-foto{
     border-radius: 50%;
     box-shadow: 5px 5px 5px #00000077;
     width: 20%;
