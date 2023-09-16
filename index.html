@@ -7,12 +7,18 @@
         <link rel="stylesheet" href="assets/css/navecao-inicio.css">
         <link rel="stylesheet" href="assets/css/primeiratela.css">
         <link rel="stylesheet" href="assets/css/style.css">
+        <style>
+            /* Seletor para a classe estilo-de-arraste */
+        .estilo-de-arraste {
+            font-style: italic;
+            color: burlywood;
+        }
+
+        </style>
 
         <title>Home - Carlos Jessé</title>
     </head>
     <body>
-        <div class="gradiente-barra"></div>
-
         <!-- menu -->
         <div class="menu">
             <div class="menu-nome">Carlos Jessé <br> <div class="menu-nome-sobre"> Analista de Sistemas</div></div>
@@ -20,18 +26,18 @@
                 <a class="menu-barra-inicio" href="index.html">Inicio</a>
                 <a class="menu-barra-sobremim">Sobre mim</a>
                 <a class="menu-barra-projeto">Projetos</a>
-                <a class="menu-barra-certificados">Certificados</a> 
+                <a class="menu-barra-contato" href="https://linktr.ee/CarlosJesse">Contato</a> 
             </nav>
         </div>
         <!-- menu -->
 
         <!-- primeira tela -->
         <div class="telaInicial"> 
-            <div class="telaInicial-escrito">
-                <div class="telaInicial-escrito-apresentacao1 animated-div">Hello World!</div>
-                <div class="telaInicial-escrito-apresentacao2 animated-div2">Seja bem vindo</div>
+            <div class="telaInicial-escrito" id="meuTexto"  draggable="true">
+                <div class="telaInicial-escrito-apresentacao1 animated-div" >Hello World!</div>
+                <div class="telaInicial-escrito-apresentacao2 animated-div2">Seja bem vindo.</div>
                 <div class="telaInicial-escrito-apresentacao3 animated-div3">Sou Carlos Jessé, um Desenvolvedor Full-stack, e este é o meu portfólio. Nele, você pode explorar meu trabalho e os projetos em que tenho trabalhado ou estou envolvido. Sinta-se à vontade para entrar em contato comigo a qualquer momento</div>
-                <a href="https://www.linkedin.com/in/carlos-jess%C3%A9-coelho-da-silva-5b375a206/" rel="next" target="_blank" class="telaInicial-escrito-link"> Carlos no Linkedi </a> 
+                <a href="https://www.linkedin.com/in/carlos-jess%C3%A9-coelho-da-silva-5b375a206/" rel="next" target="_blank" class="telaInicial-escrito-link">Meu linked<img src="assets/img/linkedin-footer.png" alt=""> </a> 
             </div>
             <img class="telaInicial-escrito-foto" src="assets/img/2d19f0ff-daeb-4d4c-868a-afba22a140ea.jpg" alt="Foto do dono do curriculo">
   
@@ -53,7 +59,7 @@
         </div>
         <!-- Roda Pé -->
 
-       <!--  <script src="assets/js/script.js"></script> -->
+        <script src="assets/js/script.js"></script>
     </body>
 </html>
 <!-- A ideia é montar o curiculo e ir atualizando deixando interativo e tudo mais. -->

@@ -20,7 +20,7 @@ body {
   
 .telaInicial{
     height: 98vh;
-    background-image:linear-gradient(63deg, #4c6c81 50%, #083263 50%); 
+    background-image:linear-gradient(67deg, #260101f5 64%,  #8F3938 50%); 
     display: flex;
 }
 
@@ -36,8 +36,42 @@ body {
 }
 
 
+.telaInicial-escrito-apresentacao1{
+  margin-bottom: 25px;
+  font-weight: bolder;
+}
+
+.telaInicial-escrito-apresentacao2{
+  margin-bottom: 25px;
+  font-weight: 300;
+}
+
+.telaInicial-escrito-apresentacao3{
+  margin-bottom: 50px;
+  font-weight:200;
+}
+
+
+
+.telaInicial-escrito-link{
+  margin-left: 100px;
+  background-color: #585659;
+  border-radius: 30px;
+  padding: 10px;
+  color: #dfdbdb;
+  font-weight: 100;
+  text-decoration: none;
+  transition: padding 200ms;
+}
+
+.telaInicial-escrito-link:hover{
+  background-color: #2E303D;
+  padding: 15px;
+  margin-left: 95px;
+}
+ 
 .telaInicial-escrito-foto{
-  border-radius: 50%;
+  border-radius: 30%;
   box-shadow: 5px 5px 5px #00000077;
   margin-left: 141px;
   width: 429px;

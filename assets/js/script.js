@@ -1,3 +1,11 @@
-var nome = window.prompt('Digite seu nome?')
 
-document.getElementById('nome').innerText = nome.toUpperCase()
+const meuTexto = document.getElementById('meuTexto');
+
+meuTexto.addEventListener('dragenter', () => {
+meuTexto.classList.add('estilo-de-arraste');
+});
+
+meuTexto.addEventListener('dragleave', () => {
+meuTexto.classList.remove('estilo-de-arraste');
+});
+
