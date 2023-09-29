@@ -19,7 +19,7 @@ body {
 }
   
 .telaInicial{
-    height: 98vh;
+    height: 96vh;
     background-image:linear-gradient(67deg, #260101f5 64%,  #8F3938 50%); 
     display: flex;
 }

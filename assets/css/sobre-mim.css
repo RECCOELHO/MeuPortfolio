@@ -1,4 +1,6 @@
-.sobre-mim{
-    background-image: -moz-linear-gradient(-23deg, #260101f5 64%,  #8F3938 50%);
+#sobre-mim{
+    background-color:#260101f5 ;
     height: 98vh;
+    color: #dfdbdb;
+    padding: 1px;
 }
