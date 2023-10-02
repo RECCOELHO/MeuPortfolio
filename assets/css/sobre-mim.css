@@ -13,12 +13,30 @@
 
 .sobre-mim-escrito{
     margin-top: 50px;
+    margin-left: 100px;
     text-align: center;
     font-family: 'montserrat';
     font-size: 40px;
     color: #dfdbdb;
     background-color: black;
     border-radius: 16px;
+    width: 90%;
+    height: 700px;
+    padding: 10px;
+    display: inline-block;
 
+}
 
+.sobre-mim-escrito-titulo{
+  font-size: 40px;
+  font-weight: 300;
+  margin: 10px;
+}
+.sobre-mim-escrito-imagem{
+  border-radius: 10px;
+}
+
+.sobre-mim-escrito-texto{
+  font-size: 24px;
+  font-weight: 200;
 }
