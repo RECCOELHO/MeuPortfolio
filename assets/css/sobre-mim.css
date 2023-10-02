@@ -6,7 +6,7 @@
 
 #sobre-mim{
     background-color:#260101f5 ;
-    height: 98vh;
+    height: 75vh;
     color: #dfdbdb;
     padding: 1px;
 }
@@ -17,26 +17,38 @@
     text-align: center;
     font-family: 'montserrat';
     font-size: 40px;
-    color: #dfdbdb;
-    background-color: black;
+    color: #111111;
+    background-color: rgb(255, 255, 255);
     border-radius: 16px;
     width: 90%;
-    height: 700px;
+    height: 600px;
     padding: 10px;
-    display: inline-block;
-
 }
 
 .sobre-mim-escrito-titulo{
   font-size: 40px;
-  font-weight: 300;
+  font-weight: 450;
   margin: 10px;
 }
+
+.sobre-mim-escrito-container{
+  display: flex; /* Usando flexbox para organizar os elementos */
+  align-items: center; /* Alinhar verticalmente no centro */
+  padding: 20px;
+
+}
+
+
 .sobre-mim-escrito-imagem{
   border-radius: 10px;
+  height: auto; /* Isso manterá a proporção da imagem */
+  width: 700px;
 }
 
 .sobre-mim-escrito-texto{
   font-size: 24px;
-  font-weight: 200;
+  font-weight: 350;
+  margin-left: 30px;
+  text-align: left;
+
 }
