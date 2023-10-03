@@ -1,9 +1,9 @@
 
 # [Portfolio e Experiências Profissionais ](https://meu-portfolio-jvdkezh62-reccoelhos-projects.vercel.app/)
 
-![logo tipo para twitch moderno rosa branco ](https://github.com/RECCOELHO/MeuPortfolio/assets/63757384/f41df813-9739-40eb-89a3-0e6a6abd0c05)
+![logo tipo para twitch moderno rosa branco ](https://github.com/RECCOELHO/MeuPortfolio/assets/63757384/bb3bbd73-3d77-4fab-a752-ede28f5ec1b1)
 
-## Sobre Mim
+## Sobre Mim!
 
 Olá! Meu nome é Carlos Jessé e este é o README do meu portfolio, onde apresento minhas experiências profissionais e projetos desenvolvidos ao longo da minha carreira. Sou um Analista de Sistemas com paixão por Desenvolvimento e aprender sempre.
 
