@@ -1,0 +1,36 @@
+@font-face {
+    font-family: 'emoji';
+    src: url(fonts/NotoColorEmoji-Regular.ttf);
+  }
+  @font-face{
+    font-family: 'montserrat';
+    src: url(../../fonts/Montserrat-VariableFont_wght.ttf);
+
+}
+
+
+footer{
+    width: 100%;
+    height: 100%;
+    font-family: 'montserrat';
+    color: grey;
+}
+
+.conteriner-footer{
+    text-align: center;
+    align-items: center;
+    background-color:#260101f5;
+    color: aliceblue;
+    padding: 13px;
+
+}
+
+.conteriner-footer-meunome{
+    font-weight: 700 ;
+    font-size: 30px;
+
+}
+
+.conteriner-footer-escrito{
+    margin: 1px;
+}
