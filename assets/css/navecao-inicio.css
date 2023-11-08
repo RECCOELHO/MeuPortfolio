@@ -96,7 +96,7 @@
     padding: 18px;
 }
 
-@media (max-width: 768px) {
+@media screen and (max-width: 850px) {
     .menu {
         display: flex;
         flex-direction: row; 
@@ -128,6 +128,98 @@
         color: #f8f0f0;
         justify-content: space-around;
         font-size: 14px;
+    
+    }
+    
+    
+    .menu-barra-inicio{
+        padding: 15px;
+        border-left: 1px solid #ccc; /* Adiciona uma linha divisória na parte inferior */
+        color: aliceblue;
+        text-decoration: none;
+    }
+    
+    .menu-barra-inicio:hover{
+        color: #A67063 ;
+        text-transform: uppercase;
+        padding: 18px;
+    }
+    
+    .menu-barra-sobremim{
+        padding: 15px;
+        border-left: 1px solid #ccc; /* Adiciona uma linha divisória na parte inferior */
+        color: aliceblue;
+        text-decoration: none;
+    }
+    
+    .menu-barra-sobremim:hover{
+        color: #A67063 ;
+        text-transform: uppercase;
+        padding: 18px;
+    }
+    
+    .menu-barra-projeto{
+        padding: 15px;
+        border-left: 1px solid #ccc; /* Adiciona uma linha divisória na parte inferior */
+        color: aliceblue;
+        text-decoration: none;
+    }
+    
+    
+    .menu-barra-projeto:hover{
+        color: #A67063 ;
+        text-transform: uppercase;
+        padding: 18px;
+    }
+    
+    .menu-barra-contato{
+        padding: 15px;
+        border-left: 1px solid #ccc; /* Adiciona uma linha divisória na parte inferior */
+        border-right: 1px solid #ccc; /* Adiciona uma linha divisória na parte inferior */
+        color: aliceblue;
+        text-decoration: none;
+    }
+    
+    .menu-barra-contato:hover{
+        color: #A67063 ;
+        text-transform: uppercase;
+        padding: 18px;
+    }
+    
+  }
+
+  @media screen and (max-width: 520px) {
+    .menu {
+        display: flex;
+        flex-direction: row; 
+        align-items: center;
+        justify-content: space-around;
+        width: 100%;
+        background-color: #202020c2;
+        box-shadow: 3px 3px 3px rgba(1, 1, 1, 0.738);/* colocar uma sombra */
+        position: fixed;
+        top: 0;
+        padding: 15px;
+    }
+
+    .menu-nome{
+        font-family: "montserrat";
+        font-size: 13px;
+        font-weight: bold;
+        color: #f8f0f0;
+        
+    }
+    .menu-nome-sobre{
+        font-size: 10px;
+        font-weight: 500;
+    
+    }
+    
+    .menu-barra{
+        font-family: "montserrat";
+        color: #f8f0f0;
+        justify-content: space-around;
+        font-size: 10px;
     
     }
     
