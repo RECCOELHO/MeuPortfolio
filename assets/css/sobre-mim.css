@@ -7,7 +7,6 @@
 #sobre-mim{
     background-color:#260101f5 ;
     height: 75vh;
-    color: #dfdbdb;
     padding: 1px;
 }
 
@@ -51,4 +50,189 @@
   margin-left: 30px;
   text-align: left;
 
+}
+
+
+/* ------------diminuindo ------------- */
+
+@media screen and (max-width: 1600px){
+  #sobre-mim{
+    background-color:#260101f5 ;
+    height: 70vh;
+    padding: 1px;
+}
+
+.sobre-mim-escrito-titulo{
+  font-size: 35px;
+  font-weight: 450;
+  margin: 10px;
+}
+
+
+  .sobre-mim-escrito-imagem{
+    border-radius: 10px;
+    height: auto; /* Isso manterá a proporção da imagem */
+    width: 400px;
+  }
+
+  .sobre-mim-escrito-texto{
+    font-size: 20px;
+    font-weight: 350;
+    margin-left: 30px;
+    text-align: left;
+  
+  }
+  .sobre-mim-escrito{
+    margin-top: 50px;
+    margin-left: 3%;
+    text-align: center;
+    font-family: 'montserrat';
+    font-size: 40px;
+    color: #111111;
+    background-color: rgb(255, 255, 255);
+    border-radius: 16px;
+    width: 90%;
+    height: 500px;
+    padding: 10px;
+}
+}
+
+/* ------------diminuindo ------------- */
+
+@media screen and (max-width: 1300px){
+  #sobre-mim{
+    background-color:#260101f5 ;
+    height: 70vh;
+    padding: 1px;
+}
+.sobre-mim-escrito-titulo{
+  font-size: 30px;
+  font-weight: 450;
+  margin: 10px;
+}
+
+  .sobre-mim-escrito-imagem{
+    border-radius: 10px;
+    height: auto; /* Isso manterá a proporção da imagem */
+    width: 300px;
+  }
+
+  .sobre-mim-escrito-texto{
+    font-size: 17px;
+    font-weight: 350;
+    margin-left: 30px;
+    text-align: left;
+  
+  }
+  .sobre-mim-escrito{
+    margin-top: 50px;
+    margin-left: 3%;
+    text-align: center;
+    font-family: 'montserrat';
+    font-size: 40px;
+    color: #111111;
+    background-color: rgb(255, 255, 255);
+    border-radius: 16px;
+    width: 90%;
+    height: 500px;
+    padding: 10px;
+}
+}
+
+/* ------------diminuindo ------------- */
+
+@media screen and (max-width: 860px){
+  #sobre-mim{
+    background-color:#260101f5 ;
+    height: 66vh;
+    padding: 1px;
+}
+
+.sobre-mim-escrito-container{
+  display: inline; /* Usando flexbox para organizar os elementos */
+  align-items: center; /* Alinhar verticalmente no centro */
+  padding: 20px;
+
+}
+.sobre-mim-escrito-titulo{
+  font-size: 25px;
+  font-weight: 450;
+  margin: 10px;
+}
+
+  .sobre-mim-escrito-imagem{
+    border-radius: 10px;
+    height: auto; /* Isso manterá a proporção da imagem */
+    width: 50%;
+  }
+
+  .sobre-mim-escrito-texto{
+    font-size: 15px;
+    font-weight: 350;
+    margin-left: 30px;
+    text-align: left;
+  
+  }
+  .sobre-mim-escrito{
+    margin-top: 50px;
+    margin-left: 3%;
+    text-align: center;
+    font-family: 'montserrat';
+    font-size: 40px;
+    color: #111111;
+    background-color: rgb(255, 255, 255);
+    border-radius: 16px;
+    width: 90%;
+    height: 500px;
+    padding: 10px;
+}
+}
+
+/* ------------diminuindo ------------- */
+
+@media screen and (max-width: 600px){
+  #sobre-mim{
+    background-color:#260101f5 ;
+    height: 66vh;
+    padding: 1px;
+}
+
+.sobre-mim-escrito-container{
+  display: inline; /* Usando flexbox para organizar os elementos */
+  align-items: center; /* Alinhar verticalmente no centro */
+  padding: 20px;
+
+}
+.sobre-mim-escrito-titulo{
+  font-size: 25px;
+  font-weight: 450;
+  margin: 10px;
+}
+
+  .sobre-mim-escrito-imagem{
+    border-radius: 10px;
+    height: auto; /* Isso manterá a proporção da imagem */
+    width: 50%;
+  }
+
+  .sobre-mim-escrito-texto{
+    font-size: 13.5px;
+    font-weight: 350;
+    margin-left: 30px;
+    text-align: left;
+  
+  }
+  .sobre-mim-escrito{
+    margin-top: 50px;
+    margin-left: 3%;
+    text-align: center;
+    font-family: 'montserrat';
+    font-size: 40px;
+    color: #111111;
+    background-color: rgb(255, 255, 255);
+    border-radius: 16px;
+    width: 90%;
+    height: 500px;
+    padding: 10px;
+}
 }
