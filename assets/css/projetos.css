@@ -27,7 +27,7 @@
     background-color: aliceblue;
     height: 300px;
     border-radius: 30px;
-    
+    margin-bottom: 20px;
 }
 
 .projetos-fundo-espaço-projeto-embreve{
@@ -41,8 +41,101 @@
 }
 
 .projetos-fundo-espaço-projeto-imagem{
+    height: 100%;
+    width: 100%;
     border-radius: 30px;
-    width: 520px;
-    height: 310px;
 }
 
+
+/* ------------diminuindo ------------- */
+
+@media screen and (max-width: 1600px){
+
+    .projetos-fundo-espaço-projeto {
+        display: inline-block; /* Exibe as divs lado a lado */
+        width: 25%; /* Define a largura desejada para cada div, ajuste conforme necessário */
+        margin: 20px; /* Define uma margem para espaçamento entre as divs, ajuste conforme necessário */
+        margin-top: 40px;
+        vertical-align: top; /* Alinha as divs superiormente */
+        background-color: aliceblue;
+        height: 300px;
+        border-radius: 30px;
+        margin-bottom: 20px;
+    }
+}
+
+.projetos-fundo{
+    margin-top: 40px;
+    margin-left: 3%;
+    text-align: center;
+    font-family: 'montserrat';
+    font-size: 40px;
+    color: #e6e3e3;
+    background-color: #1111119d;
+    border-radius: 16px;
+    width: 90%;
+    height: 450px;
+    padding: 10px;
+
+}
+
+/* ------------diminuindo ------------- */
+
+@media screen and (max-width: 860px){
+
+    .projetos{
+        background-color:#8F3938 ;
+        height: 53vh;
+        padding: 1px;
+    }
+
+
+    .projetos-fundo-espaço-projeto {
+        display: inline-block; /* Exibe as divs lado a lado */
+        width: 20%; /* Define a largura desejada para cada div, ajuste conforme necessário */
+        margin: 20px; /* Define uma margem para espaçamento entre as divs, ajuste conforme necessário */
+        margin-top: 40px;
+        vertical-align: top; /* Alinha as divs superiormente */
+        background-color: aliceblue;
+        height: 250px;
+        border-radius: 30px;
+        margin-bottom: 20px;
+    }
+    .projetos-fundo{
+        width: 90%;
+        height: 350px;
+    }
+
+
+}
+
+/* ------------diminuindo ------------- */
+
+@media screen and (max-width: 740px){
+
+    .projetos{
+        background-color:#8F3938 ;
+        height: 53vh;
+        padding: 1px;
+    }
+
+    .projetos-fundo-espaço-projeto {
+        display: block; /* Exibe as divs lado a lado */
+        width: 20%; /* Define a largura desejada para cada div, ajuste conforme necessário */
+        margin: 20px; /* Define uma margem para espaçamento entre as divs, ajuste conforme necessário */
+        margin-top: 40px;
+        vertical-align: center; /* Alinha as divs superiormente */
+        background-color: aliceblue;
+        height: 250px;
+        border-radius: 30px;
+        margin-bottom: 20px;
+        align-items: center;
+        text-align: center;
+    }
+
+    .projetos-fundo{
+        width: 90%;
+        height: 350px;
+    }
+
+}
