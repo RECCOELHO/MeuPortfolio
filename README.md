@@ -20,16 +20,14 @@ Neste portfolio, você encontrará uma seleção de trabalhos e projetos que dem
 
 ## Projetos Destacados
 
-### Aprenda Libras
+### Pagina de Entrada Coelho Cast
 
-- **Descrição:** E literalmente uma copia do duolingo para aprender Libras
+- **Descrição:** É uma pagina de apresentação com os links do podcast
 - **Minha Contribuição:** Idealizador e Programador
-- **Tecnologias Utilizadas:** Por enquanto JavaScript HTML5 e CCS3
-- **Resultado/Resultado:** Ainda nao terminei
+- **Tecnologias Utilizadas:** Por enquanto HTML5 e CCS3
+- **Resultado/Resultado:** Sempre Atualizando este Projeto
 
 
-
-*Repita essa estrutura para alguns dos projetos mais relevantes do seu portfolio.*
 
 ## Formação Acadêmica
 
