@@ -37,8 +37,6 @@ Neste portfolio, você encontrará uma seleção de trabalhos e projetos que dem
 - **Período:** 2021- 2023 .
 - **Descrição:** Projetos e certificados importantes para o inicio de uma carreira.
 
-*Repita essa estrutura para outras formações acadêmicas relevantes, como cursos complementares ou certificações.*
-
 ## Contato
 
 - **E-mail:** tv.coelho01@gmail.com
