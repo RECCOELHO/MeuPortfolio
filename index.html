@@ -339,20 +339,186 @@
             50%      { opacity: 1;   transform: scale(1.8); }
         }
 
-        /* RESPONSIVE */
+        /* ============================================================
+           BOTÃO HAMBÚRGUER (as três risquinhas)
+           Por padrão ele fica ESCONDIDO no computador (display: none)
+           Só aparece no celular, lá embaixo no @media
+        ============================================================ */
+        .hamburger {
+            display: none;           /* Escondido no desktop */
+            flex-direction: column;  /* As três barras empilhadas verticalmente */
+            gap: 5px;                /* Espaço entre cada barra */
+            cursor: pointer;         /* Muda o cursor para "mãozinha" ao passar por cima */
+            padding: 6px;            /* Área de clique um pouco maior */
+            background: none;        /* Sem fundo */
+            border: none;            /* Sem borda */
+            z-index: 200;            /* Fica na frente de tudo */
+        }
+
+        /* Cada uma das três barrinhas do hambúrguer */
+        .hamburger span {
+            display: block;
+            width: 24px;             /* Largura da barrinha */
+            height: 2px;             /* Altura (espessura) da barrinha */
+            background: var(--cream); /* Cor branca-creme, igual ao resto do site */
+            border-radius: 2px;
+            /* Transition = animação suave quando as barras viram um X */
+            transition: transform 0.35s ease, opacity 0.35s ease, width 0.35s ease;
+        }
+
+        /* 
+           Quando o menu está ABERTO (classe "aberto" adicionada pelo JavaScript),
+           as três barras se transformam em um X:
+           - A primeira barra gira +45 graus
+           - A do meio some (fica invisível)
+           - A última gira -45 graus
+        */
+        .hamburger.aberto span:nth-child(1) {
+            transform: translateY(7px) rotate(45deg);  /* Sobe e gira */
+        }
+        .hamburger.aberto span:nth-child(2) {
+            opacity: 0;               /* Some */
+            width: 0;                 /* Encolhe */
+        }
+        .hamburger.aberto span:nth-child(3) {
+            transform: translateY(-7px) rotate(-45deg); /* Desce e gira no sentido contrário */
+        }
+
+        /* ============================================================
+           MENU DROPDOWN MOBILE (a gaveta que abre ao clicar no hambúrguer)
+           Por padrão fica escondido (height: 0, overflow: hidden)
+        ============================================================ */
+        .mobile-menu {
+            display: none;               /* Escondido no desktop */
+            position: fixed;             /* Fixo na tela, não rola com o conteúdo */
+            top: 72px;                   /* Começa logo abaixo da navbar (que tem 72px de altura) */
+            left: 0; right: 0;           /* Ocupa toda a largura */
+            background: rgba(13,6,8,0.98); /* Fundo bem escuro, quase igual ao fundo do site */
+            backdrop-filter: blur(20px); /* Efeito de vidro fosco atrás */
+            border-bottom: 1px solid var(--border);
+            z-index: 99;                 /* Fica na frente do conteúdo, mas atrás da navbar */
+            /* Estado inicial: fechado (altura zero, conteúdo invisível) */
+            max-height: 0;
+            overflow: hidden;
+            /* Animação suave ao abrir/fechar */
+            transition: max-height 0.4s ease, opacity 0.4s ease;
+            opacity: 0;
+        }
+
+        /* Quando a classe "aberto" é adicionada pelo JavaScript, o menu aparece */
+        .mobile-menu.aberto {
+            max-height: 500px;  /* Altura máxima quando aberto (pode ser qualquer valor grande) */
+            opacity: 1;
+        }
+
+        /* Lista de links dentro do menu mobile */
+        .mobile-menu ul {
+            list-style: none;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column; /* Links um embaixo do outro */
+            gap: 0;
+        }
+
+        /* Cada item do menu mobile */
+        .mobile-menu ul li {
+            border-bottom: 1px solid var(--border); /* Linha separadora entre os links */
+        }
+        .mobile-menu ul li:last-child {
+            border-bottom: none; /* O último item não tem linha embaixo */
+        }
+
+        /* Os links em si dentro do menu mobile */
+        .mobile-menu ul a {
+            display: block;          /* Ocupa toda a largura, fácil de clicar */
+            padding: 1rem 0.5rem;    /* Área de clique confortável para o dedo */
+            color: var(--muted);
+            text-decoration: none;
+            font-size: 0.85rem;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            transition: color 0.3s, padding-left 0.3s;
+        }
+
+        /* Efeito ao passar o dedo/mouse: fica branco e desloca um pouco */
+        .mobile-menu ul a:hover {
+            color: var(--cream);
+            padding-left: 1rem; /* Pequeno deslocamento para a direita */
+        }
+
+        /* ============================================================
+           FOTO NO MOBILE
+           No celular, vamos mostrar a foto DENTRO da seção hero-left,
+           logo acima dos textos. Criamos um bloco específico para isso.
+        ============================================================ */
+        .hero-photo-mobile {
+            display: none;           /* Escondido no desktop (a foto do desktop já aparece) */
+            justify-content: center; /* Centraliza a foto horizontalmente */
+            margin-bottom: 2.5rem;   /* Espaço abaixo da foto antes do texto */
+        }
+
+        /* A foto em si no mobile */
+        .hero-photo-mobile img {
+            width: 160px;            /* Tamanho menor, adequado para celular */
+            height: 160px;
+            object-fit: cover;       /* Recorta a imagem sem distorcer */
+            border-radius: 50%;      /* Deixa REDONDA (círculo perfeito) */
+            /* Borda vermelha ao redor da foto circular */
+            border: 3px solid var(--red-bright);
+            /* Sombra suave com tom vermelho */
+            box-shadow: 0 0 0 6px rgba(217,64,64,0.15), 0 8px 32px rgba(0,0,0,0.5);
+        }
+
+        /* ============================================================
+           RESPONSIVE - tudo aqui dentro só vale para telas
+           com largura de até 900px (celulares e tablets pequenos)
+        ============================================================ */
         @media (max-width: 900px) {
+
+            /* Ajusta o padding da navbar no mobile */
             nav { padding: 0 1.5rem; }
+
+            /* MOSTRA o botão hambúrguer no mobile */
+            .hamburger { display: flex; }
+
+            /* MOSTRA o menu dropdown mobile (mas começa fechado via max-height: 0) */
+            .mobile-menu { display: block; }
+
+            /* ESCONDE os links normais da navbar no mobile
+               (eles foram substituídos pelo menu hambúrguer) */
+            .nav-links { display: none; }
+
+            /* Hero vira uma coluna única no mobile (antes eram duas colunas lado a lado) */
             .hero { grid-template-columns: 1fr; }
-            .hero-left { padding: 4rem 1.5rem; }
+
+            /* Ajusta o padding da seção de texto do hero */
+            .hero-left { padding: 3rem 1.5rem 4rem; }
+
+            /* Remove o elemento decorativo que cria o efeito diagonal
+               (não fica bem em telas pequenas) */
             .hero-left::after { display: none; }
+
+            /* ESCONDE o painel vermelho da direita (que continha a foto grande)
+               no mobile não precisamos dele, pois a foto circular já aparece acima */
             .hero-right { display: none; }
+
+            /* MOSTRA a foto circular mobile */
+            .hero-photo-mobile { display: flex; }
+
+            /* Stats (os 4 números): vira 2 colunas no mobile (antes eram 4) */
             .stats { grid-template-columns: repeat(2, 1fr); }
             .stat { border-bottom: 1px solid var(--border); }
+
+            /* Sobre mim: vira uma coluna (antes eram duas) */
             .about { grid-template-columns: 1fr; }
             .about-left, .about-right { padding: 4rem 1.5rem; }
+
+            /* Projetos: vira uma coluna */
             .projects { padding: 5rem 1.5rem; }
             .projects-grid { grid-template-columns: 1fr; }
             .projects-header { flex-direction: column; align-items: flex-start; gap: 1rem; }
+
+            /* Footer: itens empilhados verticalmente */
             footer { padding: 3rem 1.5rem 1.5rem; }
             .footer-top { flex-direction: column; gap: 2rem; }
         }
@@ -361,24 +527,56 @@
 <body>
 
     <nav>
+        <!-- Nome e cargo — sempre visível em qualquer tela -->
         <div class="nav-identity">
             <div class="nav-name">Carlos Jessé</div>
             <div class="nav-role">Analista de Sistemas</div>
         </div>
+
+        <!-- Links normais — aparecem APENAS no desktop (somem no celular via CSS) -->
         <ul class="nav-links">
             <li><a href="#">Início</a></li>
             <li><a href="#sobre-mim">Sobre mim</a></li>
             <li><a href="#projetos">Projetos</a></li>
             <li><a href="https://linktr.ee/CarlosJesse" target="_blank">Contato</a></li>
-            <li><a href="indexversao2.html" target="_blank">Versão 2</a></li>
         </ul>
+
+        <!-- BOTÃO HAMBÚRGUER — aparece APENAS no celular (escondido no desktop via CSS)
+             id="btn-hamburger" é o apelido que o JavaScript usa para encontrar este botão -->
+        <button class="hamburger" id="btn-hamburger" aria-label="Abrir menu">
+            <span></span> <!-- Primeira barrinha -->
+            <span></span> <!-- Segunda barrinha (do meio) -->
+            <span></span> <!-- Terceira barrinha -->
+        </button>
     </nav>
+
+    <!-- MENU MOBILE — a gaveta que abre ao clicar no hambúrguer.
+         Começa fechado (max-height: 0) e abre quando o JavaScript
+         adiciona a classe "aberto" neste elemento. -->
+    <div class="mobile-menu" id="mobile-menu">
+        <ul>
+            <!-- onclick="fecharMenu()" faz o menu fechar quando você clica em um link -->
+            <li><a href="#"           onclick="fecharMenu()">Início</a></li>
+            <li><a href="#sobre-mim"  onclick="fecharMenu()">Sobre mim</a></li>
+            <li><a href="#projetos"   onclick="fecharMenu()">Projetos</a></li>
+            <li><a href="https://linktr.ee/CarlosJesse" target="_blank" onclick="fecharMenu()">Contato ↗</a></li>
+        </ul>
+    </div>
 
     <!-- HERO -->
     <section class="hero">
         <div class="hero-left">
             <div class="hero-accent-line"></div>
             <div class="hero-text">
+
+                <!-- FOTO CIRCULAR — aparece APENAS no celular (display: none no desktop)
+                     É um bloco extra só para mobile. No desktop a foto já aparece
+                     no painel vermelho da direita (.hero-right). -->
+                <div class="hero-photo-mobile">
+                    <!-- É a mesma imagem da foto principal, só muda o tamanho e o estilo -->
+                    <img src="assets/img/2d19f0ff-daeb-4d4c-868a-afba22a140ea.jpg" alt="Carlos Jessé">
+                </div>
+
                 <div class="hero-greeting">Desenvolvedor Full-Stack</div>
                 <h1 class="hero-hello">Hello<br><em>World!</em></h1>
                 <div class="hero-tagline">Seja bem-vindo ao meu portfólio.</div>
@@ -510,26 +708,80 @@
     </footer>
 
     <script>
-        // Scroll reveal
-        const reveals = document.querySelectorAll('.reveal');
-        const obs = new IntersectionObserver(entries => {
-            entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
-        }, { threshold: 0.1 });
-        reveals.forEach(el => obs.observe(el));
+        /* ============================================================
+           JAVASCRIPT — a "inteligência" do site
+           Aqui ficam todas as ações que acontecem quando o usuário
+           clica, rola a página, etc.
+        ============================================================ */
 
-        // Skill bars
-        const skillsBlock = document.getElementById('skills-block');
-        const barObs = new IntersectionObserver(entries => {
-            entries.forEach(e => {
-                if (e.isIntersecting) {
-                    e.target.querySelectorAll('.skill-bar-fill').forEach(bar => {
-                        bar.style.width = bar.dataset.width + '%';
-                    });
-                    barObs.unobserve(e.target);
+
+        /* ------------------------------------------------------------
+           MENU HAMBÚRGUER
+           Pega os elementos do HTML pelo "id" que demos a eles.
+           document.getElementById('nome-do-id') = "encontre isso no HTML"
+        ------------------------------------------------------------ */
+        const btnHamburger = document.getElementById('btn-hamburger'); // O botão das três risquinhas
+        const mobileMenu   = document.getElementById('mobile-menu');   // A gaveta do menu
+
+        /* Quando o botão hambúrguer for CLICADO, executa essa função */
+        btnHamburger.addEventListener('click', function() {
+
+            /* toggle('aberto') = se não tem a classe "aberto", adiciona;
+               se já tem, remove. É como um interruptor de liga/desliga. */
+            btnHamburger.classList.toggle('aberto'); // Anima as barras virando X (ou voltando)
+            mobileMenu.classList.toggle('aberto');   // Abre ou fecha o menu
+        });
+
+        /* Função chamada pelos links do menu mobile (via onclick="fecharMenu()")
+           Fecha o menu quando o usuário clica em um link para ir a outra seção */
+        function fecharMenu() {
+            btnHamburger.classList.remove('aberto'); // Remove a classe — barras voltam ao normal
+            mobileMenu.classList.remove('aberto');   // Remove a classe — menu fecha
+        }
+
+
+        /* ------------------------------------------------------------
+           SCROLL REVEAL
+           Faz os elementos aparecerem com animação quando você rola
+           a página e eles entram na tela.
+           IntersectionObserver = "avise-me quando esse elemento aparecer na tela"
+        ------------------------------------------------------------ */
+        const reveals = document.querySelectorAll('.reveal'); // Pega todos elementos com classe "reveal"
+
+        const obs = new IntersectionObserver(function(entries) {
+            entries.forEach(function(entry) {
+                /* entry.isIntersecting = true quando o elemento está visível na tela */
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible'); // Adiciona "visible" → dispara a animação CSS
                 }
             });
-        }, { threshold: 0.3 });
-        if (skillsBlock) barObs.observe(skillsBlock);
+        }, { threshold: 0.1 }); // threshold: 0.1 = anima quando 10% do elemento está visível
+
+        /* Registra cada elemento para ser observado */
+        reveals.forEach(function(el) { obs.observe(el); });
+
+
+        /* ------------------------------------------------------------
+           BARRAS DE HABILIDADE (skill bars)
+           As barras preenchem quando a seção entra na tela.
+           Mesma lógica do IntersectionObserver acima.
+        ------------------------------------------------------------ */
+        const skillsBlock = document.getElementById('skills-block'); // A div que contém todas as barras
+
+        const barObs = new IntersectionObserver(function(entries) {
+            entries.forEach(function(entry) {
+                if (entry.isIntersecting) {
+                    /* Pega todas as barras dentro do bloco e define a largura delas
+                       usando o valor do atributo data-width que colocamos no HTML */
+                    entry.target.querySelectorAll('.skill-bar-fill').forEach(function(bar) {
+                        bar.style.width = bar.dataset.width + '%'; // ex: data-width="90" → width: 90%
+                    });
+                    barObs.unobserve(entry.target); // Para de observar — a animação já rodou
+                }
+            });
+        }, { threshold: 0.3 }); // Anima quando 30% da seção está visível
+
+        if (skillsBlock) barObs.observe(skillsBlock); // Só observa se o elemento existir na página
     </script>
 </body>
 </html>
