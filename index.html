@@ -1,113 +1,535 @@
 <!DOCTYPE html>
 <html lang="pt-br">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <link rel="stylesheet" href="assets/css/navecao-inicio.css">
-        <link rel="stylesheet" href="assets/css/primeiratela.css">
-        <link rel="stylesheet" href="assets/css/sobre-mim.css">
-        <link rel="stylesheet" href="assets/css/projetos.css">
-        <link rel="stylesheet" href="assets/css/rodape.css">
-        <link rel="shortcut icon" href="assets/img/favicon.ico" type="image/x-icon">
-        <style>
-            /* Seletor para a classe estilo-de-arraste */
-        .estilo-de-arraste {
-            font-style: italic;
-            color: burlywood;
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Carlos Jessé — Full-Stack Developer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --deep:       #0d0608;
+            --dark:       #1a0a0d;
+            --red:        #8b1a1a;
+            --red-mid:    #b52828;
+            --red-bright: #d94040;
+            --salmon:     #c96b5a;
+            --cream:      #f0e6e0;
+            --muted:      rgba(240,230,224,0.5);
+            --border:     rgba(255,255,255,0.08);
         }
 
-        </style>
+        html { scroll-behavior: smooth; }
 
-        <title>Home - Carlos Jessé</title>
-    </head>
-    <body>
-        <!-- menu -->
-        <div class="menu">
-            <div class="menu-nome">Carlos Jessé <br> <div class="menu-nome-sobre"> Analista de Sistemas</div></div>
-            <nav class="menu-barra">
-                <a class="menu-barra-inicio" href="index.html">Inicio</a>
-                <a class="menu-barra-sobremim" href="#sobre-mim">Sobre mim</a>
-                <a class="menu-barra-projeto" href="#projetos">Projetos</a>
-                <a class="menu-barra-contato" href="https://linktr.ee/CarlosJesse" target="_blank">Contato</a> 
-            </nav>
+        body {
+            background: var(--deep);
+            color: var(--cream);
+            font-family: 'Outfit', sans-serif;
+            overflow-x: hidden;
+        }
+
+        ::-webkit-scrollbar { width: 3px; }
+        ::-webkit-scrollbar-track { background: var(--deep); }
+        ::-webkit-scrollbar-thumb { background: var(--red-mid); }
+
+        /* NAV */
+        nav {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 3rem;
+            height: 72px;
+            background: linear-gradient(to right, rgba(13,6,8,0.97) 55%, rgba(139,26,26,0.85) 100%);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border);
+        }
+        .nav-identity { display: flex; flex-direction: column; }
+        .nav-name {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.25rem; font-weight: 700;
+            letter-spacing: 0.01em; line-height: 1.2;
+        }
+        .nav-role {
+            font-size: 0.7rem; color: var(--salmon);
+            letter-spacing: 0.12em; text-transform: uppercase; font-weight: 400;
+        }
+        .nav-links {
+            display: flex; align-items: center; gap: 0;
+            list-style: none;
+            border: 1px solid var(--border);
+            border-radius: 2px; overflow: hidden;
+        }
+        .nav-links li { border-right: 1px solid var(--border); }
+        .nav-links li:last-child { border-right: none; }
+        .nav-links a {
+            display: block; padding: 0.55rem 1.4rem;
+            font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase;
+            color: var(--muted); text-decoration: none;
+            transition: background 0.3s, color 0.3s;
+        }
+        .nav-links a:hover { background: rgba(181,40,40,0.25); color: var(--cream); }
+
+        /* HERO */
+        .hero {
+            min-height: 100vh;
+            display: grid; grid-template-columns: 1fr 1fr;
+            position: relative; overflow: hidden;
+            padding-top: 72px;
+        }
+        .hero-left {
+            background: linear-gradient(135deg, var(--deep) 0%, #1c0a0e 100%);
+            padding: 5rem 3rem 5rem 4rem;
+            display: flex; flex-direction: column; justify-content: center;
+            position: relative; z-index: 2;
+        }
+        .hero-left::after {
+            content: '';
+            position: absolute; top: 0; right: -80px; bottom: 0; width: 160px;
+            background: inherit;
+            clip-path: polygon(0 0, 50% 0, 100% 100%, 0 100%);
+            z-index: 1;
+        }
+        .hero-right {
+            background: linear-gradient(135deg, var(--red) 0%, var(--salmon) 60%, #e08060 100%);
+            display: flex; align-items: center; justify-content: center;
+            position: relative; overflow: hidden;
+        }
+        .hero-right::before {
+            content: ''; position: absolute; inset: 0;
+            background:
+                radial-gradient(ellipse at 30% 50%, rgba(13,6,8,0.45) 0%, transparent 65%),
+                radial-gradient(ellipse at 90% 20%, rgba(255,200,150,0.15) 0%, transparent 50%);
+        }
+        .hero-accent-line {
+            position: absolute; left: 0; top: 20%; bottom: 20%; width: 3px;
+            background: linear-gradient(to bottom, transparent, var(--red-bright), transparent);
+        }
+        .hero-text { position: relative; z-index: 2; }
+
+        .hero-greeting {
+            font-size: 0.7rem; letter-spacing: 0.25em; text-transform: uppercase;
+            color: var(--red-bright); margin-bottom: 1rem;
+            opacity: 0; animation: slideUp 0.7s 0.3s forwards;
+        }
+        .hero-greeting::before { content: '—  '; opacity: 0.5; }
+
+        .hero-hello {
+            font-family: 'Playfair Display', serif;
+            font-size: clamp(3rem, 5.5vw, 5rem);
+            font-weight: 900; line-height: 1.0; letter-spacing: -0.02em;
+            margin-bottom: 0.3rem;
+            opacity: 0; animation: slideUp 0.7s 0.45s forwards;
+        }
+        .hero-hello em { font-style: italic; color: var(--red-bright); }
+
+        .hero-tagline {
+            font-family: 'Playfair Display', serif;
+            font-size: clamp(1.1rem, 2vw, 1.6rem);
+            font-weight: 700; font-style: italic; color: var(--salmon);
+            margin-bottom: 2rem;
+            opacity: 0; animation: slideUp 0.7s 0.6s forwards;
+        }
+
+        .hero-desc {
+            font-size: 0.88rem; line-height: 1.85; color: var(--muted);
+            max-width: 460px; margin-bottom: 2.5rem; font-weight: 300;
+            opacity: 0; animation: slideUp 0.7s 0.75s forwards;
+        }
+
+        .hero-actions {
+            display: flex; gap: 1rem; align-items: center;
+            opacity: 0; animation: slideUp 0.7s 0.9s forwards;
+        }
+        .btn-red {
+            display: inline-flex; align-items: center; gap: 0.5rem;
+            background: linear-gradient(135deg, var(--red-mid), var(--red-bright));
+            color: var(--cream);
+            padding: 0.8rem 1.8rem;
+            font-family: 'Outfit', sans-serif; font-size: 0.75rem;
+            letter-spacing: 0.1em; text-transform: uppercase; font-weight: 500;
+            text-decoration: none; border-radius: 2px;
+            transition: transform 0.25s, box-shadow 0.3s, filter 0.3s;
+            box-shadow: 0 4px 24px rgba(181,40,40,0.4);
+        }
+        .btn-red:hover { transform: translateY(-3px); box-shadow: 0 8px 32px rgba(217,64,64,0.5); filter: brightness(1.1); }
+        .btn-ghost {
+            display: inline-flex; align-items: center; gap: 0.5rem;
+            color: var(--muted); padding: 0.8rem 1.6rem;
+            font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 500;
+            text-decoration: none; border: 1px solid var(--border); border-radius: 2px;
+            transition: color 0.3s, border-color 0.3s, transform 0.25s;
+        }
+        .btn-ghost:hover { color: var(--cream); border-color: rgba(255,255,255,0.25); transform: translateY(-3px); }
+
+        /* Photo */
+        .hero-photo-wrap {
+            position: relative; z-index: 2;
+            opacity: 0; animation: fadeIn 1s 0.9s forwards;
+        }
+        .hero-photo {
+            width: 320px; height: 400px; object-fit: cover; display: block;
+            border-radius: 6px 6px 60px 6px;
+            box-shadow: -20px 20px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.08);
+            filter: contrast(1.05) saturate(0.85);
+        }
+        .hero-photo-badge {
+            position: absolute; bottom: -12px; right: -12px;
+            background: var(--deep); border: 1px solid var(--border);
+            padding: 0.8rem 1.2rem; border-radius: 4px;
+            font-size: 0.65rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted);
+        }
+        .hero-photo-badge strong {
+            display: block; font-family: 'Playfair Display', serif;
+            font-size: 1rem; font-weight: 700; color: var(--cream);
+            font-style: italic; letter-spacing: 0;
+        }
+
+        /* STATS */
+        .stats {
+            background: linear-gradient(to right, #160a0c, #1f0d10, #160a0c);
+            border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+            display: grid; grid-template-columns: repeat(4, 1fr);
+        }
+        .stat { padding: 2.5rem 2rem; text-align: center; border-right: 1px solid var(--border); }
+        .stat:last-child { border-right: none; }
+        .stat-n {
+            font-family: 'Playfair Display', serif; font-size: 2.5rem; font-weight: 900;
+            color: var(--red-bright); line-height: 1; margin-bottom: 0.4rem;
+        }
+        .stat-l { font-size: 0.65rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--muted); }
+
+        /* SOBRE MIM */
+        .about { display: grid; grid-template-columns: 1fr 1fr; min-height: 600px; }
+        .about-left {
+            background: linear-gradient(160deg, #1a0a0d 0%, var(--deep) 100%);
+            padding: 6rem 4rem; position: relative; overflow: hidden;
+        }
+        .about-left-glow {
+            position: absolute; top: -100px; right: -100px;
+            width: 400px; height: 400px;
+            background: radial-gradient(circle, rgba(139,26,26,0.15) 0%, transparent 65%);
+            pointer-events: none;
+        }
+        .about-right {
+            background: linear-gradient(160deg, #200c0f 0%, #150608 100%);
+            padding: 6rem 4rem;
+        }
+        .section-tag {
+            display: inline-flex; align-items: center; gap: 0.7rem;
+            font-size: 0.65rem; letter-spacing: 0.2em; text-transform: uppercase;
+            color: var(--red-bright); margin-bottom: 1.5rem;
+        }
+        .section-tag::before { content: ''; display: block; width: 24px; height: 1px; background: var(--red-bright); }
+        .about-title {
+            font-family: 'Playfair Display', serif;
+            font-size: clamp(2rem, 3.5vw, 3rem); font-weight: 900; line-height: 1.15; margin-bottom: 2rem;
+        }
+        .about-title em { font-style: italic; color: var(--red-bright); }
+        .about-body { font-size: 0.85rem; line-height: 1.95; color: var(--muted); font-weight: 300; }
+        .about-body p + p { margin-top: 1rem; }
+
+        .skills-title { font-family: 'Playfair Display', serif; font-size: 1.5rem; font-weight: 700; margin-bottom: 2rem; }
+        .skill-row { margin-bottom: 1.4rem; }
+        .skill-row-top { display: flex; justify-content: space-between; margin-bottom: 0.5rem; }
+        .skill-row-name { font-size: 0.78rem; font-weight: 500; letter-spacing: 0.05em; }
+        .skill-row-pct { font-size: 0.7rem; color: var(--red-bright); font-weight: 500; }
+        .skill-bar-bg { height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; }
+        .skill-bar-fill {
+            height: 100%;
+            background: linear-gradient(to right, var(--red-mid), var(--red-bright));
+            border-radius: 2px;
+            width: 0%; transition: width 1.2s ease;
+        }
+
+        /* PROJETOS */
+        .projects { background: linear-gradient(180deg, var(--deep) 0%, #130709 100%); padding: 7rem 4rem; }
+        .projects-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 4rem; }
+        .projects-title { font-family: 'Playfair Display', serif; font-size: clamp(2rem, 3.5vw, 2.8rem); font-weight: 900; line-height: 1.2; }
+        .projects-title em { font-style: italic; color: var(--red-bright); }
+        .projects-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; }
+        .project-card {
+            border: 1px solid var(--border); border-radius: 4px; overflow: hidden;
+            background: #130709;
+            transition: transform 0.4s, border-color 0.4s, box-shadow 0.4s;
+        }
+        .project-card:hover {
+            transform: translateY(-6px);
+            border-color: rgba(181,40,40,0.4);
+            box-shadow: 0 16px 48px rgba(139,26,26,0.25);
+        }
+        .project-thumb-wrap { overflow: hidden; position: relative; }
+        .project-thumb {
+            width: 100%; aspect-ratio: 16/10; object-fit: cover; display: block;
+            transition: transform 0.5s; filter: saturate(0.8);
+        }
+        .project-card:hover .project-thumb { transform: scale(1.05); filter: saturate(1); }
+        .project-thumb-wrap::after {
+            content: ''; position: absolute; inset: 0;
+            background: linear-gradient(to bottom, transparent 40%, rgba(19,7,9,0.85));
+        }
+        .project-body { padding: 1.4rem; }
+        .project-num { font-size: 0.6rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--red-bright); margin-bottom: 0.5rem; }
+        .project-name { font-family: 'Playfair Display', serif; font-size: 1.1rem; font-weight: 700; margin-bottom: 0.5rem; }
+        .project-desc { font-size: 0.75rem; color: var(--muted); line-height: 1.7; margin-bottom: 1rem; font-weight: 300; }
+        .project-tags { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1rem; }
+        .ptag {
+            font-size: 0.58rem; letter-spacing: 0.08em; text-transform: uppercase;
+            padding: 0.2rem 0.55rem;
+            border: 1px solid rgba(181,40,40,0.3); color: var(--salmon); border-radius: 2px;
+        }
+        .project-link {
+            display: inline-flex; align-items: center; gap: 0.4rem;
+            font-size: 0.7rem; color: var(--red-bright); text-decoration: none;
+            letter-spacing: 0.05em; transition: gap 0.3s;
+        }
+        .project-link:hover { gap: 0.7rem; }
+        .coming-soon-block {
+            aspect-ratio: 16/10; display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            background: #0e0507; border-bottom: 1px solid var(--border); gap: 0.6rem;
+        }
+        .coming-dot {
+            width: 5px; height: 5px; border-radius: 50%; background: var(--red-mid);
+            animation: pulseDot 2s ease-in-out infinite;
+        }
+        .coming-label { font-size: 0.6rem; letter-spacing: 0.3em; text-transform: uppercase; color: var(--muted); }
+
+        /* FOOTER */
+        footer {
+            background: linear-gradient(to right, var(--deep) 55%, #1a0a0d 100%);
+            border-top: 1px solid var(--border); padding: 4rem 4rem 2rem;
+        }
+        .footer-top {
+            display: flex; justify-content: space-between; align-items: flex-start;
+            padding-bottom: 3rem; border-bottom: 1px solid var(--border); margin-bottom: 2rem;
+        }
+        .footer-cta { font-family: 'Playfair Display', serif; font-size: clamp(1.6rem, 2.8vw, 2.3rem); font-weight: 900; line-height: 1.25; }
+        .footer-cta em { font-style: italic; color: var(--red-bright); }
+        .footer-socials { display: flex; flex-direction: column; gap: 0.8rem; }
+        .social-link {
+            display: flex; align-items: center; gap: 0.8rem;
+            color: var(--muted); text-decoration: none; font-size: 0.75rem;
+            letter-spacing: 0.05em; transition: color 0.3s;
+        }
+        .social-link:hover { color: var(--cream); }
+        .social-icon {
+            width: 34px; height: 34px; border: 1px solid var(--border); border-radius: 2px;
+            display: flex; align-items: center; justify-content: center; font-size: 0.85rem;
+            background: rgba(139,26,26,0.08); transition: background 0.3s, border-color 0.3s;
+        }
+        .social-link:hover .social-icon { background: rgba(181,40,40,0.2); border-color: rgba(181,40,40,0.4); }
+        .footer-bottom { display: flex; justify-content: space-between; align-items: center; }
+        .footer-copy { font-size: 0.65rem; color: var(--muted); letter-spacing: 0.08em; }
+        .footer-copy span { color: var(--salmon); }
+
+        /* REVEAL */
+        .reveal { opacity: 0; transform: translateY(28px); transition: opacity 0.85s, transform 0.85s; }
+        .reveal.visible { opacity: 1; transform: translateY(0); }
+
+        /* KEYFRAMES */
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(22px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes pulseDot {
+            0%,100% { opacity: 0.3; transform: scale(1); }
+            50%      { opacity: 1;   transform: scale(1.8); }
+        }
+
+        /* RESPONSIVE */
+        @media (max-width: 900px) {
+            nav { padding: 0 1.5rem; }
+            .hero { grid-template-columns: 1fr; }
+            .hero-left { padding: 4rem 1.5rem; }
+            .hero-left::after { display: none; }
+            .hero-right { display: none; }
+            .stats { grid-template-columns: repeat(2, 1fr); }
+            .stat { border-bottom: 1px solid var(--border); }
+            .about { grid-template-columns: 1fr; }
+            .about-left, .about-right { padding: 4rem 1.5rem; }
+            .projects { padding: 5rem 1.5rem; }
+            .projects-grid { grid-template-columns: 1fr; }
+            .projects-header { flex-direction: column; align-items: flex-start; gap: 1rem; }
+            footer { padding: 3rem 1.5rem 1.5rem; }
+            .footer-top { flex-direction: column; gap: 2rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <nav>
+        <div class="nav-identity">
+            <div class="nav-name">Carlos Jessé</div>
+            <div class="nav-role">Analista de Sistemas</div>
         </div>
-        <!-- fim menu -->
+        <ul class="nav-links">
+            <li><a href="#">Início</a></li>
+            <li><a href="#sobre-mim">Sobre mim</a></li>
+            <li><a href="#projetos">Projetos</a></li>
+            <li><a href="https://linktr.ee/CarlosJesse" target="_blank">Contato</a></li>
+            <li><a href="indexversao2.html" target="_blank">Versão 2</a></li>
+        </ul>
+    </nav>
 
-        <!-- primeira tela -->
-        <div class="telaInicial"> 
-            <div class="telaInicial-escrito" id="meuTexto"  draggable="true">
-                <div class="telaInicial-escrito-apresentacao1 animated-div" >Hello World!</div>
-                <div class="telaInicial-escrito-apresentacao2 animated-div2">Seja bem vindo.</div>
-                <div class="telaInicial-escrito-apresentacao3 animated-div3">Sou Carlos Jessé, um Desenvolvedor Full-stack, e este é o meu portfólio. Nele, você pode explorar meu trabalho e os projetos em que tenho trabalhado ou estou envolvido. Sinta-se à vontade para entrar em contato comigo a qualquer momento</div>
-                <a href="https://www.linkedin.com/in/carlos-jess%C3%A9-coelho-da-silva-5b375a206/" rel="next" target="_blank" class="telaInicial-escrito-link">Meu linked<img src="assets/img/linkedin-footer.png" alt="" class="telaInicial-escrito-link-logo"> </a> 
+    <!-- HERO -->
+    <section class="hero">
+        <div class="hero-left">
+            <div class="hero-accent-line"></div>
+            <div class="hero-text">
+                <div class="hero-greeting">Desenvolvedor Full-Stack</div>
+                <h1 class="hero-hello">Hello<br><em>World!</em></h1>
+                <div class="hero-tagline">Seja bem-vindo ao meu portfólio.</div>
+                <p class="hero-desc">
+                    Sou Carlos Jessé, um Desenvolvedor Full-Stack. Aqui você pode explorar meu trabalho e os projetos em que tenho trabalhado ou estou envolvido. Sinta-se à vontade para entrar em contato comigo a qualquer momento.
+                </p>
+                <div class="hero-actions">
+                    <a href="#projetos" class="btn-red">Ver projetos →</a>
+                    <a href="https://www.linkedin.com/in/carlos-jess%C3%A9-coelho-da-silva-5b375a206/" target="_blank" class="btn-ghost">Meu LinkedIn ↗</a>
+                </div>
             </div>
-            <img class="telaInicial-escrito-foto" src="assets/img/2d19f0ff-daeb-4d4c-868a-afba22a140ea.jpg" alt="Foto do dono do curriculo">
-  
         </div>
+        <div class="hero-right">
+            <div class="hero-photo-wrap">
+                <img class="hero-photo" src="assets/img/2d19f0ff-daeb-4d4c-868a-afba22a140ea.jpg" alt="Carlos Jessé">
+                <div class="hero-photo-badge">
+                    Disponível para projetos<br>
+                    <strong>Carlos Jessé</strong>
+                </div>
+            </div>
+        </div>
+    </section>
 
-        <!-- fim tela inial -->
+    <!-- STATS -->
+    <div class="stats">
+        <div class="stat reveal"><div class="stat-n">4+</div><div class="stat-l">Anos de experiência</div></div>
+        <div class="stat reveal"><div class="stat-n">10+</div><div class="stat-l">Projetos entregues</div></div>
+        <div class="stat reveal"><div class="stat-n">EB</div><div class="stat-l">Exército Brasileiro</div></div>
+        <div class="stat reveal"><div class="stat-n">∞</div><div class="stat-l">Vontade de aprender</div></div>
+    </div>
 
-        <!-- sobre mim -->
-        <div id="sobre-mim">
-            <div class="sobre-mim-escrito">
-                <div class="sobre-mim-escrito-titulo">SOBRE MIM:</div>
-                <div class="sobre-mim-escrito-container">
-                    <img src="assets/img/code-1076536_1280.jpg" alt="" class="sobre-mim-escrito-imagem">
-                    <div class="sobre-mim-escrito-texto">Sou um desenvolvedor com quatro anos de experiência em Tecnologia da Informação, adquirida no Exército Brasileiro. <br> Tenho formação em Análise e Desenvolvimento de Sistemas, além de conhecimentos em manutenção de computadores, redes e eletroeletrônica pelo SENAI. <BR>Minha especialização inclui HTML, CSS, JavaScript e PHP, e estou sempre buscando aprimoramento. <br> Meu objetivo é me tornar um desenvolvedor full-stack e estou ansioso para contribuir em projetos desafiadores. <br> Sou resiliente, criativo e enfrento desafios com determinação. <br> Estou pronto para explorar oportunidades que me permitam aplicar minhas habilidades e paixão pela tecnologia, colaborando em uma equipe talentosa. <br> Vamos superar juntos novos desafios e alcançar resultados excepcionais!
+    <!-- SOBRE MIM -->
+    <div id="sobre-mim">
+        <div class="about">
+            <div class="about-left">
+                <div class="about-left-glow"></div>
+                <div class="section-tag">Sobre mim</div>
+                <h2 class="about-title reveal">Código, propósito<br>e <em>determinação.</em></h2>
+                <div class="about-body reveal">
+                    <p>Sou um desenvolvedor com quatro anos de experiência em Tecnologia da Informação, adquirida no Exército Brasileiro — um ambiente que forjou em mim resiliência, disciplina e atenção a cada detalhe.</p>
+                    <p>Tenho formação em Análise e Desenvolvimento de Sistemas, além de conhecimentos em manutenção de computadores, redes e eletroeletrônica pelo SENAI.</p>
+                    <p>Meu objetivo é me tornar um desenvolvedor full-stack completo. Sou criativo e encaro cada desafio com determinação. Pronto para explorar oportunidades e colaborar em equipes talentosas rumo a resultados excepcionais.</p>
+                </div>
+            </div>
+            <div class="about-right">
+                <div class="section-tag">Habilidades</div>
+                <h3 class="skills-title reveal">Tecnologias</h3>
+                <div class="reveal" id="skills-block">
+                    <div class="skill-row">
+                        <div class="skill-row-top"><span class="skill-row-name">HTML5</span><span class="skill-row-pct">90%</span></div>
+                        <div class="skill-bar-bg"><div class="skill-bar-fill" data-width="90"></div></div>
+                    </div>
+                    <div class="skill-row">
+                        <div class="skill-row-top"><span class="skill-row-name">CSS3</span><span class="skill-row-pct">85%</span></div>
+                        <div class="skill-bar-bg"><div class="skill-bar-fill" data-width="85"></div></div>
+                    </div>
+                    <div class="skill-row">
+                        <div class="skill-row-top"><span class="skill-row-name">JavaScript</span><span class="skill-row-pct">70%</span></div>
+                        <div class="skill-bar-bg"><div class="skill-bar-fill" data-width="70"></div></div>
+                    </div>
+                    <div class="skill-row">
+                        <div class="skill-row-top"><span class="skill-row-name">PHP</span><span class="skill-row-pct">65%</span></div>
+                        <div class="skill-bar-bg"><div class="skill-bar-fill" data-width="65"></div></div>
+                    </div>
+                    <div class="skill-row">
+                        <div class="skill-row-top"><span class="skill-row-name">Redes & Hardware</span><span class="skill-row-pct">75%</span></div>
+                        <div class="skill-bar-bg"><div class="skill-bar-fill" data-width="75"></div></div>
                     </div>
                 </div>
             </div>
         </div>
-        <!-- fim sobre mim -->
+    </div>
 
-        <!-- Projetos -->
-
-        <div class="projetos" id="projetos">
-            <div class="projetos-fundo">
-                <div class="projetos-fundo-titulo"> Meus Projetos Recentes </div>
-                <div class="projetos-fundo-espaço-projeto">
-                    <a href="https://paginadeentradacoelhocast.vercel.app/"> <img class="projetos-fundo-espaço-projeto-imagem" src="assets/img/projeto1coelhocast.png" alt="ImagemdoSiteCoelhoCast"></a>
+    <!-- PROJETOS -->
+    <div class="projects" id="projetos">
+        <div class="projects-header">
+            <div><div class="section-tag">Portfólio</div></div>
+            <h2 class="projects-title reveal">Meus projetos<br><em>mais recentes.</em></h2>
+        </div>
+        <div class="projects-grid">
+            <div class="project-card reveal">
+                <div class="project-thumb-wrap">
+                    <img class="project-thumb" src="assets/img/projeto1coelhocast.png" alt="CoelhoCast">
                 </div>
-                <div class="projetos-fundo-espaço-projeto">
-                    <div class="projetos-fundo-espaço-projeto-embreve"> EM BREVE </div>
+                <div class="project-body">
+                    <div class="project-num">001 — Projeto</div>
+                    <div class="project-name">CoelhoCast</div>
+                    <div class="project-desc">Página de entrada com HTML e CSS, focada em visual limpo e responsividade.</div>
+                    <div class="project-tags"><span class="ptag">HTML</span><span class="ptag">CSS</span><span class="ptag">Responsivo</span></div>
+                    <a href="https://paginadeentradacoelhocast.vercel.app/" target="_blank" class="project-link">Ver projeto →</a>
                 </div>
-                <div class="projetos-fundo-espaço-projeto">
-                    <div class="projetos-fundo-espaço-projeto-embreve"> EM BREVE </div>
+            </div>
+            <div class="project-card reveal">
+                <div class="coming-soon-block"><div class="coming-dot"></div><div class="coming-label">Em breve</div></div>
+                <div class="project-body">
+                    <div class="project-num">002 — Projeto</div>
+                    <div class="project-name">Novo projeto</div>
+                    <div class="project-desc">Algo novo está sendo construído. Fique de olho nas atualizações.</div>
+                </div>
+            </div>
+            <div class="project-card reveal">
+                <div class="coming-soon-block"><div class="coming-dot"></div><div class="coming-label">Em breve</div></div>
+                <div class="project-body">
+                    <div class="project-num">003 — Projeto</div>
+                    <div class="project-name">Novo projeto</div>
+                    <div class="project-desc">Mais um trabalho em desenvolvimento. Em breve disponível aqui.</div>
                 </div>
             </div>
         </div>
+    </div>
 
-        <!-- fim Projetos -->
-        
-        <!-- Roda Pé -->
-        <footer>
-            <div class="conteriner-footer">
-                <h3 class="conteriner-footer-meunome">Carlos Jessé</h3>
-                <p class="conteriner-footer-escrito">Este é meu Website e Portifolio oficial.</p>
-                <p class="conteriner-footer-escrito">Alguns dos trabalhos desenvolvidos por mim estão aqui.</p>
-                <div class="">
-
-                </div>
-                <div>
-                    <p>
-                        © Copyright
-                        <span> Carlos Jessé Coelho da Silva </span>
-                        . All Rights Reserved
-                    </p>
-                </div>
-                <div>
-                    <p>
-                        desenvolvido por 
-                        <span>
-                            <a href="index.html">Carlos Jessé</a>
-                        </span>
-                    </p>
-                </div>
+    <!-- FOOTER -->
+    <footer>
+        <div class="footer-top">
+            <h2 class="footer-cta">Vamos construir algo<br><em>incrível juntos?</em></h2>
+            <div class="footer-socials">
+                <a href="https://linktr.ee/CarlosJesse" target="_blank" class="social-link">
+                    <span class="social-icon">🌿</span> Linktree
+                </a>
+                <a href="https://www.linkedin.com/in/carlos-jess%C3%A9-coelho-da-silva-5b375a206/" target="_blank" class="social-link">
+                    <span class="social-icon">💼</span> LinkedIn
+                </a>
             </div>
-        </footer>
-        <!--fim Roda Pé -->
+        </div>
+        <div class="footer-bottom">
+            <p class="footer-copy">© 2024 <span>Carlos Jessé Coelho da Silva</span>. All Rights Reserved</p>
+            <p class="footer-copy">Desenvolvido por <span>Carlos Jessé</span></p>
+        </div>
+    </footer>
 
-        <script src="assets/js/script.js"></script> 
-    </body>
+    <script>
+        // Scroll reveal
+        const reveals = document.querySelectorAll('.reveal');
+        const obs = new IntersectionObserver(entries => {
+            entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+        }, { threshold: 0.1 });
+        reveals.forEach(el => obs.observe(el));
+
+        // Skill bars
+        const skillsBlock = document.getElementById('skills-block');
+        const barObs = new IntersectionObserver(entries => {
+            entries.forEach(e => {
+                if (e.isIntersecting) {
+                    e.target.querySelectorAll('.skill-bar-fill').forEach(bar => {
+                        bar.style.width = bar.dataset.width + '%';
+                    });
+                    barObs.unobserve(e.target);
+                }
+            });
+        }, { threshold: 0.3 });
+        if (skillsBlock) barObs.observe(skillsBlock);
+    </script>
+</body>
 </html>
-<!-- A ideia é montar o curiculo e ir atualizando deixando interativo e tudo mais. -->
