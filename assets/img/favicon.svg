@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Fundo escuro -->
+  <rect width="32" height="32" fill="#0d0608" rx="4"/>
+  
+  <!-- Borda vermelha sutil -->
+  <rect width="32" height="32" fill="none" stroke="#d94040" stroke-width="1.5" rx="4"/>
+  
+  <!-- Letra C -->
+  <text x="4" y="23" font-family="Georgia, serif" font-size="18" font-weight="700" font-style="italic" fill="#f0e6e0">C</text>
+  
+  <!-- Letra J em vermelho -->
+  <text x="16" y="23" font-family="Georgia, serif" font-size="18" font-weight="700" font-style="italic" fill="#d94040">J</text>
+  
+  <!-- Ponto decorativo vermelho no canto inferior direito -->
+  <circle cx="28" cy="28" r="2" fill="#d94040"/>
+</svg>
