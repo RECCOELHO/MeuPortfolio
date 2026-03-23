@@ -298,17 +298,29 @@
         }
         .coming-label { font-size: 0.6rem; letter-spacing: 0.3em; text-transform: uppercase; color: var(--muted); }
 
-        /* FOOTER */
+        /* ============================================================
+           FOOTER — REDESENHADO
+        ============================================================ */
         footer {
             background: linear-gradient(to right, var(--deep) 55%, #1a0a0d 100%);
-            border-top: 1px solid var(--border); padding: 4rem 4rem 2rem;
+            border-top: 1px solid var(--border);
+            padding: 4rem 4rem 0;
         }
+
+        /* Topo do footer: CTA + redes */
         .footer-top {
             display: flex; justify-content: space-between; align-items: flex-start;
-            padding-bottom: 3rem; border-bottom: 1px solid var(--border); margin-bottom: 2rem;
+            padding-bottom: 3rem; border-bottom: 1px solid var(--border);
+            margin-bottom: 2.5rem;
         }
-        .footer-cta { font-family: 'Playfair Display', serif; font-size: clamp(1.6rem, 2.8vw, 2.3rem); font-weight: 900; line-height: 1.25; }
+        .footer-cta {
+            font-family: 'Playfair Display', serif;
+            font-size: clamp(1.6rem, 2.8vw, 2.3rem);
+            font-weight: 900; line-height: 1.25;
+        }
         .footer-cta em { font-style: italic; color: var(--red-bright); }
+
+        /* Redes sociais — ícones SVG limpos */
         .footer-socials { display: flex; flex-direction: column; gap: 0.8rem; }
         .social-link {
             display: flex; align-items: center; gap: 0.8rem;
@@ -317,12 +329,49 @@
         }
         .social-link:hover { color: var(--cream); }
         .social-icon {
-            width: 34px; height: 34px; border: 1px solid var(--border); border-radius: 2px;
-            display: flex; align-items: center; justify-content: center; font-size: 0.85rem;
-            background: rgba(139,26,26,0.08); transition: background 0.3s, border-color 0.3s;
+            width: 34px; height: 34px;
+            border: 1px solid var(--border); border-radius: 2px;
+            display: flex; align-items: center; justify-content: center;
+            background: rgba(139,26,26,0.08);
+            transition: background 0.3s, border-color 0.3s;
+            flex-shrink: 0;
         }
-        .social-link:hover .social-icon { background: rgba(181,40,40,0.2); border-color: rgba(181,40,40,0.4); }
-        .footer-bottom { display: flex; justify-content: space-between; align-items: center; }
+        .social-icon svg {
+            width: 16px; height: 16px;
+            fill: currentColor;
+            color: var(--muted);
+            transition: color 0.3s;
+        }
+        .social-link:hover .social-icon {
+            background: rgba(181,40,40,0.2);
+            border-color: rgba(181,40,40,0.4);
+        }
+        .social-link:hover .social-icon svg { color: var(--cream); }
+
+        /* Navegação do rodapé */
+        .footer-nav {
+            display: flex; justify-content: center; align-items: center;
+            gap: 0; list-style: none;
+            border: 1px solid var(--border); border-radius: 2px;
+            overflow: hidden; width: fit-content;
+            margin: 0 auto 2.5rem;
+        }
+        .footer-nav li { border-right: 1px solid var(--border); }
+        .footer-nav li:last-child { border-right: none; }
+        .footer-nav a {
+            display: block; padding: 0.55rem 1.4rem;
+            font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase;
+            color: var(--muted); text-decoration: none;
+            transition: background 0.3s, color 0.3s;
+        }
+        .footer-nav a:hover { background: rgba(181,40,40,0.2); color: var(--cream); }
+
+        /* Linha inferior do footer */
+        .footer-bottom {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 1.5rem 0;
+            border-top: 1px solid var(--border);
+        }
         .footer-copy { font-size: 0.65rem; color: var(--muted); letter-spacing: 0.08em; }
         .footer-copy span { color: var(--salmon); }
 
@@ -341,139 +390,65 @@
             50%      { opacity: 1;   transform: scale(1.8); }
         }
 
-        /* ============================================================
-           BOTÃO HAMBÚRGUER (as três risquinhas)
-           Por padrão ele fica ESCONDIDO no computador (display: none)
-           Só aparece no celular, lá embaixo no @media
-        ============================================================ */
+        /* HAMBÚRGUER */
         .hamburger {
-            display: none;           /* Escondido no desktop */
-            flex-direction: column;  /* As três barras empilhadas verticalmente */
-            gap: 5px;                /* Espaço entre cada barra */
-            cursor: pointer;         /* Muda o cursor para "mãozinha" ao passar por cima */
-            padding: 6px;            /* Área de clique um pouco maior */
-            background: none;        /* Sem fundo */
-            border: none;            /* Sem borda */
-            z-index: 200;            /* Fica na frente de tudo */
+            display: none;
+            flex-direction: column;
+            gap: 5px;
+            cursor: pointer;
+            padding: 6px;
+            background: none;
+            border: none;
+            z-index: 200;
         }
-
-        /* Cada uma das três barrinhas do hambúrguer */
         .hamburger span {
-            display: block;
-            width: 24px;             /* Largura da barrinha */
-            height: 2px;             /* Altura (espessura) da barrinha */
-            background: var(--cream); /* Cor branca-creme, igual ao resto do site */
-            border-radius: 2px;
-            /* Transition = animação suave quando as barras viram um X */
+            display: block; width: 24px; height: 2px;
+            background: var(--cream); border-radius: 2px;
             transition: transform 0.35s ease, opacity 0.35s ease, width 0.35s ease;
         }
+        .hamburger.aberto span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+        .hamburger.aberto span:nth-child(2) { opacity: 0; width: 0; }
+        .hamburger.aberto span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
 
-        /* 
-           Quando o menu está ABERTO (classe "aberto" adicionada pelo JavaScript),
-           as três barras se transformam em um X:
-           - A primeira barra gira +45 graus
-           - A do meio some (fica invisível)
-           - A última gira -45 graus
-        */
-        .hamburger.aberto span:nth-child(1) {
-            transform: translateY(7px) rotate(45deg);  /* Sobe e gira */
-        }
-        .hamburger.aberto span:nth-child(2) {
-            opacity: 0;               /* Some */
-            width: 0;                 /* Encolhe */
-        }
-        .hamburger.aberto span:nth-child(3) {
-            transform: translateY(-7px) rotate(-45deg); /* Desce e gira no sentido contrário */
-        }
-
-        /* ============================================================
-           MENU DROPDOWN MOBILE (a gaveta que abre ao clicar no hambúrguer)
-           Por padrão fica escondido (height: 0, overflow: hidden)
-        ============================================================ */
+        /* MENU MOBILE */
         .mobile-menu {
-            display: none;               /* Escondido no desktop */
-            position: fixed;             /* Fixo na tela, não rola com o conteúdo */
-            top: 72px;                   /* Começa logo abaixo da navbar (que tem 72px de altura) */
-            left: 0; right: 0;           /* Ocupa toda a largura */
-            background: rgba(13,6,8,0.98); /* Fundo bem escuro, quase igual ao fundo do site */
-            backdrop-filter: blur(20px); /* Efeito de vidro fosco atrás */
+            display: none;
+            position: fixed; top: 72px; left: 0; right: 0;
+            background: rgba(13,6,8,0.98);
+            backdrop-filter: blur(20px);
             border-bottom: 1px solid var(--border);
-            z-index: 99;                 /* Fica na frente do conteúdo, mas atrás da navbar */
-            /* Estado inicial: fechado (altura zero, conteúdo invisível) */
-            max-height: 0;
-            overflow: hidden;
-            /* Animação suave ao abrir/fechar */
+            z-index: 99;
+            max-height: 0; overflow: hidden;
             transition: max-height 0.4s ease, opacity 0.4s ease;
             opacity: 0;
         }
-
-        /* Quando a classe "aberto" é adicionada pelo JavaScript, o menu aparece */
-        .mobile-menu.aberto {
-            max-height: 500px;  /* Altura máxima quando aberto (pode ser qualquer valor grande) */
-            opacity: 1;
-        }
-
-        /* Lista de links dentro do menu mobile */
-        .mobile-menu ul {
-            list-style: none;
-            padding: 1.5rem;
-            display: flex;
-            flex-direction: column; /* Links um embaixo do outro */
-            gap: 0;
-        }
-
-        /* Cada item do menu mobile */
-        .mobile-menu ul li {
-            border-bottom: 1px solid var(--border); /* Linha separadora entre os links */
-        }
-        .mobile-menu ul li:last-child {
-            border-bottom: none; /* O último item não tem linha embaixo */
-        }
-
-        /* Os links em si dentro do menu mobile */
+        .mobile-menu.aberto { max-height: 500px; opacity: 1; }
+        .mobile-menu ul { list-style: none; padding: 1.5rem; display: flex; flex-direction: column; gap: 0; }
+        .mobile-menu ul li { border-bottom: 1px solid var(--border); }
+        .mobile-menu ul li:last-child { border-bottom: none; }
         .mobile-menu ul a {
-            display: block;          /* Ocupa toda a largura, fácil de clicar */
-            padding: 1rem 0.5rem;    /* Área de clique confortável para o dedo */
-            color: var(--muted);
-            text-decoration: none;
-            font-size: 0.85rem;
-            letter-spacing: 0.12em;
-            text-transform: uppercase;
+            display: block; padding: 1rem 0.5rem;
+            color: var(--muted); text-decoration: none;
+            font-size: 0.85rem; letter-spacing: 0.12em; text-transform: uppercase;
             transition: color 0.3s, padding-left 0.3s;
         }
+        .mobile-menu ul a:hover { color: var(--cream); padding-left: 1rem; }
 
-        /* Efeito ao passar o dedo/mouse: fica branco e desloca um pouco */
-        .mobile-menu ul a:hover {
-            color: var(--cream);
-            padding-left: 1rem; /* Pequeno deslocamento para a direita */
-        }
-
-        /* ============================================================
-           FOTO NO MOBILE
-           No celular, vamos mostrar a foto DENTRO da seção hero-left,
-           logo acima dos textos. Criamos um bloco específico para isso.
-        ============================================================ */
+        /* FOTO MOBILE */
         .hero-photo-mobile {
-            display: none;           /* Escondido no desktop (a foto do desktop já aparece) */
-            justify-content: center; /* Centraliza a foto horizontalmente */
-            margin-bottom: 2.5rem;   /* Espaço abaixo da foto antes do texto */
+            display: none;
+            justify-content: center;
+            margin-bottom: 2.5rem;
         }
-
-        /* A foto em si no mobile */
         .hero-photo-mobile img {
-            width: 160px;            /* Tamanho menor, adequado para celular */
-            height: 160px;
-            object-fit: cover;       /* Recorta a imagem sem distorcer */
-            border-radius: 50%;      /* Deixa REDONDA (círculo perfeito) */
-            /* Borda vermelha ao redor da foto circular */
+            width: 160px; height: 160px; object-fit: cover;
+            border-radius: 50%;
             border: 3px solid var(--red-bright);
-            /* Sombra suave com tom vermelho */
             box-shadow: 0 0 0 6px rgba(217,64,64,0.15), 0 8px 32px rgba(0,0,0,0.5);
         }
 
         /* ============================================================
-           RESPONSIVE - tudo aqui dentro só vale para telas
-           com largura de até 900px (celulares e tablets pequenos)
+           RESPONSIVE
         ============================================================ */
         @media (max-width: 900px) {
 
@@ -515,14 +490,51 @@
             .about { grid-template-columns: 1fr; }
             .about-left, .about-right { padding: 4rem 1.5rem; }
 
-            /* Projetos: vira uma coluna */
             .projects { padding: 5rem 1.5rem; }
             .projects-grid { grid-template-columns: 1fr; }
             .projects-header { flex-direction: column; align-items: flex-start; gap: 1rem; }
 
-            /* Footer: itens empilhados verticalmente */
-            footer { padding: 3rem 1.5rem 1.5rem; }
-            .footer-top { flex-direction: column; gap: 2rem; }
+            /* Footer mobile — tudo centralizado */
+            footer { padding: 3rem 1.5rem 0; }
+
+            .footer-top {
+                flex-direction: column;
+                align-items: center;
+                text-align: center;
+                gap: 2rem;
+            }
+            .footer-cta { text-align: center; }
+
+            .footer-socials {
+                flex-direction: row;
+                justify-content: center;
+                flex-wrap: wrap;
+                gap: 1rem;
+            }
+            /* No mobile, mostra apenas o ícone (sem label de texto) */
+            .social-link .social-label { display: none; }
+            .social-icon { width: 42px; height: 42px; border-radius: 4px; }
+            .social-icon svg { width: 18px; height: 18px; }
+
+            /* Nav do footer — centralizada e quebra em duas linhas se precisar */
+            .footer-nav {
+                width: 100%;
+                flex-wrap: wrap;
+                border-radius: 4px;
+                justify-content: center;
+            }
+            .footer-nav li { border-bottom: 1px solid var(--border); flex: 1 1 50%; }
+            .footer-nav li:nth-child(2n) { border-right: none; }
+            .footer-nav a { text-align: center; padding: 0.75rem 1rem; }
+
+            /* Bottom do footer centralizado */
+            .footer-bottom {
+                flex-direction: column;
+                align-items: center;
+                text-align: center;
+                gap: 0.5rem;
+                padding: 1.5rem 0;
+            }
         }
     </style>
 </head>
@@ -541,29 +553,23 @@
             <li><a href="#sobre-mim">Sobre mim</a></li>
             <li><a href="#projetos">Projetos</a></li>
             <li><a href="https://linktr.ee/CarlosJesse" target="_blank">Contato</a></li>
-            <li><a href="indexversao2.html" target="_blank">Versao 2</a></li>
+            <li><a href="indexversao2.html" target="_blank">Versão 2</a></li>
         </ul>
 
-        <!-- BOTÃO HAMBÚRGUER — aparece APENAS no celular (escondido no desktop via CSS)
-             id="btn-hamburger" é o apelido que o JavaScript usa para encontrar este botão -->
         <button class="hamburger" id="btn-hamburger" aria-label="Abrir menu">
-            <span></span> <!-- Primeira barrinha -->
-            <span></span> <!-- Segunda barrinha (do meio) -->
-            <span></span> <!-- Terceira barrinha -->
+            <span></span>
+            <span></span>
+            <span></span>
         </button>
     </nav>
 
-    <!-- MENU MOBILE — a gaveta que abre ao clicar no hambúrguer.
-         Começa fechado (max-height: 0) e abre quando o JavaScript
-         adiciona a classe "aberto" neste elemento. -->
     <div class="mobile-menu" id="mobile-menu">
         <ul>
-            <!-- onclick="fecharMenu()" faz o menu fechar quando você clica em um link -->
             <li><a href="#"           onclick="fecharMenu()">Início</a></li>
             <li><a href="#sobre-mim"  onclick="fecharMenu()">Sobre mim</a></li>
             <li><a href="#projetos"   onclick="fecharMenu()">Projetos</a></li>
             <li><a href="https://linktr.ee/CarlosJesse" target="_blank" onclick="fecharMenu()">Contato ↗</a></li>
-            <li><a href="indexversao2.html" target="_blank" onclick="fecharMenu()">Versao 2</a></li>
+            <li><a href="indexversao2.html" target="_blank" onclick="fecharMenu()">Versão 2</a></li>
         </ul>
     </div>
 
@@ -572,15 +578,9 @@
         <div class="hero-left">
             <div class="hero-accent-line"></div>
             <div class="hero-text">
-
-                <!-- FOTO CIRCULAR — aparece APENAS no celular (display: none no desktop)
-                     É um bloco extra só para mobile. No desktop a foto já aparece
-                     no painel vermelho da direita (.hero-right). -->
                 <div class="hero-photo-mobile">
-                    <!-- É a mesma imagem da foto principal, só muda o tamanho e o estilo -->
                     <img src="assets/img/2d19f0ff-daeb-4d4c-868a-afba22a140ea.jpg" alt="Carlos Jessé">
                 </div>
-
                 <div class="hero-greeting">Desenvolvedor Full-Stack</div>
                 <h1 class="hero-hello">Hello<br><em>World!</em></h1>
                 <div class="hero-tagline">Seja bem-vindo ao meu portfólio.</div>
@@ -623,11 +623,9 @@
                     <p>
                         Atualmente sou <strong>Analista de Sistemas no Hospital Regional Sul de Minas</strong>, onde gerencio o sistema <strong>SPData</strong> e bancos de dados SQL em um ambiente de missão crítica.
                     </p>
-
                     <p>
                         Minha base foi moldada por <strong>5 anos no Exército Brasileiro</strong> como Técnico de Comunicações, o que consolidou minha disciplina e resiliência no desenvolvimento de soluções tecnológicas.
                     </p>
-
                     <p>
                         Graduado em ADS e com formação técnica pelo SENAI, busco a evolução constante como <strong>Desenvolvedor Full-Stack</strong>, unindo criatividade técnica e foco em resultados.
                     </p>
@@ -657,10 +655,9 @@
                         <div class="skill-row-top"><span class="skill-row-name">Redes & Hardware</span><span class="skill-row-pct">90%</span></div>
                         <div class="skill-bar-bg"><div class="skill-bar-fill" data-width="90"></div></div>
                     </div>
-                        <div class="skill-row">
-                            <div class="skill-row-top"><span class="skill-row-name">SQL</span><span class="skill-row-pct">55%</span></div>
-                            <div class="skill-bar-bg"><div class="skill-bar-fill" data-width="55"></div>
-                        </div>
+                    <div class="skill-row">
+                        <div class="skill-row-top"><span class="skill-row-name">SQL</span><span class="skill-row-pct">55%</span></div>
+                        <div class="skill-bar-bg"><div class="skill-bar-fill" data-width="55"></div></div>
                     </div>
                 </div>
             </div>
@@ -698,14 +695,14 @@
                     <a href="indexversao2.html" target="_blank" class="project-link">Ver projeto →</a>
                 </div>
             </div>
-           <div class="project-card reveal">
+            <div class="project-card reveal">
                 <div class="project-thumb-wrap">
                     <img class="project-thumb" src="https://api.microlink.io/?url=https://moto-mundi.vercel.app/&screenshot=true&meta=false&embed=screenshot.url" alt="MotoMundi">
                 </div>
                 <div class="project-body">
                     <div class="project-num">003 — Projeto</div>
                     <div class="project-name">MotoMundi</div>
-                    <div class="project-desc">Diário digital desenvolvido para documentar rotas e aventuras de moto, desbravando o interior de Minas e além</div>
+                    <div class="project-desc">Diário digital desenvolvido para documentar rotas e aventuras de moto, desbravando o interior de Minas e além.</div>
                     <div class="project-tags"><span class="ptag">HTML</span><span class="ptag">CSS</span><span class="ptag">Design</span></div>
                     <a href="https://moto-mundi.vercel.app/" target="_blank" class="project-link">Ver projeto →</a>
                 </div>
@@ -717,15 +714,55 @@
     <footer>
         <div class="footer-top">
             <h2 class="footer-cta">Vamos construir algo<br><em>incrível juntos?</em></h2>
+
             <div class="footer-socials">
+                <!-- Linktree -->
                 <a href="https://linktr.ee/CarlosJesse" target="_blank" class="social-link">
-                    <span class="social-icon">🌿</span> Linktree
+                    <span class="social-icon">
+                        <!-- Ícone de link/corrente — representa o Linktree -->
+                        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </span>
+                    <span class="social-label">Linktree</span>
                 </a>
+
+                <!-- LinkedIn -->
                 <a href="https://www.linkedin.com/in/carlos-jess%C3%A9-coelho-da-silva-5b375a206/" target="_blank" class="social-link">
-                    <span class="social-icon">💼</span> LinkedIn
+                    <span class="social-icon">
+                        <!-- Ícone oficial do LinkedIn -->
+                        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/>
+                            <rect x="2" y="9" width="4" height="12"/>
+                            <circle cx="4" cy="4" r="2"/>
+                        </svg>
+                    </span>
+                    <span class="social-label">LinkedIn</span>
+                </a>
+
+                <!-- GitHub (bônus — pode remover se não quiser) -->
+                <a href="https://github.com/reccoelho" target="_blank" class="social-link">
+                    <span class="social-icon">
+                        <!-- Ícone do GitHub -->
+                        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </span>
+                    <span class="social-label">GitHub</span>
                 </a>
             </div>
         </div>
+
+        <!-- Navegação simples no rodapé -->
+        <ul class="footer-nav">
+            <li><a href="#">Início</a></li>
+            <li><a href="#sobre-mim">Sobre mim</a></li>
+            <li><a href="#projetos">Projetos</a></li>
+            <li><a href="https://linktr.ee/CarlosJesse" target="_blank">Contato ↗</a></li>
+            <li><a href="indexversao2.html" target="_blank">Versão 2 ↗</a></li>
+        </ul>
+
         <div class="footer-bottom">
             <p class="footer-copy">© 2024 <span>Carlos Jessé Coelho da Silva</span>. All Rights Reserved</p>
             <p class="footer-copy">Desenvolvido por <span>Carlos Jessé</span></p>
@@ -733,80 +770,46 @@
     </footer>
 
     <script>
-        /* ============================================================
-           JAVASCRIPT — a "inteligência" do site
-           Aqui ficam todas as ações que acontecem quando o usuário
-           clica, rola a página, etc.
-        ============================================================ */
+        /* HAMBÚRGUER */
+        const btnHamburger = document.getElementById('btn-hamburger');
+        const mobileMenu   = document.getElementById('mobile-menu');
 
-
-        /* ------------------------------------------------------------
-           MENU HAMBÚRGUER
-           Pega os elementos do HTML pelo "id" que demos a eles.
-           document.getElementById('nome-do-id') = "encontre isso no HTML"
-        ------------------------------------------------------------ */
-        const btnHamburger = document.getElementById('btn-hamburger'); // O botão das três risquinhas
-        const mobileMenu   = document.getElementById('mobile-menu');   // A gaveta do menu
-
-        /* Quando o botão hambúrguer for CLICADO, executa essa função */
         btnHamburger.addEventListener('click', function() {
-
-            /* toggle('aberto') = se não tem a classe "aberto", adiciona;
-               se já tem, remove. É como um interruptor de liga/desliga. */
-            btnHamburger.classList.toggle('aberto'); // Anima as barras virando X (ou voltando)
-            mobileMenu.classList.toggle('aberto');   // Abre ou fecha o menu
+            btnHamburger.classList.toggle('aberto');
+            mobileMenu.classList.toggle('aberto');
         });
 
-        /* Função chamada pelos links do menu mobile (via onclick="fecharMenu()")
-           Fecha o menu quando o usuário clica em um link para ir a outra seção */
         function fecharMenu() {
-            btnHamburger.classList.remove('aberto'); // Remove a classe — barras voltam ao normal
-            mobileMenu.classList.remove('aberto');   // Remove a classe — menu fecha
+            btnHamburger.classList.remove('aberto');
+            mobileMenu.classList.remove('aberto');
         }
 
-
-        /* ------------------------------------------------------------
-           SCROLL REVEAL
-           Faz os elementos aparecerem com animação quando você rola
-           a página e eles entram na tela.
-           IntersectionObserver = "avise-me quando esse elemento aparecer na tela"
-        ------------------------------------------------------------ */
-        const reveals = document.querySelectorAll('.reveal'); // Pega todos elementos com classe "reveal"
-
+        /* SCROLL REVEAL */
+        const reveals = document.querySelectorAll('.reveal');
         const obs = new IntersectionObserver(function(entries) {
             entries.forEach(function(entry) {
-                /* entry.isIntersecting = true quando o elemento está visível na tela */
                 if (entry.isIntersecting) {
-                    entry.target.classList.add('visible'); // Adiciona "visible" → dispara a animação CSS
+                    entry.target.classList.add('visible');
                 }
             });
-        }, { threshold: 0.1 }); // threshold: 0.1 = anima quando 10% do elemento está visível
-
-        /* Registra cada elemento para ser observado */
+        }, { threshold: 0.1 });
         reveals.forEach(function(el) { obs.observe(el); });
 
-
-        /* ------------------------------------------------------------
-           BARRAS DE HABILIDADE (skill bars)
-           As barras preenchem quando a seção entra na tela.
-           Mesma lógica do IntersectionObserver acima.
-        ------------------------------------------------------------ */
-        const skillsBlock = document.getElementById('skills-block'); // A div que contém todas as barras
-
+        /* BARRAS DE HABILIDADE */
+        const skillsBlock = document.getElementById('skills-block');
         const barObs = new IntersectionObserver(function(entries) {
             entries.forEach(function(entry) {
                 if (entry.isIntersecting) {
                     /* Pega todas as barras dentro do bloco e define a largura delas
                        usando o valor do atributo data-width que colocamos no HTML */
                     entry.target.querySelectorAll('.skill-bar-fill').forEach(function(bar) {
-                        bar.style.width = bar.dataset.width + '%'; // ex: data-width="90" → width: 90%
+                        bar.style.width = bar.dataset.width + '%';
                     });
                     barObs.unobserve(entry.target); // Para de observar — a animação já rodou
                 }
             });
-        }, { threshold: 0.3 }); // Anima quando 30% da seção está visível
-
-        if (skillsBlock) barObs.observe(skillsBlock); // Só observa se o elemento existir na página
+        }, { threshold: 0.3 });
+        if (skillsBlock) barObs.observe(skillsBlock);
     </script>
 </body>
 </html>
