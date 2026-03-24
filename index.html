@@ -26,6 +26,9 @@
 
         html { scroll-behavior: smooth; }
 
+        /* Classe para travar o scroll enquanto a tela de carregamento está ativa */
+        body.no-scroll { overflow: hidden; }
+
         body {
             background: var(--deep);
             color: var(--cream);
@@ -36,6 +39,65 @@
         ::-webkit-scrollbar { width: 3px; }
         ::-webkit-scrollbar-track { background: var(--deep); }
         ::-webkit-scrollbar-thumb { background: var(--red-mid); }
+
+        /* ============================================================
+           PRELOADER
+        ============================================================ */
+        #preloader {
+            position: fixed;
+            inset: 0;
+            background: var(--deep);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.8s cubic-bezier(0.77, 0, 0.175, 1), opacity 0.8s ease;
+        }
+        #preloader.hidden {
+            transform: translateY(-100%);
+            opacity: 0;
+            pointer-events: none;
+        }
+        .preloader-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+        .preloader-name {
+            font-family: 'Playfair Display', serif;
+            font-size: 2.2rem;
+            font-weight: 700;
+            font-style: italic;
+            color: var(--cream);
+            letter-spacing: 0.05em;
+            animation: pulseGlow 2s infinite alternate ease-in-out;
+        }
+        .preloader-line {
+            width: 140px;
+            height: 2px;
+            background: var(--border);
+            position: relative;
+            overflow: hidden;
+            border-radius: 2px;
+        }
+        .preloader-line::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; bottom: 0;
+            width: 40%;
+            background: linear-gradient(to right, transparent, var(--red-bright), transparent);
+            animation: sweepLine 1.5s infinite ease-in-out;
+        }
+
+        @keyframes pulseGlow {
+            0% { opacity: 0.6; text-shadow: 0 0 5px rgba(217,64,64,0); }
+            100% { opacity: 1; text-shadow: 0 0 20px rgba(217,64,64,0.5); }
+        }
+        @keyframes sweepLine {
+            0% { transform: translateX(-150%); }
+            100% { transform: translateX(350%); }
+        }
 
         /* NAV */
         nav {
@@ -113,7 +175,7 @@
         .hero-greeting {
             font-size: 0.7rem; letter-spacing: 0.25em; text-transform: uppercase;
             color: var(--red-bright); margin-bottom: 1rem;
-            opacity: 0; animation: slideUp 0.7s 0.3s forwards;
+            opacity: 0; animation: slideUp 0.7s 0.8s forwards; /* Atraso ajustado por conta do preloader */
         }
         .hero-greeting::before { content: '—  '; opacity: 0.5; }
 
@@ -122,7 +184,7 @@
             font-size: clamp(3rem, 5.5vw, 5rem);
             font-weight: 900; line-height: 1.0; letter-spacing: -0.02em;
             margin-bottom: 0.3rem;
-            opacity: 0; animation: slideUp 0.7s 0.45s forwards;
+            opacity: 0; animation: slideUp 0.7s 0.95s forwards;
         }
         .hero-hello em { font-style: italic; color: var(--red-bright); }
 
@@ -131,18 +193,18 @@
             font-size: clamp(1.1rem, 2vw, 1.6rem);
             font-weight: 700; font-style: italic; color: var(--salmon);
             margin-bottom: 2rem;
-            opacity: 0; animation: slideUp 0.7s 0.6s forwards;
+            opacity: 0; animation: slideUp 0.7s 1.1s forwards;
         }
 
         .hero-desc {
             font-size: 0.88rem; line-height: 1.85; color: var(--muted);
             max-width: 460px; margin-bottom: 2.5rem; font-weight: 300;
-            opacity: 0; animation: slideUp 0.7s 0.75s forwards;
+            opacity: 0; animation: slideUp 0.7s 1.25s forwards;
         }
 
         .hero-actions {
             display: flex; gap: 1rem; align-items: center;
-            opacity: 0; animation: slideUp 0.7s 0.9s forwards;
+            opacity: 0; animation: slideUp 0.7s 1.4s forwards;
         }
         .btn-red {
             display: inline-flex; align-items: center; gap: 0.5rem;
@@ -168,7 +230,7 @@
         /* Photo */
         .hero-photo-wrap {
             position: relative; z-index: 2;
-            opacity: 0; animation: fadeIn 1s 0.9s forwards;
+            opacity: 0; animation: fadeIn 1s 1.4s forwards;
         }
         .hero-photo {
             width: 320px; height: 400px; object-fit: cover; display: block;
@@ -287,27 +349,13 @@
             letter-spacing: 0.05em; transition: gap 0.3s;
         }
         .project-link:hover { gap: 0.7rem; }
-        .coming-soon-block {
-            aspect-ratio: 16/10; display: flex; flex-direction: column;
-            align-items: center; justify-content: center;
-            background: #0e0507; border-bottom: 1px solid var(--border); gap: 0.6rem;
-        }
-        .coming-dot {
-            width: 5px; height: 5px; border-radius: 50%; background: var(--red-mid);
-            animation: pulseDot 2s ease-in-out infinite;
-        }
-        .coming-label { font-size: 0.6rem; letter-spacing: 0.3em; text-transform: uppercase; color: var(--muted); }
 
-        /* ============================================================
-           FOOTER — REDESENHADO
-        ============================================================ */
+        /* FOOTER */
         footer {
             background: linear-gradient(to right, var(--deep) 55%, #1a0a0d 100%);
             border-top: 1px solid var(--border);
             padding: 4rem 4rem 0;
         }
-
-        /* Topo do footer: CTA + redes */
         .footer-top {
             display: flex; justify-content: space-between; align-items: flex-start;
             padding-bottom: 3rem; border-bottom: 1px solid var(--border);
@@ -319,8 +367,6 @@
             font-weight: 900; line-height: 1.25;
         }
         .footer-cta em { font-style: italic; color: var(--red-bright); }
-
-        /* Redes sociais — ícones SVG limpos */
         .footer-socials { display: flex; flex-direction: column; gap: 0.8rem; }
         .social-link {
             display: flex; align-items: center; gap: 0.8rem;
@@ -336,19 +382,9 @@
             transition: background 0.3s, border-color 0.3s;
             flex-shrink: 0;
         }
-        .social-icon svg {
-            width: 16px; height: 16px;
-            fill: currentColor;
-            color: var(--muted);
-            transition: color 0.3s;
-        }
-        .social-link:hover .social-icon {
-            background: rgba(181,40,40,0.2);
-            border-color: rgba(181,40,40,0.4);
-        }
+        .social-icon svg { width: 16px; height: 16px; fill: currentColor; color: var(--muted); transition: color 0.3s; }
+        .social-link:hover .social-icon { background: rgba(181,40,40,0.2); border-color: rgba(181,40,40,0.4); }
         .social-link:hover .social-icon svg { color: var(--cream); }
-
-        /* Navegação do rodapé */
         .footer-nav {
             display: flex; justify-content: center; align-items: center;
             gap: 0; list-style: none;
@@ -365,8 +401,6 @@
             transition: background 0.3s, color 0.3s;
         }
         .footer-nav a:hover { background: rgba(181,40,40,0.2); color: var(--cream); }
-
-        /* Linha inferior do footer */
         .footer-bottom {
             display: flex; justify-content: space-between; align-items: center;
             padding: 1.5rem 0;
@@ -385,21 +419,11 @@
             to   { opacity: 1; transform: translateY(0); }
         }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes pulseDot {
-            0%,100% { opacity: 0.3; transform: scale(1); }
-            50%      { opacity: 1;   transform: scale(1.8); }
-        }
 
         /* HAMBÚRGUER */
         .hamburger {
-            display: none;
-            flex-direction: column;
-            gap: 5px;
-            cursor: pointer;
-            padding: 6px;
-            background: none;
-            border: none;
-            z-index: 200;
+            display: none; flex-direction: column; gap: 5px; cursor: pointer;
+            padding: 6px; background: none; border: none; z-index: 200;
         }
         .hamburger span {
             display: block; width: 24px; height: 2px;
@@ -414,140 +438,74 @@
         .mobile-menu {
             display: none;
             position: fixed; top: 72px; left: 0; right: 0;
-            background: rgba(13,6,8,0.98);
-            backdrop-filter: blur(20px);
-            border-bottom: 1px solid var(--border);
-            z-index: 99;
+            background: rgba(13,6,8,0.98); backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border); z-index: 99;
             max-height: 0; overflow: hidden;
-            transition: max-height 0.4s ease, opacity 0.4s ease;
-            opacity: 0;
+            transition: max-height 0.4s ease, opacity 0.4s ease; opacity: 0;
         }
         .mobile-menu.aberto { max-height: 500px; opacity: 1; }
         .mobile-menu ul { list-style: none; padding: 1.5rem; display: flex; flex-direction: column; gap: 0; }
         .mobile-menu ul li { border-bottom: 1px solid var(--border); }
         .mobile-menu ul li:last-child { border-bottom: none; }
         .mobile-menu ul a {
-            display: block; padding: 1rem 0.5rem;
-            color: var(--muted); text-decoration: none;
+            display: block; padding: 1rem 0.5rem; color: var(--muted); text-decoration: none;
             font-size: 0.85rem; letter-spacing: 0.12em; text-transform: uppercase;
             transition: color 0.3s, padding-left 0.3s;
         }
         .mobile-menu ul a:hover { color: var(--cream); padding-left: 1rem; }
 
         /* FOTO MOBILE */
-        .hero-photo-mobile {
-            display: none;
-            justify-content: center;
-            margin-bottom: 2.5rem;
-        }
+        .hero-photo-mobile { display: none; justify-content: center; margin-bottom: 2.5rem; }
         .hero-photo-mobile img {
-            width: 160px; height: 160px; object-fit: cover;
-            border-radius: 50%;
-            border: 3px solid var(--red-bright);
-            box-shadow: 0 0 0 6px rgba(217,64,64,0.15), 0 8px 32px rgba(0,0,0,0.5);
+            width: 160px; height: 160px; object-fit: cover; border-radius: 50%;
+            border: 3px solid var(--red-bright); box-shadow: 0 0 0 6px rgba(217,64,64,0.15), 0 8px 32px rgba(0,0,0,0.5);
         }
 
-        /* ============================================================
-           RESPONSIVE
-        ============================================================ */
+        /* RESPONSIVE */
         @media (max-width: 900px) {
-
-            /* Ajusta o padding da navbar no mobile */
             nav { padding: 0 1.5rem; }
-
-            /* MOSTRA o botão hambúrguer no mobile */
             .hamburger { display: flex; }
-
-            /* MOSTRA o menu dropdown mobile (mas começa fechado via max-height: 0) */
             .mobile-menu { display: block; }
-
-            /* ESCONDE os links normais da navbar no mobile
-               (eles foram substituídos pelo menu hambúrguer) */
             .nav-links { display: none; }
-
-            /* Hero vira uma coluna única no mobile (antes eram duas colunas lado a lado) */
             .hero { grid-template-columns: 1fr; }
-
-            /* Ajusta o padding da seção de texto do hero */
             .hero-left { padding: 3rem 1.5rem 4rem; }
-
-            /* Remove o elemento decorativo que cria o efeito diagonal
-               (não fica bem em telas pequenas) */
             .hero-left::after { display: none; }
-
-            /* ESCONDE o painel vermelho da direita (que continha a foto grande)
-               no mobile não precisamos dele, pois a foto circular já aparece acima */
             .hero-right { display: none; }
-
-            /* MOSTRA a foto circular mobile */
             .hero-photo-mobile { display: flex; }
-
-            /* Stats (os 4 números): vira 2 colunas no mobile (antes eram 4) */
             .stats { grid-template-columns: repeat(2, 1fr); }
             .stat { border-bottom: 1px solid var(--border); }
-
-            /* Sobre mim: vira uma coluna (antes eram duas) */
             .about { grid-template-columns: 1fr; }
             .about-left, .about-right { padding: 4rem 1.5rem; }
-
             .projects { padding: 5rem 1.5rem; }
             .projects-grid { grid-template-columns: 1fr; }
             .projects-header { flex-direction: column; align-items: flex-start; gap: 1rem; }
-
-            /* Footer mobile — tudo centralizado */
             footer { padding: 3rem 1.5rem 0; }
-
-            .footer-top {
-                flex-direction: column;
-                align-items: center;
-                text-align: center;
-                gap: 2rem;
-            }
+            .footer-top { flex-direction: column; align-items: center; text-align: center; gap: 2rem; }
             .footer-cta { text-align: center; }
-
-            .footer-socials {
-                flex-direction: row;
-                justify-content: center;
-                flex-wrap: wrap;
-                gap: 1rem;
-            }
-            /* No mobile, mostra apenas o ícone (sem label de texto) */
+            .footer-socials { flex-direction: row; justify-content: center; flex-wrap: wrap; gap: 1rem; }
             .social-link .social-label { display: none; }
             .social-icon { width: 42px; height: 42px; border-radius: 4px; }
             .social-icon svg { width: 18px; height: 18px; }
-
-            /* Nav do footer — centralizada e quebra em duas linhas se precisar */
-            .footer-nav {
-                width: 100%;
-                flex-wrap: wrap;
-                border-radius: 4px;
-                justify-content: center;
-            }
+            .footer-nav { width: 100%; flex-wrap: wrap; border-radius: 4px; justify-content: center; }
             .footer-nav li { border-bottom: 1px solid var(--border); flex: 1 1 50%; }
             .footer-nav li:nth-child(2n) { border-right: none; }
             .footer-nav a { text-align: center; padding: 0.75rem 1rem; }
-
-            /* Bottom do footer centralizado */
-            .footer-bottom {
-                flex-direction: column;
-                align-items: center;
-                text-align: center;
-                gap: 0.5rem;
-                padding: 1.5rem 0;
-            }
+            .footer-bottom { flex-direction: column; align-items: center; text-align: center; gap: 0.5rem; padding: 1.5rem 0; }
         }
     </style>
 </head>
-<body>
+<body class="no-scroll"> <div id="preloader">
+        <div class="preloader-content">
+            <div class="preloader-name">Carlos Jessé</div>
+            <div class="preloader-line"></div>
+        </div>
+    </div>
 
     <nav>
-        <!-- Nome e cargo — sempre visível em qualquer tela -->
         <div class="nav-identity">
             <div class="nav-name">Carlos Jessé</div>
             <div class="nav-role">Analista de Sistemas</div>
         </div>
-
-        <!-- Links normais — aparecem APENAS no desktop (somem no celular via CSS) -->
         <ul class="nav-links">
             <li><a href="#">Início</a></li>
             <li><a href="#sobre-mim">Sobre mim</a></li>
@@ -555,11 +513,8 @@
             <li><a href="https://linktr.ee/CarlosJesse" target="_blank">Contato</a></li>
             <li><a href="indexversao2.html" target="_blank">Versão 2</a></li>
         </ul>
-
         <button class="hamburger" id="btn-hamburger" aria-label="Abrir menu">
-            <span></span>
-            <span></span>
-            <span></span>
+            <span></span><span></span><span></span>
         </button>
     </nav>
 
@@ -573,7 +528,6 @@
         </ul>
     </div>
 
-    <!-- HERO -->
     <section class="hero">
         <div class="hero-left">
             <div class="hero-accent-line"></div>
@@ -604,7 +558,6 @@
         </div>
     </section>
 
-    <!-- STATS -->
     <div class="stats">
         <div class="stat reveal"><div class="stat-n">4+</div><div class="stat-l">Anos de experiência</div></div>
         <div class="stat reveal"><div class="stat-n">10+</div><div class="stat-l">Projetos entregues</div></div>
@@ -612,7 +565,6 @@
         <div class="stat reveal"><div class="stat-n">∞</div><div class="stat-l">Vontade de aprender</div></div>
     </div>
 
-    <!-- SOBRE MIM -->
     <div id="sobre-mim">
         <div class="about">
             <div class="about-left">
@@ -620,15 +572,9 @@
                 <div class="section-tag">Sobre mim</div>
                 <h2 class="about-title reveal">Código, propósito<br>e <em>determinação.</em></h2>
                 <div class="about-body reveal">
-                    <p>
-                        Atualmente sou <strong>Analista de Sistemas no Hospital Regional Sul de Minas</strong>, onde gerencio o sistema <strong>SPData</strong> e bancos de dados SQL em um ambiente de missão crítica.
-                    </p>
-                    <p>
-                        Minha base foi moldada por <strong>5 anos no Exército Brasileiro</strong> como Técnico de Comunicações, o que consolidou minha disciplina e resiliência no desenvolvimento de soluções tecnológicas.
-                    </p>
-                    <p>
-                        Graduado em ADS e com formação técnica pelo SENAI, busco a evolução constante como <strong>Desenvolvedor Full-Stack</strong>, unindo criatividade técnica e foco em resultados.
-                    </p>
+                    <p>Atualmente sou <strong>Analista de Sistemas no Hospital Regional Sul de Minas</strong>, onde gerencio o sistema <strong>SPData</strong> e bancos de dados SQL em um ambiente de missão crítica.</p>
+                    <p>Minha base foi moldada por <strong>5 anos no Exército Brasileiro</strong> como Técnico de Comunicações, o que consolidou minha disciplina e resiliência no desenvolvimento de soluções tecnológicas.</p>
+                    <p>Graduado em ADS e com formação técnica pelo SENAI, busco a evolução constante como <strong>Desenvolvedor Full-Stack</strong>, unindo criatividade técnica e foco em resultados.</p>
                 </div>
             </div>    
             <div class="about-right">
@@ -664,7 +610,6 @@
         </div>
     </div>
 
-    <!-- PROJETOS -->
     <div class="projects" id="projetos">
         <div class="projects-header">
             <div><div class="section-tag">Portfólio</div></div>
@@ -710,16 +655,12 @@
         </div>
     </div>
 
-    <!-- FOOTER -->
     <footer>
         <div class="footer-top">
             <h2 class="footer-cta">Vamos construir algo<br><em>incrível juntos?</em></h2>
-
             <div class="footer-socials">
-                <!-- Linktree -->
                 <a href="https://linktr.ee/CarlosJesse" target="_blank" class="social-link">
                     <span class="social-icon">
-                        <!-- Ícone de link/corrente — representa o Linktree -->
                         <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                             <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                             <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -727,11 +668,8 @@
                     </span>
                     <span class="social-label">Linktree</span>
                 </a>
-
-                <!-- LinkedIn -->
                 <a href="https://www.linkedin.com/in/carlos-jess%C3%A9-coelho-da-silva-5b375a206/" target="_blank" class="social-link">
                     <span class="social-icon">
-                        <!-- Ícone oficial do LinkedIn -->
                         <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                             <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/>
                             <rect x="2" y="9" width="4" height="12"/>
@@ -740,11 +678,8 @@
                     </span>
                     <span class="social-label">LinkedIn</span>
                 </a>
-
-                <!-- GitHub (bônus — pode remover se não quiser) -->
                 <a href="https://github.com/reccoelho" target="_blank" class="social-link">
                     <span class="social-icon">
-                        <!-- Ícone do GitHub -->
                         <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                             <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                         </svg>
@@ -753,8 +688,6 @@
                 </a>
             </div>
         </div>
-
-        <!-- Navegação simples no rodapé -->
         <ul class="footer-nav">
             <li><a href="#">Início</a></li>
             <li><a href="#sobre-mim">Sobre mim</a></li>
@@ -762,7 +695,6 @@
             <li><a href="https://linktr.ee/CarlosJesse" target="_blank">Contato ↗</a></li>
             <li><a href="indexversao2.html" target="_blank">Versão 2 ↗</a></li>
         </ul>
-
         <div class="footer-bottom">
             <p class="footer-copy">© 2024 <span>Carlos Jessé Coelho da Silva</span>. All Rights Reserved</p>
             <p class="footer-copy">Desenvolvido por <span>Carlos Jessé</span></p>
@@ -770,6 +702,18 @@
     </footer>
 
     <script>
+        /* ==========================================
+           LOGICA DO PRELOADER
+        ========================================== */
+        window.addEventListener('load', function() {
+            const preloader = document.getElementById('preloader');
+            // Timeout leve para garantir que o usuário veja a animação de entrada
+            setTimeout(() => {
+                preloader.classList.add('hidden');
+                document.body.classList.remove('no-scroll'); // Destrava a rolagem da página
+            }, 800); 
+        });
+
         /* HAMBÚRGUER */
         const btnHamburger = document.getElementById('btn-hamburger');
         const mobileMenu   = document.getElementById('mobile-menu');
@@ -800,12 +744,10 @@
         const barObs = new IntersectionObserver(function(entries) {
             entries.forEach(function(entry) {
                 if (entry.isIntersecting) {
-                    /* Pega todas as barras dentro do bloco e define a largura delas
-                       usando o valor do atributo data-width que colocamos no HTML */
                     entry.target.querySelectorAll('.skill-bar-fill').forEach(function(bar) {
                         bar.style.width = bar.dataset.width + '%';
                     });
-                    barObs.unobserve(entry.target); // Para de observar — a animação já rodou
+                    barObs.unobserve(entry.target); 
                 }
             });
         }, { threshold: 0.3 });
