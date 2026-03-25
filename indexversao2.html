@@ -25,6 +25,9 @@
 
         html { scroll-behavior: smooth; }
         body { background: var(--bg); color: var(--text); font-family: 'DM Mono', monospace; overflow-x: hidden; cursor: none; }
+        
+        /* Trava o scroll enquanto carrega */
+        body.no-scroll { overflow: hidden; }
 
         @media (hover: none) { body { cursor: auto; } .cursor, .cursor-ring { display: none; } }
 
@@ -34,6 +37,100 @@
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: var(--bg); }
         ::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 2px; }
+
+        /* ============================================================
+           PRELOADER TECH / TERMINAL
+        ============================================================ */
+        #preloader-tech {
+            position: fixed;
+            inset: 0;
+            background: var(--bg);
+            z-index: 9990; /* Abaixo do cursor para ele aparecer em cima */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 4rem;
+            transition: transform 0.8s cubic-bezier(0.8, 0, 0.2, 1), opacity 0.8s ease;
+        }
+
+        #preloader-tech.loaded {
+            transform: translateY(-100%);
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .preloader-tech-inner {
+            max-width: 600px;
+            width: 100%;
+            margin: 0 auto;
+        }
+
+        .preloader-sys-text {
+            color: var(--accent);
+            font-size: 0.85rem;
+            letter-spacing: 0.1em;
+            margin-bottom: 2rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .blink {
+            display: inline-block;
+            width: 8px;
+            height: 15px;
+            background-color: var(--accent);
+            animation: blinker 1s step-start infinite;
+        }
+
+        .preloader-percentage {
+            font-family: 'Syne', sans-serif;
+            font-size: clamp(4rem, 10vw, 8rem);
+            font-weight: 800;
+            line-height: 1;
+            color: var(--text);
+            margin-bottom: 1rem;
+            letter-spacing: -0.02em;
+        }
+
+        .preloader-bar-bg {
+            width: 100%;
+            height: 2px;
+            background: var(--border);
+            margin-bottom: 3rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .preloader-bar-fill {
+            height: 100%;
+            width: 0%;
+            background: var(--accent);
+            transition: width 0.1s ease-out;
+            box-shadow: 0 0 10px rgba(200, 240, 68, 0.5);
+        }
+
+        .preloader-logs {
+            font-size: 0.7rem;
+            color: var(--muted);
+            letter-spacing: 0.05em;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .log-line { display: flex; justify-content: space-between; }
+        .log-status { color: var(--accent2); }
+        .log-status.wait { color: var(--muted); animation: blinker 1s step-start infinite; }
+        .log-status.ready { color: var(--accent); }
+
+        @keyframes blinker { 50% { opacity: 0; } }
+
+        /* RESPONSIVO PRELOADER */
+        @media (max-width: 768px) {
+            #preloader-tech { padding: 2rem; }
+            .preloader-percentage { font-size: 4.5rem; }
+        }
 
         /* NAV */
         nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; display: flex; align-items: center; justify-content: space-between; padding: 1.5rem 3rem; border-bottom: 1px solid transparent; transition: background 0.4s, border-color 0.4s; }
@@ -82,18 +179,21 @@
         .hero-bg-glow { position: absolute; width: 600px; height: 600px; background: radial-gradient(circle, rgba(200,240,68,0.08) 0%, transparent 70%); top: -100px; right: -100px; pointer-events: none; }
         .hero-bg-glow2 { position: absolute; width: 400px; height: 400px; background: radial-gradient(circle, rgba(68,240,200,0.06) 0%, transparent 70%); bottom: 50px; left: 200px; pointer-events: none; }
         .hero-content { max-width: 1200px; margin: 0 auto; width: 100%; display: grid; grid-template-columns: 1fr 380px; gap: 4rem; align-items: center; position: relative; z-index: 1; }
-        .hero-tag { display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.7rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--accent); margin-bottom: 1.5rem; opacity: 0; animation: fadeUp 0.7s 0.3s forwards; }
+        
+        /* Aumentei o delay das animações do hero para rodarem APÓS o preloader sumir */
+        .hero-tag { display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.7rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--accent); margin-bottom: 1.5rem; opacity: 0; animation: fadeUp 0.7s 0.8s forwards; }
         .hero-tag::before { content: ''; display: block; width: 30px; height: 1px; background: var(--accent); }
-        .hero-title { font-family: 'Syne', sans-serif; font-size: clamp(2.8rem, 6vw, 5.5rem); font-weight: 800; line-height: 1.0; letter-spacing: -0.03em; margin-bottom: 1.5rem; opacity: 0; animation: fadeUp 0.7s 0.5s forwards; }
+        .hero-title { font-family: 'Syne', sans-serif; font-size: clamp(2.8rem, 6vw, 5.5rem); font-weight: 800; line-height: 1.0; letter-spacing: -0.03em; margin-bottom: 1.5rem; opacity: 0; animation: fadeUp 0.7s 1.0s forwards; }
         .hero-title em { font-family: 'Instrument Serif', serif; font-style: italic; font-weight: 400; color: var(--accent); }
-        .hero-desc { font-size: 0.85rem; line-height: 1.9; color: var(--muted); max-width: 520px; margin-bottom: 2.5rem; opacity: 0; animation: fadeUp 0.7s 0.7s forwards; }
-        .hero-actions { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; opacity: 0; animation: fadeUp 0.7s 0.9s forwards; }
+        .hero-desc { font-size: 0.85rem; line-height: 1.9; color: var(--muted); max-width: 520px; margin-bottom: 2.5rem; opacity: 0; animation: fadeUp 0.7s 1.2s forwards; }
+        .hero-actions { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; opacity: 0; animation: fadeUp 0.7s 1.4s forwards; }
+        
         .btn-primary { display: inline-flex; align-items: center; gap: 0.6rem; background: var(--accent); color: var(--bg); padding: 0.85rem 2rem; font-family: 'DM Mono', monospace; font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; text-decoration: none; border-radius: 2px; transition: background 0.3s, transform 0.2s, box-shadow 0.3s; white-space: nowrap; }
         .btn-primary:hover { background: var(--accent2); transform: translateY(-2px); box-shadow: 0 8px 30px rgba(200,240,68,0.25); }
         .btn-secondary { display: inline-flex; align-items: center; gap: 0.6rem; color: var(--muted); padding: 0.85rem 1.5rem; font-family: 'DM Mono', monospace; font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; text-decoration: none; border: 1px solid var(--border); border-radius: 2px; transition: color 0.3s, border-color 0.3s, transform 0.2s; white-space: nowrap; }
         .btn-secondary:hover { color: var(--text); border-color: var(--muted); transform: translateY(-2px); }
 
-        .hero-photo-wrapper { position: relative; opacity: 0; animation: fadeIn 1s 0.8s forwards; }
+        .hero-photo-wrapper { position: relative; opacity: 0; animation: fadeIn 1s 1.2s forwards; }
         .hero-photo-frame { position: relative; width: 100%; aspect-ratio: 3/4; border-radius: 4px; overflow: hidden; }
         .hero-photo-frame img { width: 100%; height: 100%; object-fit: cover; filter: grayscale(20%); transition: filter 0.5s; }
         .hero-photo-frame:hover img { filter: grayscale(0%); }
@@ -102,7 +202,7 @@
         .hero-photo-wrapper:hover .hero-photo-border { transform: translate(4px, 4px); }
         .hero-photo-label { position: absolute; bottom: 1.5rem; left: 1.5rem; z-index: 1; font-size: 0.65rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--accent); }
 
-        .scroll-indicator { position: absolute; bottom: 2.5rem; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 0.5rem; opacity: 0; animation: fadeIn 1s 1.4s forwards; }
+        .scroll-indicator { position: absolute; bottom: 2.5rem; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 0.5rem; opacity: 0; animation: fadeIn 1s 1.8s forwards; }
         .scroll-indicator span { font-size: 0.6rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); }
         .scroll-line { width: 1px; height: 60px; background: linear-gradient(to bottom, var(--accent), transparent); animation: scrollPulse 2s ease-in-out infinite; }
 
@@ -135,8 +235,6 @@
 
         /* ============================================================
            PROJETOS — FEATURED SCROLL
-           Desktop: cards numa faixa horizontal, o ativo fica maior.
-           Mobile: swipe natural, um card por vez em tela cheia.
         ============================================================ */
         .projects-section { padding: 8rem 0; background: var(--surface); overflow: hidden; }
         .projects-inner { max-width: 1200px; margin: 0 auto; padding: 0 3rem; }
@@ -178,7 +276,7 @@
             transition: border-color 0.4s, box-shadow 0.4s, transform 0.4s, flex-basis 0.5s;
             position: relative;
         }
-        /* Card ativo fica mais largo no desktop */
+        
         .proj-card.active {
             flex-basis: 560px;
             border-color: rgba(200,240,68,0.35);
@@ -355,7 +453,28 @@
         }
     </style>
 </head>
-<body>
+<body class="no-scroll">
+
+    <div id="preloader-tech">
+        <div class="preloader-tech-inner">
+            <div class="preloader-sys-text">
+                <span>[SYS.INIT]</span> <span class="blink">_</span>
+            </div>
+            
+            <div class="preloader-percentage" id="preloader-perc">000%</div>
+            
+            <div class="preloader-bar-bg">
+                <div class="preloader-bar-fill" id="preloader-bar"></div>
+            </div>
+            
+            <div class="preloader-logs">
+                <div class="log-line">> Loading modules... <span class="log-status">OK</span></div>
+                <div class="log-line">> Compiling assets... <span class="log-status">OK</span></div>
+                <div class="log-line">> Bypassing mainframe... <span class="log-status wait" id="log-final">WAIT</span></div>
+            </div>
+        </div>
+    </div>
+
     <div class="cursor" id="cursor"></div>
     <div class="cursor-ring" id="cursorRing"></div>
 
@@ -447,7 +566,6 @@
         </section>
     </div>
 
-    <!-- PROJETOS FEATURED -->
     <div class="projects-section" id="projetos">
         <div class="projects-inner">
             <div class="section-label">02 — Projetos</div>
@@ -464,7 +582,6 @@
         <div class="proj-track-outer" id="projTrackOuter">
             <div class="proj-track" id="projTrack">
 
-                <!-- 001 -->
                 <div class="proj-card active" data-index="0">
                     <div class="proj-thumb-wrap">
                         <span class="proj-badge">Em destaque</span>
@@ -479,7 +596,6 @@
                     </div>
                 </div>
 
-                <!-- 002 -->
                 <div class="proj-card inactive" data-index="1">
                     <div class="proj-thumb-wrap">
                         <span class="proj-badge">Em destaque</span>
@@ -494,7 +610,6 @@
                     </div>
                 </div>
 
-                <!-- 003 -->
                 <div class="proj-card inactive" data-index="2">
                     <div class="proj-thumb-wrap">
                         <span class="proj-badge">Em destaque</span>
@@ -509,7 +624,6 @@
                     </div>
                 </div>
 
-                <!-- 004 — G.Car com scroll=true para pular preloader -->
                 <div class="proj-card inactive" data-index="3">
                     <div class="proj-thumb-wrap">
                         <span class="proj-badge">Em destaque</span>
@@ -524,7 +638,6 @@
                     </div>
                 </div>
 
-                <!-- 005 — Em Breve -->
                 <div class="proj-card inactive" data-index="4">
                     <div class="proj-soon-thumb">
                         <div class="proj-soon-content">
@@ -543,7 +656,6 @@
                     </div>
                 </div>
 
-                <!-- 006 — Em Breve -->
                 <div class="proj-card inactive" data-index="5">
                     <div class="proj-soon-thumb">
                         <div class="proj-soon-content">
@@ -562,10 +674,7 @@
                     </div>
                 </div>
 
-            </div><!-- /proj-track -->
-        </div><!-- /proj-track-outer -->
-
-        <div class="proj-controls">
+            </div></div><div class="proj-controls">
             <div class="proj-dots" id="projDots"></div>
             <div class="proj-arrows">
                 <button class="proj-arrow" id="projPrev" aria-label="Anterior">
@@ -612,6 +721,43 @@
     </footer>
 
     <script>
+        /* ============================================================
+           LÓGICA DO PRELOADER TECH
+        ============================================================ */
+        window.addEventListener('DOMContentLoaded', () => {
+            const percEl = document.getElementById('preloader-perc');
+            const barEl = document.getElementById('preloader-bar');
+            const preloader = document.getElementById('preloader-tech');
+            const logFinal = document.getElementById('log-final');
+            let perc = 0;
+
+            // Simula o carregamento rápido de uma interface de terminal
+            const loadingInterval = setInterval(() => {
+                // Sobe de forma aleatória e rápida
+                perc += Math.floor(Math.random() * 18) + 4; 
+                
+                if (perc >= 100) {
+                    perc = 100;
+                    clearInterval(loadingInterval);
+                    
+                    // Finaliza os logs visuais
+                    logFinal.textContent = "OK";
+                    logFinal.classList.remove('wait');
+                    logFinal.classList.add('ready');
+
+                    // Espera um segundo para o usuário ler o 100% e remove a tela
+                    setTimeout(() => {
+                        preloader.classList.add('loaded');
+                        document.body.classList.remove('no-scroll');
+                    }, 500);
+                }
+                
+                // Formata o número sempre com 3 casas (ex: 045%, 100%)
+                percEl.textContent = String(perc).padStart(3, '0') + '%';
+                barEl.style.width = perc + '%';
+            }, 80);
+        });
+
         /* CURSOR */
         const cursor = document.getElementById('cursor');
         const cursorRing = document.getElementById('cursorRing');
@@ -646,7 +792,7 @@
         const reveals = document.querySelectorAll('.reveal');
         new IntersectionObserver((entries) => { entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); }); }, { threshold: 0.1 }).observe ? document.querySelectorAll('.reveal').forEach(el => new IntersectionObserver((entries) => { entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); }); }, { threshold: 0.1 }).observe(el)) : null;
 
-        /* G.CAR SCREENSHOT — scroll=true pula o preloader do site */
+        /* G.CAR SCREENSHOT */
         (function() {
             const img = document.getElementById('gcarThumbV2');
             img.src = 'https://api.microlink.io/?url=https://gcar-mult-marcas.vercel.app/&screenshot=true&meta=false&embed=screenshot.url&scroll=true';
@@ -686,14 +832,11 @@
             }
 
             function getOffset() {
-                /* Centra o card ativo dentro do outer */
                 const outerW = outer.getBoundingClientRect().width;
                 const card   = cards[active];
                 const cardL  = card.offsetLeft;
                 const cardW  = card.getBoundingClientRect().width;
-                /* Offset para centralizar */
                 let offset = cardL - (outerW / 2) + (cardW / 2);
-                /* Não deixa ir além dos limites */
                 const maxOffset = track.scrollWidth - outerW;
                 return Math.max(0, Math.min(offset, maxOffset));
             }
@@ -719,18 +862,15 @@
             btnNext.addEventListener('click', () => { next(); resetAuto(); });
             btnPrev.addEventListener('click', () => { prev(); resetAuto(); });
 
-            /* Clique no card inativo navega para ele */
             cards.forEach((c, i) => {
                 c.addEventListener('click', () => {
                     if (i !== active) { goTo(i); resetAuto(); }
                 });
             });
 
-            /* Pausa ao hover */
             outer.addEventListener('mouseenter', stopAuto);
             outer.addEventListener('mouseleave', startAuto);
 
-            /* DRAG no desktop */
             let dragStartX = 0, isDragging = false, hasDragged = false;
             outer.addEventListener('mousedown', (e) => { isDragging = true; hasDragged = false; dragStartX = e.clientX; outer.style.cursor = 'grabbing'; stopAuto(); });
             window.addEventListener('mousemove', (e) => { if (!isDragging) return; if (Math.abs(e.clientX - dragStartX) > 5) hasDragged = true; });
@@ -741,7 +881,6 @@
                 resetAuto();
             });
 
-            /* SWIPE no mobile — para imediatamente ao tocar */
             let touchX = 0, touchY = 0;
             outer.addEventListener('touchstart', (e) => {
                 touchX = e.touches[0].clientX;
@@ -758,7 +897,6 @@
                 outer._resume = setTimeout(startAuto, 6000);
             }, { passive: true });
 
-            /* Recalcula ao redimensionar */
             window.addEventListener('resize', () => { track.style.transition = 'none'; goTo(active); setTimeout(() => { track.style.transition = ''; }, 50); });
 
             goTo(0);
