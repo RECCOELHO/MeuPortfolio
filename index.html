@@ -908,17 +908,27 @@
             function startAuto() { autoTimer = setInterval(next, 4000); }
             function stopAuto()  { clearInterval(autoTimer); }
 
-            btnNext.addEventListener('click', () => { next(); resetAuto(); });
-            btnPrev.addEventListener('click', () => { prev(); resetAuto(); });
+            btnNext.addEventListener('click', () => { stopAuto(); next(); clearTimeout(track._resumeTimer); track._resumeTimer = setTimeout(startAuto, 6000); });
+            btnPrev.addEventListener('click', () => { stopAuto(); prev(); clearTimeout(track._resumeTimer); track._resumeTimer = setTimeout(startAuto, 6000); });
 
             track.addEventListener('mouseenter', stopAuto);
             track.addEventListener('mouseleave', startAuto);
 
             let touchStartX = 0;
-            track.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; }, { passive: true });
+            let touchStartY = 0;
+            track.addEventListener('touchstart', e => {
+                touchStartX = e.touches[0].clientX;
+                touchStartY = e.touches[0].clientY;
+                stopAuto();
+            }, { passive: true });
             track.addEventListener('touchend', e => {
                 const dx = e.changedTouches[0].clientX - touchStartX;
-                if (Math.abs(dx) > 50) { dx < 0 ? next() : prev(); resetAuto(); }
+                const dy = e.changedTouches[0].clientY - touchStartY;
+                if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) {
+                    dx < 0 ? next() : prev();
+                }
+                clearTimeout(track._resumeTimer);
+                track._resumeTimer = setTimeout(startAuto, 6000);
             }, { passive: true });
 
             window.addEventListener('resize', () => { currentPage = 0; buildDots(); goTo(0); });
