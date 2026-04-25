@@ -162,7 +162,7 @@
             opacity: 0; animation: slideUp 0.7s 1.25s forwards;
         }
         .hero-actions {
-            display: flex; gap: 1rem; align-items: center;
+            display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;
             opacity: 0; animation: slideUp 0.7s 1.4s forwards;
         }
         .btn-red {
@@ -567,6 +567,8 @@
             .footer-nav li:nth-child(2n) { border-right: none; }
             .footer-nav a { text-align: center; padding: 0.75rem 1rem; }
             .footer-bottom { flex-direction: column; align-items: center; text-align: center; gap: 0.5rem; padding: 1.5rem 0; }
+            .hero-actions { justify-content: center; gap: 0.8rem; }
+            .hero-actions .btn-red, .hero-actions .btn-ghost { flex: 1 1 140px; justify-content: center; padding: 0.8rem 1rem; font-size: 0.7rem; }
         }
     </style>
 </head>
@@ -600,7 +602,7 @@
             <li><a href="#"           onclick="fecharMenu()">Início</a></li>
             <li><a href="#sobre-mim"  onclick="fecharMenu()">Sobre mim</a></li>
             <li><a href="#projetos"   onclick="fecharMenu()">Projetos</a></li>
-            <li><a href="https://linktr.ee/CarlosJesse" target="_blank" onclick="fecharMenu()">Contato ↗</a></li>
+            <li><a href="javascript:void(0)" onclick="fecharMenu(); abrirContato()">Contato ✉</a></li>
             <li><a href="indexversao2.html" target="_blank" onclick="fecharMenu()">Versão 2</a></li>
         </ul>
     </div>
