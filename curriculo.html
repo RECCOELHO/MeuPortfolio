@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Currículo — Carlos Jessé</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #1a1a1a;
+            --accent: #8b1a1a;
+            --text: #333;
+            --light: #666;
+            --border: #eee;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #f5f5f5;
+            color: var(--text);
+            line-height: 1.6;
+            padding: 40px 0;
+        }
+        /* Estilo para Impressão A4 */
+        .resume-page {
+            background: white;
+            width: 210mm;
+            min-height: 297mm;
+            margin: 0 auto;
+            padding: 50px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            display: grid;
+            grid-template-columns: 240px 1fr;
+            gap: 40px;
+        }
+        @media print {
+            body { padding: 0; background: white; }
+            .resume-page { box-shadow: none; margin: 0; width: 100%; }
+        }
+
+        /* Coluna Esquerda */
+        .sidebar {
+            border-right: 1px solid var(--border);
+            padding-right: 20px;
+        }
+        .profile-img {
+            width: 150px; height: 150px;
+            border-radius: 12px;
+            background: #eee;
+            margin-bottom: 25px;
+            object-fit: cover;
+        }
+        .section-title {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            color: var(--accent);
+            margin-bottom: 15px;
+            font-weight: 800;
+        }
+        .contact-item { margin-bottom: 15px; }
+        .contact-label { font-size: 0.7rem; color: var(--light); text-transform: uppercase; font-weight: 600; }
+        .contact-value { font-size: 0.85rem; font-weight: 500; word-break: break-all; }
+        
+        .skill-group { margin-bottom: 25px; }
+        .skill-list { list-style: none; }
+        .skill-list li {
+            font-size: 0.85rem;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .skill-list li::before { content: ''; width: 4px; height: 4px; background: var(--accent); border-radius: 50%; }
+
+        /* Coluna Direita */
+        .main-content { padding-top: 10px; }
+        .header { margin-bottom: 35px; }
+        .name { font-size: 2.2rem; font-weight: 800; color: var(--primary); line-height: 1.1; margin-bottom: 5px; }
+        .role { font-size: 1.1rem; color: var(--accent); font-weight: 600; }
+        
+        .summary { font-size: 0.9rem; color: var(--light); margin-bottom: 40px; text-align: justify; }
+
+        .experience-item { margin-bottom: 30px; position: relative; }
+        .exp-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+        .exp-company { font-weight: 700; font-size: 1rem; color: var(--primary); }
+        .exp-date { font-size: 0.8rem; color: var(--light); font-weight: 500; }
+        .exp-role { font-size: 0.9rem; color: var(--accent); font-weight: 600; margin-bottom: 8px; }
+        .exp-desc { font-size: 0.85rem; color: var(--text); padding-left: 15px; border-left: 2px solid var(--border); }
+        
+        .project-tag {
+            display: inline-block;
+            font-size: 0.7rem;
+            background: #f0f0f0;
+            padding: 2px 8px;
+            border-radius: 4px;
+            margin-right: 5px;
+            margin-top: 8px;
+            color: var(--light);
+        }
+
+        .education-item { margin-bottom: 20px; }
+        .edu-school { font-weight: 700; font-size: 0.95rem; }
+        .edu-degree { font-size: 0.85rem; color: var(--light); }
+    </style>
+</head>
+<body>
+
+    <div class="resume-page">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <img src="assets/img/2d19f0ff-daeb-4d4c-868a-afba22a140ea.jpg" class="profile-img" alt="Carlos Jessé">
+            
+            <section style="margin-bottom: 40px;">
+                <h3 class="section-title">Contato</h3>
+                <div class="contact-item">
+                    <p class="contact-label">Localização</p>
+                    <p class="contact-value">Varginha, MG</p>
+                </div>
+                <div class="contact-item">
+                    <p class="contact-label">E-mail</p>
+                    <p class="contact-value">tv.coelho01@gmail.com</p>
+                </div>
+                <div class="contact-item">
+                    <p class="contact-label">WhatsApp</p>
+                    <p class="contact-value">(35) 99859-4066</p>
+                </div>
+                <div class="contact-item">
+                    <p class="contact-label">LinkedIn</p>
+                    <p class="contact-value">linkedin.com/in/carlos-jesse-coelho</p>
+                </div>
+            </section>
+
+            <section>
+                <h3 class="section-title">Tecnologias</h3>
+                <div class="skill-group">
+                    <ul class="skill-list">
+                        <li>HTML5 / CSS3</li>
+                        <li>JavaScript (ES6+)</li>
+                        <li>PHP / SQL</li>
+                        <li>Supabase / Database</li>
+                        <li>Redes de Computadores</li>
+                        <li>Eletroeletrônica</li>
+                        <li>Git / GitHub</li>
+                    </ul>
+                </div>
+            </section>
+
+            <section style="margin-top: 40px;">
+                <h3 class="section-title">Idiomas</h3>
+                <ul class="skill-list">
+                    <li>Português (Nativo)</li>
+                    <li>Espanhol (Intermediário)</li>
+                    <li>Inglês (Técnico)</li>
+                    <li>Libras (Língua de Sinais)</li>
+                </ul>
+            </section>
+        </aside>
+
+        <!-- Main -->
+        <main class="main-content">
+            <header class="header">
+                <h1 class="name">Carlos Jessé Coelho da Silva</h1>
+                <p class="role">Analista de TI & Desenvolvedor Full-Stack</p>
+            </header>
+
+            <section>
+                <h3 class="section-title">Perfil Profissional</h3>
+                <p class="summary">
+                    Analista de TI e Desenvolvedor Full-Stack com sólida trajetória iniciada pela paixão técnica no SENAI (Eletroeletrônica e Redes). Com 5 anos de experiência em tecnologia militar no Exército Brasileiro e atuação estratégica em ambientes hospitalares críticos, uno disciplina e precisão técnica ao desenvolvimento de software moderno. Especialista em criar interfaces de alta performance e sistemas escaláveis que resolvem problemas reais, focando sempre na eficiência e na melhor experiência para o usuário.
+                </p>
+            </section>
+
+            <section>
+                <h3 class="section-title">Experiência Profissional</h3>
+                
+                <div class="experience-item">
+                    <div class="exp-header">
+                        <p class="exp-company">Hospital Regional do Sul de Minas / São Sebastião</p>
+                        <p class="exp-date">Atual</p>
+                    </div>
+                    <p class="exp-role">Analista de TI</p>
+                    <div class="exp-desc">
+                        Responsável pela análise e suporte de sistemas em ambiente hospitalar de alta complexidade, garantindo a disponibilidade e integridade dos dados e processos tecnológicos.
+                    </div>
+                </div>
+
+                <div class="experience-item">
+                    <div class="exp-header">
+                        <p class="exp-company">Exército Brasileiro</p>
+                        <p class="exp-date">5 Anos de Atuação</p>
+                    </div>
+                    <p class="exp-role">Soldado de Tecnologia</p>
+                    <div class="exp-desc">
+                        Atuação técnica em infraestrutura e suporte tecnológico militar, desenvolvendo disciplina operacional e resolução ágil de problemas em sistemas de rede e comunicações.
+                    </div>
+                </div>
+
+                <h3 class="section-title" style="margin-top: 40px; margin-bottom: 20px;">Projetos de Desenvolvimento</h3>
+
+                <div class="experience-item">
+                    <div class="exp-header">
+                        <p class="exp-company">Rara Moda Íntima</p>
+                        <p class="exp-date">2026</p>
+                    </div>
+                    <p class="exp-role">Freelance Full-Stack</p>
+                    <div class="exp-desc">
+                        Arquitetura e desenvolvimento de um E-commerce moderno com gestão de estoque via Supabase e integração de vendas direta para WhatsApp.
+                    </div>
+                </div>
+
+                <div class="experience-item">
+                    <div class="exp-header">
+                        <p class="exp-company">G.Car Multimarcas</p>
+                        <p class="exp-date">2025</p>
+                    </div>
+                    <p class="exp-role">Freelance Web Developer</p>
+                    <div class="exp-desc">
+                        Criação de plataforma para revenda de veículos com foco em performance e filtros de busca personalizados.
+                    </div>
+                </div>
+            </section>
+
+            <section style="margin-top: 40px;">
+                <h3 class="section-title">Formação Acadêmica</h3>
+                <div class="education-item">
+                    <p class="edu-school">UNIFRAN — Universidade de Franca</p>
+                    <p class="edu-degree">Análise e Desenvolvimento de Sistemas — 2021</p>
+                </div>
+                <div class="education-item">
+                    <p class="edu-school">SENAI</p>
+                    <p class="edu-degree">Formação Técnica em Eletroeletrônica e Redes de Computadores</p>
+                </div>
+            </section>
+        </main>
+    </div>
+
+</body>
+</html>

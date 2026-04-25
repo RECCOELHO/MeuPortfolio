@@ -3,7 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Carlos Jessé — Full-Stack Developer</title>
+    <title>Carlos Jessé — Desenvolvedor Full-Stack</title>
+    <meta name="description" content="Portfólio de Carlos Jessé Coelho da Silva — Desenvolvedor Full-Stack com 4+ anos de experiência em HTML, CSS, JavaScript, PHP e SQL. Disponível para projetos.">
+    <meta name="keywords" content="desenvolvedor full-stack, portfólio, HTML, CSS, JavaScript, PHP, Carlos Jessé, Varginha, Minas Gerais">
+    <meta name="author" content="Carlos Jessé Coelho da Silva">
+    <!-- Open Graph -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://carlosjessecoelho.vercel.app/">
+    <meta property="og:title" content="Carlos Jessé — Desenvolvedor Full-Stack">
+    <meta property="og:description" content="Desenvolvedor Full-Stack com 4+ anos de experiência. Explore meus projetos e entre em contato.">
+    <meta property="og:image" content="https://carlosjessecoelho.vercel.app/assets/img/2d19f0ff-daeb-4d4c-868a-afba22a140ea.jpg">
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Carlos Jessé — Desenvolvedor Full-Stack">
+    <meta name="twitter:description" content="Desenvolvedor Full-Stack com 4+ anos de experiência. Explore meus projetos.">
+    <meta name="twitter:image" content="https://carlosjessecoelho.vercel.app/assets/img/2d19f0ff-daeb-4d4c-868a-afba22a140ea.jpg">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg">
     <link rel="icon" type="image/x-icon" href="assets/img/favicon.ico">
@@ -164,9 +178,11 @@
         .btn-red:hover { transform: translateY(-3px); box-shadow: 0 8px 32px rgba(217,64,64,0.5); filter: brightness(1.1); }
         .btn-ghost {
             display: inline-flex; align-items: center; gap: 0.5rem;
+            background: none; border: 1px solid var(--border);
             color: var(--muted); padding: 0.8rem 1.6rem;
+            font-family: 'Outfit', sans-serif;
             font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 500;
-            text-decoration: none; border: 1px solid var(--border); border-radius: 2px;
+            text-decoration: none; border-radius: 2px; cursor: pointer;
             transition: color 0.3s, border-color 0.3s, transform 0.25s;
         }
         .btn-ghost:hover { color: var(--cream); border-color: rgba(255,255,255,0.25); transform: translateY(-3px); }
@@ -365,6 +381,67 @@
             50%       { box-shadow: 0 0 0 8px rgba(217,64,64,0.12); }
         }
 
+        /* MODAL DE CONTATO */
+        .modal-overlay {
+            position: fixed; inset: 0; z-index: 500;
+            background: rgba(0,0,0,0.75); backdrop-filter: blur(8px);
+            display: flex; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none;
+            transition: opacity 0.35s ease;
+            padding: 1.5rem;
+        }
+        .modal-overlay.open { opacity: 1; pointer-events: all; }
+        .modal-box {
+            background: linear-gradient(160deg, #1a0a0d 0%, #0d0608 100%);
+            border: 1px solid rgba(181,40,40,0.3);
+            border-radius: 6px; padding: 2.5rem;
+            width: 100%; max-width: 480px; position: relative;
+            transform: translateY(20px); transition: transform 0.35s ease;
+        }
+        .modal-overlay.open .modal-box { transform: translateY(0); }
+        .modal-close {
+            position: absolute; top: 1rem; right: 1rem;
+            background: none; border: none; color: var(--muted); cursor: pointer;
+            font-size: 1.2rem; line-height: 1; transition: color 0.2s;
+        }
+        .modal-close:hover { color: var(--cream); }
+        .modal-tag { font-size: 0.65rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--red-bright); margin-bottom: 1rem; }
+        .modal-title { font-family: 'Playfair Display', serif; font-size: 1.6rem; font-weight: 900; line-height: 1.2; margin-bottom: 0.4rem; }
+        .modal-title em { font-style: italic; color: var(--red-bright); }
+        .modal-sub { font-size: 0.78rem; color: var(--muted); margin-bottom: 1.8rem; line-height: 1.6; }
+        .modal-form { display: flex; flex-direction: column; gap: 1rem; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        .form-group { display: flex; flex-direction: column; gap: 0.4rem; }
+        .form-group label { font-size: 0.65rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+        .form-group input,
+        .form-group textarea {
+            background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+            border-radius: 3px; padding: 0.7rem 0.9rem;
+            color: var(--cream); font-family: 'Outfit', sans-serif; font-size: 0.82rem;
+            outline: none; transition: border-color 0.3s;
+            resize: none;
+        }
+        .form-group input:focus,
+        .form-group textarea:focus { border-color: rgba(181,40,40,0.6); }
+        .form-group textarea { min-height: 110px; }
+        .btn-submit {
+            display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+            background: linear-gradient(135deg, var(--red-mid), var(--red-bright));
+            color: var(--cream); padding: 0.85rem 2rem;
+            font-family: 'Outfit', sans-serif; font-size: 0.75rem;
+            letter-spacing: 0.1em; text-transform: uppercase; font-weight: 500;
+            border: none; border-radius: 2px; cursor: pointer;
+            transition: filter 0.3s, transform 0.2s, box-shadow 0.3s;
+            box-shadow: 0 4px 20px rgba(181,40,40,0.35);
+        }
+        .btn-submit:hover { filter: brightness(1.1); transform: translateY(-2px); box-shadow: 0 8px 28px rgba(217,64,64,0.45); }
+        .btn-submit:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        .form-success { display: none; text-align: center; padding: 2rem 0; }
+        .form-success .success-icon { font-size: 2.5rem; margin-bottom: 0.8rem; }
+        .form-success p { font-size: 0.85rem; color: var(--muted); line-height: 1.7; }
+        .form-success strong { color: var(--cream); }
+        @media (max-width: 500px) { .form-row { grid-template-columns: 1fr; } }
+
         /* FOOTER */
         footer {
             background: linear-gradient(to right, var(--deep) 55%, #1a0a0d 100%);
@@ -544,6 +621,8 @@
                 <div class="hero-actions">
                     <a href="#projetos" class="btn-red">Ver projetos →</a>
                     <a href="https://www.linkedin.com/in/carlos-jess%C3%A9-coelho-da-silva-5b375a206/" target="_blank" class="btn-ghost">Meu LinkedIn ↗</a>
+                    <a href="assets/cv-carlos-jesse.pdf" download class="btn-ghost" id="btn-cv" title="Baixar Currículo">📄 CV</a>
+                    <button class="btn-ghost" id="btn-contato" onclick="abrirContato()">✉ Contato</button>
                 </div>
             </div>
         </div>
@@ -737,6 +816,43 @@
         </div>
     </div>
 
+    <!-- MODAL DE CONTATO -->
+    <div class="modal-overlay" id="modalContato" role="dialog" aria-modal="true" aria-label="Formulário de Contato">
+        <div class="modal-box">
+            <button class="modal-close" onclick="fecharContato()" aria-label="Fechar">✕</button>
+            <div class="modal-tag">Vamos conversar</div>
+            <h2 class="modal-title">Entre em <em>contato.</em></h2>
+            <p class="modal-sub">Preencha o formulário abaixo e responderei em breve.</p>
+            <form class="modal-form" id="contactForm"
+                  action="https://formspree.io/f/maqakjkg"
+                  method="POST">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="contact-name">Nome</label>
+                        <input type="text" id="contact-name" name="name" placeholder="Seu nome" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="contact-email">E-mail</label>
+                        <input type="email" id="contact-email" name="email" placeholder="seu@email.com" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="contact-subject">Assunto</label>
+                    <input type="text" id="contact-subject" name="subject" placeholder="Ex: Proposta de projeto" required>
+                </div>
+                <div class="form-group">
+                    <label for="contact-msg">Mensagem</label>
+                    <textarea id="contact-msg" name="message" placeholder="Conte um pouco sobre o que você precisa..." required></textarea>
+                </div>
+                <button type="submit" class="btn-submit" id="submitBtn">Enviar mensagem →</button>
+            </form>
+            <div class="form-success" id="formSuccess">
+                <div class="success-icon">✅</div>
+                <p><strong>Mensagem enviada!</strong><br>Obrigado pelo contato. Responderei o mais breve possível.</p>
+            </div>
+        </div>
+    </div>
+
     <footer>
         <div class="footer-top">
             <h2 class="footer-cta">Vamos construir algo<br><em>incrível juntos?</em></h2>
@@ -778,7 +894,7 @@
             <li><a href="indexversao2.html" target="_blank">Versão 2 ↗</a></li>
         </ul>
         <div class="footer-bottom">
-            <p class="footer-copy">© 2024 <span>Carlos Jessé Coelho da Silva</span>. All Rights Reserved</p>
+            <p class="footer-copy">© 2026 <span>Carlos Jessé Coelho da Silva</span>. All Rights Reserved</p>
             <p class="footer-copy">Desenvolvido por <span>Carlos Jessé</span></p>
         </div>
     </footer>
@@ -792,6 +908,57 @@
                 document.body.classList.remove('no-scroll');
             }, 800);
         });
+
+        /* MODAL CONTATO */
+        const modalContato = document.getElementById('modalContato');
+        const contactForm  = document.getElementById('contactForm');
+        const formSuccess  = document.getElementById('formSuccess');
+
+        function abrirContato() {
+            modalContato.classList.add('open');
+            document.body.classList.add('no-scroll');
+        }
+
+        function fecharContato() {
+            modalContato.classList.remove('open');
+            document.body.classList.remove('no-scroll');
+            // Reset form after closing
+            setTimeout(() => {
+                contactForm.style.display = 'flex';
+                formSuccess.style.display = 'none';
+                contactForm.reset();
+            }, 400);
+        }
+
+        if (contactForm) {
+            contactForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                const btn = document.getElementById('submitBtn');
+                btn.disabled = true;
+                btn.textContent = 'Enviando...';
+
+                const formData = new FormData(contactForm);
+                try {
+                    const response = await fetch(contactForm.action, {
+                        method: 'POST',
+                        body: formData,
+                        headers: { 'Accept': 'application/json' }
+                    });
+                    if (response.ok) {
+                        contactForm.style.display = 'none';
+                        formSuccess.style.display = 'block';
+                    } else {
+                        alert('Ocorreu um erro. Verifique se o ID do Formspree está correto.');
+                        btn.disabled = false;
+                        btn.textContent = 'Enviar mensagem →';
+                    }
+                } catch (error) {
+                    alert('Erro de conexão. Tente novamente mais tarde.');
+                    btn.disabled = false;
+                    btn.textContent = 'Enviar mensagem →';
+                }
+            });
+        }
 
         /* HAMBÚRGUER */
         const btnHamburger = document.getElementById('btn-hamburger');
