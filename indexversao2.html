@@ -43,9 +43,7 @@
         ::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 2px; }
 
         /* PRELOADER */
-        #preloader-tech {
-            position: fixed; inset: 0; background: var(--bg); z-index: 9990; display: flex; flex-direction: column; justify-content: center; padding: 4rem; transition: transform 0.8s cubic-bezier(0.8, 0, 0.2, 1), opacity 0.8s ease;
-        }
+        #preloader-tech { position: fixed; inset: 0; background: var(--bg); z-index: 9990; display: flex; flex-direction: column; justify-content: center; padding: 4rem; transition: transform 0.8s cubic-bezier(0.8, 0, 0.2, 1), opacity 0.8s ease; }
         #preloader-tech.loaded { transform: translateY(-100%); opacity: 0; pointer-events: none; }
         .preloader-tech-inner { max-width: 600px; width: 100%; margin: 0 auto; }
         .preloader-sys-text { color: var(--accent); font-size: 0.85rem; letter-spacing: 0.1em; margin-bottom: 2rem; display: flex; align-items: center; gap: 10px; }
@@ -289,8 +287,6 @@
         /* ============================================================
            EASTER EGG — PONG GAME
         ============================================================ */
-
-        /* Shared terminal chrome */
         #hack-overlay { position: fixed; inset: 0; z-index: 9999; background: rgba(0,0,0,0.96); display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.4s; }
         #hack-overlay.open { opacity: 1; pointer-events: all; }
         #hack-overlay::before { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(to bottom, transparent 0px, transparent 3px, rgba(0,0,0,0.18) 3px, rgba(0,0,0,0.18) 4px); pointer-events: none; z-index: 0; }
@@ -320,9 +316,8 @@
         .hack-start-btn { display: inline-flex; align-items: center; gap: 0.6rem; background: #c8f044; color: #0a0a0f; padding: 0.75rem 2rem; border: none; border-radius: 2px; cursor: pointer; font-family: 'DM Mono', monospace; font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; margin-top: 1.5rem; align-self: flex-start; transition: background 0.3s, transform 0.2s; }
         .hack-start-btn:hover { background: #44f0c8; transform: translateY(-2px); }
 
-        /* Game screen — canvas fills the terminal edge-to-edge */
+        /* Game screen */
         #screenGame { margin: -1.5rem; width: calc(100% + 3rem); overflow: hidden; }
-
         .pong-scoreboard { display: flex; justify-content: space-between; align-items: center; padding: 0.8rem 1.5rem; background: #111118; border-bottom: 1px solid rgba(200,240,68,0.12); }
         .pong-score-side { display: flex; flex-direction: column; align-items: center; }
         .pong-score-num { font-family: 'Syne', sans-serif; font-size: 1.8rem; font-weight: 800; line-height: 1; }
@@ -333,29 +328,61 @@
         .pong-to-win { font-size: 0.55rem; letter-spacing: 0.15em; color: #6b6b80; text-transform: uppercase; }
         .pong-to-win span { color: #c8f044; }
         .pong-separator { font-family: 'Syne', sans-serif; font-size: 1.2rem; font-weight: 800; color: #2a2a38; margin-top: 0.1rem; }
-
         #pongCanvas { display: block; width: 100%; aspect-ratio: 2/1; background: #0a0a0f; cursor: none; }
-
         .pong-controls-bar { display: flex; justify-content: center; gap: 2rem; padding: 0.55rem 1.5rem; background: #111118; border-top: 1px solid rgba(255,255,255,0.05); }
         .pong-key-hint { font-size: 0.58rem; letter-spacing: 0.1em; color: #6b6b80; display: flex; align-items: center; gap: 0.4rem; }
         .pong-key { display: inline-block; background: #18181f; border: 1px solid rgba(255,255,255,0.12); border-radius: 2px; padding: 0.1rem 0.4rem; color: #c8f044; font-size: 0.55rem; font-family: 'DM Mono', monospace; }
 
         /* Result screen */
-        .hack-result { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 1rem; }
+        .hack-result { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 0.8rem; }
         .hack-result-title { font-family: 'Syne', sans-serif; font-size: clamp(1.4rem, 4vw, 2rem); font-weight: 800; letter-spacing: -0.02em; }
         .hack-result-title.success { color: #c8f044; }
         .hack-result-title.fail    { color: #ff4444; }
-        .hack-result-sub { font-size: 0.68rem; color: #6b6b80; letter-spacing: 0.15em; margin-top: -0.5rem; }
-        .hack-result-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.07); border-radius: 4px; overflow: hidden; width: 100%; margin-top: 0.5rem; }
-        .hack-result-stat { background: #111118; padding: 1rem 0.5rem; text-align: center; }
+        .hack-result-sub { font-size: 0.68rem; color: #6b6b80; letter-spacing: 0.15em; margin-top: -0.3rem; }
+        .hack-result-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.07); border-radius: 4px; overflow: hidden; width: 100%; }
+        .hack-result-stat { background: #111118; padding: 0.8rem 0.5rem; text-align: center; }
         .hack-result-stat .num { font-family: 'Syne', sans-serif; font-size: 1.6rem; font-weight: 800; color: #c8f044; line-height: 1; display: block; }
         .hack-result-stat .lbl { font-size: 0.58rem; letter-spacing: 0.15em; text-transform: uppercase; color: #6b6b80; margin-top: 0.3rem; display: block; }
-        .hack-result-grade { font-family: 'Syne', sans-serif; font-size: 3rem; font-weight: 800; line-height: 1; }
-        .hack-result-btns { display: flex; gap: 0.8rem; margin-top: 0.5rem; flex-wrap: wrap; justify-content: center; }
-        .hack-result-btn { padding: 0.7rem 1.6rem; border: 1px solid rgba(255,255,255,0.1); border-radius: 2px; cursor: pointer; font-family: 'DM Mono', monospace; font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; background: none; color: #6b6b80; transition: all 0.3s; }
+        .hack-result-grade { font-family: 'Syne', sans-serif; font-size: 2.6rem; font-weight: 800; line-height: 1; }
+        .hack-result-btns { display: flex; gap: 0.6rem; flex-wrap: wrap; justify-content: center; }
+        .hack-result-btn { padding: 0.65rem 1.2rem; border: 1px solid rgba(255,255,255,0.1); border-radius: 2px; cursor: pointer; font-family: 'DM Mono', monospace; font-size: 0.65rem; letter-spacing: 0.08em; text-transform: uppercase; background: none; color: #6b6b80; transition: all 0.3s; }
         .hack-result-btn.primary { background: #c8f044; color: #0a0a0f; border-color: #c8f044; }
         .hack-result-btn:hover { border-color: #c8f044; color: #c8f044; }
         .hack-result-btn.primary:hover { background: #44f0c8; border-color: #44f0c8; color: #0a0a0f; }
+        .hack-result-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* Name input */
+        .hack-name-group { display: flex; flex-direction: column; gap: 0.35rem; width: 100%; }
+        .hack-name-label { font-size: 0.57rem; letter-spacing: 0.18em; text-transform: uppercase; color: #6b6b80; }
+        .hack-name-input { background: #111118; border: 1px solid rgba(200,240,68,0.25); padding: 0.6rem 1rem; color: #e8e8f0; font-family: 'DM Mono', monospace; font-size: 0.82rem; outline: none; transition: border-color 0.3s; width: 100%; border-radius: 2px; text-align: center; letter-spacing: 0.04em; }
+        .hack-name-input:focus { border-color: #c8f044; }
+        .hack-name-input::placeholder { color: #3a3a50; }
+        .hack-save-status { font-size: 0.6rem; min-height: 1em; letter-spacing: 0.1em; }
+        .hack-save-status.ok  { color: #c8f044; }
+        .hack-save-status.err { color: #ff5f57; }
+
+        /* Leaderboard screen */
+        #screenLeaderboard { overflow: hidden; }
+        .lb-wrap { margin: -1.5rem; width: calc(100% + 3rem); }
+        .lb-header { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1.4rem; background: #111118; border-bottom: 1px solid rgba(200,240,68,0.15); }
+        .lb-title { font-family: 'Syne', sans-serif; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.2em; color: #c8f044; }
+        .lb-body { padding: 0.8rem 1.4rem 1.2rem; }
+        .lb-row { display: grid; grid-template-columns: 28px 1fr 52px 52px 38px 46px; gap: 0.4rem; align-items: center; padding: 0.55rem 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 0.68rem; border-radius: 2px; transition: background 0.2s; }
+        .lb-row:hover { background: rgba(200,240,68,0.04); }
+        .lb-row.lb-head { color: #6b6b80; font-size: 0.56rem; letter-spacing: 0.12em; text-transform: uppercase; border-bottom: 1px solid rgba(200,240,68,0.2); padding-bottom: 0.5rem; }
+        .lb-row .lb-rank { color: #6b6b80; font-family: 'Syne', sans-serif; font-weight: 700; text-align: center; }
+        .lb-row .lb-rank.gold   { color: #febc2e; }
+        .lb-row .lb-rank.silver { color: #aaaacc; }
+        .lb-row .lb-rank.bronze { color: #cd7f32; }
+        .lb-row .lb-nome  { color: #e8e8f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .lb-row .lb-p     { color: #c8f044; font-family: 'Syne', sans-serif; font-weight: 700; text-align: center; }
+        .lb-row .lb-c     { color: #44f0c8; font-family: 'Syne', sans-serif; font-weight: 700; text-align: center; }
+        .lb-row .lb-nota  { font-family: 'Syne', sans-serif; font-weight: 800; text-align: center; }
+        .lb-row .lb-tempo { color: #6b6b80; text-align: right; font-size: 0.6rem; }
+        .lb-empty { text-align: center; padding: 2rem; color: #6b6b80; font-size: 0.7rem; letter-spacing: 0.1em; }
+        .lb-loading { display: flex; align-items: center; justify-content: center; gap: 0.5rem; padding: 2rem; color: #6b6b80; font-size: 0.68rem; }
+        .lb-spinner { width: 14px; height: 14px; border: 2px solid rgba(200,240,68,0.2); border-top-color: #c8f044; border-radius: 50%; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
 
         .glitch { position: relative; display: inline-block; }
         .glitch::before, .glitch::after { content: attr(data-text); position: absolute; top: 0; left: 0; width: 100%; font-family: inherit; font-size: inherit; font-weight: inherit; }
@@ -372,7 +399,9 @@
         @media (max-width: 480px) {
             .hack-body { padding: 1rem; }
             #screenGame { margin: -1rem; width: calc(100% + 2rem); }
+            .lb-wrap { margin: -1rem; width: calc(100% + 2rem); }
             .pong-controls-bar { gap: 1rem; }
+            .lb-row { grid-template-columns: 24px 1fr 40px 40px 32px 38px; font-size: 0.62rem; }
         }
 
         /* MODAL CONTATO */
@@ -689,7 +718,10 @@
                         <div class="hack-intro-line">> Pause: <span class="acc">ESPAÇO</span></div>
                         <div class="hack-intro-line">> Primeiro a <span class="acc">7 pontos</span> vence.</div>
                     </div>
-                    <button class="hack-start-btn" id="hackStartBtn">INICIAR PARTIDA →</button>
+                    <div style="display:flex;gap:0.8rem;align-items:center;margin-top:1.5rem;flex-wrap:wrap;">
+                        <button class="hack-start-btn" id="hackStartBtn">INICIAR PARTIDA →</button>
+                        <button class="hack-result-btn" id="hackRankingBtnIntro" style="margin:0">🏆 VER RANKING</button>
+                    </div>
                 </div>
 
                 <!-- GAME -->
@@ -727,9 +759,41 @@
                             <div class="hack-result-stat"><span class="num" id="rTime">0s</span><span class="lbl">Tempo</span></div>
                         </div>
                         <div class="hack-result-grade" id="rGrade" style="color:#c8f044">S</div>
+                        <!-- Campo de nome para salvar -->
+                        <div class="hack-name-group">
+                            <span class="hack-name-label">// seu nome para o ranking</span>
+                            <input class="hack-name-input" id="playerNameInput" type="text"
+                                maxlength="20" placeholder="Digite seu nome..." autocomplete="off">
+                        </div>
+                        <div class="hack-save-status" id="saveStatus"></div>
                         <div class="hack-result-btns">
                             <button class="hack-result-btn primary" id="hackRetry">JOGAR NOVAMENTE</button>
+                            <button class="hack-result-btn primary" id="hackSaveBtn">SALVAR NO RANKING</button>
+                            <button class="hack-result-btn" id="hackRankingBtn">🏆 VER RANKING</button>
                             <button class="hack-result-btn" id="hackShareBtn">COMPARTILHAR</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- LEADERBOARD -->
+                <div class="hack-screen" id="screenLeaderboard">
+                    <div class="lb-wrap">
+                        <div class="lb-header">
+                            <span class="lb-title">🏆 RANKING — TOP 10 VITÓRIAS</span>
+                            <button class="hack-result-btn" id="lbBackBtn" style="padding:0.28rem 0.75rem;font-size:0.6rem;">← VOLTAR</button>
+                        </div>
+                        <div class="lb-body">
+                            <div class="lb-row lb-head">
+                                <span style="text-align:center">#</span>
+                                <span>NOME</span>
+                                <span style="text-align:center">VOCÊ</span>
+                                <span style="text-align:center">CPU</span>
+                                <span style="text-align:center">NOTA</span>
+                                <span style="text-align:right">TEMPO</span>
+                            </div>
+                            <div id="leaderboardRows">
+                                <div class="lb-loading"><div class="lb-spinner"></div> Carregando...</div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -739,6 +803,39 @@
     </div>
 
     <script>
+    /* ============================================================
+       SUPABASE CONFIG
+       → Preencha com seus dados em supabase.com > Project Settings > API
+    ============================================================ */
+    const SUPABASE_URL = 'https://vhdjqppzylxdksgjzvsh.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_y-rrBFvf0QRFG3WL3P0kxQ_gItonE2U';
+
+    async function saveScore(nome, pontos_jogador, pontos_cpu, tempo, nota) {
+        try {
+            const res = await fetch(SUPABASE_URL + '/rest/v1/leaderboard', {
+                method: 'POST',
+                headers: {
+                    'apikey':        SUPABASE_KEY,
+                    'Authorization': 'Bearer ' + SUPABASE_KEY,
+                    'Content-Type':  'application/json',
+                    'Prefer':        'return=minimal'
+                },
+                body: JSON.stringify({ nome, pontos_jogador, pontos_cpu, tempo, nota })
+            });
+            return res.ok;
+        } catch { return false; }
+    }
+
+    async function loadLeaderboard() {
+        try {
+            const res = await fetch(
+                SUPABASE_URL + '/rest/v1/leaderboard?select=*&pontos_jogador=eq.7&order=pontos_cpu.asc,tempo.asc&limit=10',
+                { headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY } }
+            );
+            return res.ok ? await res.json() : [];
+        } catch { return []; }
+    }
+
     /* ============================================================
        PRELOADER
     ============================================================ */
@@ -906,39 +1003,57 @@
         }
 
         /* --- DOM refs --- */
-        const overlay      = document.getElementById('hack-overlay');
-        const closeBtn     = document.getElementById('hackClose');
-        const startBtn     = document.getElementById('hackStartBtn');
-        const retryBtn     = document.getElementById('hackRetry');
-        const shareBtn     = document.getElementById('hackShareBtn');
-        const screenIntro  = document.getElementById('screenIntro');
-        const screenGame   = document.getElementById('screenGame');
-        const screenResult = document.getElementById('screenResult');
-        const pScoreEl     = document.getElementById('pScoreEl');
-        const aScoreEl     = document.getElementById('aScoreEl');
+        const overlay           = document.getElementById('hack-overlay');
+        const closeBtn          = document.getElementById('hackClose');
+        const startBtn          = document.getElementById('hackStartBtn');
+        const retryBtn          = document.getElementById('hackRetry');
+        const shareBtn          = document.getElementById('hackShareBtn');
+        const saveBtn           = document.getElementById('hackSaveBtn');
+        const rankingBtn        = document.getElementById('hackRankingBtn');
+        const rankingBtnIntro   = document.getElementById('hackRankingBtnIntro');
+        const lbBackBtn         = document.getElementById('lbBackBtn');
+        const nameInput         = document.getElementById('playerNameInput');
+        const saveStatus        = document.getElementById('saveStatus');
+        const lbRows            = document.getElementById('leaderboardRows');
+        const screenIntro       = document.getElementById('screenIntro');
+        const screenGame        = document.getElementById('screenGame');
+        const screenResult      = document.getElementById('screenResult');
+        const screenLeaderboard = document.getElementById('screenLeaderboard');
+        const pScoreEl          = document.getElementById('pScoreEl');
+        const aScoreEl          = document.getElementById('aScoreEl');
+
+        /* Estado interno para saber de onde o ranking foi aberto */
+        let lbPreviousScreen = screenResult;
 
         /* --- Game constants --- */
         const CW = 600, CH = 300;
-        const PW = 12, PH = 72;   // paddle width, height
-        const BR = 7;              // ball radius
-        const PX_L = 18;           // player paddle left-edge X
-        const PX_R = CW - PX_L - PW; // ai paddle left-edge X
-        const WINNING  = 7;
-        const P_SPEED  = 380;      // player px/s
-        const AI_BASE  = 170;      // ai base speed px/s
-        const BALL_BASE = 260;     // initial ball speed px/s
+        const PW = 12, PH = 72;
+        const BR = 7;
+        const PX_L = 18;
+        const PX_R = CW - PX_L - PW;
+        const WINNING   = 7;
+        const P_SPEED   = 380;
+        const AI_BASE   = 170;
+        const BALL_BASE = 260;
         const TRAIL_LEN = 10;
 
         /* --- State --- */
-        let canvas, ctx, scaleX, scaleY;
+        let canvas, ctx;
         let playerY, aiY, ballX, ballY, ballVX, ballVY;
-        let pScore, aScore, rally, totalRallies, gameStartTime;
+        let pScore, aScore, rally, gameStartTime;
         let running, paused, resetting, gameOver;
         let animId, lastTimestamp;
         let keyUp = false, keyDown = false;
         let trail = [];
         let flashAlpha = 0, flashSide = null;
-        let countdownVal = 0, countdownTimer = null;
+        let countdownTimer = null;
+
+        /* --- Screen management --- */
+        const allScreens = [screenIntro, screenGame, screenResult, screenLeaderboard];
+        function showScreen(el) {
+            allScreens.forEach(s => s.classList.remove('active'));
+            el.classList.add('active');
+        }
 
         /* --- Overlay controls --- */
         function openGame() {
@@ -953,13 +1068,10 @@
             document.body.style.overflow = '';
             stopLoop();
         }
-        function showScreen(el) {
-            [screenIntro, screenGame, screenResult].forEach(s => s.classList.remove('active'));
-            el.classList.add('active');
-        }
 
         closeBtn.addEventListener('click', closeGame);
         overlay.addEventListener('click', (e) => { if (e.target === overlay) closeGame(); });
+
         document.addEventListener('keydown', (e) => {
             if (!overlay.classList.contains('open')) return;
             if (e.key === 'Escape') { closeGame(); return; }
@@ -976,6 +1088,89 @@
         startBtn.addEventListener('click', startGame);
         retryBtn.addEventListener('click', () => { stopLoop(); startGame(); });
 
+        /* --- Salvar no ranking --- */
+        if (saveBtn) {
+            saveBtn.addEventListener('click', async () => {
+                const nome = nameInput.value.trim();
+                if (!nome) {
+                    saveStatus.textContent = '⚠ Digite seu nome primeiro!';
+                    saveStatus.className = 'hack-save-status err';
+                    nameInput.focus();
+                    return;
+                }
+                saveBtn.disabled = true;
+                saveBtn.textContent = 'SALVANDO...';
+                saveStatus.textContent = '';
+                saveStatus.className = 'hack-save-status';
+
+                const grade  = document.getElementById('rGrade').textContent;
+                const player = parseInt(document.getElementById('rPlayer').textContent);
+                const cpu    = parseInt(document.getElementById('rCpu').textContent);
+                const time   = document.getElementById('rTime').textContent;
+
+                const ok = await saveScore(nome, player, cpu, time, grade);
+                if (ok) {
+                    saveStatus.textContent = '✓ RESULTADO SALVO NO RANKING!';
+                    saveStatus.className = 'hack-save-status ok';
+                    saveBtn.textContent = 'SALVO ✓';
+                } else {
+                    saveStatus.textContent = '✕ FALHA AO SALVAR. TENTE NOVAMENTE.';
+                    saveStatus.className = 'hack-save-status err';
+                    saveBtn.disabled = false;
+                    saveBtn.textContent = 'SALVAR NO RANKING';
+                }
+            });
+        }
+
+        /* --- Ver Ranking (da tela de resultado) --- */
+        if (rankingBtn) {
+            rankingBtn.addEventListener('click', () => {
+                lbPreviousScreen = screenResult;
+                openLeaderboard();
+            });
+        }
+
+        /* --- Ver Ranking (da tela de intro) --- */
+        if (rankingBtnIntro) {
+            rankingBtnIntro.addEventListener('click', () => {
+                lbPreviousScreen = screenIntro;
+                openLeaderboard();
+            });
+        }
+
+        /* --- Voltar do ranking --- */
+        if (lbBackBtn) {
+            lbBackBtn.addEventListener('click', () => showScreen(lbPreviousScreen));
+        }
+
+        async function openLeaderboard() {
+            showScreen(screenLeaderboard);
+            lbRows.innerHTML = '<div class="lb-loading"><div class="lb-spinner"></div> Carregando...</div>';
+            const data = await loadLeaderboard();
+            if (!data.length) {
+                lbRows.innerHTML = '<div class="lb-empty">Nenhuma vitória registrada ainda.<br>Seja o primeiro! 🏆</div>';
+                return;
+            }
+            const gradeColors = { S: '#c8f044', A: '#44f0c8', B: '#e8e8f0', C: '#febc2e', D: '#febc2e', F: '#ff5f57' };
+            const medals    = ['🥇', '🥈', '🥉'];
+            const rankClass = ['gold', 'silver', 'bronze'];
+            lbRows.innerHTML = data.map((r, i) => {
+                const rk = i < 3
+                    ? `<span class="lb-rank ${rankClass[i]}">${medals[i]}</span>`
+                    : `<span class="lb-rank">${i + 1}</span>`;
+                const gc = gradeColors[r.nota] || '#e8e8f0';
+                return `
+                <div class="lb-row">
+                    ${rk}
+                    <span class="lb-nome">${r.nome}</span>
+                    <span class="lb-p">${r.pontos_jogador}</span>
+                    <span class="lb-c">${r.pontos_cpu}</span>
+                    <span class="lb-nota" style="color:${gc}">${r.nota}</span>
+                    <span class="lb-tempo">${r.tempo}</span>
+                </div>`;
+            }).join('');
+        }
+
         /* --- Start / Stop --- */
         function startGame() {
             canvas = document.getElementById('pongCanvas');
@@ -983,7 +1178,7 @@
             showScreen(screenGame);
 
             pScore = 0; aScore = 0;
-            rally = 0; totalRallies = 0;
+            rally = 0;
             running = true; paused = false; resetting = false; gameOver = false;
             gameStartTime = Date.now();
             trail = [];
@@ -993,9 +1188,7 @@
             aiY     = CH/2 - PH/2;
             updateScoreDisplay();
 
-            // Touch control
             canvas.addEventListener('touchmove', onTouch, { passive: false });
-
             serveBall(Math.random() > 0.5 ? 1 : -1, true);
             lastTimestamp = performance.now();
             animId = requestAnimationFrame(loop);
@@ -1016,7 +1209,7 @@
             playerY = Math.max(0, Math.min(CH - PH, ty - PH/2));
         }
 
-        /* --- Ball serve with brief pause --- */
+        /* --- Ball serve --- */
         function serveBall(dir, immediate) {
             resetting = true;
             ballX = CW/2; ballY = CH/2;
@@ -1050,28 +1243,23 @@
 
         /* --- Update --- */
         function update(dt) {
-            /* Player */
             if (keyUp)   playerY = Math.max(0, playerY - P_SPEED * dt);
             if (keyDown) playerY = Math.min(CH - PH, playerY + P_SPEED * dt);
 
-            /* AI: speed-capped tracking (gets faster with rallies) */
             const aiSpd = Math.min(AI_BASE + rally * 14, 320) * dt;
             const diff  = (ballY - PH/2) - aiY;
             aiY += Math.sign(diff) * Math.min(Math.abs(diff), aiSpd);
             aiY = Math.max(0, Math.min(CH - PH, aiY));
 
-            /* Ball */
             trail.push({ x: ballX, y: ballY });
             if (trail.length > TRAIL_LEN) trail.shift();
 
             ballX += ballVX * dt;
             ballY += ballVY * dt;
 
-            /* Wall bounce */
             if (ballY - BR < 0)  { ballY = BR;      ballVY =  Math.abs(ballVY); }
             if (ballY + BR > CH) { ballY = CH - BR;  ballVY = -Math.abs(ballVY); }
 
-            /* Player paddle collision */
             if (ballVX < 0 && ballX - BR <= PX_L + PW && ballX - BR >= PX_L - 5) {
                 if (ballY + BR >= playerY && ballY - BR <= playerY + PH) {
                     ballX = PX_L + PW + BR + 1;
@@ -1080,11 +1268,10 @@
                     const spd = Math.min(Math.hypot(ballVX, ballVY) + 18, 700);
                     ballVX =  Math.abs(Math.cos(angle)) * spd;
                     ballVY =  Math.sin(angle) * spd;
-                    rally++; totalRallies++;
+                    rally++;
                 }
             }
 
-            /* AI paddle collision */
             if (ballVX > 0 && ballX + BR >= PX_R && ballX + BR <= PX_R + PW + 5) {
                 if (ballY + BR >= aiY && ballY - BR <= aiY + PH) {
                     ballX = PX_R - BR - 1;
@@ -1093,11 +1280,10 @@
                     const spd = Math.min(Math.hypot(ballVX, ballVY) + 18, 700);
                     ballVX = -Math.abs(Math.cos(angle)) * spd;
                     ballVY =  Math.sin(angle) * spd;
-                    rally++; totalRallies++;
+                    rally++;
                 }
             }
 
-            /* Scoring */
             if (ballX + BR < 0) {
                 aScore++; updateScoreDisplay();
                 flashAlpha = 1; flashSide = 'ai';
@@ -1120,7 +1306,6 @@
             ctx.fillStyle = '#0a0a0f';
             ctx.fillRect(0, 0, CW, CH);
 
-            /* Score flash */
             if (flashAlpha > 0) {
                 ctx.globalAlpha = flashAlpha * 0.15;
                 ctx.fillStyle = flashSide === 'player' ? '#c8f044' : '#44f0c8';
@@ -1128,14 +1313,12 @@
                 ctx.globalAlpha = 1;
             }
 
-            /* Center dashed line */
             ctx.setLineDash([8, 10]);
             ctx.strokeStyle = 'rgba(255,255,255,0.04)';
             ctx.lineWidth = 1;
             ctx.beginPath(); ctx.moveTo(CW/2, 0); ctx.lineTo(CW/2, CH); ctx.stroke();
             ctx.setLineDash([]);
 
-            /* Pause overlay */
             if (paused) {
                 ctx.fillStyle = 'rgba(10,10,15,0.75)';
                 ctx.fillRect(0, 0, CW, CH);
@@ -1149,7 +1332,6 @@
                 return;
             }
 
-            /* Ball trail */
             trail.forEach((pos, i) => {
                 const t = i / TRAIL_LEN;
                 ctx.globalAlpha = t * 0.35;
@@ -1160,7 +1342,6 @@
             });
             ctx.globalAlpha = 1;
 
-            /* Ball glow */
             if (!resetting) {
                 ctx.shadowColor = '#c8f044';
                 ctx.shadowBlur = 18;
@@ -1170,14 +1351,12 @@
                 ctx.fill();
                 ctx.shadowBlur = 0;
             } else {
-                /* Waiting indicator at center */
                 ctx.fillStyle = 'rgba(200,240,68,0.18)';
                 ctx.beginPath();
                 ctx.arc(CW/2, CH/2, BR + 4, 0, Math.PI * 2);
                 ctx.fill();
             }
 
-            /* Player paddle */
             ctx.shadowColor = '#c8f044';
             ctx.shadowBlur = 14;
             ctx.fillStyle = '#c8f044';
@@ -1185,7 +1364,6 @@
             ctx.roundRect(PX_L, playerY, PW, PH, 3);
             ctx.fill();
 
-            /* AI paddle */
             ctx.shadowColor = '#44f0c8';
             ctx.fillStyle = '#44f0c8';
             ctx.beginPath();
@@ -1196,6 +1374,13 @@
 
         /* --- Result --- */
         function showResult() {
+            /* Reset campos de salvar */
+            nameInput.value = '';
+            saveBtn.disabled = false;
+            saveBtn.textContent = 'SALVAR NO RANKING';
+            saveStatus.textContent = '';
+            saveStatus.className = 'hack-save-status';
+
             const elapsed = ((Date.now() - gameStartTime) / 1000).toFixed(0);
             const won     = pScore >= WINNING;
 
@@ -1211,6 +1396,9 @@
             document.getElementById('rCpu').textContent    = aScore;
             document.getElementById('rTime').textContent   = elapsed + 's';
 
+            /* Botão salvar só aparece em vitórias */
+            saveBtn.style.display = won ? '' : 'none';
+
             let grade, gradeColor;
             if (won) {
                 if (aScore === 0)      { grade='S'; gradeColor='#c8f044'; }
@@ -1221,8 +1409,8 @@
             } else {
                 grade = 'F'; gradeColor = '#ff5f57';
             }
-            document.getElementById('rGrade').textContent  = grade;
-            document.getElementById('rGrade').style.color  = gradeColor;
+            document.getElementById('rGrade').textContent = grade;
+            document.getElementById('rGrade').style.color = gradeColor;
             showScreen(screenResult);
         }
 
