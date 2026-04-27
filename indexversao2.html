@@ -779,7 +779,7 @@
                 <div class="hack-screen" id="screenLeaderboard">
                     <div class="lb-wrap">
                         <div class="lb-header">
-                            <span class="lb-title">🏆 RANKING — TOP 10 VITÓRIAS</span>
+                            <span class="lb-title">🏆 RANKING GLOBAL — TOP 20</span>
                             <button class="hack-result-btn" id="lbBackBtn" style="padding:0.28rem 0.75rem;font-size:0.6rem;">← VOLTAR</button>
                         </div>
                         <div class="lb-body">
@@ -829,7 +829,7 @@
     async function loadLeaderboard() {
         try {
             const res = await fetch(
-                SUPABASE_URL + '/rest/v1/leaderboard?select=*&pontos_jogador=eq.7&order=pontos_cpu.asc,tempo.asc&limit=10',
+                SUPABASE_URL + '/rest/v1/leaderboard?select=*&order=pontos_jogador.desc,pontos_cpu.asc,tempo.asc&limit=20',
                 { headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY } }
             );
             return res.ok ? await res.json() : [];
@@ -1396,8 +1396,8 @@
             document.getElementById('rCpu').textContent    = aScore;
             document.getElementById('rTime').textContent   = elapsed + 's';
 
-            /* Botão salvar só aparece em vitórias */
-            saveBtn.style.display = won ? '' : 'none';
+            /* Botão salvar aparece sempre */
+            saveBtn.style.display = '';
 
             let grade, gradeColor;
             if (won) {
