@@ -246,6 +246,57 @@
         }
 
         /* ============================================================
+           SERVIÇOS / PLANOS
+        ============================================================ */
+        .services {
+            background: linear-gradient(180deg, #150608 0%, var(--deep) 100%);
+            padding: 7rem 4rem;
+            position: relative;
+        }
+        .services-header { text-align: center; margin-bottom: 4rem; }
+        .services-title {
+            font-family: 'Playfair Display', serif; font-size: clamp(2rem, 3.5vw, 3rem);
+            font-weight: 900; line-height: 1.15; margin-top: 1rem;
+        }
+        .services-title em { font-style: italic; color: var(--red-bright); }
+
+        .plans-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; max-width: 900px; margin: 0 auto;
+        }
+        .plan-card {
+            background: linear-gradient(160deg, #1a0a0d 0%, #0d0608 100%);
+            border: 1px solid var(--border); border-radius: 4px; padding: 3rem 2.5rem;
+            display: flex; flex-direction: column; position: relative; overflow: hidden;
+            transition: transform 0.4s, border-color 0.4s, box-shadow 0.4s;
+        }
+        .plan-card:hover {
+            transform: translateY(-6px); border-color: rgba(181,40,40,0.4);
+            box-shadow: 0 16px 48px rgba(139,26,26,0.15);
+        }
+        .plan-card.featured {
+            border-color: rgba(217,64,64,0.3);
+        }
+        .plan-num { font-size: 0.65rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--red-bright); margin-bottom: 0.8rem; }
+        .plan-name { font-family: 'Playfair Display', serif; font-size: 2rem; font-weight: 900; margin-bottom: 0.5rem; }
+        .plan-name em { font-style: italic; color: var(--red-bright); }
+        .plan-desc { font-size: 0.8rem; color: var(--muted); line-height: 1.6; margin-bottom: 2rem; font-weight: 300; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border); }
+        .plan-features { list-style: none; margin-bottom: 2.5rem; flex: 1; display: flex; flex-direction: column; gap: 0.8rem; }
+        .plan-features li { display: flex; align-items: flex-start; gap: 0.8rem; font-size: 0.8rem; color: var(--cream); font-weight: 300; }
+        .plan-features li::before { content: '→'; color: var(--red-bright); font-weight: 700; }
+        .plan-features li.na { color: var(--muted); opacity: 0.5; text-decoration: line-through; }
+        .plan-features li.na::before { content: '—'; color: var(--muted); }
+        .plan-price-label { font-size: 0.65rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.5rem; }
+        .plan-price { font-family: 'Playfair Display', serif; font-size: 2.5rem; font-weight: 900; color: var(--cream); line-height: 1; }
+        .plan-price span { font-size: 1rem; color: var(--muted); font-family: 'Outfit', sans-serif; font-weight: 400; }
+        .plan-period { font-size: 0.75rem; color: var(--muted); margin-top: 0.5rem; font-weight: 300; }
+
+        @media (max-width: 900px) {
+            .services { padding: 5rem 1.5rem; }
+            .plans-grid { grid-template-columns: 1fr; }
+            .plan-card { padding: 2rem 1.5rem; }
+        }
+
+        /* ============================================================
            CARROSSEL DE PROJETOS
         ============================================================ */
         .projects {
@@ -588,6 +639,7 @@
         <ul class="nav-links">
             <li><a href="#">Início</a></li>
             <li><a href="#sobre-mim">Sobre mim</a></li>
+            <li><a href="#servicos">Serviços</a></li>
             <li><a href="#projetos">Projetos</a></li>
             <li><a href="https://linktr.ee/CarlosJesse" target="_blank">Contato</a></li>
             <li><a href="indexversao2.html" target="_blank">Versão 2</a></li>
@@ -601,6 +653,7 @@
         <ul>
             <li><a href="#"           onclick="fecharMenu()">Início</a></li>
             <li><a href="#sobre-mim"  onclick="fecharMenu()">Sobre mim</a></li>
+            <li><a href="#servicos"   onclick="fecharMenu()">Serviços</a></li>
             <li><a href="#projetos"   onclick="fecharMenu()">Projetos</a></li>
             <li><a href="javascript:void(0)" onclick="fecharMenu(); abrirContato()">Contato ✉</a></li>
             <li><a href="indexversao2.html" target="_blank" onclick="fecharMenu()">Versão 2</a></li>
@@ -686,6 +739,59 @@
                         <div class="skill-row-top"><span class="skill-row-name">SQL</span><span class="skill-row-pct">55%</span></div>
                         <div class="skill-bar-bg"><div class="skill-bar-fill" data-width="55"></div></div>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================
+         SERVIÇOS / PLANOS
+    ============================================================ -->
+    <div class="services" id="servicos">
+        <div class="services-header">
+            <div class="section-tag" style="justify-content: center;">Planos e Serviços</div>
+            <h2 class="services-title reveal">Modelos de<br><em>investimento.</em></h2>
+        </div>
+        <div class="plans-grid">
+            <!-- Plano Conexão -->
+            <div class="plan-card reveal">
+                <div class="plan-num">01 — Plano</div>
+                <div class="plan-name">Cone<em>xão</em></div>
+                <p class="plan-desc">Direcionamento estratégico e qualificação do cliente para atendimento humano personalizado.</p>
+                <ul class="plan-features">
+                    <li>Banco de dados profissional</li>
+                    <li>Painel admin + gráficos</li>
+                    <li>Domínio .com.br (1º ano)</li>
+                    <li>Ancoragem direta para WhatsApp</li>
+                    <li>Captação de leads estruturada</li>
+                    <li>Ideal para vendas consultivas</li>
+                    <li class="na">Gateway de pagamento integrado</li>
+                </ul>
+                <div class="plan-price-box">
+                    <div class="plan-price-label">Investimento anual</div>
+                    <div class="plan-price">R$ 1.000<span>,00</span></div>
+                    <div class="plan-period">por ano · pagamento parcelado</div>
+                </div>
+            </div>
+
+            <!-- Plano Checkout Pro -->
+            <div class="plan-card featured reveal">
+                <div class="plan-num">02 — Plano</div>
+                <div class="plan-name">Checkout <em>Pro</em></div>
+                <p class="plan-desc">Automação total do ciclo comercial com transações diretas e integradas no ambiente web.</p>
+                <ul class="plan-features">
+                    <li>Banco de dados profissional</li>
+                    <li>Painel admin + gráficos</li>
+                    <li>Domínio .com.br (1º ano)</li>
+                    <li>Ancoragem WhatsApp (híbrido)</li>
+                    <li>Captação de leads estruturada</li>
+                    <li>Relatórios financeiros em tempo real</li>
+                    <li>Gateway API: Cartão, PIX, Boleto</li>
+                </ul>
+                <div class="plan-price-box">
+                    <div class="plan-price-label">Investimento anual</div>
+                    <div class="plan-price">R$ 1.500<span>,00</span></div>
+                    <div class="plan-period">por ano · pagamento parcelado</div>
                 </div>
             </div>
         </div>
@@ -891,6 +997,7 @@
         <ul class="footer-nav">
             <li><a href="#">Início</a></li>
             <li><a href="#sobre-mim">Sobre mim</a></li>
+            <li><a href="#servicos">Serviços</a></li>
             <li><a href="#projetos">Projetos</a></li>
             <li><a href="https://linktr.ee/CarlosJesse" target="_blank">Contato ↗</a></li>
             <li><a href="indexversao2.html" target="_blank">Versão 2 ↗</a></li>

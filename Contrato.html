@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Proposta Comercial — Carlos Jessé</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --red: #e03131;
+    --red-dark: #c92a2a;
+    --red-glow: rgba(224,49,49,0.12);
+    --bg: #0c0c0c;
+    --bg2: #141414;
+    --bg3: #1c1c1c;
+    --border: rgba(255,255,255,0.07);
+    --border-red: rgba(224,49,49,0.3);
+    --text: #f0f0f0;
+    --muted: #888;
+    --muted2: #555;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    line-height: 1.7;
+    min-height: 100vh;
+    padding: 0;
+  }
+
+  .page {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 60px 48px 80px;
+  }
+
+  /* ── HEADER ── */
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding-bottom: 40px;
+    border-bottom: 0.5px solid var(--border);
+    margin-bottom: 56px;
+  }
+
+  .brand-mark {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .logo-box {
+    width: 42px;
+    height: 42px;
+    background: var(--red);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 17px;
+    color: #fff;
+    letter-spacing: -0.5px;
+    flex-shrink: 0;
+  }
+
+  .brand-name {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 15px;
+    color: #fff;
+    line-height: 1.2;
+  }
+
+  .brand-role {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+
+  .doc-badge {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+  }
+
+  .badge-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+  }
+
+  .badge-id {
+    font-family: 'Syne', sans-serif;
+    font-size: 12px;
+    color: var(--red);
+    font-weight: 600;
+  }
+
+  /* ── HERO ── */
+  .hero {
+    margin-bottom: 60px;
+  }
+
+  .hero-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--red-glow);
+    border: 0.5px solid var(--border-red);
+    color: var(--red);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: 5px 12px;
+    border-radius: 100px;
+    margin-bottom: 20px;
+    font-weight: 500;
+  }
+
+  .hero-tag::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    background: var(--red);
+    border-radius: 50%;
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%,100% { opacity: 1; } 50% { opacity: 0.3; }
+  }
+
+  .hero-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 42px;
+    font-weight: 800;
+    line-height: 1.1;
+    color: #fff;
+    letter-spacing: -0.03em;
+    margin-bottom: 16px;
+  }
+
+  .hero-title em {
+    font-style: normal;
+    color: var(--red);
+  }
+
+  .hero-sub {
+    font-size: 14px;
+    color: var(--muted);
+    max-width: 520px;
+    line-height: 1.8;
+  }
+
+  /* ── SECTION LABEL ── */
+  .section-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--red);
+    font-weight: 600;
+    margin-bottom: 24px;
+  }
+
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 0.5px;
+    background: var(--border-red);
+  }
+
+  /* ── SECTION ── */
+  .section {
+    margin-bottom: 60px;
+  }
+
+  /* ── INTRO PARA ── */
+  .intro-para {
+    font-size: 14px;
+    color: #aaa;
+    line-height: 1.9;
+    background: var(--bg2);
+    border: 0.5px solid var(--border);
+    border-left: 2px solid var(--red);
+    border-radius: 0 8px 8px 0;
+    padding: 20px 24px;
+  }
+
+  /* ── FEATURES GRID ── */
+  .features-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .feature-card {
+    background: var(--bg2);
+    border: 0.5px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+    transition: border-color 0.2s;
+  }
+
+  .feature-card:hover { border-color: var(--border-red); }
+
+  .feature-icon {
+    font-size: 18px;
+    margin-bottom: 10px;
+    display: block;
+    color: var(--red);
+  }
+
+  .feature-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 4px;
+  }
+
+  .feature-desc {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  /* ── PLANS ── */
+  .plans-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+
+  .plan-card {
+    background: var(--bg2);
+    border: 0.5px solid var(--border);
+    border-radius: 12px;
+    padding: 28px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+
+  .plan-card:hover { border-color: var(--border-red); }
+
+  .plan-card.featured {
+    border-color: var(--red);
+    background: linear-gradient(135deg, var(--bg2) 0%, #1a0a0a 100%);
+  }
+
+  .plan-card.featured::before {
+    content: 'RECOMENDADO';
+    position: absolute;
+    top: 14px;
+    right: -22px;
+    background: var(--red);
+    color: #fff;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    padding: 4px 30px;
+    transform: rotate(35deg);
+  }
+
+  .plan-number {
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted2);
+    margin-bottom: 12px;
+    font-weight: 500;
+  }
+
+  .plan-name {
+    font-family: 'Syne', sans-serif;
+    font-size: 22px;
+    font-weight: 800;
+    color: #fff;
+    letter-spacing: -0.02em;
+    margin-bottom: 4px;
+  }
+
+  .plan-name em {
+    font-style: normal;
+    color: var(--red);
+  }
+
+  .plan-tagline {
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 20px;
+    line-height: 1.5;
+    padding-bottom: 20px;
+    border-bottom: 0.5px solid var(--border);
+  }
+
+  .plan-features {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1;
+    margin-bottom: 24px;
+  }
+
+  .plan-features li {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 12.5px;
+    color: #bbb;
+    line-height: 1.5;
+  }
+
+  .plan-features li::before {
+    content: '→';
+    color: var(--red);
+    font-size: 12px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .plan-features li.na {
+    color: var(--muted2);
+    text-decoration: line-through;
+    text-decoration-color: var(--muted2);
+  }
+
+  .plan-features li.na::before {
+    content: '—';
+    color: var(--muted2);
+  }
+
+  .plan-price {
+    margin-top: auto;
+  }
+
+  .plan-price-label {
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+
+  .plan-price-value {
+    font-family: 'Syne', sans-serif;
+    font-size: 30px;
+    font-weight: 800;
+    color: #fff;
+    letter-spacing: -0.03em;
+  }
+
+  .plan-price-value span {
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--muted);
+    font-family: 'Inter', sans-serif;
+  }
+
+  .plan-price-period {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  /* ── COMPARE TABLE ── */
+  .compare-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  .compare-table thead tr th {
+    text-align: left;
+    padding: 12px 16px;
+    font-family: 'Syne', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    border-bottom: 0.5px solid var(--border);
+  }
+
+  .compare-table thead tr th:not(:first-child) {
+    text-align: center;
+  }
+
+  .compare-table tbody tr {
+    border-bottom: 0.5px solid var(--border);
+    transition: background 0.15s;
+  }
+
+  .compare-table tbody tr:hover {
+    background: rgba(255,255,255,0.02);
+  }
+
+  .compare-table tbody tr:last-child {
+    border-bottom: none;
+  }
+
+  .compare-table td {
+    padding: 13px 16px;
+    color: #ccc;
+  }
+
+  .compare-table td:not(:first-child) {
+    text-align: center;
+  }
+
+  .check {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    background: rgba(224,49,49,0.15);
+    border: 0.5px solid var(--border-red);
+    border-radius: 50%;
+    color: var(--red);
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .cross {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    background: rgba(255,255,255,0.03);
+    border: 0.5px solid var(--border);
+    border-radius: 50%;
+    color: var(--muted2);
+    font-size: 12px;
+  }
+
+  .table-wrapper {
+    background: var(--bg2);
+    border: 0.5px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .table-header {
+    padding: 14px 16px;
+    border-bottom: 0.5px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .table-header-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    color: #fff;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .col-plan {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .col-dot {
+    width: 6px;
+    height: 6px;
+    background: var(--red);
+    border-radius: 50%;
+  }
+
+  /* ── CONDITIONS ── */
+  .conditions-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .condition-card {
+    background: var(--bg2);
+    border: 0.5px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+  }
+
+  .condition-icon {
+    font-size: 20px;
+    color: var(--red);
+    margin-bottom: 10px;
+    display: block;
+  }
+
+  .condition-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    margin-bottom: 6px;
+    font-weight: 600;
+  }
+
+  .condition-value {
+    font-family: 'Syne', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 4px;
+  }
+
+  .condition-desc {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  /* ── FOOTER ── */
+  .footer {
+    margin-top: 72px;
+    padding-top: 32px;
+    border-top: 0.5px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .footer-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .footer-logo {
+    width: 32px;
+    height: 32px;
+    background: var(--red);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 13px;
+    color: #fff;
+  }
+
+  .footer-name {
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+  }
+
+  .footer-role {
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .footer-right {
+    text-align: right;
+  }
+
+  .footer-cta {
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+
+  .footer-cta-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--red);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 8px 16px;
+    border-radius: 6px;
+    text-decoration: none;
+    font-family: 'Syne', sans-serif;
+  }
+
+  /* ── PRINT ── */
+  @media print {
+    body { background: #0c0c0c !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .page { padding: 40px 36px 60px; }
+    .plan-card, .feature-card, .condition-card, .table-wrapper { break-inside: avoid; }
+    .hero { break-after: avoid; }
+  }
+
+  @media (max-width: 600px) {
+    .page { padding: 32px 20px 48px; }
+    .hero-title { font-size: 28px; }
+    .plans-grid, .features-grid, .conditions-grid { grid-template-columns: 1fr; }
+    .header { flex-direction: column; gap: 16px; }
+    .footer { flex-direction: column; gap: 20px; text-align: center; }
+    .footer-right { text-align: center; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- HEADER -->
+  <header class="header">
+    <div class="brand-mark">
+      <div class="logo-box">CJ</div>
+      <div>
+        <div class="brand-name">Carlos Jessé</div>
+        <div class="brand-role">Analista de Sistemas</div>
+      </div>
+    </div>
+    <div class="doc-badge">
+      <span class="badge-label">Proposta Comercial</span>
+      <span class="badge-id">PC-2025 / WEB</span>
+    </div>
+  </header>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-tag">Desenvolvimento Web & Soluções Digitais</div>
+    <h1 class="hero-title">
+      Performance.<br>
+      Design.<br>
+      <em>Resultados.</em>
+    </h1>
+    <p class="hero-sub">
+      Plataformas web de alta performance com tecnologia robusta, design responsivo
+      e controle total sobre os resultados do seu negócio.
+    </p>
+  </section>
+
+  <!-- RECURSOS INCLUSOS -->
+  <section class="section">
+    <div class="section-label">Base inclusa em todos os planos</div>
+    <div class="features-grid">
+      <div class="feature-card">
+        <span class="feature-icon">🗄️</span>
+        <div class="feature-title">Banco de Dados Dedicado</div>
+        <p class="feature-desc">Armazenamento estruturado e seguro para leads, clientes e métricas operacionais.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">⚙️</span>
+        <div class="feature-title">Painel Administrativo</div>
+        <p class="feature-desc">Controle total do conteúdo e interações com autenticação exclusiva.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">📊</span>
+        <div class="feature-title">Gráficos de Desempenho</div>
+        <p class="feature-desc">Módulos visuais para acompanhar acessos, cliques e conversões em tempo real.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">🌐</span>
+        <div class="feature-title">Domínio .com.br Incluso</div>
+        <p class="feature-desc">Registro e configuração do endereço corporativo inclusos no 1º ano.</p>
+      </div>
+      <div class="feature-card" style="grid-column: 1 / -1;">
+        <span class="feature-icon">📱</span>
+        <div class="feature-title">Design 100% Responsivo</div>
+        <p class="feature-desc">Interface adaptada para navegação fluida em computadores, tablets e smartphones — sem comprometer experiência em nenhum dispositivo.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- PLANOS -->
+  <section class="section">
+    <div class="section-label">Modelos de investimento</div>
+    <div class="plans-grid">
+
+      <!-- Plano Conexão -->
+      <div class="plan-card">
+        <div class="plan-number">01 — Plano</div>
+        <div class="plan-name">Cone<em>xão</em></div>
+        <p class="plan-tagline">
+          Direcionamento estratégico e qualificação do cliente para atendimento humano personalizado.
+        </p>
+        <ul class="plan-features">
+          <li>Banco de dados profissional</li>
+          <li>Painel admin + gráficos</li>
+          <li>Domínio .com.br (1º ano)</li>
+          <li>Ancoragem direta para WhatsApp</li>
+          <li>Captação de leads estruturada</li>
+          <li>Ideal para vendas consultivas</li>
+          <li class="na">Gateway de pagamento integrado</li>
+        </ul>
+        <div class="plan-price">
+          <div class="plan-price-label">Investimento anual</div>
+          <div class="plan-price-value">R$&nbsp;1.000<span>,00</span></div>
+          <div class="plan-price-period">por ano · pagamento parcelado</div>
+        </div>
+      </div>
+
+      <!-- Plano Checkout Pro -->
+      <div class="plan-card featured">
+        <div class="plan-number">02 — Plano</div>
+        <div class="plan-name">Checkout <em>Pro</em></div>
+        <p class="plan-tagline">
+          Automação total do ciclo comercial com transações diretas e integradas no ambiente web.
+        </p>
+        <ul class="plan-features">
+          <li>Banco de dados profissional</li>
+          <li>Painel admin + gráficos</li>
+          <li>Domínio .com.br (1º ano)</li>
+          <li>Ancoragem WhatsApp (híbrido)</li>
+          <li>Captação de leads estruturada</li>
+          <li>Relatórios financeiros em tempo real</li>
+          <li>Gateway API: Cartão, PIX, Boleto</li>
+        </ul>
+        <div class="plan-price">
+          <div class="plan-price-label">Investimento anual</div>
+          <div class="plan-price-value">R$&nbsp;1.500<span>,00</span></div>
+          <div class="plan-price-period">por ano · pagamento parcelado</div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- TABELA COMPARATIVA -->
+  <section class="section">
+    <div class="section-label">Comparativo de funcionalidades</div>
+    <div class="table-wrapper">
+      <div class="table-header">
+        <span class="table-header-title">Recursos</span>
+        <div style="display:flex;gap:20px;">
+          <div class="col-plan">
+            <div class="col-dot" style="background:var(--muted2)"></div>
+            <span style="font-size:11px;color:var(--muted);font-weight:600">Conexão</span>
+          </div>
+          <div class="col-plan">
+            <div class="col-dot"></div>
+            <span style="font-size:11px;color:var(--red);font-weight:600">Checkout Pro</span>
+          </div>
+        </div>
+      </div>
+      <table class="compare-table">
+        <thead>
+          <tr>
+            <th>Recurso / Funcionalidade</th>
+            <th>Conexão</th>
+            <th>Checkout Pro</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Banco de dados profissional</td>
+            <td><span class="check">✓</span></td>
+            <td><span class="check">✓</span></td>
+          </tr>
+          <tr>
+            <td>Painel Admin + gráficos estatísticos</td>
+            <td><span class="check">✓</span></td>
+            <td><span class="check">✓</span></td>
+          </tr>
+          <tr>
+            <td>Domínio .com.br (1º ano)</td>
+            <td><span class="check">✓</span></td>
+            <td><span class="check">✓</span></td>
+          </tr>
+          <tr>
+            <td>Design 100% responsivo</td>
+            <td><span class="check">✓</span></td>
+            <td><span class="check">✓</span></td>
+          </tr>
+          <tr>
+            <td>Ancoragem WhatsApp</td>
+            <td><span class="check">✓</span></td>
+            <td><span class="check">✓</span></td>
+          </tr>
+          <tr>
+            <td>Gateway de pagamento (Cartão / PIX / Boleto)</td>
+            <td><span class="cross">—</span></td>
+            <td><span class="check">✓</span></td>
+          </tr>
+          <tr>
+            <td>Finalização dupla (site + WhatsApp)</td>
+            <td><span class="cross">—</span></td>
+            <td><span class="check">✓</span></td>
+          </tr>
+          <tr>
+            <td>Relatórios financeiros em tempo real</td>
+            <td><span class="cross">—</span></td>
+            <td><span class="check">✓</span></td>
+          </tr>
+          <tr style="background: rgba(224,49,49,0.04);">
+            <td style="font-family:'Syne',sans-serif; font-weight:700; color:#fff;">Investimento Anual</td>
+            <td style="font-family:'Syne',sans-serif; font-weight:700; color:#fff; text-align:center;">R$ 1.000</td>
+            <td style="font-family:'Syne',sans-serif; font-weight:700; color:var(--red); text-align:center;">R$ 1.500</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- CONDIÇÕES COMERCIAIS -->
+  <section class="section">
+    <div class="section-label">Condições comerciais e prazos</div>
+    <div class="conditions-grid">
+      <div class="condition-card">
+        <span class="condition-icon">💳</span>
+        <div class="condition-label">Forma de pagamento</div>
+        <div class="condition-value">50% + 50%</div>
+        <p class="condition-desc">
+          50% de sinal na aprovação e início do desenvolvimento.<br>
+          50% restantes na entrega final e publicação do sistema.
+        </p>
+      </div>
+      <div class="condition-card">
+        <span class="condition-icon">⏱️</span>
+        <div class="condition-label">Prazo de execução</div>
+        <div class="condition-value">15 a 30 dias úteis</div>
+        <p class="condition-desc">
+          Contados a partir do envio de todos os materiais e definições de conteúdo por parte do cliente.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <div class="footer-left">
+      <div class="footer-logo">CJ</div>
+      <div>
+        <div class="footer-name">Carlos Jessé Coelho</div>
+        <div class="footer-role">Analista de Sistemas · Full-Stack Developer</div>
+      </div>
+    </div>
+    <div class="footer-right">
+      <p class="footer-cta">Pronto para começar?</p>
+      <a class="footer-cta-link" href="https://carlosjessecoelho.vercel.app/" target="_blank">
+        carlosjessecoelho.vercel.app &nbsp;↗
+      </a>
+    </div>
+  </footer>
+
+</div>
+</body>
+</html>
