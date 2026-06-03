@@ -286,9 +286,22 @@
         .plan-features li.na { color: var(--muted); opacity: 0.5; text-decoration: line-through; }
         .plan-features li.na::before { content: '—'; color: var(--muted); }
         .plan-price-label { font-size: 0.65rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.5rem; }
-        .plan-price { font-family: 'Playfair Display', serif; font-size: 2.5rem; font-weight: 900; color: var(--cream); line-height: 1; }
-        .plan-price span { font-size: 1rem; color: var(--muted); font-family: 'Outfit', sans-serif; font-weight: 400; }
-        .plan-period { font-size: 0.75rem; color: var(--muted); margin-top: 0.5rem; font-weight: 300; }
+        .plan-price-msg {
+            font-family: 'Playfair Display', serif; font-size: 1.15rem; font-weight: 700;
+            font-style: italic; color: var(--cream); line-height: 1.4; margin-bottom: 1rem;
+        }
+        .plan-price-msg em { color: var(--red-bright); font-style: italic; }
+        .btn-plan-contact {
+            display: inline-flex; align-items: center; gap: 0.5rem;
+            background: linear-gradient(135deg, var(--red-mid), var(--red-bright));
+            color: var(--cream); padding: 0.7rem 1.5rem;
+            font-family: 'Outfit', sans-serif; font-size: 0.7rem;
+            letter-spacing: 0.1em; text-transform: uppercase; font-weight: 500;
+            text-decoration: none; border-radius: 2px;
+            transition: transform 0.25s, box-shadow 0.3s, filter 0.3s;
+            box-shadow: 0 4px 20px rgba(181,40,40,0.35);
+        }
+        .btn-plan-contact:hover { transform: translateY(-3px); box-shadow: 0 8px 28px rgba(217,64,64,0.45); filter: brightness(1.1); }
 
         @media (max-width: 900px) {
             .services { padding: 5rem 1.5rem; }
@@ -770,8 +783,8 @@
                 </ul>
                 <div class="plan-price-box">
                     <div class="plan-price-label">Investimento</div>
-                    <div class="plan-price">R$ 1.000<span>,00</span></div>
-                    <div class="plan-period">ou em até 12x no cartão</div>
+                    <div class="plan-price-msg">Consulte o valor de acordo<br>com <em>seu projeto</em></div>
+                    <a href="https://wa.me/5535998594066?text=Olá! Tenho interesse no plano Conexão. Poderia me passar mais informações?" target="_blank" class="btn-plan-contact">💬 Solicitar orçamento</a>
                 </div>
             </div>
 
@@ -792,8 +805,8 @@
                 </ul>
                 <div class="plan-price-box">
                     <div class="plan-price-label">Investimento</div>
-                    <div class="plan-price">R$ 1.500<span>,00</span></div>
-                    <div class="plan-period">ou em até 12x no cartão</div>
+                    <div class="plan-price-msg">Consulte o valor de acordo<br>com <em>seu projeto</em></div>
+                    <a href="https://wa.me/5535998594066?text=Olá! Tenho interesse no plano Checkout Pro. Poderia me passar mais informações?" target="_blank" class="btn-plan-contact">💬 Solicitar orçamento</a>
                 </div>
             </div>
         </div>
