@@ -22,7 +22,7 @@
     <link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg">
     <link rel="icon" type="image/x-icon" href="assets/img/favicon.ico">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,900;1,400;1,600;1,700&family=Montserrat:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,900;1,400;1,600;1,700&family=Montserrat:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -164,25 +164,47 @@
                 radial-gradient(circle at 70% 30%, rgba(217, 64, 64, 0.15) 0%, transparent 60%),
                 radial-gradient(circle at 20% 80%, rgba(199, 107, 90, 0.18) 0%, transparent 50%);
         }
+        /* Grid técnico + linhas geométricas atrás da foto */
+        .hero-grid-layer {
+            position: absolute; inset: 0; z-index: 1; opacity: 0;
+            animation: fadeIn 1s 0.6s forwards;
+        }
+        .hero-grid-layer svg { width: 100%; height: 100%; }
         .hero-accent-line {
             position: absolute; left: 2.5rem; top: 20%; bottom: 20%; width: 2px;
             background: linear-gradient(to bottom, transparent, var(--accent), transparent);
         }
         .hero-text { position: relative; z-index: 2; }
 
-        .hero-greeting {
-            font-size: 0.72rem; letter-spacing: 0.25em; text-transform: uppercase;
-            color: var(--accent); margin-bottom: 1.2rem; font-weight: 700;
-            opacity: 0; animation: slideUp 0.7s 0.8s forwards;
-            font-family: 'Montserrat', sans-serif;
+        /* BLOCO DE CÓDIGO DECORATIVO */
+        .hero-code {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.78rem; line-height: 1.7;
+            color: rgba(240, 230, 224, 0.4);
+            margin-bottom: 1.6rem;
+            opacity: 0; animation: fadeIn 0.6s 0.3s forwards;
+            white-space: pre;
         }
-        .hero-greeting::before { content: '—  '; opacity: 0.7; }
+        .hero-code .code-line { display: flex; align-items: center; }
+        .hero-code .tag       { color: var(--salmon); }
+        .hero-code .indent    { display: inline-block; width: 1.6em; }
+        .hero-code .code-tag-h1 { color: rgba(240, 230, 224, 0.55); }
+        .hero-code .code-h1-text { color: var(--accent); font-weight: 600; }
+        .hero-code .cursor {
+            display: inline-block; width: 7px; height: 1em; margin-left: 2px;
+            background: var(--accent); vertical-align: middle;
+            animation: blinkCursor 0.9s steps(1) infinite;
+        }
+        .hero-code .cursor.done { animation: blinkCursor 0.9s steps(1) infinite; }
+        @keyframes blinkCursor { 0%, 50% { opacity: 1; } 50.01%, 100% { opacity: 0; } }
+
         .hero-hello {
             font-family: 'Playfair Display', serif;
             font-size: clamp(3.2rem, 5.8vw, 5.5rem); font-weight: 900; line-height: 1.05; letter-spacing: -0.01em;
-            color: var(--text-heading); margin-bottom: 0.5rem; opacity: 0; animation: slideUp 0.7s 0.95s forwards;
+            color: var(--text-heading);
+            margin-bottom: 0.5rem; opacity: 0; animation: slideUp 0.7s 0.95s forwards;
         }
-        .hero-hello em { 
+        .hero-hello em {
             font-style: italic; color: var(--accent); font-weight: 400;
             position: relative; display: inline-block;
         }
@@ -194,8 +216,10 @@
         .hero-tagline {
             font-family: 'Playfair Display', serif;
             font-size: clamp(1.2rem, 2.2vw, 1.8rem); font-weight: 700; font-style: italic;
-            color: var(--salmon); margin-bottom: 2.2rem; opacity: 0; animation: slideUp 0.7s 1.1s forwards;
+            line-height: 1.35;
+            color: var(--salmon); margin-bottom: 1.8rem; opacity: 0; animation: slideUp 0.7s 1.1s forwards;
         }
+        .hero-tagline span { color: var(--text-heading); font-style: normal; }
         .hero-desc {
             font-size: 0.9rem; line-height: 1.9; color: var(--text-dark);
             max-width: 480px; margin-bottom: 2.8rem; font-weight: 400;
@@ -239,21 +263,42 @@
         }
         .btn-red svg, .btn-ghost svg { width: 15px; height: 15px; flex-shrink: 0; }
 
-        .hero-photo-wrap { position: relative; z-index: 2; opacity: 0; animation: fadeIn 1s 1.4s forwards; }
+        .hero-photo-wrap {
+            position: relative; z-index: 2; opacity: 0;
+            animation: photoReveal 1.1s 1.1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        .hero-photo-float {
+            position: relative;
+            animation: photoFloat 6s 2.3s ease-in-out infinite;
+        }
+        .hero-photo-frame {
+            position: absolute; inset: -16px; z-index: 0;
+            border: 1.5px solid rgba(255,255,255,0.35);
+            clip-path: polygon(0 0, calc(100% - 28px) 0, 100% 28px, 100% 100%, 28px 100%, 0 calc(100% - 28px));
+            pointer-events: none;
+        }
         .hero-photo {
             width: 320px; height: 420px; object-fit: cover; display: block;
-            border-radius: 8px 8px 80px 8px;
-            box-shadow: -20px 20px 50px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255,255,255,0.08);
+            position: relative; z-index: 1;
+            clip-path: polygon(0 0, calc(100% - 22px) 0, 100% 22px, 100% 100%, 22px 100%, 0 calc(100% - 22px));
+            box-shadow: -20px 20px 50px rgba(0, 0, 0, 0.5);
             filter: contrast(1.02) saturate(0.95);
-            border: 2px solid var(--text-light);
-            transition: all 0.5s ease;
+            transition: box-shadow 0.5s ease, transform 0.5s ease;
         }
         .hero-photo-wrap:hover .hero-photo {
             transform: scale(1.02);
             box-shadow: -25px 25px 60px rgba(0, 0, 0, 0.6);
         }
+        @keyframes photoReveal {
+            from { opacity: 0; transform: scale(1.08); }
+            to   { opacity: 1; transform: scale(1); }
+        }
+        @keyframes photoFloat {
+            0%, 100% { transform: translateY(0) rotate(0deg); }
+            50%      { transform: translateY(-14px) rotate(-0.6deg); }
+        }
         .hero-photo-badge {
-            position: absolute; bottom: -18px; left: -25px;
+            position: absolute; bottom: -18px; left: -25px; z-index: 2;
             background: var(--bg-light); border: 2px solid var(--accent);
             padding: 0.9rem 1.4rem; border-radius: 6px;
             font-size: 0.65rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-dark);
@@ -941,28 +986,64 @@
                 <div class="hero-photo-mobile">
                     <img src="assets/img/jessedev.jpg" alt="Carlos Jessé">
                 </div>
-                <div class="hero-greeting">Desenvolvedor Full-Stack</div>
-                <h1 class="hero-hello">Hello<br><em>World!</em></h1>
-                <div class="hero-tagline">Seja bem-vindo ao meu portfólio.</div>
+
+                <!-- BLOCO DE CÓDIGO DECORATIVO — efeito typewriter via JS -->
+                <div class="hero-code" id="heroCode" aria-hidden="true">
+                    <div class="code-line"><span class="tag">&lt;section</span> class="hero"<span class="tag">&gt;</span></div>
+                    <div class="code-line"><span class="indent"></span><span class="code-tag-h1">&lt;h1&gt;</span><span class="code-h1-text">BEM-VINDO</span><span class="code-tag-h1">&lt;/h1&gt;</span></div>
+                    <div class="code-line"><span class="tag">&lt;/section&gt;</span></div>
+                </div>
+
+                <h1 class="hero-hello">Bem-<em>vindo</em></h1>
+                <div class="hero-tagline">Desenvolvedor Full-Stack<br><span>&amp; Analista de Sistemas.</span></div>
                 <p class="hero-desc">
-                    Sou Carlos Jessé, um Desenvolvedor Full-Stack. Aqui você pode explorar meu trabalho e os projetos em que tenho trabalhado ou estou envolvido. Sinta-se à vontade para entrar em contato comigo a qualquer momento.
+                    Criando experiências digitais impactantes através de código limpo, foco em resultado e atenção aos detalhes.
                 </p>
                 <div class="hero-actions">
                     <a href="#projetos" class="btn-red">Ver projetos →</a>
+                    <button class="btn-ghost" id="btn-contato" onclick="abrirContato()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><polyline points="3 7 12 13 21 7"/></svg>
+                        Entrar em contato
+                    </button>
                     <a href="https://www.linkedin.com/in/carlos-jess%C3%A9-coelho-da-silva-5b375a206/" target="_blank" class="btn-ghost">Meu LinkedIn ↗</a>
                     <a href="assets/cv-carlos-jesse.pdf" download class="btn-ghost" id="btn-cv" title="Baixar Currículo">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                         CV
                     </a>
-                    <button class="btn-ghost" id="btn-contato" onclick="abrirContato()">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><polyline points="3 7 12 13 21 7"/></svg>
-                        Contato
-                    </button>
                 </div>
             </div>
         </div>
         <div class="hero-right">
+            <!-- GRID TÉCNICO + LINHAS GEOMÉTRICAS -->
+            <div class="hero-grid-layer">
+                <svg viewBox="0 0 600 800" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <pattern id="gridPattern" width="36" height="36" patternUnits="userSpaceOnUse">
+                            <path d="M 36 0 L 0 0 0 36" fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="1"/>
+                        </pattern>
+                    </defs>
+                    <!-- grid técnico no canto superior direito, encostando na foto -->
+                    <rect x="430" y="120" width="150" height="190" fill="url(#gridPattern)" opacity="0.55"/>
+                    <!-- nós conectados, tipo "circuito" -->
+                    <circle cx="455" cy="150" r="3.5" fill="rgba(255,255,255,0.55)"/>
+                    <circle cx="505" cy="175" r="3.5" fill="rgba(255,255,255,0.55)"/>
+                    <circle cx="475" cy="215" r="3.5" fill="rgba(255,255,255,0.55)"/>
+                    <line x1="455" y1="150" x2="505" y2="175" stroke="rgba(255,255,255,0.35)" stroke-width="1"/>
+                    <line x1="505" y1="175" x2="475" y2="215" stroke="rgba(255,255,255,0.35)" stroke-width="1"/>
+                    <!-- hachura coral no canto superior direito -->
+                    <g opacity="0.6">
+                        <line x1="490" y1="95" x2="540" y2="95" stroke="var(--accent)" stroke-width="5"/>
+                        <line x1="503" y1="106" x2="553" y2="106" stroke="var(--accent)" stroke-width="5"/>
+                        <line x1="516" y1="117" x2="566" y2="117" stroke="var(--accent)" stroke-width="5"/>
+                    </g>
+                    <!-- poligono vazado inferior-esquerda, ancorando a base da foto -->
+                    <polygon points="95,560 195,510 195,690 95,740" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.22)" stroke-width="1"/>
+                    <!-- poligono solido inferior-direita -->
+                    <polygon points="470,600 580,555 580,740 470,785" fill="rgba(13,6,8,0.18)" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
+                </svg>
+            </div>
             <div class="hero-photo-wrap">
+                <div class="hero-photo-frame"></div>
                 <img class="hero-photo" src="assets/img/jessedev.jpg" alt="Carlos Jessé">
                 <div class="hero-photo-badge">
                     Disponível para projetos<br>
@@ -1362,8 +1443,59 @@
             setTimeout(() => {
                 preloader.classList.add('hidden');
                 document.body.classList.remove('no-scroll');
+                startHeroTypewriter();
             }, 800);
         });
+
+        /* ============================================================
+           TYPEWRITER — bloco de código decorativo do hero
+           Revela cada linha caractere por caractere, preservando as
+           tags <span> internas (cores das tags HTML/h1).
+        ============================================================ */
+        function startHeroTypewriter() {
+            const wrap = document.getElementById('heroCode');
+            if (!wrap) return;
+            const lines = Array.from(wrap.querySelectorAll('.code-line'));
+
+            // Guarda o HTML original de cada linha e esvazia para digitar
+            const originals = lines.map(line => line.innerHTML);
+            lines.forEach(line => { line.innerHTML = ''; });
+
+            let lineIndex = 0;
+
+            function typeLine() {
+                if (lineIndex >= lines.length) return;
+                const line = lines[lineIndex];
+                const fullHTML = originals[lineIndex];
+
+                // Tokeniza preservando tags inteiras como uma unidade
+                const tokens = fullHTML.match(/<[^>]+>|[^<]/g) || [];
+                let i = 0;
+                let buffer = '';
+
+                // Cursor piscante ao final da linha atual
+                const cursor = document.createElement('span');
+                cursor.className = 'cursor';
+                line.appendChild(cursor);
+
+                function typeChar() {
+                    if (i < tokens.length) {
+                        buffer += tokens[i];
+                        line.innerHTML = buffer;
+                        line.appendChild(cursor);
+                        i++;
+                        setTimeout(typeChar, 18);
+                    } else {
+                        cursor.remove();
+                        lineIndex++;
+                        setTimeout(typeLine, 180);
+                    }
+                }
+                typeChar();
+            }
+
+            typeLine();
+        }
 
         /* MODAL CONTATO */
         const modalContato = document.getElementById('modalContato');
