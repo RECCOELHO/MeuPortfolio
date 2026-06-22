@@ -237,6 +237,7 @@
             background: rgba(217, 64, 64, 0.05);
             transform: translateY(-3px); 
         }
+        .btn-red svg, .btn-ghost svg { width: 15px; height: 15px; flex-shrink: 0; }
 
         .hero-photo-wrap { position: relative; z-index: 2; opacity: 0; animation: fadeIn 1s 1.4s forwards; }
         .hero-photo {
@@ -399,7 +400,17 @@
             transform: translateY(-4px);
         }
         .feature-card-icon {
-            font-size: 1.5rem; margin-bottom: 0.6rem; display: block;
+            width: 36px; height: 36px; margin-bottom: 0.9rem;
+            display: flex; align-items: center; justify-content: center;
+            border: 1px solid rgba(217, 64, 64, 0.35); border-radius: 50%;
+            color: var(--accent); background: rgba(217, 64, 64, 0.06);
+            transition: all 0.3s ease;
+        }
+        .feature-card-icon svg { width: 17px; height: 17px; }
+        .feature-card:hover .feature-card-icon {
+            background: var(--accent); color: var(--text-light);
+            border-color: var(--accent);
+            box-shadow: 0 6px 16px rgba(217, 64, 64, 0.35);
         }
         .feature-card-title {
             font-family: 'Montserrat', sans-serif;
@@ -496,10 +507,18 @@
             padding: 8rem 0;
             overflow: hidden;
             border-top: 1px solid var(--border-light);
+            position: relative;
+        }
+        .projects::before {
+            content: '';
+            position: absolute; top: 0; left: 0; right: 0; height: 480px;
+            background: radial-gradient(ellipse 60% 100% at 50% 0%, rgba(217, 64, 64, 0.06) 0%, transparent 70%);
+            pointer-events: none;
         }
         .projects-header {
             display: flex; justify-content: space-between; align-items: flex-end;
-            margin-bottom: 5rem; padding: 0 5rem;
+            margin-bottom: 4rem; padding: 0 5rem;
+            position: relative; z-index: 1;
         }
         .projects-title {
             font-family: 'Playfair Display', serif;
@@ -507,96 +526,131 @@
             color: var(--text-heading);
         }
         .projects-title em { font-style: italic; color: var(--accent); font-weight: 400; }
+        .projects-counter {
+            font-family: 'Playfair Display', serif; font-style: italic;
+            font-size: 0.95rem; color: var(--text-muted);
+            border-bottom: 1px solid var(--border-dark); padding-bottom: 0.3rem;
+        }
+        .projects-counter strong { color: var(--accent); font-weight: 700; font-style: normal; }
 
         /* Wrapper do carrossel */
-        .carousel-outer {
-            position: relative;
-        }
+        .carousel-outer { position: relative; z-index: 1; }
         .carousel-track-wrap {
             overflow: hidden;
-            padding: 1rem 0 3rem;
+            padding: 1rem 0 2.5rem;
         }
         .carousel-track {
             display: flex;
             gap: 2rem;
-            transition: transform 0.6s cubic-bezier(0.77, 0, 0.175, 1);
+            transition: transform 0.65s cubic-bezier(0.16, 1, 0.3, 1);
             padding: 0 5rem;
         }
 
         .project-card {
             flex: 0 0 calc((100% - 10rem - 4rem) / 3);
             min-width: 0;
-            border: 1px solid var(--border-light); border-radius: 8px; overflow: hidden;
-            background: #020b0e;
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
-            transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+            border: 1px solid var(--border-light); border-radius: 10px; overflow: hidden;
+            background: linear-gradient(165deg, var(--bg-dark) 0%, var(--bg-light) 100%);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.35);
+            transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.45s ease, box-shadow 0.45s ease;
+            display: flex; flex-direction: column;
         }
         .project-card:hover {
-            transform: translateY(-8px);
-            border-color: var(--accent2);
-            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5), 0 0 20px rgba(0, 212, 200, 0.1);
+            transform: translateY(-10px);
+            border-color: rgba(217, 64, 64, 0.45);
+            box-shadow: 0 22px 45px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(217, 64, 64, 0.1), 0 0 30px rgba(217, 64, 64, 0.08);
         }
-        .project-thumb-wrap { overflow: hidden; position: relative; }
+        .project-thumb-wrap {
+            overflow: hidden; position: relative;
+            border-bottom: 1px solid var(--border-light);
+        }
         .project-thumb {
             width: 100%; aspect-ratio: 16/10; object-fit: cover; display: block;
-            transition: transform 0.6s ease; filter: saturate(0.9);
+            transition: transform 0.7s cubic-bezier(0.16, 1, 0.3, 1); filter: saturate(0.92) brightness(0.96);
         }
-        .project-card:hover .project-thumb { transform: scale(1.04); filter: saturate(1.05); }
+        .project-card:hover .project-thumb { transform: scale(1.06); filter: saturate(1.05) brightness(1); }
         .project-thumb-wrap::after {
             content: ''; position: absolute; inset: 0;
-            background: linear-gradient(to bottom, transparent 50%, rgba(13, 6, 8, 0.3));
+            background: linear-gradient(to bottom, transparent 55%, rgba(13, 6, 8, 0.55) 100%);
+            transition: opacity 0.4s ease;
         }
-        .project-body { padding: 1.8rem; }
-        .project-num { font-size: 0.65rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent); margin-bottom: 0.6rem; font-weight: 700; font-family: 'Montserrat', sans-serif; }
-        .project-name { font-family: 'Playfair Display', serif; font-size: 1.35rem; font-weight: 700; margin-bottom: 0.6rem; color: var(--text-heading); }
-        .project-desc { font-size: 0.8rem; color: var(--text-dark); line-height: 1.75; margin-bottom: 1.4rem; font-weight: 400; font-family: 'Montserrat', sans-serif; opacity: 0.85; }
-        .project-tags { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.4rem; }
+        .project-thumb-wrap::before {
+            content: ''; position: absolute; inset: 0; z-index: 1;
+            box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04);
+            pointer-events: none;
+        }
+        .project-body {
+            padding: 1.8rem; display: flex; flex-direction: column; flex: 1;
+        }
+        .project-num {
+            font-size: 0.62rem; letter-spacing: 0.2em; text-transform: uppercase;
+            color: var(--accent); margin-bottom: 0.7rem; font-weight: 700;
+            font-family: 'Montserrat', sans-serif;
+            display: flex; align-items: center; gap: 0.6rem;
+        }
+        .project-num::after { content: ''; flex: 1; height: 1px; background: var(--border-light); }
+        .project-name {
+            font-family: 'Playfair Display', serif; font-size: 1.4rem; font-weight: 700;
+            margin-bottom: 0.7rem; color: var(--text-heading); line-height: 1.25;
+        }
+        .project-desc {
+            font-size: 0.8rem; color: var(--text-dark); line-height: 1.75; margin-bottom: 1.5rem;
+            font-weight: 400; font-family: 'Montserrat', sans-serif; opacity: 0.8; flex: 1;
+        }
+        .project-tags { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.5rem; }
         .ptag {
             font-size: 0.6rem; letter-spacing: 0.08em; text-transform: uppercase;
-            padding: 0.25rem 0.6rem; font-family: 'Montserrat', sans-serif; font-weight: 600;
-            border: 1px solid rgba(217, 64, 64, 0.3); color: var(--salmon); border-radius: 4px;
-            background: rgba(217, 64, 64, 0.05);
+            padding: 0.3rem 0.65rem; font-family: 'Montserrat', sans-serif; font-weight: 600;
+            border: 1px solid rgba(217, 64, 64, 0.25); color: var(--salmon); border-radius: 20px;
+            background: rgba(217, 64, 64, 0.06);
         }
         .project-link {
             display: inline-flex; align-items: center; gap: 0.5rem;
             font-size: 0.75rem; color: var(--accent); text-decoration: none;
-            letter-spacing: 0.05em; transition: all 0.3s; font-family: 'Montserrat', sans-serif; font-weight: 700;
+            letter-spacing: 0.05em; transition: gap 0.3s ease, color 0.3s ease;
+            font-family: 'Montserrat', sans-serif; font-weight: 700;
+            padding-top: 1.2rem; border-top: 1px solid var(--border-light);
+            margin-top: auto;
         }
-        .project-link:hover { gap: 0.8rem; color: #e85656; }
+        .project-link:hover { gap: 0.9rem; color: #e85656; }
+        .project-link svg { width: 14px; height: 14px; flex-shrink: 0; transition: transform 0.3s ease; }
+        .project-link:hover svg { transform: translateX(2px); }
 
         /* Controles do carrossel */
         .carousel-controls {
             display: flex; justify-content: center; align-items: center;
-            gap: 1.5rem; margin-top: 2.5rem;
+            gap: 1.5rem; margin-top: 1rem;
         }
         .carousel-btn {
-            width: 48px; height: 48px;
-            border: 1px solid var(--border-dark); border-radius: 6px; background: rgba(0, 212, 200, 0.06);
-            color: var(--accent2); cursor: pointer; display: flex; align-items: center; justify-content: center;
-            transition: all 0.3s ease; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+            width: 46px; height: 46px;
+            border: 1px solid var(--border-dark); border-radius: 50%;
+            background: rgba(255,255,255,0.02);
+            color: var(--text-dark); cursor: pointer; display: flex; align-items: center; justify-content: center;
+            transition: all 0.3s ease;
         }
         .carousel-btn:hover {
-            background: var(--accent2); border-color: var(--accent2);
-            color: #050c0f; transform: scale(1.08);
-            box-shadow: 0 6px 20px rgba(0, 212, 200, 0.4);
+            background: var(--accent); border-color: var(--accent);
+            color: var(--text-light); transform: scale(1.06);
+            box-shadow: 0 6px 20px rgba(217, 64, 64, 0.4);
         }
-        .carousel-btn svg { width: 20px; height: 20px; }
-        .carousel-dots { display: flex; gap: 0.6rem; align-items: center; }
+        .carousel-btn svg { width: 18px; height: 18px; }
+        .carousel-dots { display: flex; gap: 0.55rem; align-items: center; }
         .carousel-dot {
-            width: 8px; height: 8px; border-radius: 50%;
-            background: var(--border-light); cursor: pointer;
+            width: 7px; height: 7px; border-radius: 50%;
+            background: var(--border-dark); cursor: pointer;
             transition: all 0.3s ease;
             border: none;
         }
-        .carousel-dot.active { background: var(--accent); transform: scale(1.4); }
+        .carousel-dot.active { background: var(--accent); transform: scale(1.5); }
 
         /* CARDS EM BREVE */
-        .project-soon { opacity: 0.8; }
+        .project-soon { opacity: 0.85; }
         .soon-thumb {
             width: 100%; aspect-ratio: 16/10;
             background: var(--bg-dark);
             display: flex; align-items: center; justify-content: center;
             position: relative; overflow: hidden;
+            border-bottom: 1px solid var(--border-light);
         }
         .soon-thumb::before {
             content: '';
@@ -652,10 +706,14 @@
         .modal-close {
             position: absolute; top: 1.5rem; right: 1.5rem;
             background: none; border: none; color: var(--text-dark); cursor: pointer;
-            font-size: 1.3rem; line-height: 1; transition: all 0.2s;
+            display: flex; align-items: center; justify-content: center;
+            width: 34px; height: 34px; border-radius: 50%;
+            transition: all 0.25s ease;
             opacity: 0.7;
         }
-        .modal-close:hover { color: var(--accent); opacity: 1; }
+        .modal-close svg { width: 16px; height: 16px; transition: transform 0.25s ease; }
+        .modal-close:hover { color: var(--accent); opacity: 1; background: rgba(217, 64, 64, 0.08); }
+        .modal-close:hover svg { transform: rotate(90deg); }
         .modal-tag { font-size: 0.68rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--accent); margin-bottom: 1rem; font-weight: 700; font-family: 'Montserrat', sans-serif; }
         .modal-title { font-family: 'Playfair Display', serif; font-size: 2rem; font-weight: 900; line-height: 1.2; margin-bottom: 0.6rem; color: var(--text-heading); }
         .modal-title em { font-style: italic; color: var(--accent); font-weight: 400; }
@@ -688,7 +746,12 @@
         .btn-submit:hover { background: #e85656; transform: translateY(-2px); box-shadow: 0 8px 25px rgba(217, 64, 64, 0.45); }
         .btn-submit:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
         .form-success { display: none; text-align: center; padding: 2rem 0; }
-        .form-success .success-icon { font-size: 2.5rem; margin-bottom: 0.8rem; }
+        .form-success .success-icon {
+            width: 52px; height: 52px; margin: 0 auto 1rem; border-radius: 50%;
+            border: 1.5px solid var(--accent); display: flex; align-items: center; justify-content: center;
+            color: var(--accent);
+        }
+        .form-success .success-icon svg { width: 24px; height: 24px; }
         .form-success p { font-size: 0.85rem; color: var(--text-dark); line-height: 1.7; font-family: 'Montserrat', sans-serif; }
         .form-success strong { color: var(--text-heading); }
         @media (max-width: 500px) { .form-row { grid-template-columns: 1fr; } }
@@ -866,7 +929,7 @@
             <li><a href="#sobre-mim"  onclick="fecharMenu()">Sobre mim</a></li>
             <li><a href="#servicos"   onclick="fecharMenu()">Serviços</a></li>
             <li><a href="#projetos"   onclick="fecharMenu()">Projetos</a></li>
-            <li><a href="javascript:void(0)" onclick="fecharMenu(); abrirContato()">Contato ✉</a></li>
+            <li><a href="javascript:void(0)" onclick="fecharMenu(); abrirContato()">Contato</a></li>
             <li><a href="indexversao2.html" target="_blank" onclick="fecharMenu()">Versão 2</a></li>
         </ul>
     </div>
@@ -887,8 +950,14 @@
                 <div class="hero-actions">
                     <a href="#projetos" class="btn-red">Ver projetos →</a>
                     <a href="https://www.linkedin.com/in/carlos-jess%C3%A9-coelho-da-silva-5b375a206/" target="_blank" class="btn-ghost">Meu LinkedIn ↗</a>
-                    <a href="assets/cv-carlos-jesse.pdf" download class="btn-ghost" id="btn-cv" title="Baixar Currículo">📄 CV</a>
-                    <button class="btn-ghost" id="btn-contato" onclick="abrirContato()">✉ Contato</button>
+                    <a href="assets/cv-carlos-jesse.pdf" download class="btn-ghost" id="btn-cv" title="Baixar Currículo">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        CV
+                    </a>
+                    <button class="btn-ghost" id="btn-contato" onclick="abrirContato()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><polyline points="3 7 12 13 21 7"/></svg>
+                        Contato
+                    </button>
                 </div>
             </div>
         </div>
@@ -929,22 +998,30 @@
             </p>
             <div class="feature-cards reveal">
                 <div class="feature-card">
-                    <span class="feature-card-icon">⚡</span>
+                    <div class="feature-card-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                    </div>
                     <div class="feature-card-title">Resposta rápida</div>
                     <div class="feature-card-desc">Diagnóstico ágil do problema e solução entregue sem enrolação.</div>
                 </div>
                 <div class="feature-card">
-                    <span class="feature-card-icon">🛠️</span>
+                    <div class="feature-card-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+                    </div>
                     <div class="feature-card-title">Full-Stack</div>
                     <div class="feature-card-desc">Do banco de dados ao layout, cuido de tudo em um único lugar.</div>
                 </div>
                 <div class="feature-card">
-                    <span class="feature-card-icon">🎯</span>
+                    <div class="feature-card-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>
+                    </div>
                     <div class="feature-card-title">Foco no resultado</div>
                     <div class="feature-card-desc">Cada linha de código tem um propósito: fazer o seu negócio crescer.</div>
                 </div>
                 <div class="feature-card">
-                    <span class="feature-card-icon">🔒</span>
+                    <div class="feature-card-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5.25 3.4 8.6 8 11 4.6-2.4 8-5.75 8-11V5l-8-3z"/></svg>
+                    </div>
                     <div class="feature-card-title">Missão crítica</div>
                     <div class="feature-card-desc">Experiência real em sistemas hospitalares que não podem falhar.</div>
                 </div>
@@ -1024,7 +1101,7 @@
                 <div class="plan-price-box">
                     <div class="plan-price-label">Investimento</div>
                     <div class="plan-price-msg">Consulte o valor de acordo<br>com <em>seu projeto</em></div>
-                    <a href="https://wa.me/5535998594066?text=Olá! Tenho interesse no plano Conexão. Poderia me passar mais informações?" target="_blank" class="btn-plan-contact">💬 Solicitar orçamento</a>
+                    <a href="https://wa.me/5535998594066?text=Olá! Tenho interesse no plano Conexão. Poderia me passar mais informações?" target="_blank" class="btn-plan-contact">Solicitar orçamento</a>
                 </div>
             </div>
 
@@ -1046,7 +1123,7 @@
                 <div class="plan-price-box">
                     <div class="plan-price-label">Investimento</div>
                     <div class="plan-price-msg">Consulte o valor de acordo<br>com <em>seu projeto</em></div>
-                    <a href="https://wa.me/5535998594066?text=Olá! Tenho interesse no plano Checkout Pro. Poderia me passar mais informações?" target="_blank" class="btn-plan-contact">💬 Solicitar orçamento</a>
+                    <a href="https://wa.me/5535998594066?text=Olá! Tenho interesse no plano Checkout Pro. Poderia me passar mais informações?" target="_blank" class="btn-plan-contact">Solicitar orçamento</a>
                 </div>
             </div>
         </div>
@@ -1057,8 +1134,9 @@
     ============================================================ -->
     <div class="projects" id="projetos">
         <div class="projects-header">
-            <div><div class="section-tag">Portfólio</div></div>
-            <h2 class="projects-title reveal">Meus projetos<br><em>mais recentes.</em></h2>
+            <div><div class="section-tag">Portfólio</div>
+            <h2 class="projects-title reveal">Meus projetos<br><em>mais recentes.</em></h2></div>
+            <div class="projects-counter reveal"><strong id="pageNow">01</strong> / <span id="pageTotal">02</span></div>
         </div>
 
         <div class="carousel-outer">
@@ -1071,11 +1149,13 @@
                             <img class="project-thumb" src="https://api.microlink.io/?url=https://raramodaintima.vercel.app/&screenshot=true&meta=false&embed=screenshot.url" alt="Rara Moda Íntima">
                         </div>
                         <div class="project-body">
-                            <div class="project-num">001 — Projeto</div>
+                            <div class="project-num">001</div>
                             <div class="project-name">Rara Moda Íntima</div>
                             <div class="project-desc">E-commerce de moda íntima com catálogo de produtos, filtros por coleção, carrinho e integração com Supabase e WhatsApp.</div>
                             <div class="project-tags"><span class="ptag">HTML</span><span class="ptag">CSS</span><span class="ptag">JS</span><span class="ptag">Supabase</span></div>
-                            <a href="https://raramodaintima.vercel.app/" target="_blank" class="project-link">Ver projeto →</a>
+                            <a href="https://raramodaintima.vercel.app/" target="_blank" class="project-link">Ver projeto
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                            </a>
                         </div>
                     </div>
 
@@ -1087,11 +1167,13 @@
                                  alt="G.Car Multimarcas">
                         </div>
                         <div class="project-body">
-                            <div class="project-num">002 — Projeto</div>
+                            <div class="project-num">002</div>
                             <div class="project-name">Fort Car Multimarcas</div>
                             <div class="project-desc">Site institucional para revenda de veículos multimarcas no Sul de Minas, com estoque, filtros por preço e integração com WhatsApp.</div>
                             <div class="project-tags"><span class="ptag">HTML</span><span class="ptag">CSS</span><span class="ptag">JS</span><span class="ptag">Design</span></div>
-                            <a href="https://gcar-mult-marcas.vercel.app/" target="_blank" class="project-link">Ver projeto →</a>
+                            <a href="https://gcar-mult-marcas.vercel.app/" target="_blank" class="project-link">Ver projeto
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                            </a>
                         </div>
                     </div>
 
@@ -1101,11 +1183,13 @@
                             <img class="project-thumb" src="https://api.microlink.io/?url=https://moto-mundi.vercel.app/&screenshot=true&meta=false&embed=screenshot.url" alt="MotoMundi">
                         </div>
                         <div class="project-body">
-                            <div class="project-num">003 — Projeto</div>
+                            <div class="project-num">003</div>
                             <div class="project-name">MotoMundi</div>
                             <div class="project-desc">Diário digital desenvolvido para documentar rotas e aventuras de moto, desbravando o interior de Minas e além.</div>
                             <div class="project-tags"><span class="ptag">HTML</span><span class="ptag">CSS</span><span class="ptag">Design</span></div>
-                            <a href="https://moto-mundi.vercel.app/" target="_blank" class="project-link">Ver projeto →</a>
+                            <a href="https://moto-mundi.vercel.app/" target="_blank" class="project-link">Ver projeto
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                            </a>
                         </div>
                     </div>
 
@@ -1115,11 +1199,13 @@
                             <img class="project-thumb" src="https://api.microlink.io/?url=https://carlosjessecoelho.vercel.app/indexversao2.html&screenshot=true&meta=false&embed=screenshot.url&waitUntil=networkidle0" alt="Portfólio V2">
                         </div>
                         <div class="project-body">
-                            <div class="project-num">004 — Projeto</div>
+                            <div class="project-num">004</div>
                             <div class="project-name">Portfólio V2</div>
                             <div class="project-desc">Segunda versão do meu portfólio pessoal, com novo design e funcionalidades.</div>
                             <div class="project-tags"><span class="ptag">HTML</span><span class="ptag">CSS</span><span class="ptag">JS</span></div>
-                            <a href="indexversao2.html" target="_blank" class="project-link">Ver projeto →</a>
+                            <a href="indexversao2.html" target="_blank" class="project-link">Ver projeto
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                            </a>
                         </div>
                     </div>
 
@@ -1129,11 +1215,13 @@
                             <img class="project-thumb" src="https://api.microlink.io/?url=https://paginadeentradacoelhocast.vercel.app/&screenshot=true&meta=false&embed=screenshot.url" alt="CoelhoCast">
                         </div>
                         <div class="project-body">
-                            <div class="project-num">005 — Projeto</div>
+                            <div class="project-num">005</div>
                             <div class="project-name">CoelhoCast</div>
                             <div class="project-desc">Página de entrada com HTML e CSS, focada em visual limpo e responsividade.</div>
                             <div class="project-tags"><span class="ptag">HTML</span><span class="ptag">CSS</span><span class="ptag">Responsivo</span></div>
-                            <a href="https://paginadeentradacoelhocast.vercel.app/" target="_blank" class="project-link">Ver projeto →</a>
+                            <a href="https://paginadeentradacoelhocast.vercel.app/" target="_blank" class="project-link">Ver projeto
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                            </a>
                         </div>
                     </div>
 
@@ -1151,11 +1239,11 @@
                             </div>
                         </div>
                         <div class="project-body">
-                            <div class="project-num">006 — Projeto</div>
+                            <div class="project-num">006</div>
                             <div class="project-name">Novo Projeto</div>
-                            <div class="project-desc">Algo incrível está sendo construído. Em breve disponível aqui.</div>
-                            <div class="project-tags"><span class="ptag">???</span></div>
-                            <span class="project-link" style="opacity:0.4;cursor:default;">Em desenvolvimento…</span>
+                            <div class="project-desc">Algo novo está sendo construído. Em breve disponível aqui.</div>
+                            <div class="project-tags"><span class="ptag">Em produção</span></div>
+                            <span class="project-link" style="opacity:0.4;cursor:default;border-top:1px solid var(--border-light);">Em desenvolvimento</span>
                         </div>
                     </div>
 
@@ -1182,7 +1270,9 @@
     <!-- MODAL DE CONTATO -->
     <div class="modal-overlay" id="modalContato" role="dialog" aria-modal="true" aria-label="Formulário de Contato">
         <div class="modal-box">
-            <button class="modal-close" onclick="fecharContato()" aria-label="Fechar">✕</button>
+            <button class="modal-close" onclick="fecharContato()" aria-label="Fechar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
             <div class="modal-tag">Vamos conversar</div>
             <h2 class="modal-title">Entre em <em>contato.</em></h2>
             <p class="modal-sub">Preencha o formulário abaixo e responderei em breve.</p>
@@ -1210,7 +1300,9 @@
                 <button type="submit" class="btn-submit" id="submitBtn">Enviar mensagem →</button>
             </form>
             <div class="form-success" id="formSuccess">
-                <div class="success-icon">✅</div>
+                <div class="success-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                </div>
                 <p><strong>Mensagem enviada!</strong><br>Obrigado pelo contato. Responderei o mais breve possível.</p>
             </div>
         </div>
@@ -1384,6 +1476,8 @@
             const btnPrev  = document.getElementById('btnPrev');
             const btnNext  = document.getElementById('btnNext');
             const dotsWrap = document.getElementById('carouselDots');
+            const pageNowEl   = document.getElementById('pageNow');
+            const pageTotalEl = document.getElementById('pageTotal');
             const cards    = Array.from(track.querySelectorAll('.project-card'));
             const total    = cards.length;
 
@@ -1394,6 +1488,8 @@
 
             function totalPages() { return Math.ceil(total / visibleCount()); }
 
+            function pad(n) { return String(n).padStart(2, '0'); }
+
             function buildDots() {
                 dotsWrap.innerHTML = '';
                 for (let i = 0; i < totalPages(); i++) {
@@ -1403,12 +1499,14 @@
                     btn.addEventListener('click', () => { goTo(i); resetAuto(); });
                     dotsWrap.appendChild(btn);
                 }
+                if (pageTotalEl) pageTotalEl.textContent = pad(totalPages());
             }
 
             function updateDots() {
                 dotsWrap.querySelectorAll('.carousel-dot').forEach((d, i) => {
                     d.classList.toggle('active', i === currentPage);
                 });
+                if (pageNowEl) pageNowEl.textContent = pad(currentPage + 1);
             }
 
             function goTo(page) {
