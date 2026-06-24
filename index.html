@@ -539,6 +539,114 @@
         }
 
         /* ============================================================
+           ORIGEM — "Aonde comecei" (trajetória no Exército)
+        ============================================================ */
+        .origin-section {
+            background: var(--bg-light);
+            padding: 8rem 5rem;
+            position: relative;
+            border-top: 1px solid var(--border-light);
+            overflow: hidden;
+        }
+        .origin-section::before {
+            content: '';
+            position: absolute; top: -150px; left: 50%; transform: translateX(-50%);
+            width: 700px; height: 500px;
+            background: radial-gradient(ellipse, rgba(217, 64, 64, 0.06) 0%, transparent 65%);
+            pointer-events: none;
+        }
+        .origin-header { max-width: 720px; margin: 0 auto 4.5rem; text-align: center; position: relative; z-index: 1; }
+        .origin-header .section-tag { justify-content: center; }
+        .origin-title { font-family: 'Playfair Display', serif; font-size: clamp(2.2rem, 3.8vw, 3.2rem); font-weight: 900; line-height: 1.2; color: var(--text-heading); margin-bottom: 1.5rem; }
+        .origin-title em { font-style: italic; color: var(--accent); font-weight: 400; }
+
+        .origin-grid {
+            display: grid; grid-template-columns: 0.95fr 1.05fr; gap: 4rem;
+            align-items: center; max-width: 1200px; margin: 0 auto;
+            position: relative; z-index: 1;
+        }
+        .origin-photos {
+            position: relative;
+            display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem;
+            align-items: start;
+        }
+        .origin-photo-card {
+            position: relative; border-radius: 8px; overflow: hidden;
+            border: 1px solid var(--border-dark);
+            box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+            transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), box-shadow 0.4s ease;
+        }
+        .origin-photo-card img { width: 100%; height: 100%; object-fit: cover; display: block; filter: saturate(0.92) contrast(1.04); }
+        .origin-photo-card.tall { aspect-ratio: 3/4.3; margin-top: 2.5rem; }
+        .origin-photo-card.short { aspect-ratio: 3/3.6; }
+        .origin-photo-card:hover { transform: translateY(-8px); box-shadow: 0 26px 55px rgba(0, 0, 0, 0.55); border-color: rgba(217, 64, 64, 0.4); }
+        .origin-photo-tag {
+            position: absolute; bottom: 0; left: 0; right: 0; z-index: 2;
+            background: linear-gradient(to top, rgba(13,6,8,0.92) 0%, transparent 100%);
+            padding: 1.6rem 1rem 0.9rem;
+            font-size: 0.62rem; letter-spacing: 0.12em; text-transform: uppercase;
+            color: var(--text-light); font-weight: 700; font-family: 'Montserrat', sans-serif;
+        }
+        .origin-photo-tag strong { display: block; color: var(--accent); font-size: 0.6rem; margin-bottom: 0.2rem; }
+        .origin-badge-2020 {
+            position: absolute; top: -1.2rem; left: -1.2rem; z-index: 3;
+            background: var(--accent); color: var(--text-light);
+            width: 64px; height: 64px; border-radius: 50%;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            font-family: 'Playfair Display', serif; font-weight: 900; font-size: 1rem; line-height: 1;
+            box-shadow: 0 8px 22px rgba(217, 64, 64, 0.45);
+            border: 3px solid var(--bg-light);
+            transform: rotate(-8deg);
+        }
+        .origin-badge-2020 span { font-family: 'Montserrat', sans-serif; font-size: 0.5rem; letter-spacing: 0.05em; font-weight: 700; margin-top: 1px; }
+
+        .origin-content { position: relative; z-index: 1; }
+        .origin-body { font-size: 0.92rem; line-height: 2; color: rgba(240, 230, 224, 0.85); font-weight: 400; font-family: 'Montserrat', sans-serif; }
+        .origin-body p + p { margin-top: 1.3rem; }
+        .origin-body strong { color: var(--text-light); font-weight: 600; }
+
+        .origin-timeline {
+            display: flex; flex-direction: column; gap: 1.3rem;
+            margin: 1.8rem 0 2rem;
+            border-left: 2px solid var(--border-light);
+            padding-left: 1.6rem;
+        }
+        .origin-tl-item { position: relative; }
+        .origin-tl-item::before {
+            content: ''; position: absolute; left: -1.94rem; top: 0.3rem;
+            width: 9px; height: 9px; border-radius: 50%;
+            background: var(--accent); box-shadow: 0 0 0 3px var(--bg-light), 0 0 0 4px rgba(217,64,64,0.3);
+        }
+        .origin-tl-year { font-size: 0.65rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); font-weight: 700; margin-bottom: 0.25rem; font-family: 'Montserrat', sans-serif; }
+        .origin-tl-text { font-size: 0.85rem; color: rgba(240, 230, 224, 0.8); line-height: 1.6; font-family: 'Montserrat', sans-serif; }
+        .origin-tl-text strong { color: var(--text-light); font-weight: 600; }
+
+        .origin-motto {
+            display: flex; align-items: center; gap: 1.2rem;
+            background: rgba(217, 64, 64, 0.05);
+            border: 1px solid rgba(217, 64, 64, 0.25);
+            border-radius: 8px; padding: 1.3rem 1.6rem;
+        }
+        .origin-motto-icon {
+            flex-shrink: 0; width: 46px; height: 46px; border-radius: 50%;
+            border: 1.5px solid rgba(217, 64, 64, 0.4); background: rgba(217, 64, 64, 0.08);
+            display: flex; align-items: center; justify-content: center; color: var(--accent);
+        }
+        .origin-motto-icon svg { width: 22px; height: 22px; }
+        .origin-motto-text { font-family: 'Playfair Display', serif; font-style: italic; font-size: 1.05rem; color: var(--text-light); line-height: 1.4; }
+        .origin-motto-text em { color: var(--accent); font-weight: 700; font-style: italic; }
+        .origin-motto-text span { display: block; font-family: 'Montserrat', sans-serif; font-style: normal; font-size: 0.65rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); margin-top: 0.3rem; font-weight: 600; }
+
+        @media (max-width: 900px) {
+            .origin-section { padding: 5rem 1.5rem; }
+            .origin-grid { grid-template-columns: 1fr; gap: 3rem; }
+            .origin-photos { max-width: 380px; margin: 0 auto; }
+            .origin-photo-card.tall { margin-top: 1.5rem; }
+            .origin-badge-2020 { width: 54px; height: 54px; font-size: 0.85rem; top: -0.9rem; left: -0.9rem; }
+            .origin-motto { flex-direction: column; text-align: center; }
+        }
+
+        /* ============================================================
            SERVIÇOS / PLANOS
          ============================================================ */
         .services {
@@ -1021,6 +1129,7 @@
         <ul class="nav-links">
             <li><a href="#">Início</a></li>
             <li><a href="#sobre-mim">Sobre mim</a></li>
+            <li><a href="#origem">Origem</a></li>
             <li><a href="#servicos">Serviços</a></li>
             <li><a href="#projetos">Projetos</a></li>
             <li><a href="https://linktr.ee/CarlosJesse" target="_blank">Contato</a></li>
@@ -1035,6 +1144,7 @@
         <ul>
             <li><a href="#"           onclick="fecharMenu()">Início</a></li>
             <li><a href="#sobre-mim"  onclick="fecharMenu()">Sobre mim</a></li>
+            <li><a href="#origem"     onclick="fecharMenu()">Origem</a></li>
             <li><a href="#servicos"   onclick="fecharMenu()">Serviços</a></li>
             <li><a href="#projetos"   onclick="fecharMenu()">Projetos</a></li>
             <li><a href="javascript:void(0)" onclick="fecharMenu(); abrirContato()">Contato</a></li>
@@ -1171,6 +1281,70 @@
                     </div>
                     <div class="feature-card-title">Missão crítica</div>
                     <div class="feature-card-desc">Experiência real em sistemas hospitalares que não podem falhar.</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================================================
+         ORIGEM — "Aonde comecei" (trajetória no Exército)
+    ============================================================ -->
+    <section class="origin-section" id="origem">
+        <div class="origin-header reveal">
+            <div class="section-tag">Aonde comecei</div>
+            <h2 class="origin-title">Da fileira ao <em>teclado.</em></h2>
+        </div>
+
+        <div class="origin-grid">
+            <div class="origin-photos reveal">
+                <div class="origin-badge-2020">2020<span>Exército</span></div>
+                <div class="origin-photo-card tall">
+                    <img src="assets/img/exercito-1.png" alt="Carlos Jessé durante treinamento físico no Exército Brasileiro">
+                    <div class="origin-photo-tag"><strong>Instrução</strong>Disciplina forjada no campo</div>
+                </div>
+                <div class="origin-photo-card short">
+                    <img src="assets/img/exercito-2.png" alt="Carlos Jessé recebendo diploma em formatura no Exército Brasileiro">
+                    <div class="origin-photo-tag"><strong>Formatura</strong>Reconhecimento conquistado</div>
+                </div>
+            </div>
+
+            <div class="origin-content">
+                <div class="origin-body reveal">
+                    <p>Com uma base técnica já formada pelo <strong>SENAI</strong>, fui incorporado ao <strong>Exército Brasileiro</strong> em <strong>2020</strong>. O destino quis que minha vocação técnica fosse reconhecida logo na triagem: fui direcionado para a área de Tecnologia da Informação da unidade.</p>
+                    <p>Foi ali, entre formaturas, instruções e rotina militar, que comecei de verdade. Conquistei títulos e reconhecimentos ao longo do serviço — mas o que levo até hoje não está em um certificado. É a forma como aprendi a trabalhar: <strong>com disciplina, sob pressão, sem atalhos.</strong></p>
+                </div>
+
+                <div class="origin-timeline reveal">
+                    <div class="origin-tl-item">
+                        <div class="origin-tl-year">2018 – 2019</div>
+                        <div class="origin-tl-text"><strong>Base técnica</strong> — cursos de Redes de Computadores e Eletroeletrônica concluídos no SENAI.</div>
+                    </div>
+                    <div class="origin-tl-item">
+                        <div class="origin-tl-year">2020 — Incorporação</div>
+                        <div class="origin-tl-text">Engajamento no Exército Brasileiro, com destinação direta para a <strong>área de T.I.</strong> da unidade.</div>
+                    </div>
+                    <div class="origin-tl-item">
+                        <div class="origin-tl-year">Hospital São Sebastião</div>
+                        <div class="origin-tl-text">Atuação em T.I. no <strong>Hospital São Sebastião</strong>, em Três Corações — primeiro contato direto com sistemas de missão crítica.</div>
+                    </div>
+                    <div class="origin-tl-item">
+                        <div class="origin-tl-year">Hoje — HRSM</div>
+                        <div class="origin-tl-text">Atualmente, Analista de Sistemas no <strong>Hospital Regional Sul de Minas</strong>, referência na região.</div>
+                    </div>
+                </div>
+
+                <p class="about-body reveal" style="margin-top: -0.6rem; margin-bottom: 0;">
+                    Passar por dois hospitais me ensinou a trabalhar onde <strong>erro não é opção</strong> — sistema fora do ar significa atendimento parado. Isso me deixou mais preparado para qualquer ambiente crítico, mas não me limita a eles: o mesmo cuidado vale para o projeto que você precisar, seja qual for o tamanho.
+                </p>
+
+                <div class="origin-motto reveal">
+                    <div class="origin-motto-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5.25 3.4 8.6 8 11 4.6-2.4 8-5.75 8-11V5l-8-3z"/></svg>
+                    </div>
+                    <div class="origin-motto-text">
+                        <em>"Braço Forte, Mão Amiga."</em> Rápido, seguro e firme no trabalho — amigo e solícito com quem precisa de mim.
+                        <span>Lema do Exército Brasileiro, que levo para o resto da vida</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1491,6 +1665,7 @@
         <ul class="footer-nav">
             <li><a href="#">Início</a></li>
             <li><a href="#sobre-mim">Sobre mim</a></li>
+            <li><a href="#origem">Origem</a></li>
             <li><a href="#servicos">Serviços</a></li>
             <li><a href="#projetos">Projetos</a></li>
             <li><a href="https://linktr.ee/CarlosJesse" target="_blank">Contato ↗</a></li>
