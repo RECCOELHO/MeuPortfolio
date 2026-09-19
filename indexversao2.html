@@ -2777,7 +2777,8 @@
         .tilt.reveal:not(.visible) { transform: perspective(1000px) translateY(40px) rotateX(14deg); }
         .tilt.tilting { transition: transform 0.12s ease-out, border-color 0.4s, box-shadow 0.4s, background 0.3s, opacity 0.8s, flex-basis 0.5s; }
         .plan-card.tilt:hover  { --lift: -6px; }
-        .skill-item.tilt:hover { --lift: -3px; }
+        .skill-item.tilt:hover, .work-card.tilt:hover { --lift: -3px; }
+        .origin-v2-photo.tilt:hover { --lift: -6px; }
         .proj-card.inactive.tilt { --sc: 0.97; }
         .tilt-glare {
             position: absolute; inset: 0; z-index: 3; border-radius: inherit; pointer-events: none;
@@ -2868,6 +2869,73 @@
             .hud { left: 0.75rem; bottom: 0.75rem; font-size: 0.6rem; padding: 0.45rem 0.7rem; }
         }
 
+        /* ============================================================
+           SEÇÕES "COMO TRABALHO" E "ORIGEM" (vindas da V1)
+        ============================================================ */
+        .about-text strong { color: var(--text); font-weight: 400; }
+        .work-grid { display: grid; grid-template-columns: 0.8fr 1.2fr; gap: 5rem; align-items: center; }
+        .work-photo {
+            position: relative; aspect-ratio: 3 / 4; border-radius: 4px; overflow: hidden;
+            border: 1px solid var(--border);
+        }
+        .work-photo img { width: 100%; height: 100%; object-fit: cover; display: block; filter: grayscale(20%); transition: filter 0.5s; }
+        .work-photo:hover img { filter: grayscale(0%); }
+        .work-photo::after { content: ''; position: absolute; inset: 0; background: linear-gradient(to top, rgba(10, 10, 15, 0.8) 0%, transparent 45%); }
+        .work-photo-tag {
+            position: absolute; left: 1.2rem; bottom: 1.1rem; z-index: 1;
+            font-size: 0.62rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--accent);
+        }
+        .work-cards {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 1px; margin-top: 2.5rem;
+            background: var(--border); border: 1px solid var(--border); border-radius: 4px; overflow: hidden;
+        }
+        .work-card { background: var(--surface); padding: 1.5rem; position: relative; overflow: hidden; transition: background 0.3s; }
+        .work-card:hover { background: var(--surface2); }
+        .work-card-desc { font-size: 0.72rem; line-height: 1.8; color: var(--muted); }
+
+        .origin-v2-grid { display: grid; grid-template-columns: 1fr 1.2fr; gap: 5rem; align-items: start; }
+        .origin-v2-photos { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; align-items: start; }
+        .origin-v2-photo { margin: 0; position: relative; border-radius: 4px; overflow: hidden; border: 1px solid var(--border); }
+        .origin-v2-photo.tall { aspect-ratio: 3 / 4.3; margin-top: 2.5rem; }
+        .origin-v2-photo.short { aspect-ratio: 3 / 3.6; }
+        .origin-v2-photo img { width: 100%; height: 100%; object-fit: cover; display: block; filter: grayscale(25%) contrast(1.04); transition: filter 0.5s; }
+        .origin-v2-photo:hover img { filter: grayscale(0%) contrast(1.04); }
+        .origin-v2-photo figcaption {
+            position: absolute; left: 0; right: 0; bottom: 0; z-index: 1;
+            padding: 1.6rem 1rem 0.9rem; background: linear-gradient(to top, rgba(10, 10, 15, 0.92), transparent);
+            font-size: 0.6rem; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(232, 232, 240, 0.8);
+        }
+        .origin-v2-photo figcaption strong { display: block; color: var(--accent); font-weight: 400; margin-bottom: 0.2rem; }
+        .timeline-v2 {
+            list-style: none; margin: 2.2rem 0; padding-left: 1.5rem;
+            border-left: 1px solid var(--border); display: grid; gap: 1.4rem;
+        }
+        .timeline-v2 li { position: relative; }
+        .timeline-v2 li::before {
+            content: ''; position: absolute; left: calc(-1.5rem - 4px); top: 0.3rem;
+            width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px var(--accent);
+        }
+        .tl-ano { display: block; font-size: 0.62rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent); margin-bottom: 0.3rem; }
+        .tl-txt { font-size: 0.8rem; line-height: 1.8; color: var(--muted); }
+        .tl-txt strong { color: var(--text); font-weight: 400; }
+        .motto-v2 {
+            margin: 2rem 0 0; padding: 1.4rem 1.6rem; border-radius: 4px;
+            border: 1px solid rgba(200, 240, 68, 0.2); background: rgba(200, 240, 68, 0.03);
+            font-size: 0.8rem; line-height: 1.9; color: var(--muted);
+        }
+        .motto-v2 em { display: block; font-family: 'Instrument Serif', serif; font-size: 1.4rem; color: var(--accent); margin-bottom: 0.3rem; }
+        .motto-v2 cite { display: block; margin-top: 0.7rem; font-size: 0.6rem; letter-spacing: 0.15em; text-transform: uppercase; font-style: normal; color: var(--accent2); }
+
+        /* Miniaturas dos projetos: print de celular em quadro vertical nas telas pequenas */
+        .proj-thumb-wrap picture { display: contents; }
+        @media (max-width: 768px) {
+            .work-grid, .origin-v2-grid { grid-template-columns: 1fr; gap: 2.5rem; }
+            .work-photo { aspect-ratio: 4 / 5; max-height: 480px; }
+            .work-cards { grid-template-columns: 1fr; }
+            .proj-thumb-wrap { aspect-ratio: 4 / 5; }
+            .proj-thumb { object-position: top; }
+        }
+
         /* ACESSIBILIDADE — menos movimento para quem pede no sistema */
         @media (prefers-reduced-motion: reduce) {
             *, *::before, *::after {
@@ -2909,7 +2977,7 @@
         </div>
     </div>
     <div class="hud" id="hud" aria-hidden="true">
-        <span class="hud-ponto"></span><span class="hud-num" id="hudNum">01</span><span>/</span><span id="hudTotal">05</span><span class="hud-nome" id="hudNome">INÍCIO</span>
+        <span class="hud-ponto"></span><span class="hud-num" id="hudNum">01</span><span>/</span><span id="hudTotal">07</span><span class="hud-nome" id="hudNome">INÍCIO</span>
     </div>
 
     <div class="cursor" id="cursor"></div>
@@ -2919,6 +2987,7 @@
         <ul>
             <li><a href="#" onclick="closeMenu()">Início</a></li>
             <li><a href="#sobre-mim" onclick="closeMenu()">Sobre mim</a></li>
+            <li><a href="#origem" onclick="closeMenu()">Origem</a></li>
             <li><a href="#servicos" onclick="closeMenu()">Serviços</a></li>
             <li><a href="#projetos" onclick="closeMenu()">Projetos</a></li>
             <li><a href="index.html" target="_blank" onclick="closeMenu()">Versão 1</a></li>
@@ -2934,6 +3003,7 @@
         <ul class="nav-links">
             <li><a href="#">Início</a></li>
             <li><a href="#sobre-mim">Sobre mim</a></li>
+            <li><a href="#origem">Origem</a></li>
             <li><a href="#servicos">Serviços</a></li>
             <li><a href="#projetos">Projetos</a></li>
             <li><a href="index.html" target="_blank">Versão 1</a></li>
@@ -2960,6 +3030,8 @@
                 <div class="hero-actions">
                     <a href="#projetos" class="btn-primary">Ver projetos →</a>
                     <a href="assets/cv-carlos-jesse.pdf" download class="btn-secondary">Currículo 📄</a>
+                    <a href="https://www.linkedin.com/in/carlos-jess%C3%A9-coelho-da-silva-5b375a206/" target="_blank"
+                        class="btn-secondary">LinkedIn ↗</a>
                     <button class="btn-secondary" onclick="abrirContato()">Contato ✉</button>
                 </div>
             </div>
@@ -2987,8 +3059,8 @@
             <div class="stat-label">Projetos entregues</div>
         </div>
         <div class="stat-item reveal">
-            <div class="stat-number">5+</div>
-            <div class="stat-label">Tecnologias dominadas</div>
+            <div class="stat-number">HRSM</div>
+            <div class="stat-label">Hospital Regional Sul de Minas</div>
         </div>
         <div class="stat-item reveal">
             <div class="stat-number">∞</div>
@@ -3004,7 +3076,7 @@
                     <h2 class="about-title reveal">Construindo experiências<br>com <em>código e propósito.</em></h2>
                     <div class="about-text reveal">
                         <p>Sou Analista de Sistemas no <strong>Hospital Regional Sul de Minas</strong> desde outubro de
-                            2025. Antes, servi <strong>5 anos no Exército Brasileiro</strong> (jan/2020 – fev/2025) como
+                            2025, onde gerencio o sistema <strong>SPData</strong> e bancos de dados SQL. Antes, servi <strong>5 anos no Exército Brasileiro</strong> (jan/2020 – fev/2025) como
                             Soldado de Telecomunicações na Divisão de T.I. e Comunicações — um ambiente que forjou em mim
                             resiliência, disciplina e atenção a cada detalhe — e passei pela T.I. do Hospital São
                             Sebastião, em Três Corações.</p>
@@ -3072,11 +3144,108 @@
     </div>
 
     <!-- ============================================================
-         02 — SERVIÇOS / PLANOS
+         02 — COMO TRABALHO (mesmo conteúdo do "Quem sou eu" da V1)
+    ============================================================ -->
+    <div id="como-trabalho">
+        <section class="section">
+            <div class="section-label">02 — Como trabalho</div>
+            <div class="work-grid">
+                <div class="work-photo reveal">
+                    <img src="assets/img/jessedev2.webp" width="682" height="948" loading="lazy" decoding="async"
+                        alt="Carlos Jessé — Dev &amp; Analista de Sistemas">
+                    <div class="work-photo-tag">// analista de sistemas · hrsm</div>
+                </div>
+                <div>
+                    <h2 class="about-title reveal">Problemas digitais<br>resolvidos <em>rápido.</em></h2>
+                    <div class="about-text reveal">
+                        <p>Analista de Sistemas e Desenvolvedor Full-Stack com atuação em ambiente de missão crítica.
+                            Combinando <strong>disciplina militar</strong> com profundidade técnica, entrego soluções que
+                            realmente funcionam — com agilidade, clareza e foco no seu resultado.</p>
+                    </div>
+                    <div class="work-cards reveal">
+                            <div class="work-card">
+                                <div class="skill-icon"><svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg></div>
+                                <div class="skill-name">Resposta rápida</div>
+                                <p class="work-card-desc">Diagnóstico ágil do problema e solução entregue sem enrolação.</p>
+                            </div>
+                            <div class="work-card">
+                                <div class="skill-icon"><svg viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2" /><polyline points="2 17 12 22 22 17" /><polyline points="2 12 12 17 22 12" /></svg></div>
+                                <div class="skill-name">Full-Stack</div>
+                                <p class="work-card-desc">Do banco de dados ao layout, cuido de tudo em um único lugar.</p>
+                            </div>
+                            <div class="work-card">
+                                <div class="skill-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="5" /><circle cx="12" cy="12" r="1" /></svg></div>
+                                <div class="skill-name">Foco no resultado</div>
+                                <p class="work-card-desc">Cada linha de código tem um propósito: fazer o seu negócio crescer.</p>
+                            </div>
+                            <div class="work-card">
+                                <div class="skill-icon"><svg viewBox="0 0 24 24"><path d="M12 2 4 5v6c0 5.25 3.4 8.6 8 11 4.6-2.4 8-5.75 8-11V5l-8-3z" /></svg></div>
+                                <div class="skill-name">Missão crítica</div>
+                                <p class="work-card-desc">Experiência real em sistemas hospitalares que não podem falhar.</p>
+                            </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- ============================================================
+         03 — ORIGEM (trajetória do Exército aos hospitais)
+    ============================================================ -->
+    <div id="origem">
+        <section class="section">
+            <div class="section-label">03 — Origem</div>
+            <h2 class="about-title reveal">Da fileira ao <em>teclado.</em></h2>
+            <div class="origin-v2-grid">
+                <div class="origin-v2-photos reveal">
+                    <figure class="origin-v2-photo tall">
+                        <img src="assets/img/exercito-1.webp" width="831" height="865" loading="lazy" decoding="async"
+                            alt="Carlos Jessé durante treinamento físico no Exército Brasileiro">
+                        <figcaption><strong>Instrução</strong>Disciplina forjada no campo</figcaption>
+                    </figure>
+                    <figure class="origin-v2-photo short">
+                        <img src="assets/img/exercito-2.webp" width="761" height="835" loading="lazy" decoding="async"
+                            alt="Carlos Jessé recebendo diploma em formatura no Exército Brasileiro">
+                        <figcaption><strong>Formatura</strong>Reconhecimento conquistado</figcaption>
+                    </figure>
+                </div>
+                <div>
+                    <div class="about-text reveal">
+                        <p>Com uma base técnica já formada pelo <strong>SENAI</strong>, fui incorporado ao
+                            <strong>Exército Brasileiro</strong> em <strong>janeiro de 2020</strong>. Minha vocação
+                            técnica foi reconhecida logo na triagem: fui direcionado para a Divisão de Tecnologia da
+                            Informação e Comunicações da unidade, onde servi até fevereiro de 2025.</p>
+                        <p>Foi ali, entre formaturas, instruções e rotina militar, que comecei de verdade. O que levo até
+                            hoje não está em um certificado — é a forma como aprendi a trabalhar: <strong>com disciplina,
+                            sob pressão, sem atalhos.</strong></p>
+                    </div>
+                    <ol class="timeline-v2 reveal">
+                        <li><span class="tl-ano">2018 – 2019 · SENAI</span><span class="tl-txt"><strong>Base técnica</strong> — cursos de Redes de Computadores e Eletroeletrônica.</span></li>
+                        <li><span class="tl-ano">Jan 2020 – Fev 2025 · Exército</span><span class="tl-txt"><strong>Soldado de Telecomunicações</strong> na Divisão de Tecnologia da Informação e Comunicações — 5 anos de serviço.</span></li>
+                        <li><span class="tl-ano">2025 · Hospital São Sebastião</span><span class="tl-txt">T.I. no <strong>Hospital São Sebastião</strong>, em Três Corações — primeiro contato direto com sistemas de missão crítica.</span></li>
+                        <li><span class="tl-ano">Out 2025 – hoje · HRSM</span><span class="tl-txt">Analista de Sistemas no <strong>Hospital Regional Sul de Minas</strong>, referência na região.</span></li>
+                    </ol>
+                    <div class="about-text reveal">
+                        <p>Passar por dois hospitais me ensinou a trabalhar onde <strong>erro não é opção</strong> — sistema
+                            fora do ar significa atendimento parado. O mesmo cuidado vale para o projeto que você precisar,
+                            seja qual for o tamanho.</p>
+                    </div>
+                    <blockquote class="motto-v2 reveal">
+                        <em>"Braço Forte, Mão Amiga."</em>
+                        Rápido, seguro e firme no trabalho — amigo e solícito com quem precisa de mim.
+                        <cite>Lema do Exército Brasileiro, que levo para o resto da vida</cite>
+                    </blockquote>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- ============================================================
+         04 — SERVIÇOS / PLANOS
     ============================================================ -->
     <div id="servicos">
         <section class="services-section">
-            <div class="section-label">02 — Planos e Serviços</div>
+            <div class="section-label">04 — Planos e Serviços</div>
             <div class="services-header">
                 <h2 class="services-title reveal">Modelos de<br><em>investimento.</em></h2>
             </div>
@@ -3130,7 +3299,7 @@
 
     <div class="projects-section" id="projetos">
         <div class="projects-inner">
-            <div class="section-label">03 — Projetos</div>
+            <div class="section-label">05 — Projetos</div>
             <div class="projects-header">
                 <h2 class="projects-title reveal">Meus trabalhos<br><em>mais recentes.</em></h2>
                 <div class="projects-counter">
@@ -3146,7 +3315,7 @@
                 <div class="proj-card active" data-index="0">
                     <div class="proj-thumb-wrap">
                         <span class="proj-badge">Mais recente</span>
-                        <img class="proj-thumb" src="assets/img/projeto-rabbitfin.webp" width="800" height="500" loading="lazy" decoding="async" alt="RabbitFin">
+                        <picture><source media="(max-width: 768px)" srcset="assets/img/projeto-rabbitfin-mobile.webp" width="600" height="750"><img class="proj-thumb" src="assets/img/projeto-rabbitfin.webp" width="800" height="500" loading="lazy" decoding="async" alt="RabbitFin"></picture>
                     </div>
                     <div class="proj-body">
                         <div class="proj-num">001 — Projeto</div>
@@ -3161,7 +3330,7 @@
                 <div class="proj-card inactive" data-index="1">
                     <div class="proj-thumb-wrap">
                         <span class="proj-badge">Em destaque</span>
-                        <img class="proj-thumb" src="assets/img/projeto-rara.webp" width="800" height="500" loading="lazy" decoding="async" alt="Rara Moda Íntima">
+                        <picture><source media="(max-width: 768px)" srcset="assets/img/projeto-rara-mobile.webp" width="600" height="750"><img class="proj-thumb" src="assets/img/projeto-rara.webp" width="800" height="500" loading="lazy" decoding="async" alt="Rara Moda Íntima"></picture>
                     </div>
                     <div class="proj-body">
                         <div class="proj-num">002 — Projeto</div>
@@ -3176,7 +3345,7 @@
                 <div class="proj-card inactive" data-index="2">
                     <div class="proj-thumb-wrap">
                         <span class="proj-badge">Em destaque</span>
-                        <img class="proj-thumb" src="assets/img/projeto-fortcar.webp" width="800" height="500" loading="lazy" decoding="async" alt="Fort Car Multimarcas">
+                        <picture><source media="(max-width: 768px)" srcset="assets/img/projeto-fortcar-mobile.webp" width="600" height="750"><img class="proj-thumb" src="assets/img/projeto-fortcar.webp" width="800" height="500" loading="lazy" decoding="async" alt="Fort Car Multimarcas"></picture>
                     </div>
                     <div class="proj-body">
                         <div class="proj-num">003 — Projeto</div>
@@ -3192,7 +3361,7 @@
                 <div class="proj-card inactive" data-index="3">
                     <div class="proj-thumb-wrap">
                         <span class="proj-badge">Em destaque</span>
-                        <img class="proj-thumb" src="assets/img/projeto-motomundi.webp" width="800" height="500" loading="lazy" decoding="async" alt="MotoMundi">
+                        <picture><source media="(max-width: 768px)" srcset="assets/img/projeto-motomundi-mobile.webp" width="600" height="750"><img class="proj-thumb" src="assets/img/projeto-motomundi.webp" width="800" height="500" loading="lazy" decoding="async" alt="MotoMundi"></picture>
                     </div>
                     <div class="proj-body">
                         <div class="proj-num">004 — Projeto</div>
@@ -3207,7 +3376,7 @@
                 <div class="proj-card inactive" data-index="4">
                     <div class="proj-thumb-wrap">
                         <span class="proj-badge">Em destaque</span>
-                        <img class="proj-thumb" src="assets/img/projeto-portfolio-v1.webp" width="800" height="500" loading="lazy" decoding="async" alt="Portfólio V1">
+                        <picture><source media="(max-width: 768px)" srcset="assets/img/projeto-portfolio-v1-mobile.webp" width="600" height="750"><img class="proj-thumb" src="assets/img/projeto-portfolio-v1.webp" width="800" height="500" loading="lazy" decoding="async" alt="Portfólio V1"></picture>
                     </div>
                     <div class="proj-body">
                         <div class="proj-num">005 — Projeto</div>
@@ -3222,7 +3391,7 @@
                 <div class="proj-card inactive" data-index="5">
                     <div class="proj-thumb-wrap">
                         <span class="proj-badge">Em destaque</span>
-                        <img class="proj-thumb" src="assets/img/projeto-coelhocast.webp" width="800" height="500" loading="lazy" decoding="async" alt="CoelhoCast">
+                        <picture><source media="(max-width: 768px)" srcset="assets/img/projeto-coelhocast-mobile.webp" width="600" height="750"><img class="proj-thumb" src="assets/img/projeto-coelhocast.webp" width="800" height="500" loading="lazy" decoding="async" alt="CoelhoCast"></picture>
                     </div>
                     <div class="proj-body">
                         <div class="proj-num">006 — Projeto</div>
@@ -3312,6 +3481,7 @@
             <ul class="footer-nav">
                 <li><a href="#">Início</a></li>
                 <li><a href="#sobre-mim">Sobre mim</a></li>
+                <li><a href="#origem">Origem</a></li>
                 <li><a href="#servicos">Serviços</a></li>
                 <li><a href="#projetos">Projetos</a></li>
                 <li><a href="#contato" onclick="event.preventDefault(); abrirContato()">Contato</a></li>
@@ -4172,7 +4342,7 @@
             if (calmo || !temMouse) return;
 
             /* Cartões 3D que inclinam seguindo o mouse, com reflexo de luz */
-            document.querySelectorAll('.plan-card, .skill-item, .proj-card, .hero-photo-frame').forEach(card => {
+            document.querySelectorAll('.plan-card, .skill-item, .work-card, .origin-v2-photo, .proj-card, .hero-photo-frame').forEach(card => {
                 card.classList.add('tilt');
                 const glare = document.createElement('span');
                 glare.className = 'tilt-glare';
@@ -4275,6 +4445,8 @@
             const secoes = [
                 ['.hero', 'INÍCIO', 'inicio'],
                 ['#sobre-mim', 'SOBRE MIM', 'sobre-mim'],
+                ['#como-trabalho', 'COMO TRABALHO', 'como-trabalho'],
+                ['#origem', 'ORIGEM', 'origem'],
                 ['#servicos', 'SERVIÇOS', 'servicos'],
                 ['#projetos', 'PROJETOS', 'projetos'],
                 ['footer', 'CONTATO', 'contato'],
