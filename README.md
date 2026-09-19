@@ -1,52 +1,41 @@
 
-# [Portfolio e Experiências Profissionais ](https://carlosjessecoelho.vercel.app/)
+# [Portfólio — Carlos Jessé](https://carlosjessecoelho.vercel.app/)
 
-![logo tipo para twitch moderno rosa branco ](https://github.com/RECCOELHO/MeuPortfolio/assets/63757384/bb3bbd73-3d77-4fab-a752-ede28f5ec1b1)
+![Carlos Jessé — Desenvolvedor Full-Stack & Analista de Sistemas](assets/img/og-image.jpg)
 
-## Sobre Mim!
+Portfólio pessoal de **Carlos Jessé Coelho da Silva**, Analista de Sistemas no Hospital Regional Sul de Minas e Desenvolvedor Full-Stack.
 
-Olá! Meu nome é Carlos Jessé e este é o README do meu portfolio, onde apresento minhas experiências profissionais e projetos desenvolvidos ao longo da minha carreira. Sou um Analista de Sistemas com paixão por Desenvolvimento e aprender sempre.
+🔗 **Acesse:** https://carlosjessecoelho.vercel.app/
 
-Neste portfolio, você encontrará uma seleção de trabalhos e projetos que demonstrem minhas habilidades, conhecimentos e dedicação ao longo do tempo. Meu objetivo é compartilhar um pouco sobre quem eu sou como profissional e destacar algumas das minhas realizações mais significativas.
+## Trajetória
 
-## Experiências Profissionais
+- **2018 – 2019 · SENAI** — cursos de Redes de Computadores e Eletroeletrônica.
+- **Jan 2020 – Fev 2025 · Exército Brasileiro** — Soldado de Telecomunicações na Divisão de Tecnologia da Informação e Comunicações.
+- **2025 · Hospital São Sebastião (Três Corações)** — T.I. em ambiente de missão crítica.
+- **Out 2025 – hoje · Hospital Regional Sul de Minas** — Analista de Sistemas, gerenciando o sistema SPData e bancos de dados SQL.
 
-### Exercito Brasileiro
+**Formação:** Análise e Desenvolvimento de Sistemas — Universidade de Franca.
 
-- **Período:** Data de início - Data de término (ou "Presente" se ainda estiver empregado)
-- **Cargo ou Função:** Descrição breve do cargo ou função que você exerceu.
-- **Descrição:** Resuma as principais responsabilidades e realizações nesta posição. Destaque projetos importantes ou qualquer contribuição significativa que tenha feito para a empresa ou cliente.
+## Projetos em destaque
 
+| Projeto | Descrição | Tecnologias |
+|---|---|---|
+| [Rara Moda Íntima](https://raramodaintima.vercel.app/) | E-commerce com catálogo, filtros por coleção, carrinho e pedidos via WhatsApp | HTML, CSS, JS, Supabase |
+| [Fort Car Multimarcas](https://gcar-mult-marcas.vercel.app/) | Site de revenda de veículos com estoque e filtros por preço | HTML, CSS, JS |
+| [MotoMundi](https://moto-mundi.vercel.app/) | Diário digital de viagens de moto pelo interior de Minas | HTML, CSS |
+| [CoelhoCast](https://paginadeentradacoelhocast.vercel.app/) | Página de entrada do podcast com links para as plataformas | HTML, CSS |
+| [Portfólio V2](https://carlosjessecoelho.vercel.app/indexversao2.html) | Versão alternativa deste portfólio | HTML, CSS, JS |
 
-## Projetos Destacados
+## Sobre o código
 
-### Pagina de Entrada Coelho Cast
+- HTML, CSS e JavaScript puros, sem framework nem etapa de build.
+- Hospedado na Vercel; o formulário de contato usa o Formspree.
+- As miniaturas dos projetos ficam em `assets/img/projeto-*.webp`. Quando um projeto mudar de visual, basta substituir o print correspondente.
 
-- **Descrição:** É uma pagina de apresentação com os links do podcast
-- **Minha Contribuição:** Idealizador e Programador
-- **Tecnologias Utilizadas:** Por enquanto HTML5 e CCS3
-- **Resultado/Resultado:** Sempre Atualizando este Projeto
-
-
-
-## Formação Acadêmica
-
-### Universidade de Franca
-
-- **Curso:** Analise e desenvolvimento de Sistemas.
-- **Período:** 2021- 2023 .
-- **Descrição:** Projetos e certificados importantes para o inicio de uma carreira.
+Para rodar localmente, abra o `index.html` com a extensão Live Server do VS Code.
 
 ## Contato
 
 - **E-mail:** tv.coelho01@gmail.com
 - **LinkedIn:** https://www.linkedin.com/in/carlos-jess%C3%A9-coelho-da-silva-5b375a206/
-
-## Considerações Finais
-
-Este README é uma breve introdução ao meu portfolio e experiências profissionais. Espero que esta coleção de projetos e experiências demonstre minha paixão e dedicação pela minha área de atuação.
-
-Fique à vontade para explorar meu portfolio e, se tiver alguma dúvida ou oportunidade de colaboração, sinta-se à vontade para entrar em contato.
-
-Obrigado pela visita e interesse em conhecer mais sobre mim e meu trabalho!
-
+- **Linktree:** https://linktr.ee/CarlosJesse

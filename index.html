@@ -12,12 +12,15 @@
     <meta property="og:url" content="https://carlosjessecoelho.vercel.app/">
     <meta property="og:title" content="Carlos Jessé — Desenvolvedor Full-Stack">
     <meta property="og:description" content="Desenvolvedor Full-Stack com 4+ anos de experiência. Explore meus projetos e entre em contato.">
-    <meta property="og:image" content="https://carlosjessecoelho.vercel.app/assets/img/2d19f0ff-daeb-4d4c-868a-afba22a140ea.jpg">
+    <meta property="og:image" content="https://carlosjessecoelho.vercel.app/assets/img/og-image.jpg">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:locale" content="pt_BR">
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Carlos Jessé — Desenvolvedor Full-Stack">
     <meta name="twitter:description" content="Desenvolvedor Full-Stack com 4+ anos de experiência. Explore meus projetos.">
-    <meta name="twitter:image" content="https://carlosjessecoelho.vercel.app/assets/img/2d19f0ff-daeb-4d4c-868a-afba22a140ea.jpg">
+    <meta name="twitter:image" content="https://carlosjessecoelho.vercel.app/assets/img/og-image.jpg">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg">
     <link rel="icon" type="image/x-icon" href="assets/img/favicon.ico">
@@ -230,7 +233,7 @@
             background-repeat: no-repeat; background-size: 100% 100%;
             transform: scaleX(0); transform-origin: left center;
             opacity: 0;
-            animation: underlineDraw 0.7s cubic-bezier(0.65, 0, 0.35, 1) 1.85s forwards;
+            animation: underlineDraw 0.7s cubic-bezier(0.65, 0, 0.35, 1) 0.95s forwards;
         }
         @keyframes charRise {
             0%   { opacity: 0; transform: translateY(110%) rotateX(-60deg); }
@@ -249,7 +252,7 @@
         }
         /* brilho contínuo e sutil depois que a palavra aparece */
         .hero-hello em {
-            animation: emGlowPulse 3s 2.6s infinite alternate ease-in-out;
+            animation: emGlowPulse 3s 1.7s infinite alternate ease-in-out;
         }
         @keyframes emGlowPulse {
             0%   { filter: drop-shadow(0 0 6px rgba(217,64,64,0.25)); }
@@ -260,18 +263,18 @@
             font-family: 'Playfair Display', serif;
             font-size: clamp(1.2rem, 2.2vw, 1.8rem); font-weight: 700; font-style: italic;
             line-height: 1.35;
-            color: var(--salmon); margin-bottom: 1.8rem; opacity: 0; animation: slideUp 0.7s 2s forwards;
+            color: var(--salmon); margin-bottom: 1.8rem; opacity: 0; animation: slideUp 0.7s 1s forwards;
         }
         .hero-tagline span { color: var(--text-heading); font-style: normal; }
         .hero-desc {
             font-size: 0.9rem; line-height: 1.9; color: var(--text-dark);
             max-width: 480px; margin-bottom: 2.8rem; font-weight: 400;
-            opacity: 0; animation: slideUp 0.7s 2.15s forwards;
+            opacity: 0; animation: slideUp 0.7s 1.1s forwards;
             font-family: 'Montserrat', sans-serif;
         }
         .hero-actions {
             display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;
-            opacity: 0; animation: slideUp 0.7s 2.3s forwards;
+            opacity: 0; animation: slideUp 0.7s 1.2s forwards;
         }
         .btn-red {
             display: inline-flex; align-items: center; gap: 0.6rem;
@@ -311,7 +314,7 @@
         ============================================================ */
         .hero-photo-wrap {
             position: relative; z-index: 2; opacity: 0;
-            animation: photoReveal 1.1s 1.1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            animation: photoReveal 1.1s 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
             perspective: 1200px;
         }
         .hero-photo-float {
@@ -1111,6 +1114,16 @@
             .hero-actions { justify-content: center; gap: 0.8rem; }
             .hero-actions .btn-red, .hero-actions .btn-ghost { flex: 1 1 140px; justify-content: center; padding: 0.85rem 1rem; font-size: 0.72rem; }
         }
+
+        /* ACESSIBILIDADE — menos movimento para quem pede no sistema */
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important; animation-delay: 0s !important;
+                animation-iteration-count: 1 !important; transition-duration: 0.01ms !important;
+            }
+            html { scroll-behavior: auto; }
+            .ticker { animation: none !important; }
+        }
     </style>
 </head>
 <body class="no-scroll">
@@ -1132,10 +1145,10 @@
             <li><a href="#origem">Origem</a></li>
             <li><a href="#servicos">Serviços</a></li>
             <li><a href="#projetos">Projetos</a></li>
-            <li><a href="https://linktr.ee/CarlosJesse" target="_blank">Contato</a></li>
+            <li><a href="#contato" onclick="event.preventDefault(); abrirContato()">Contato</a></li>
             <li><a href="indexversao2.html" target="_blank">Versão 2</a></li>
         </ul>
-        <button class="hamburger" id="btn-hamburger" aria-label="Abrir menu">
+        <button class="hamburger" id="btn-hamburger" aria-label="Abrir menu" aria-expanded="false" aria-controls="mobile-menu">
             <span></span><span></span><span></span>
         </button>
     </nav>
@@ -1147,7 +1160,7 @@
             <li><a href="#origem"     onclick="fecharMenu()">Origem</a></li>
             <li><a href="#servicos"   onclick="fecharMenu()">Serviços</a></li>
             <li><a href="#projetos"   onclick="fecharMenu()">Projetos</a></li>
-            <li><a href="javascript:void(0)" onclick="fecharMenu(); abrirContato()">Contato</a></li>
+            <li><a href="#contato" onclick="event.preventDefault(); fecharMenu(); abrirContato()">Contato</a></li>
             <li><a href="indexversao2.html" target="_blank" onclick="fecharMenu()">Versão 2</a></li>
         </ul>
     </div>
@@ -1157,7 +1170,7 @@
             <div class="hero-accent-line"></div>
             <div class="hero-text">
                 <div class="hero-photo-mobile">
-                    <img src="assets/img/jessedev.jpg" alt="Carlos Jessé">
+                    <img src="assets/img/jessedev.webp" alt="Carlos Jessé" width="720" height="1185">
                 </div>
 
                 <!-- BLOCO DE CÓDIGO DECORATIVO — efeito typewriter via JS -->
@@ -1218,7 +1231,7 @@
             <div class="hero-photo-wrap" id="heroPhotoWrap">
                 <div class="hero-photo-float" id="heroPhotoFloat">
                     <div class="hero-photo-frame"></div>
-                    <img class="hero-photo" src="assets/img/jessedev.jpg" alt="Carlos Jessé">
+                    <img class="hero-photo" src="assets/img/jessedev.webp" alt="Carlos Jessé" width="720" height="1185" fetchpriority="high">
                     <div class="hero-photo-shine"></div>
                     <div class="hero-photo-badge">
                         Disponível para projetos<br>
@@ -1230,7 +1243,7 @@
     </section>
 
     <div class="stats">
-        <div class="stat reveal"><div class="stat-n">4+</div><div class="stat-l">Anos de experiência</div></div>
+        <div class="stat reveal"><div class="stat-n">6+</div><div class="stat-l">Anos em T.I.</div></div>
         <div class="stat reveal"><div class="stat-n">10+</div><div class="stat-l">Projetos entregues</div></div>
         <div class="stat reveal"><div class="stat-n">HRSM</div><div class="stat-l">Hospital Regional Sul de Minas</div></div>
         <div class="stat reveal"><div class="stat-n">∞</div><div class="stat-l">Vontade de aprender</div></div>
@@ -1241,7 +1254,7 @@
     ============================================================ -->
     <section class="feature-section" id="sobre-mim">
         <div class="feature-img-col">
-            <img src="assets/img/jessedev2.jpeg" alt="Carlos Jessé — Dev & Analista de Sistemas">
+            <img src="assets/img/jessedev2.webp" width="682" height="948" loading="lazy" decoding="async" alt="Carlos Jessé — Dev & Analista de Sistemas">
         </div>
         <div class="feature-content-col">
             <div class="section-tag reveal">Quem sou eu</div>
@@ -1299,18 +1312,18 @@
             <div class="origin-photos reveal">
                 <div class="origin-badge-2020">2020<span>Exército</span></div>
                 <div class="origin-photo-card tall">
-                    <img src="assets/img/exercito-1.png" alt="Carlos Jessé durante treinamento físico no Exército Brasileiro">
+                    <img src="assets/img/exercito-1.webp" width="831" height="865" loading="lazy" decoding="async" alt="Carlos Jessé durante treinamento físico no Exército Brasileiro">
                     <div class="origin-photo-tag"><strong>Instrução</strong>Disciplina forjada no campo</div>
                 </div>
                 <div class="origin-photo-card short">
-                    <img src="assets/img/exercito-2.png" alt="Carlos Jessé recebendo diploma em formatura no Exército Brasileiro">
+                    <img src="assets/img/exercito-2.webp" width="761" height="835" loading="lazy" decoding="async" alt="Carlos Jessé recebendo diploma em formatura no Exército Brasileiro">
                     <div class="origin-photo-tag"><strong>Formatura</strong>Reconhecimento conquistado</div>
                 </div>
             </div>
 
             <div class="origin-content">
                 <div class="origin-body reveal">
-                    <p>Com uma base técnica já formada pelo <strong>SENAI</strong>, fui incorporado ao <strong>Exército Brasileiro</strong> em <strong>2020</strong>. O destino quis que minha vocação técnica fosse reconhecida logo na triagem: fui direcionado para a área de Tecnologia da Informação da unidade.</p>
+                    <p>Com uma base técnica já formada pelo <strong>SENAI</strong>, fui incorporado ao <strong>Exército Brasileiro</strong> em <strong>janeiro de 2020</strong>. O destino quis que minha vocação técnica fosse reconhecida logo na triagem: fui direcionado para a Divisão de Tecnologia da Informação e Comunicações da unidade, onde servi até fevereiro de 2025.</p>
                     <p>Foi ali, entre formaturas, instruções e rotina militar, que comecei de verdade. Conquistei títulos e reconhecimentos ao longo do serviço — mas o que levo até hoje não está em um certificado. É a forma como aprendi a trabalhar: <strong>com disciplina, sob pressão, sem atalhos.</strong></p>
                 </div>
 
@@ -1320,15 +1333,15 @@
                         <div class="origin-tl-text"><strong>Base técnica</strong> — cursos de Redes de Computadores e Eletroeletrônica concluídos no SENAI.</div>
                     </div>
                     <div class="origin-tl-item">
-                        <div class="origin-tl-year">2020 — Incorporação</div>
-                        <div class="origin-tl-text">Engajamento no Exército Brasileiro, com destinação direta para a <strong>área de T.I.</strong> da unidade.</div>
+                        <div class="origin-tl-year">Jan 2020 – Fev 2025 · Exército</div>
+                        <div class="origin-tl-text"><strong>Soldado de Telecomunicações</strong> na Divisão de Tecnologia da Informação e Comunicações — 5 anos de serviço.</div>
                     </div>
                     <div class="origin-tl-item">
-                        <div class="origin-tl-year">Hospital São Sebastião</div>
+                        <div class="origin-tl-year">2025 · Hospital São Sebastião</div>
                         <div class="origin-tl-text">Atuação em T.I. no <strong>Hospital São Sebastião</strong>, em Três Corações — primeiro contato direto com sistemas de missão crítica.</div>
                     </div>
                     <div class="origin-tl-item">
-                        <div class="origin-tl-year">Hoje — HRSM</div>
+                        <div class="origin-tl-year">Out 2025 – hoje · HRSM</div>
                         <div class="origin-tl-text">Atualmente, Analista de Sistemas no <strong>Hospital Regional Sul de Minas</strong>, referência na região.</div>
                     </div>
                 </div>
@@ -1358,7 +1371,7 @@
                 <h2 class="about-title reveal">Código, propósito<br>e <em>determinação.</em></h2>
                 <div class="about-body reveal">
                     <p>Atualmente sou <strong>Analista de Sistemas no Hospital Regional Sul de Minas</strong>, onde gerencio o sistema <strong>SPData</strong> e bancos de dados SQL em um ambiente de missão crítica.</p>
-                    <p>Minha base foi moldada por <strong>5 anos no Exército Brasileiro</strong> como Técnico de Comunicações, o que consolidou minha disciplina e resiliência no desenvolvimento de soluções tecnológicas.</p>
+                    <p>Minha base foi moldada por <strong>5 anos no Exército Brasileiro</strong> (2020–2025) como Soldado de Telecomunicações na Divisão de T.I. e Comunicações, o que consolidou minha disciplina e resiliência no desenvolvimento de soluções tecnológicas.</p>
                     <p>Graduado em ADS e com formação técnica pelo SENAI, busco a evolução constante como <strong>Desenvolvedor Full-Stack</strong>, unindo criatividade técnica e foco em resultados.</p>
                 </div>
             </div>    
@@ -1372,7 +1385,7 @@
                     </div>
                     <div class="skill-row">
                         <div class="skill-row-top"><span class="skill-row-name">CSS3</span><span class="skill-row-pct">95%</span></div>
-                        <div class="skill-bar-bg"><div class="skill-bar-fill" data-width="85"></div></div>
+                        <div class="skill-bar-bg"><div class="skill-bar-fill" data-width="95"></div></div>
                     </div>
                     <div class="skill-row">
                         <div class="skill-row-top"><span class="skill-row-name">JavaScript</span><span class="skill-row-pct">80%</span></div>
@@ -1467,7 +1480,7 @@
                     <!-- 001 — Rara Moda Íntima (MAIS RECENTE) -->
                     <div class="project-card reveal">
                         <div class="project-thumb-wrap">
-                            <img class="project-thumb" src="https://api.microlink.io/?url=https://raramodaintima.vercel.app/&screenshot=true&meta=false&embed=screenshot.url" alt="Rara Moda Íntima">
+                            <img class="project-thumb" src="assets/img/projeto-rara.webp" width="800" height="500" loading="lazy" decoding="async" alt="Rara Moda Íntima">
                         </div>
                         <div class="project-body">
                             <div class="project-num">001</div>
@@ -1483,9 +1496,7 @@
                     <!-- 002 — Fort Car Multimarcas -->
                     <div class="project-card reveal">
                         <div class="project-thumb-wrap">
-                            <img class="project-thumb" id="gcarThumb"
-                                 src=""
-                                 alt="G.Car Multimarcas">
+                            <img class="project-thumb" src="assets/img/projeto-fortcar.webp" width="800" height="500" loading="lazy" decoding="async" alt="Fort Car Multimarcas">
                         </div>
                         <div class="project-body">
                             <div class="project-num">002</div>
@@ -1501,7 +1512,7 @@
                     <!-- 003 -->
                     <div class="project-card reveal">
                         <div class="project-thumb-wrap">
-                            <img class="project-thumb" src="https://api.microlink.io/?url=https://moto-mundi.vercel.app/&screenshot=true&meta=false&embed=screenshot.url" alt="MotoMundi">
+                            <img class="project-thumb" src="assets/img/projeto-motomundi.webp" width="800" height="500" loading="lazy" decoding="async" alt="MotoMundi">
                         </div>
                         <div class="project-body">
                             <div class="project-num">003</div>
@@ -1517,7 +1528,7 @@
                     <!-- 004 -->
                     <div class="project-card reveal">
                         <div class="project-thumb-wrap">
-                            <img class="project-thumb" src="https://api.microlink.io/?url=https://carlosjessecoelho.vercel.app/indexversao2.html&screenshot=true&meta=false&embed=screenshot.url&waitUntil=networkidle0" alt="Portfólio V2">
+                            <img class="project-thumb" src="assets/img/projeto-portfolio-v2.webp" width="800" height="500" loading="lazy" decoding="async" alt="Portfólio V2">
                         </div>
                         <div class="project-body">
                             <div class="project-num">004</div>
@@ -1533,7 +1544,7 @@
                     <!-- 005 -->
                     <div class="project-card reveal">
                         <div class="project-thumb-wrap">
-                            <img class="project-thumb" src="https://api.microlink.io/?url=https://paginadeentradacoelhocast.vercel.app/&screenshot=true&meta=false&embed=screenshot.url" alt="CoelhoCast">
+                            <img class="project-thumb" src="assets/img/projeto-coelhocast.webp" width="800" height="500" loading="lazy" decoding="async" alt="CoelhoCast">
                         </div>
                         <div class="project-body">
                             <div class="project-num">005</div>
@@ -1543,28 +1554,6 @@
                             <a href="https://paginadeentradacoelhocast.vercel.app/" target="_blank" class="project-link">Ver projeto
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
                             </a>
-                        </div>
-                    </div>
-
-                    <!-- 006 — Em Breve -->
-                    <div class="project-card reveal project-soon">
-                        <div class="project-thumb-wrap soon-thumb">
-                            <div class="soon-overlay">
-                                <div class="soon-icon">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                                        <circle cx="12" cy="12" r="10"/>
-                                        <polyline points="12 6 12 12 16 14"/>
-                                    </svg>
-                                </div>
-                                <span class="soon-label">Em Breve</span>
-                            </div>
-                        </div>
-                        <div class="project-body">
-                            <div class="project-num">006</div>
-                            <div class="project-name">Novo Projeto</div>
-                            <div class="project-desc">Algo novo está sendo construído. Em breve disponível aqui.</div>
-                            <div class="project-tags"><span class="ptag">Em produção</span></div>
-                            <span class="project-link" style="opacity:0.4;cursor:default;border-top:1px solid var(--border-light);">Em desenvolvimento</span>
                         </div>
                     </div>
 
@@ -1668,25 +1657,33 @@
             <li><a href="#origem">Origem</a></li>
             <li><a href="#servicos">Serviços</a></li>
             <li><a href="#projetos">Projetos</a></li>
-            <li><a href="https://linktr.ee/CarlosJesse" target="_blank">Contato ↗</a></li>
+            <li><a href="#contato" onclick="event.preventDefault(); abrirContato()">Contato</a></li>
             <li><a href="indexversao2.html" target="_blank">Versão 2 ↗</a></li>
         </ul>
         <div class="footer-bottom">
-            <p class="footer-copy">© 2026 <span>Carlos Jessé Coelho da Silva</span>. All Rights Reserved</p>
+            <p class="footer-copy">© 2026 <span>Carlos Jessé Coelho da Silva</span>. Todos os direitos reservados.</p>
             <p class="footer-copy">Desenvolvido por <span>Carlos Jessé</span></p>
         </div>
     </footer>
 
     <script>
         /* PRELOADER */
-        window.addEventListener('load', function() {
+        // Sai assim que as fontes carregam (no máximo 1,2s), sem esperar
+        // todas as imagens da página — antes a rolagem ficava travada.
+        (function() {
             const preloader = document.getElementById('preloader');
-            setTimeout(() => {
+            let saiu = false;
+            function esconderPreloader() {
+                if (saiu) return;
+                saiu = true;
                 preloader.classList.add('hidden');
                 document.body.classList.remove('no-scroll');
                 startHeroTypewriter();
-            }, 800);
-        });
+            }
+            const fontes = document.fonts ? document.fonts.ready : Promise.resolve();
+            Promise.race([fontes, new Promise(r => setTimeout(r, 1200))])
+                .then(() => setTimeout(esconderPreloader, 250));
+        })();
 
         /* ============================================================
            ANIMAÇÃO "BEM-VINDO" — quebra o texto em letras (spans)
@@ -1697,7 +1694,7 @@
             const nodes = Array.from(el.childNodes);
             let order = 0;
             const delayStep = 0.045; // segundos entre cada letra
-            const baseDelay = 1.5;   // começa depois do typewriter do code block
+            const baseDelay = 0.6;   // começa logo depois que o preloader sai
 
             function processNode(node, parent) {
                 if (node.nodeType === Node.TEXT_NODE) {
@@ -1828,6 +1825,7 @@
         function abrirContato() {
             modalContato.classList.add('open');
             document.body.classList.add('no-scroll');
+            setTimeout(() => document.getElementById('contact-name').focus(), 300);
         }
 
         function fecharContato() {
@@ -1840,6 +1838,13 @@
                 contactForm.reset();
             }, 400);
         }
+
+        modalContato.addEventListener('click', function(e) {
+            if (e.target === modalContato) fecharContato();
+        });
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && modalContato.classList.contains('open')) fecharContato();
+        });
 
         if (contactForm) {
             contactForm.addEventListener('submit', async function(e) {
@@ -1875,12 +1880,14 @@
         const btnHamburger = document.getElementById('btn-hamburger');
         const mobileMenu   = document.getElementById('mobile-menu');
         btnHamburger.addEventListener('click', function() {
-            btnHamburger.classList.toggle('aberto');
-            mobileMenu.classList.toggle('aberto');
+            const aberto = mobileMenu.classList.toggle('aberto');
+            btnHamburger.classList.toggle('aberto', aberto);
+            btnHamburger.setAttribute('aria-expanded', aberto);
         });
         function fecharMenu() {
             btnHamburger.classList.remove('aberto');
             mobileMenu.classList.remove('aberto');
+            btnHamburger.setAttribute('aria-expanded', 'false');
         }
 
         /* SCROLL REVEAL */
@@ -1905,23 +1912,6 @@
             });
         }, { threshold: 0.3 });
         if (skillsBlock) barObs.observe(skillsBlock);
-
-        /* ============================================================
-           SCREENSHOT G.CAR — busca via API e escolhe o frame certo
-           Usamos o endpoint JSON do microlink para obter a URL da imagem
-           já processada, garantindo que o preloader do site seja ignorado.
-        ============================================================ */
-        (function() {
-            const thumb = document.getElementById('gcarThumb');
-            // Primeiro tenta com scroll (captura após scroll automático, pula preloader)
-            const apiUrl = 'https://api.microlink.io/?url=https://gcar-mult-marcas.vercel.app/&screenshot=true&meta=false&embed=screenshot.url&scroll=true';
-            // Seta direto — se o microlink já tiver em cache retorna rápido, se não, aguarda
-            thumb.src = apiUrl;
-            thumb.onerror = function() {
-                // Fallback: sem scroll
-                thumb.src = 'https://api.microlink.io/?url=https://gcar-mult-marcas.vercel.app/&screenshot=true&meta=false&embed=screenshot.url';
-            };
-        })();
 
         /* ============================================================
            CARROSSEL
