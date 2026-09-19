@@ -20,6 +20,7 @@ Portfólio pessoal de **Carlos Jessé Coelho da Silva**, Analista de Sistemas no
 
 | Projeto | Descrição | Tecnologias |
 |---|---|---|
+| [RabbitFin](https://rabbitfin.jessecoelho.com.br/) | App de controle financeiro para você e seu par, com login pelo Google | Next.js, React |
 | [Rara Moda Íntima](https://raramodaintima.vercel.app/) | E-commerce com catálogo, filtros por coleção, carrinho e pedidos via WhatsApp | HTML, CSS, JS, Supabase |
 | [Fort Car Multimarcas](https://gcar-mult-marcas.vercel.app/) | Site de revenda de veículos com estoque e filtros por preço | HTML, CSS, JS |
 | [MotoMundi](https://moto-mundi.vercel.app/) | Diário digital de viagens de moto pelo interior de Minas | HTML, CSS |
