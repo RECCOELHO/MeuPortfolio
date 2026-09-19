@@ -1115,6 +1115,151 @@
             .hero-actions .btn-red, .hero-actions .btn-ghost { flex: 1 1 140px; justify-content: center; padding: 0.85rem 1rem; font-size: 0.72rem; }
         }
 
+        /* ============================================================
+           EFEITOS 3D E MICROINTERAÇÕES
+        ============================================================ */
+        /* Barra de progresso da leitura */
+        .scroll-progress {
+            position: fixed; top: 0; left: 0; width: 100%; height: 3px; z-index: 200;
+            background: linear-gradient(to right, var(--red), var(--accent), var(--salmon));
+            box-shadow: 0 0 10px rgba(217, 64, 64, 0.6);
+            transform-origin: left center; transform: scaleX(0); pointer-events: none;
+        }
+
+        /* Brilho suave que acompanha o cursor */
+        .cursor-glow {
+            position: fixed; top: 0; left: 0; z-index: 1; pointer-events: none;
+            width: 560px; height: 560px; margin: -280px 0 0 -280px; border-radius: 50%;
+            background: radial-gradient(circle, rgba(217, 64, 64, 0.10) 0%, transparent 65%);
+            mix-blend-mode: screen; opacity: 0; transition: opacity 0.5s ease;
+            will-change: transform;
+        }
+        body.cursor-ativo .cursor-glow { opacity: 1; }
+
+        /* Entrada 3D: elementos sobem "tombando" levemente para trás */
+        .reveal {
+            transform: perspective(1000px) translateY(28px) rotateX(10deg);
+            transform-origin: 50% 100%;
+        }
+        .reveal.visible { transform: perspective(1000px) translateY(0) rotateX(0deg); }
+
+        /* Cartões que inclinam em 3D seguindo o mouse */
+        .tilt { position: relative; }
+        .tilt.tilt {
+            transform: perspective(1000px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)) translateY(var(--lift, 0px));
+        }
+        .tilt.reveal:not(.visible) { transform: perspective(1000px) translateY(40px) rotateX(14deg); }
+        .tilt.tilting {
+            transition: transform 0.12s ease-out, border-color 0.45s ease, box-shadow 0.45s ease, background 0.3s ease, opacity 0.85s;
+        }
+        .project-card.tilt:hover { --lift: -10px; }
+        .plan-card.tilt:hover    { --lift: -8px; }
+        .feature-card.tilt:hover { --lift: -4px; }
+        .tilt-glare {
+            position: absolute; inset: 0; z-index: 3; border-radius: inherit; pointer-events: none;
+            background: radial-gradient(circle at var(--gx, 50%) var(--gy, 50%), rgba(255, 255, 255, 0.10), transparent 55%);
+            opacity: 0; transition: opacity 0.3s ease;
+        }
+        .tilt:hover .tilt-glare { opacity: 1; }
+
+        /* Cubos 3D girando no hero */
+        .hero-cube {
+            --s: 84px;
+            position: absolute; z-index: 1; top: 11%; left: 20%;
+            width: var(--s); height: var(--s);
+            transform-style: preserve-3d; pointer-events: none;
+            animation: cuboGira 20s linear infinite;
+        }
+        .hero-cube.sm { --s: 44px; top: auto; left: auto; bottom: 14%; right: 12%; animation-duration: 13s; animation-direction: reverse; }
+        .hero-cube span {
+            position: absolute; inset: 0;
+            border: 1.5px solid rgba(255, 255, 255, 0.5);
+            background: rgba(13, 6, 8, 0.10);
+            box-shadow: inset 0 0 18px rgba(255, 255, 255, 0.08);
+        }
+        .hero-cube span:nth-child(1) { transform: translateZ(calc(var(--s) / 2)); }
+        .hero-cube span:nth-child(2) { transform: rotateY(180deg) translateZ(calc(var(--s) / 2)); }
+        .hero-cube span:nth-child(3) { transform: rotateY(90deg)  translateZ(calc(var(--s) / 2)); }
+        .hero-cube span:nth-child(4) { transform: rotateY(-90deg) translateZ(calc(var(--s) / 2)); }
+        .hero-cube span:nth-child(5) { transform: rotateX(90deg)  translateZ(calc(var(--s) / 2)); }
+        .hero-cube span:nth-child(6) { transform: rotateX(-90deg) translateZ(calc(var(--s) / 2)); }
+        @keyframes cuboGira {
+            from { transform: rotateX(-18deg) rotateY(0deg)   rotateZ(8deg); }
+            to   { transform: rotateX(342deg) rotateY(360deg) rotateZ(8deg); }
+        }
+        @media (max-width: 900px) { .hero-cube, .cursor-glow { display: none; } }
+
+        /* ============================================================
+           TRANSIÇÕES ENTRE SEÇÕES (GSAP + Lenis)
+        ============================================================ */
+        /* Lenis: rolagem suave assume o lugar do scroll-behavior nativo */
+        html.lenis, html.lenis body { height: auto; }
+        html.lenis { scroll-behavior: auto !important; }
+        .lenis.lenis-stopped { overflow: clip; }
+        .lenis [data-lenis-prevent] { overscroll-behavior: contain; }
+
+        /* Cortina de colunas usada ao navegar pelo menu */
+        .transicao {
+            position: fixed; inset: 0; z-index: 500; visibility: hidden; pointer-events: none;
+        }
+        .transicao-cols { position: absolute; inset: 0; display: flex; }
+        .transicao-cols span {
+            flex: 1; transform: scaleY(0); transform-origin: bottom;
+            background: linear-gradient(180deg, #1a0a0d 0%, #0d0608 100%);
+            border-right: 1px solid rgba(217, 64, 64, 0.18);
+        }
+        .transicao-cols span:nth-child(even) { background: linear-gradient(180deg, #0d0608 0%, #2a0f13 100%); }
+        .transicao-info {
+            position: absolute; inset: 0; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; gap: 1.1rem; opacity: 0;
+            font-family: 'JetBrains Mono', monospace; color: var(--cream);
+        }
+        .transicao-prompt { font-size: clamp(1rem, 2.6vw, 1.6rem); letter-spacing: 0.04em; }
+        .transicao-prompt .cmd { color: var(--salmon); }
+        .transicao-prompt b { color: var(--accent); font-weight: 600; }
+        .transicao-barra {
+            width: min(260px, 60vw); height: 2px; background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px; overflow: hidden;
+        }
+        .transicao-barra i {
+            display: block; height: 100%; transform: scaleX(0); transform-origin: left;
+            background: linear-gradient(to right, var(--red), var(--accent), var(--salmon));
+            box-shadow: 0 0 12px rgba(217, 64, 64, 0.8);
+        }
+        .transicao-status { font-size: 0.62rem; letter-spacing: 0.3em; text-transform: uppercase; color: var(--muted); }
+
+        /* Linha de varredura que passa pela seção quando ela entra */
+        .scan-alvo { position: relative; }
+        .scan-linha {
+            position: absolute; left: 0; right: 0; top: 0; height: 2px; z-index: 6;
+            pointer-events: none; opacity: 0;
+            background: linear-gradient(90deg, transparent, var(--accent) 30%, #ff8a7a 50%, var(--accent) 70%, transparent);
+            box-shadow: 0 0 18px 2px rgba(217, 64, 64, 0.55);
+        }
+
+        /* Indicador da seção atual (canto inferior esquerdo) */
+        .hud {
+            position: fixed; left: 1.5rem; bottom: 1.5rem; z-index: 90;
+            display: flex; align-items: center; gap: 0.55rem;
+            padding: 0.55rem 0.9rem; border-radius: 4px;
+            background: rgba(13, 6, 8, 0.72); border: 1px solid var(--border-dark);
+            backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+            font-family: 'JetBrains Mono', monospace; font-size: 0.68rem; letter-spacing: 0.12em;
+            color: var(--muted); pointer-events: none;
+            opacity: 0; transform: translateY(10px); transition: opacity 0.4s ease, transform 0.4s ease;
+        }
+        .hud.visivel { opacity: 1; transform: translateY(0); }
+        .hud-num { color: var(--accent); font-weight: 700; }
+        .hud-nome { color: var(--cream); font-weight: 600; min-width: 11ch; }
+        .hud-ponto {
+            width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
+            box-shadow: 0 0 8px var(--accent); animation: hudPisca 1.6s ease-in-out infinite;
+        }
+        @keyframes hudPisca { 50% { opacity: 0.25; } }
+        @media (max-width: 900px) {
+            .hud { left: 0.75rem; bottom: 0.75rem; font-size: 0.6rem; padding: 0.45rem 0.7rem; }
+        }
+
         /* ACESSIBILIDADE — menos movimento para quem pede no sistema */
         @media (prefers-reduced-motion: reduce) {
             *, *::before, *::after {
@@ -1123,10 +1268,25 @@
             }
             html { scroll-behavior: auto; }
             .ticker { animation: none !important; }
+            .hero-cube, .cursor-glow { display: none; }
+            .reveal, .reveal.visible { transform: none; }
         }
     </style>
 </head>
 <body class="no-scroll">
+    <div class="scroll-progress" id="scrollProgress" aria-hidden="true"></div>
+    <div class="cursor-glow" id="cursorGlow" aria-hidden="true"></div>
+    <div class="transicao" id="transicao" aria-hidden="true">
+        <div class="transicao-cols"><span></span><span></span><span></span><span></span><span></span><span></span></div>
+        <div class="transicao-info">
+            <div class="transicao-prompt"><span class="cmd">&gt; cd</span> ~/<b id="transicaoDestino"></b></div>
+            <div class="transicao-barra"><i></i></div>
+            <div class="transicao-status" id="transicaoStatus">carregando</div>
+        </div>
+    </div>
+    <div class="hud" id="hud" aria-hidden="true">
+        <span class="hud-ponto"></span><span class="hud-num" id="hudNum">01</span><span>/</span><span id="hudTotal">07</span><span class="hud-nome" id="hudNome">INÍCIO</span>
+    </div>
     <div id="preloader">
         <div class="preloader-content">
             <div class="preloader-name">Carlos Jessé</div>
@@ -1153,7 +1313,7 @@
         </button>
     </nav>
 
-    <div class="mobile-menu" id="mobile-menu">
+    <div class="mobile-menu" id="mobile-menu" data-lenis-prevent>
         <ul>
             <li><a href="#"           onclick="fecharMenu()">Início</a></li>
             <li><a href="#sobre-mim"  onclick="fecharMenu()">Sobre mim</a></li>
@@ -1228,6 +1388,9 @@
                     <polygon points="470,600 580,555 580,740 470,785" fill="rgba(13,6,8,0.18)" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
                 </svg>
             </div>
+            <!-- CUBOS 3D DECORATIVOS -->
+            <div class="hero-cube" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span></div>
+            <div class="hero-cube sm" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span></div>
             <div class="hero-photo-wrap" id="heroPhotoWrap">
                 <div class="hero-photo-float" id="heroPhotoFloat">
                     <div class="hero-photo-frame"></div>
@@ -1594,7 +1757,7 @@
     </div>
 
     <!-- MODAL DE CONTATO -->
-    <div class="modal-overlay" id="modalContato" role="dialog" aria-modal="true" aria-label="Formulário de Contato">
+    <div class="modal-overlay" id="modalContato" data-lenis-prevent role="dialog" aria-modal="true" aria-label="Formulário de Contato">
         <div class="modal-box">
             <button class="modal-close" onclick="fecharContato()" aria-label="Fechar">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -1682,6 +1845,11 @@
         </div>
     </footer>
 
+    <!-- Bibliotecas: GSAP (animações + ScrollTrigger + ScrambleText) e Lenis (rolagem suave) -->
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/gsap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/ScrollTrigger.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/ScrambleTextPlugin.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lenis@1.3.26/dist/lenis.min.js"></script>
     <script>
         /* PRELOADER */
         // Sai assim que as fontes carregam (no máximo 1,2s), sem esperar
@@ -1976,7 +2144,7 @@
                 // Wrapping circular
                 currentPage = ((page % pages) + pages) % pages;
 
-                const cardW = cards[0].getBoundingClientRect().width;
+                const cardW = cards[0].offsetWidth;
                 const gap   = 24;
                 const offset = currentPage * vc * (cardW + gap);
                 track.style.transform = `translateX(-${offset}px)`;
@@ -2018,6 +2186,296 @@
             buildDots();
             goTo(0);
             startAuto();
+        })();
+
+        /* ============================================================
+           EFEITOS 3D E MICROINTERAÇÕES
+           Efeitos de mouse só em telas com mouse; tudo desligado
+           para quem pede menos movimento no sistema.
+        ============================================================ */
+        (function() {
+            const calmo = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            const temMouse = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+            const telaGrande = () => window.innerWidth > 900;
+
+            /* Barra de progresso da leitura */
+            const barra = document.getElementById('scrollProgress');
+            /* Parallax: fotos da origem andam em velocidades diferentes */
+            const parallax = [
+                [document.querySelector('.origin-photo-card.tall'),  -0.06],
+                [document.querySelector('.origin-photo-card.short'),  0.05],
+            ].filter(p => p[0]);
+            let rolando = false;
+            function aoRolar() {
+                const max = document.documentElement.scrollHeight - window.innerHeight;
+                barra.style.transform = 'scaleX(' + (max > 0 ? window.scrollY / max : 0) + ')';
+                if (!calmo && telaGrande()) {
+                    parallax.forEach(([el, vel]) => {
+                        const r = el.getBoundingClientRect();
+                        const centro = r.top + r.height / 2 - window.innerHeight / 2;
+                        const y = Math.max(-40, Math.min(40, centro * vel));
+                        el.style.translate = '0 ' + y.toFixed(1) + 'px';
+                    });
+                }
+                rolando = false;
+            }
+            window.addEventListener('scroll', () => {
+                if (!rolando) { rolando = true; requestAnimationFrame(aoRolar); }
+            }, { passive: true });
+            aoRolar();
+
+            /* Números das estatísticas contam ao aparecer */
+            const statObs = new IntersectionObserver(entries => {
+                entries.forEach(entry => {
+                    if (!entry.isIntersecting) return;
+                    statObs.unobserve(entry.target);
+                    const el = entry.target;
+                    const m = el.textContent.trim().match(/^(\d+)(\D*)$/);
+                    if (!m || calmo) return;
+                    const alvo = parseInt(m[1], 10), sufixo = m[2], dur = 1400, t0 = performance.now();
+                    (function passo(t) {
+                        const p = Math.min((t - t0) / dur, 1);
+                        el.textContent = Math.round(alvo * (1 - Math.pow(1 - p, 3))) + sufixo;
+                        if (p < 1) requestAnimationFrame(passo);
+                    })(t0);
+                });
+            }, { threshold: 0.6 });
+            document.querySelectorAll('.stat-n').forEach(el => statObs.observe(el));
+
+            /* Entrada em cascata: cartões do mesmo grupo aparecem um após o outro */
+            ['.stat', '.plan-card', '.project-card'].forEach(sel => {
+                document.querySelectorAll(sel).forEach((el, i) => {
+                    if (!el.classList.contains('reveal')) return;
+                    el.style.transitionDelay = (i % 3) * 0.12 + 's';
+                    // tira o atraso depois da entrada para o hover responder na hora
+                    el.addEventListener('transitionend', () => { el.style.transitionDelay = ''; }, { once: true });
+                });
+            });
+
+            if (calmo || !temMouse) return;
+
+            /* Cartões 3D que inclinam seguindo o mouse, com reflexo de luz */
+            document.querySelectorAll('.project-card, .plan-card, .feature-card').forEach(card => {
+                card.classList.add('tilt');
+                const glare = document.createElement('span');
+                glare.className = 'tilt-glare';
+                card.appendChild(glare);
+                const max = card.classList.contains('feature-card') ? 10 : 7;
+                card.addEventListener('mouseenter', () => card.classList.add('tilting'));
+                card.addEventListener('mousemove', e => {
+                    const r = card.getBoundingClientRect();
+                    const px = (e.clientX - r.left) / r.width, py = (e.clientY - r.top) / r.height;
+                    card.style.setProperty('--ry', ((px - 0.5) * 2 * max).toFixed(2) + 'deg');
+                    card.style.setProperty('--rx', (-(py - 0.5) * 2 * max).toFixed(2) + 'deg');
+                    card.style.setProperty('--gx', (px * 100).toFixed(1) + '%');
+                    card.style.setProperty('--gy', (py * 100).toFixed(1) + '%');
+                });
+                card.addEventListener('mouseleave', () => {
+                    card.classList.remove('tilting');
+                    card.style.setProperty('--rx', '0deg');
+                    card.style.setProperty('--ry', '0deg');
+                });
+            });
+
+            /* Botões "magnéticos": são puxados levemente em direção ao cursor */
+            document.querySelectorAll('.btn-red, .btn-ghost, .btn-plan-contact, .carousel-btn').forEach(btn => {
+                btn.addEventListener('mousemove', e => {
+                    const r = btn.getBoundingClientRect();
+                    const dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
+                    const lim = v => Math.max(-10, Math.min(10, v));
+                    btn.style.translate = lim(dx * 0.2).toFixed(1) + 'px ' + lim(dy * 0.3).toFixed(1) + 'px';
+                });
+                btn.addEventListener('mouseleave', () => { btn.style.translate = ''; });
+            });
+
+            /* Brilho do cursor + profundidade no hero (camadas em velocidades diferentes) */
+            const glow = document.getElementById('cursorGlow');
+            const hero = document.querySelector('.hero');
+            const camadas = [
+                [document.querySelector('.hero-grid-layer'), -14],
+                [document.querySelector('.hero-cube'), 26],
+                [document.querySelector('.hero-cube.sm'), -34],
+                [document.querySelector('.hero-accent-line'), 8],
+            ].filter(c => c[0]);
+            let mx = 0, my = 0, gx = 0, gy = 0, hx = 0, hy = 0, alvoHx = 0, alvoHy = 0, animando = false;
+            function animar() {
+                gx += (mx - gx) * 0.15; gy += (my - gy) * 0.15;
+                hx += (alvoHx - hx) * 0.08; hy += (alvoHy - hy) * 0.08;
+                glow.style.transform = 'translate(' + gx.toFixed(1) + 'px, ' + gy.toFixed(1) + 'px)';
+                camadas.forEach(([el, forca]) => {
+                    el.style.translate = (hx * forca).toFixed(1) + 'px ' + (hy * forca).toFixed(1) + 'px';
+                });
+                const parado = Math.abs(mx - gx) < 0.5 && Math.abs(my - gy) < 0.5 &&
+                               Math.abs(alvoHx - hx) < 0.001 && Math.abs(alvoHy - hy) < 0.001;
+                if (parado) { animando = false; return; }
+                requestAnimationFrame(animar);
+            }
+            function acordar() { if (!animando) { animando = true; requestAnimationFrame(animar); } }
+            document.addEventListener('mousemove', e => {
+                mx = e.clientX; my = e.clientY;
+                document.body.classList.add('cursor-ativo');
+                acordar();
+            }, { passive: true });
+            document.addEventListener('mouseleave', () => document.body.classList.remove('cursor-ativo'));
+            hero.addEventListener('mousemove', e => {
+                const r = hero.getBoundingClientRect();
+                alvoHx = (e.clientX - r.left) / r.width - 0.5;
+                alvoHy = (e.clientY - r.top) / r.height - 0.5;
+                acordar();
+            });
+            hero.addEventListener('mouseleave', () => { alvoHx = 0; alvoHy = 0; acordar(); });
+        })();
+
+        /* ============================================================
+           TRANSIÇÕES ENTRE SEÇÕES — GSAP + ScrollTrigger + Lenis
+           Se o CDN falhar, o site continua funcionando sem os efeitos.
+        ============================================================ */
+        (function() {
+            if (!window.gsap || !window.ScrollTrigger) return;
+            gsap.registerPlugin(ScrollTrigger);
+            const temScramble = !!window.ScrambleTextPlugin;
+            if (temScramble) gsap.registerPlugin(ScrambleTextPlugin);
+            const calmo = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            const CHARS = '01<>/_#$%';
+
+            function embaralhar(el, texto, dur) {
+                if (calmo || !temScramble) { el.textContent = texto; return; }
+                gsap.to(el, { duration: dur || 0.8, scrambleText: { text: texto, chars: CHARS, speed: 0.5 } });
+            }
+
+            /* --- Rolagem suave (Lenis). No celular mantém a rolagem nativa do toque. --- */
+            let lenis = null;
+            if (window.Lenis && !calmo) {
+                lenis = new Lenis({ lerp: 0.1, wheelMultiplier: 1 });
+                lenis.on('scroll', ScrollTrigger.update);
+                gsap.ticker.add(t => lenis.raf(t * 1000));
+                gsap.ticker.lagSmoothing(0);
+                // Trava a rolagem junto com o preloader, o modal e o menu
+                const sync = () => document.body.classList.contains('no-scroll') ? lenis.stop() : lenis.start();
+                new MutationObserver(sync).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+                sync();
+            }
+            // Posição real da seção (offsetTop ignora o "scale" aplicado durante a rolagem)
+            function topoReal(el) {
+                let y = 0;
+                for (; el; el = el.offsetParent) y += el.offsetTop;
+                return y;
+            }
+            function irPara(alvo) {
+                const y = alvo === 0 ? 0 : Math.max(0, topoReal(alvo) - 72); // 72 = altura do menu fixo
+                if (lenis) lenis.scrollTo(y, { immediate: true, force: true });
+                else window.scrollTo({ top: y, behavior: 'instant' });
+                ScrollTrigger.update();
+            }
+
+            /* --- Seções do site --- */
+            const secoes = [
+                ['.hero', 'INÍCIO', 'inicio'],
+                ['#sobre-mim', 'QUEM SOU', 'sobre-mim'],
+                ['#origem', 'ORIGEM', 'origem'],
+                ['#sobre-mim-skills', 'HABILIDADES', 'habilidades'],
+                ['#servicos', 'SERVIÇOS', 'servicos'],
+                ['#projetos', 'PROJETOS', 'projetos'],
+                ['footer', 'CONTATO', 'contato'],
+            ].map(([sel, nome, pasta]) => ({ el: document.querySelector(sel), nome, pasta })).filter(s => s.el);
+
+            /* --- Indicador da seção atual --- */
+            const hud = document.getElementById('hud');
+            const hudNum = document.getElementById('hudNum');
+            const hudNome = document.getElementById('hudNome');
+            document.getElementById('hudTotal').textContent = String(secoes.length).padStart(2, '0');
+            let atual = -1;
+            function marcar(i) {
+                if (i === atual) return;
+                atual = i;
+                hudNum.textContent = String(i + 1).padStart(2, '0');
+                embaralhar(hudNome, secoes[i].nome, 0.6);
+            }
+            secoes.forEach((sec, i) => {
+                ScrollTrigger.create({
+                    trigger: sec.el, start: 'top center', end: 'bottom center',
+                    onToggle: self => { if (self.isActive) marcar(i); },
+                });
+            });
+            ScrollTrigger.create({
+                start: 200, end: 'max',
+                onToggle: self => hud.classList.toggle('visivel', self.isActive),
+            });
+
+            if (!calmo) {
+                /* --- Cada seção "sobe" e se expande enquanto entra na tela --- */
+                secoes.slice(1).forEach(sec => {
+                    gsap.fromTo(sec.el,
+                        { scale: 0.94, opacity: 0.35, borderRadius: '28px' },
+                        { scale: 1, opacity: 1, borderRadius: '0px', ease: 'none',
+                          scrollTrigger: { trigger: sec.el, start: 'top bottom', end: 'top 35%', scrub: 0.6 } });
+
+                    /* Linha de varredura atravessando a seção */
+                    sec.el.classList.add('scan-alvo');
+                    const linha = document.createElement('div');
+                    linha.className = 'scan-linha';
+                    sec.el.appendChild(linha);
+                    gsap.fromTo(linha, { top: '0%', opacity: 1 }, {
+                        top: '100%', opacity: 0, duration: 1.6, ease: 'power2.inOut',
+                        scrollTrigger: { trigger: sec.el, start: 'top 65%', toggleActions: 'play none none none' },
+                    });
+                });
+
+                /* --- Rótulos das seções se "decodificam" ao aparecer --- */
+                document.querySelectorAll('.section-tag').forEach(tag => {
+                    const texto = tag.textContent.trim();
+                    if (!texto || !temScramble) return;
+                    tag.textContent = texto.replace(/\S/g, '_');
+                    ScrollTrigger.create({
+                        trigger: tag, start: 'top 90%', once: true,
+                        onEnter: () => embaralhar(tag, texto, 1.1),
+                    });
+                });
+            }
+
+            /* --- Transição ao clicar nos links do menu --- */
+            const cortina = document.getElementById('transicao');
+            const cols = cortina.querySelectorAll('.transicao-cols span');
+            const info = cortina.querySelector('.transicao-info');
+            const barra = cortina.querySelector('.transicao-barra i');
+            const destinoEl = document.getElementById('transicaoDestino');
+            const statusEl = document.getElementById('transicaoStatus');
+            let emTransicao = false;
+
+            function transicionar(alvo, pasta) {
+                if (calmo) { irPara(alvo); return; }
+                if (emTransicao) return;
+                emTransicao = true;
+                destinoEl.textContent = '';
+                statusEl.textContent = 'carregando';
+                gsap.timeline({ onComplete: () => { emTransicao = false; } })
+                    .set(cortina, { visibility: 'visible' })
+                    .set(barra, { scaleX: 0 })
+                    .to(cols, { scaleY: 1, transformOrigin: 'bottom', duration: 0.45, stagger: 0.05, ease: 'power3.inOut' })
+                    .to(info, { opacity: 1, duration: 0.2 }, '-=0.15')
+                    .to(destinoEl, { duration: 0.5, scrambleText: temScramble ? { text: pasta, chars: CHARS, speed: 0.6 } : undefined,
+                                     onStart: () => { if (!temScramble) destinoEl.textContent = pasta; } }, '<')
+                    .to(barra, { scaleX: 1, duration: 0.5, ease: 'power2.inOut' }, '<')
+                    .add(() => { statusEl.textContent = 'ok'; irPara(alvo); })
+                    .to(info, { opacity: 0, duration: 0.18, delay: 0.1 })
+                    .to(cols, { scaleY: 0, transformOrigin: 'top', duration: 0.45, stagger: 0.05, ease: 'power3.inOut' })
+                    .set(cortina, { visibility: 'hidden' });
+            }
+
+            document.addEventListener('click', function(e) {
+                const link = e.target.closest('a[href^="#"]');
+                if (!link || e.defaultPrevented) return; // "Contato" já abre o modal
+                const hash = link.getAttribute('href');
+                if (hash === '#') { e.preventDefault(); transicionar(0, 'inicio'); return; }
+                const alvo = document.querySelector(hash);
+                if (!alvo) return;
+                e.preventDefault();
+                const sec = secoes.find(s => s.el === alvo);
+                transicionar(alvo, sec ? sec.pasta : hash.slice(1));
+            });
+
+            // Recalcula posições quando imagens terminam de carregar
+            window.addEventListener('load', () => ScrollTrigger.refresh());
         })();
     </script>
 </body>
