@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "rabbitfin",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "C:/Users/User/Documents/GitHub/RabbitFin", "run", "dev", "--", "--port", "3001"],
+      "port": 3001
+    }
+  ]
+}
