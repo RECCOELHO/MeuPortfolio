@@ -69,15 +69,39 @@ create table if not exists public.fazenda_celeiro (
   primary key (jogador_id, item)
 );
 
+-- Fase 2: quanto já foi "pego" por vizinhos do plantio atual
+alter table public.fazenda_canteiros add column if not exists roubado int not null default 0;
+
+-- Fase 2: visitas de vizinhos (roubos e ajudas) — também é o diário do dono
+create table if not exists public.fazenda_visitas (
+  id           bigint generated always as identity primary key,
+  ator_id      uuid not null references public.fazenda_jogadores(id) on delete cascade,
+  dono_id      uuid not null references public.fazenda_jogadores(id) on delete cascade,
+  tipo         text not null check (tipo in ('roubo', 'ajuda')),
+  posicao      smallint not null,
+  plantado_em  timestamptz not null,
+  cultura      text not null references public.fazenda_culturas(id),
+  qtd          int not null default 0,
+  criado_em    timestamptz not null default now()
+);
+-- cada vizinho só pega uma vez de cada plantio
+create unique index if not exists fazenda_visitas_roubo_unico
+  on public.fazenda_visitas (ator_id, dono_id, posicao, plantado_em) where tipo = 'roubo';
+create index if not exists fazenda_visitas_dono_idx on public.fazenda_visitas (dono_id, criado_em desc);
+create index if not exists fazenda_visitas_ator_idx on public.fazenda_visitas (ator_id, tipo, criado_em desc);
+create index if not exists fazenda_jogadores_xp_idx on public.fazenda_jogadores (xp desc);
+create index if not exists fazenda_jogadores_criado_idx on public.fazenda_jogadores (criado_em desc);
+
 -- RLS ligado e nenhuma policy = acesso direto negado para anon/authenticated
 alter table public.fazenda_culturas  enable row level security;
 alter table public.fazenda_jogadores enable row level security;
 alter table public.fazenda_sessoes   enable row level security;
 alter table public.fazenda_canteiros enable row level security;
 alter table public.fazenda_celeiro   enable row level security;
+alter table public.fazenda_visitas   enable row level security;
 
 revoke all on public.fazenda_culturas, public.fazenda_jogadores, public.fazenda_sessoes,
-              public.fazenda_canteiros, public.fazenda_celeiro
+              public.fazenda_canteiros, public.fazenda_celeiro, public.fazenda_visitas
   from anon, authenticated;
 
 -- ------------------------------------------------------------
@@ -221,6 +245,7 @@ begin
   return jsonb_build_object(
     'agora', now(),
     'jogador', jsonb_build_object(
+      'id', j.id,
       'apelido', j.apelido,
       'moedas', j.moedas,
       'xp', j.xp,
@@ -232,9 +257,23 @@ begin
     'canteiros', coalesce((
       select jsonb_agg(jsonb_build_object(
                'posicao', posicao, 'estado', estado, 'cultura', cultura,
-               'plantado_em', plantado_em, 'erva', erva, 'praga', praga, 'seco', seco)
+               'plantado_em', plantado_em, 'erva', erva, 'praga', praga, 'seco', seco,
+               'roubado', roubado)
              order by posicao)
         from fazenda_canteiros where jogador_id = p_jogador), '[]'::jsonb),
+    'diario', coalesce((
+      select jsonb_agg(jsonb_build_object(
+               'tipo', d.tipo, 'id', d.ator_id, 'apelido', d.apelido,
+               'cultura', d.cultura, 'qtd', d.qtd, 'em', d.criado_em)
+             order by d.criado_em desc)
+        from (
+          select v.tipo, v.ator_id, a.apelido, v.cultura, v.qtd, v.criado_em
+            from fazenda_visitas v
+            join fazenda_jogadores a on a.id = v.ator_id
+           where v.dono_id = p_jogador
+           order by v.criado_em desc
+           limit 20
+        ) d), '[]'::jsonb),
     'celeiro', coalesce((
       select jsonb_object_agg(item, quantidade)
         from fazenda_celeiro where jogador_id = p_jogador and quantidade > 0), '{}'::jsonb),
@@ -287,7 +326,7 @@ begin
     end if;
     update fazenda_canteiros
        set estado = 'arado', cultura = null, plantado_em = null,
-           erva = false, praga = false, seco = false, prox_evento = null
+           erva = false, praga = false, seco = false, roubado = 0, prox_evento = null
      where jogador_id = p_jogador and posicao = p_posicao;
     update fazenda_jogadores set xp = xp + 1 where id = p_jogador;
 
@@ -308,7 +347,7 @@ begin
     update fazenda_jogadores set moedas = moedas - k.custo where id = p_jogador;
     update fazenda_canteiros
        set estado = 'plantado', cultura = k.id, plantado_em = now(),
-           erva = false, praga = false, seco = false,
+           erva = false, praga = false, seco = false, roubado = 0,
            prox_evento = now() + make_interval(secs => k.tempo_seg * (0.15 + random() * 0.35))
      where jogador_id = p_jogador and posicao = p_posicao;
 
@@ -333,8 +372,8 @@ begin
     if now() >= v_murcho then
       raise exception 'murchou';
     end if;
-    -- cada problema não resolvido custa 1 unidade da colheita
-    v_qtd := greatest(k.rendimento - (c.erva::int + c.praga::int + c.seco::int), 1);
+    -- cada problema não resolvido custa 1 unidade; o que os vizinhos pegaram também sai
+    v_qtd := greatest(k.rendimento - (c.erva::int + c.praga::int + c.seco::int) - c.roubado, 1);
     insert into fazenda_celeiro (jogador_id, item, quantidade)
     values (p_jogador, k.id, v_qtd)
     on conflict (jogador_id, item)
@@ -342,7 +381,7 @@ begin
     update fazenda_jogadores set xp = xp + k.xp where id = p_jogador;
     update fazenda_canteiros
        set estado = 'vazio', cultura = null, plantado_em = null,
-           erva = false, praga = false, seco = false, prox_evento = null
+           erva = false, praga = false, seco = false, roubado = 0, prox_evento = null
      where jogador_id = p_jogador and posicao = p_posicao;
 
   else
@@ -374,6 +413,11 @@ begin
   p_apelido := btrim(p_apelido);
   if p_apelido is null or char_length(p_apelido) not between 2 and 20 then
     raise exception 'apelido_invalido';
+  end if;
+
+  -- Freio contra spam: no máximo 300 fazendas novas por hora no total
+  if (select count(*) from fazenda_jogadores where criado_em > now() - interval '1 hour') >= 300 then
+    raise exception 'muitas_fazendas';
   end if;
 
   -- Código de recuperação: PALAVRA-XXXX-XXXX (~10^13 combinações)
@@ -522,6 +566,278 @@ begin
 end;
 $$;
 
+-- ============================================================
+-- FASE 2 — VIZINHOS: ranking, visitar, pegar colheita e ajudar
+--
+-- Regras:
+--   • Só dá pra pegar de canteiro maduro (e não murcho) de outra pessoa.
+--   • Cada vizinho pega uma vez por plantio: 1 ou 2 unidades.
+--   • Um canteiro perde no máximo 40% da colheita para vizinhos.
+--   • Limite diário: 30 "pegadas" e 30 ajudas recompensadas por jogador.
+--   • Ajudar tira todos os problemas do canteiro do vizinho e rende
+--     +1 XP e +1 moeda por problema para quem ajudou.
+-- ============================================================
+
+create or replace function public.fazenda_limite_roubo(p_rendimento int)
+returns int language sql immutable as $$
+  select floor(p_rendimento * 0.4)::int;
+$$;
+
+-- Fazenda de um vizinho vista por quem está visitando
+create or replace function public.fazenda_vizinho(p_dono uuid, p_ator uuid)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  j       record;
+  v_nivel int;
+begin
+  select * into j from fazenda_jogadores where id = p_dono;
+  v_nivel := fazenda_nivel(j.xp);
+  return jsonb_build_object(
+    'agora', now(),
+    'id', j.id,
+    'apelido', j.apelido,
+    'nivel', v_nivel,
+    'max_canteiros', fazenda_max_canteiros(v_nivel),
+    'canteiros', coalesce((
+      select jsonb_agg(jsonb_build_object(
+               'posicao', c.posicao, 'estado', c.estado, 'cultura', c.cultura,
+               'plantado_em', c.plantado_em, 'erva', c.erva, 'praga', c.praga, 'seco', c.seco,
+               'roubado', c.roubado,
+               'ja_peguei', exists (
+                 select 1 from fazenda_visitas v
+                  where v.tipo = 'roubo' and v.ator_id = p_ator and v.dono_id = p_dono
+                    and v.posicao = c.posicao and v.plantado_em = c.plantado_em))
+             order by c.posicao)
+        from fazenda_canteiros c where c.jogador_id = p_dono), '[]'::jsonb)
+  );
+end;
+$$;
+
+-- Pega colheita de um canteiro do vizinho. Retorna a quantidade pega.
+create or replace function public.fazenda_pegar_um(p_ator uuid, p_dono uuid, p_posicao int)
+returns int
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  c        record;
+  k        record;
+  v_maduro timestamptz;
+  v_qtd    int;
+begin
+  select * into c from fazenda_canteiros
+   where jogador_id = p_dono and posicao = p_posicao
+     for update;
+  if not found or c.estado <> 'plantado' then
+    raise exception 'nao_maduro';
+  end if;
+  select * into k from fazenda_culturas where id = c.cultura;
+  v_maduro := c.plantado_em + make_interval(secs => k.tempo_seg);
+  if now() < v_maduro then
+    raise exception 'nao_maduro';
+  end if;
+  if now() >= v_maduro + make_interval(secs => greatest(k.tempo_seg * 2, 3600)) then
+    raise exception 'murchou';
+  end if;
+  if exists (select 1 from fazenda_visitas
+              where tipo = 'roubo' and ator_id = p_ator and dono_id = p_dono
+                and posicao = p_posicao and plantado_em = c.plantado_em) then
+    raise exception 'ja_pegou';
+  end if;
+  if c.roubado >= fazenda_limite_roubo(k.rendimento) then
+    raise exception 'nada_pra_pegar';
+  end if;
+  if (select count(*) from fazenda_visitas
+       where ator_id = p_ator and tipo = 'roubo' and criado_em > now() - interval '1 day') >= 30 then
+    raise exception 'limite_pegadas';
+  end if;
+
+  v_qtd := least(1 + (random() < 0.4)::int, fazenda_limite_roubo(k.rendimento) - c.roubado);
+
+  update fazenda_canteiros set roubado = roubado + v_qtd
+   where jogador_id = p_dono and posicao = p_posicao;
+  insert into fazenda_celeiro (jogador_id, item, quantidade)
+  values (p_ator, k.id, v_qtd)
+  on conflict (jogador_id, item)
+  do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
+  insert into fazenda_visitas (ator_id, dono_id, tipo, posicao, plantado_em, cultura, qtd)
+  values (p_ator, p_dono, 'roubo', p_posicao, c.plantado_em, k.id, v_qtd);
+
+  return v_qtd;
+end;
+$$;
+
+-- Tira os problemas de um canteiro do vizinho. Retorna quantos problemas resolveu.
+create or replace function public.fazenda_ajudar_um(p_ator uuid, p_dono uuid, p_posicao int)
+returns int
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  c         record;
+  k         record;
+  v_n       int;
+  v_hoje    int;
+  v_premio  int;
+begin
+  select * into c from fazenda_canteiros
+   where jogador_id = p_dono and posicao = p_posicao
+     for update;
+  if not found or c.estado <> 'plantado' then
+    raise exception 'nada_a_fazer';
+  end if;
+  select * into k from fazenda_culturas where id = c.cultura;
+  if now() >= c.plantado_em + make_interval(secs => k.tempo_seg + greatest(k.tempo_seg * 2, 3600)) then
+    raise exception 'nada_a_fazer';
+  end if;
+  v_n := c.erva::int + c.praga::int + c.seco::int;
+  if v_n = 0 then
+    raise exception 'nada_a_fazer';
+  end if;
+
+  update fazenda_canteiros set erva = false, praga = false, seco = false
+   where jogador_id = p_dono and posicao = p_posicao;
+
+  -- Recompensa só até 30 problemas resolvidos por dia (ajudar além disso é caridade)
+  select coalesce(sum(qtd), 0) into v_hoje from fazenda_visitas
+   where ator_id = p_ator and tipo = 'ajuda' and criado_em > now() - interval '1 day';
+  v_premio := greatest(least(v_n, 30 - v_hoje), 0);
+  if v_premio > 0 then
+    update fazenda_jogadores set xp = xp + v_premio, moedas = moedas + v_premio where id = p_ator;
+  end if;
+
+  insert into fazenda_visitas (ator_id, dono_id, tipo, posicao, plantado_em, cultura, qtd)
+  values (p_ator, p_dono, 'ajuda', p_posicao, c.plantado_em, k.id, v_n);
+
+  return v_n;
+end;
+$$;
+
+create or replace function public.fazenda_ranking(p_token text)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id   uuid := fazenda_auth(p_token);
+  v_xp   int;
+  v_desde timestamptz;
+begin
+  select xp, criado_em into v_xp, v_desde from fazenda_jogadores where id = v_id;
+  return jsonb_build_object(
+    -- mesmo critério de desempate da lista: quem chegou antes fica na frente
+    'minha_posicao', (select count(*) + 1 from fazenda_jogadores
+                       where xp > v_xp or (xp = v_xp and criado_em < v_desde)),
+    'total', (select count(*) from fazenda_jogadores),
+    'ranking', coalesce((
+      select jsonb_agg(jsonb_build_object(
+               'id', r.id, 'apelido', r.apelido, 'nivel', fazenda_nivel(r.xp), 'xp', r.xp,
+               'patrimonio', r.moedas + coalesce((
+                 select sum(ce.quantidade * k.venda)
+                   from fazenda_celeiro ce join fazenda_culturas k on k.id = ce.item
+                  where ce.jogador_id = r.id), 0),
+               'eu', r.id = v_id)
+             order by r.xp desc, r.criado_em)
+        from (select * from fazenda_jogadores order by xp desc, criado_em limit 50) r), '[]'::jsonb)
+  );
+end;
+$$;
+
+-- p_vizinho null = sorteia alguém (de preferência com colheita madura)
+create or replace function public.fazenda_visitar(p_token text, p_vizinho uuid default null)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id   uuid := fazenda_auth(p_token);
+  v_dono uuid := p_vizinho;
+begin
+  if v_dono is null then
+    select j.id into v_dono
+      from fazenda_jogadores j
+     where j.id <> v_id
+       and j.visto_em > now() - interval '30 days'
+     order by exists (
+               select 1 from fazenda_canteiros c join fazenda_culturas k on k.id = c.cultura
+                where c.jogador_id = j.id and c.estado = 'plantado'
+                  and c.plantado_em + make_interval(secs => k.tempo_seg) <= now()) desc,
+              random()
+     limit 1;
+    if v_dono is null then
+      raise exception 'nenhum_vizinho';
+    end if;
+  elsif v_dono = v_id then
+    raise exception 'propria_fazenda';
+  elsif not exists (select 1 from fazenda_jogadores where id = v_dono) then
+    raise exception 'vizinho_invalido';
+  end if;
+
+  perform fazenda_tick(v_dono);
+  return fazenda_vizinho(v_dono, v_id);
+end;
+$$;
+
+-- p_acao: pegar | ajudar. Mesmo esquema de lote do fazenda_acao.
+create or replace function public.fazenda_acao_vizinho(p_token text, p_vizinho uuid, p_acao text, p_posicoes int[])
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id     uuid := fazenda_auth(p_token);
+  v_pos    int;
+  v_qtd    int;
+  v_result jsonb := '{}'::jsonb;
+  v_feitos int := 0;
+begin
+  if p_vizinho is null or p_vizinho = v_id then
+    raise exception 'propria_fazenda';
+  end if;
+  if not exists (select 1 from fazenda_jogadores where id = p_vizinho) then
+    raise exception 'vizinho_invalido';
+  end if;
+  if p_acao not in ('pegar', 'ajudar') then
+    raise exception 'acao_invalida';
+  end if;
+  if p_posicoes is null or array_length(p_posicoes, 1) is null then
+    raise exception 'nada_a_fazer';
+  end if;
+  if array_length(p_posicoes, 1) > 18 then
+    raise exception 'acao_invalida';
+  end if;
+
+  perform fazenda_tick(p_vizinho);
+
+  foreach v_pos in array p_posicoes loop
+    begin
+      if p_acao = 'pegar' then
+        v_qtd := fazenda_pegar_um(v_id, p_vizinho, v_pos);
+      else
+        v_qtd := fazenda_ajudar_um(v_id, p_vizinho, v_pos);
+      end if;
+      v_feitos := v_feitos + 1;
+      v_result := v_result || jsonb_build_object(v_pos::text, v_qtd);
+    exception when others then
+      -- com um canteiro só, o erro volta para a tela; em lote, pula o canteiro
+      if array_length(p_posicoes, 1) = 1 then
+        raise;
+      end if;
+    end;
+  end loop;
+
+  return jsonb_build_object(
+    'feitos', v_feitos,
+    'resultado', v_result,
+    'vizinho', fazenda_vizinho(p_vizinho, v_id),
+    'estado', fazenda_estado(v_id)
+  );
+end;
+$$;
+
 -- ------------------------------------------------------------
 -- Permissões: só a API pública fica executável pela chave anon
 -- ------------------------------------------------------------
@@ -537,7 +853,14 @@ revoke execute on function
   public.fazenda_recuperar(text),
   public.fazenda_carregar(text),
   public.fazenda_acao(text, text, int[], text),
-  public.fazenda_vender(text, text, int)
+  public.fazenda_vender(text, text, int),
+  public.fazenda_limite_roubo(int),
+  public.fazenda_vizinho(uuid, uuid),
+  public.fazenda_pegar_um(uuid, uuid, int),
+  public.fazenda_ajudar_um(uuid, uuid, int),
+  public.fazenda_ranking(text),
+  public.fazenda_visitar(text, uuid),
+  public.fazenda_acao_vizinho(text, uuid, text, int[])
 from public, anon, authenticated;
 
 grant execute on function
@@ -545,5 +868,8 @@ grant execute on function
   public.fazenda_recuperar(text),
   public.fazenda_carregar(text),
   public.fazenda_acao(text, text, int[], text),
-  public.fazenda_vender(text, text, int)
+  public.fazenda_vender(text, text, int),
+  public.fazenda_ranking(text),
+  public.fazenda_visitar(text, uuid),
+  public.fazenda_acao_vizinho(text, uuid, text, int[])
 to anon, authenticated;

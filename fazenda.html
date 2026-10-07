@@ -42,6 +42,7 @@
         <nav class="hud-botoes">
             <button type="button" data-painel="loja"><span aria-hidden="true">🛒</span><em>Loja</em></button>
             <button type="button" data-painel="celeiro"><span aria-hidden="true">🛖</span><em>Celeiro</em><b class="contador" id="hudCeleiro" hidden>0</b></button>
+            <button type="button" data-painel="vizinhos"><span aria-hidden="true">👥</span><em>Vizinhos</em><b class="contador" id="hudDiario" hidden>0</b></button>
             <button type="button" data-painel="conta" aria-label="Conta e ajuda"><span aria-hidden="true">⚙️</span><em>Conta</em></button>
             <a href="indexversao2.html" class="voltar" aria-label="Voltar ao portfólio"><span aria-hidden="true">↩</span><em>Sair</em></a>
         </nav>
@@ -58,6 +59,10 @@
             <span class="galinha g2">🐤</span>
             <span class="moinho">🌾</span>
         </div>
+        <div class="faixa-visita" id="faixaVisita" hidden>
+            <span>🏡 Fazenda de <b id="visitaApelido">—</b> · Nv <b id="visitaNivel">1</b></span>
+            <button type="button" class="btn pequeno" id="btnVoltarCasa">↩ Minha fazenda</button>
+        </div>
         <div class="campo-wrap">
             <div class="campo" id="campo" role="grid" aria-label="Canteiros da fazenda"></div>
         </div>
@@ -70,7 +75,13 @@
             <span class="sem-emoji" id="semEmoji">🥬</span>
             <span class="sem-info"><small>Semente</small><b id="semNome">Alface</b></span>
         </button>
-        <div class="acoes-massa">
+        <div class="acoes-massa" id="acoesVisita" hidden>
+            <button type="button" data-visita="pegar"><span aria-hidden="true">🫳</span><em>Pegar tudo</em></button>
+            <button type="button" data-visita="ajudar"><span aria-hidden="true">🤝</span><em>Ajudar tudo</em></button>
+            <button type="button" data-visita="outro"><span aria-hidden="true">🎲</span><em>Outro vizinho</em></button>
+            <button type="button" data-visita="casa"><span aria-hidden="true">🏠</span><em>Voltar</em></button>
+        </div>
+        <div class="acoes-massa" id="acoesCasa">
             <button type="button" data-massa="colher"><span aria-hidden="true">🧺</span><em>Colher tudo</em></button>
             <button type="button" data-massa="cuidar"><span aria-hidden="true">🧑‍🌾</span><em>Cuidar</em></button>
             <button type="button" data-massa="arar"><span aria-hidden="true">⛏️</span><em>Arar tudo</em></button>

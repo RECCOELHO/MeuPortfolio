@@ -1068,3 +1068,140 @@ button.item:hover {
         transition: none !important;
     }
 }
+
+/* ============================================================
+   FASE 2 — VIZINHOS
+============================================================ */
+.faixa-visita {
+    /* absoluta para não empurrar o campo para baixo */
+    position: absolute;
+    top: 4px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: max-content;
+    max-width: calc(100% - 32px);
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+    background: #fff3e0;
+    border: 3px solid var(--ouro);
+    border-radius: 14px;
+    padding: 6px 8px 6px 14px;
+    box-shadow: 0 4px 0 #c77c02;
+    font-size: 15px;
+}
+
+body.visitando .campo {
+    background:
+        radial-gradient(circle at 20% 30%, rgba(255, 255, 255, .12) 0 2px, transparent 3px) 0 0 / 22px 22px,
+        #7cb342;
+    box-shadow: 10px 10px 0 #4e7a2a, 0 0 0 6px var(--ouro), 10px 10px 0 6px #c77c02;
+}
+
+body.visitando .semente-atual {
+    display: none;
+}
+
+.rotulo.pegar {
+    background: #6a1b9a;
+}
+
+.rotulo.cinza {
+    background: rgba(74, 46, 20, .5);
+}
+
+/* Abas dentro do painel */
+.painel-abas {
+    display: flex;
+    background: var(--creme-2);
+    border-radius: 12px;
+    padding: 4px;
+    margin-bottom: 12px;
+}
+
+.painel-abas button {
+    flex: 1;
+    border: 0;
+    background: transparent;
+    padding: 8px;
+    border-radius: 9px;
+    font-weight: 600;
+    color: var(--texto-suave);
+}
+
+.painel-abas button.ativa {
+    background: #fff;
+    color: var(--texto);
+    box-shadow: 0 2px 0 rgba(0, 0, 0, .12);
+}
+
+.rank {
+    display: grid;
+    grid-template-columns: 34px 1fr auto;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    background: #fff;
+    border: 3px solid var(--creme-2);
+    border-radius: 14px;
+}
+
+.rank.eu {
+    border-color: var(--verde-btn);
+    background: #f1f8e9;
+}
+
+.rank .pos {
+    font-weight: 700;
+    font-size: 18px;
+    text-align: center;
+}
+
+.rank .nome {
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.rank .det {
+    font-size: 12px;
+    color: var(--texto-suave);
+}
+
+.diario-item {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    padding: 8px 10px;
+    background: #fff;
+    border-radius: 12px;
+    font-size: 14px;
+}
+
+.diario-item.novo {
+    outline: 2px solid var(--ouro);
+}
+
+.diario-item .ico {
+    font-size: 22px;
+}
+
+.diario-item small {
+    display: block;
+    color: var(--texto-suave);
+    font-size: 12px;
+}
+
+.diario-item .acoes {
+    margin-left: auto;
+}
+
+@media (max-width: 720px) {
+    .faixa-visita {
+        font-size: 13px;
+    }
+}

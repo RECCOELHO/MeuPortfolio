@@ -21,7 +21,7 @@
     const POLL_MS = 30000;
 
     /* ---------- Armazenamento local (protegido) ---------- */
-    const LS = { token: 'fazenda_token', codigo: 'fazenda_codigo', semente: 'fazenda_semente' };
+    const LS = { token: 'fazenda_token', codigo: 'fazenda_codigo', semente: 'fazenda_semente', diarioVisto: 'fazenda_diario_visto' };
     const store = {
         get(k) { try { return localStorage.getItem(k); } catch { return null; } },
         set(k, v) { try { localStorage.setItem(k, v); } catch { /* ignora */ } },
@@ -44,7 +44,14 @@
         nao_maduro: 'Ainda não está pronto.',
         murchou: 'Essa planta murchou… are o canteiro para limpar.',
         acao_invalida: 'Ação inválida.',
-        quantidade_invalida: 'Quantidade inválida.'
+        quantidade_invalida: 'Quantidade inválida.',
+        muitas_fazendas: 'Muita gente chegando agora! Tente de novo daqui a pouco.',
+        propria_fazenda: 'Essa é a sua própria fazenda 😄',
+        vizinho_invalido: 'Essa fazenda não existe mais.',
+        nenhum_vizinho: 'Ainda não tem vizinhos por aqui. Chame alguém para jogar!',
+        ja_pegou: 'Você já pegou desse canteiro. Deixa um pouco pro dono 😅',
+        nada_pra_pegar: 'Esse canteiro já foi bem visitado… não sobrou nada pra pegar.',
+        limite_pegadas: 'Você já pegou demais hoje. Volte amanhã 🌙'
     };
 
     async function rpc(fn, args) {
@@ -81,12 +88,18 @@
         entrada: $('telaEntrada'), entradaCarregando: $('entradaCarregando'), entradaAbas: $('entradaAbas'),
         entradaErro: $('entradaErro'), formNova: $('formNova'), formCodigo: $('formCodigo'),
         inApelido: $('inApelido'), inCodigo: $('inCodigo'),
-        painel: $('painel'), painelTitulo: $('painelTitulo'), painelCorpo: $('painelCorpo'), painelFechar: $('painelFechar')
+        painel: $('painel'), painelTitulo: $('painelTitulo'), painelCorpo: $('painelCorpo'), painelFechar: $('painelFechar'),
+        faixaVisita: $('faixaVisita'), visitaApelido: $('visitaApelido'), visitaNivel: $('visitaNivel'),
+        btnVoltarCasa: $('btnVoltarCasa'), acoesVisita: $('acoesVisita'), acoesCasa: $('acoesCasa'),
+        diarioCont: $('hudDiario')
     };
 
     /* ---------- Estado ---------- */
     let token = store.get(LS.token);
     let S = null;                 // último estado vindo do servidor
+    let visita = null;            // fazenda do vizinho sendo visitada (null = em casa)
+    let abaVizinhos = 'ranking';
+    let ultimoAvisoDiario = Number(store.get(LS.diarioVisto)) || 0;
     let culturas = {};            // id -> cultura
     let offset = 0;               // relógio do servidor - relógio local (ms)
     let semente = store.get(LS.semente) || 'alface';
@@ -147,6 +160,18 @@
         }
     }
 
+    // Visitando: o que dá pra fazer no canteiro do vizinho
+    const limitePegar = (k) => Math.floor(k.rendimento * 0.4);
+    function podePegar(c, i) {
+        return i.fase === 'maduro' && !c.ja_peguei && c.roubado < limitePegar(i.k);
+    }
+    function acaoVisita(c) {
+        const i = info(c);
+        if ((i.fase === 'crescendo' || i.fase === 'maduro') && i.probs.length) return 'ajudar';
+        if (podePegar(c, i)) return 'pegar';
+        return null;
+    }
+
     const PROB = { erva: '☘️', praga: '🐛', seco: '💧' };
     const PROB_NOME = { erva: 'erva daninha', praga: 'praga', seco: 'terra seca' };
 
@@ -174,7 +199,8 @@
     }
 
     function canteiro(p) {
-        return S && S.canteiros.find((c) => c.posicao === p);
+        const fonte = visita || S;
+        return fonte && fonte.canteiros.find((c) => c.posicao === p);
     }
 
     function desenharCanteiro(p) {
@@ -206,6 +232,11 @@
                 rotulo = 'Pronto!'; rotCls += ' pronto';
                 brilho = true;
                 label = `${i.k.nome} pronto para colher`;
+                if (visita) {
+                    if (c.ja_peguei) { rotulo = '✓ Pegou'; rotCls = 'rotulo cinza'; brilho = false; label = `${i.k.nome}: você já pegou daqui`; }
+                    else if (c.roubado >= limitePegar(i.k)) { rotulo = 'Vigiado'; rotCls = 'rotulo cinza'; brilho = false; label = `${i.k.nome}: não sobrou nada pra pegar`; }
+                    else { rotulo = '🫳 Pegar!'; rotCls = 'rotulo pegar'; label = `${i.k.nome} maduro: dá pra pegar um pouco`; }
+                }
             } else {
                 if (i.prog < 0.33) { planta = '🌱'; plantaCls += ' f1'; }
                 else if (i.prog < 0.66) { planta = '🌿'; plantaCls += ' f2'; }
@@ -263,9 +294,29 @@
         el.semNome.textContent = k ? `${k.nome} · 🪙${k.custo}` : 'Escolher';
     }
 
+    function descreverVisita(c, i) {
+        if (i.fase === 'bloqueado') return '🔒 Canteiro bloqueado do vizinho.';
+        if (i.fase === 'vazio' || i.fase === 'arado') return '🟫 Canteiro livre. Nada pra fazer aqui.';
+        if (i.fase === 'murcho') return `🥀 O ${i.k.nome} do vizinho murchou.`;
+        let txt;
+        if (i.fase === 'maduro') {
+            if (c.ja_peguei) txt = `${i.k.emoji} Você já pegou desse ${i.k.nome}.`;
+            else if (c.roubado >= limitePegar(i.k)) txt = `${i.k.emoji} Já pegaram bastante desse ${i.k.nome}.`;
+            else txt = `${i.k.emoji} ${i.k.nome} maduro! Toque para pegar 1 ou 2 🫳`;
+        } else {
+            txt = `${i.k.emoji} ${i.k.nome} do vizinho · fica pronto em ${fmtTempo(i.resta)}.`;
+        }
+        if (i.probs.length) txt += ` Ajude com ${i.probs.map((x) => PROB[x]).join('')}: +${i.probs.length} XP e 🪙 pra você.`;
+        return txt;
+    }
+
     function descrever(p) {
         const c = canteiro(p);
         const i = info(c);
+        if (visita) {
+            el.status.textContent = descreverVisita(c, i);
+            return;
+        }
         let txt;
         switch (i.fase) {
             case 'bloqueado': txt = `🔒 Libera no nível ${nivelParaCanteiro(p)}.`; break;
@@ -288,6 +339,7 @@
     /* ---------- Estado vindo do servidor ---------- */
     function aplicarEstado(estado) {
         const antes = S;
+        if (!estado.diario) estado.diario = []; // banco ainda sem o SQL da fase 2
         S = estado;
         offset = Date.parse(estado.agora) - Date.now();
         culturas = {};
@@ -301,9 +353,40 @@
             if (novas.length) msg += ` · Nova semente: ${novas.map((k) => k.emoji + ' ' + k.nome).join(', ')}`;
             toast(msg, 'festa');
         }
+        avisarDiario();
         desenharHud();
         desenharCampo();
         if (painelAtual === 'loja' || painelAtual === 'celeiro') abrirPainel(painelAtual, true);
+    }
+
+    /* ---------- Diário: quem passou pela sua fazenda ---------- */
+    const quando = (d) => Date.parse(d.em);
+    const diarioNovos = () => (S ? S.diario.filter((d) => quando(d) > (Number(store.get(LS.diarioVisto)) || 0)) : []);
+
+    function textoDiario(d) {
+        const k = culturas[d.cultura];
+        const item = k ? `${k.emoji} ${k.nome.toLowerCase()}` : d.cultura;
+        return d.tipo === 'roubo'
+            ? `${d.apelido} pegou ${d.qtd} ${item} da sua fazenda!`
+            : `${d.apelido} cuidou do seu ${item} (${d.qtd} problema${d.qtd > 1 ? 's' : ''}) 💚`;
+    }
+
+    function avisarDiario() {
+        const novos = diarioNovos();
+        el.diarioCont.textContent = novos.length;
+        el.diarioCont.hidden = !novos.length;
+        // Só avisa por toast o que ainda não foi avisado nesta visita à página
+        const ineditos = novos.filter((d) => quando(d) > ultimoAvisoDiario);
+        if (!ineditos.length) return;
+        ultimoAvisoDiario = Math.max(...ineditos.map(quando));
+        const d = ineditos[0];
+        toast((d.tipo === 'roubo' ? '🦝 ' : '🤝 ') + textoDiario(d) + (ineditos.length > 1 ? ` (+${ineditos.length - 1} no diário 👥)` : ''));
+    }
+
+    function marcarDiarioVisto() {
+        if (!S || !S.diario.length) return;
+        store.set(LS.diarioVisto, String(Math.max(...S.diario.map(quando))));
+        avisarDiario();
     }
 
     /* ---------- Feedback visual ---------- */
@@ -371,8 +454,13 @@
 
     function clicarCanteiro(p) {
         if (!S) return;
-        const acao = acaoPara(canteiro(p));
         descrever(p);
+        if (visita) {
+            const av = acaoVisita(canteiro(p));
+            if (av) executarVisita(av, [p]);
+            return;
+        }
+        const acao = acaoPara(canteiro(p));
         if (!acao) return;
         let k = null;
         if (acao === 'plantar') {
@@ -465,17 +553,93 @@
         }
     }
 
+    /* ---------- Visitas aos vizinhos ---------- */
+    function mostrarVisita(v) {
+        visita = v;
+        offset = Date.parse(v.agora) - Date.now();
+        document.body.classList.add('visitando');
+        el.faixaVisita.hidden = false;
+        el.visitaApelido.textContent = v.apelido;
+        el.visitaNivel.textContent = v.nivel;
+        el.acoesVisita.hidden = false;
+        el.acoesCasa.hidden = true;
+        desenharCampo();
+    }
+
+    function visitar(id) {
+        fecharPainel();
+        return enfileirar([], async () => {
+            const v = await rpc('fazenda_visitar', { p_token: token, p_vizinho: id || null });
+            const trocou = !visita || visita.id !== v.id;
+            mostrarVisita(v);
+            if (trocou) {
+                const prontos = v.canteiros.filter((c) => podePegar(c, info(c))).length;
+                el.status.textContent = prontos
+                    ? `👀 ${v.apelido} tem ${prontos} canteiro(s) maduro(s). Pegue um pouquinho… ou ajude!`
+                    : `🌾 Você está na fazenda de ${v.apelido}. Ajude com ervas, pragas e seca para ganhar XP.`;
+            }
+        });
+    }
+
+    function voltarCasa() {
+        visita = null;
+        document.body.classList.remove('visitando');
+        el.faixaVisita.hidden = true;
+        el.acoesVisita.hidden = true;
+        el.acoesCasa.hidden = false;
+        el.status.textContent = 'De volta à sua fazenda 🏡';
+        desenharCampo();
+        recarregar();
+    }
+
+    function executarVisita(acao, posicoes) {
+        const dono = visita.id;
+        return enfileirar(posicoes, async () => {
+            const r = await rpc('fazenda_acao_vizinho', {
+                p_token: token, p_vizinho: dono, p_acao: acao, p_posicoes: posicoes
+            });
+            Object.entries(r.resultado).forEach(([pos, qtd], n) => {
+                const c = canteiro(Number(pos));
+                const k = c && culturas[c.cultura];
+                flutuar(Number(pos), acao === 'pegar' ? `+${qtd} ${k ? k.emoji : ''}` : `+${qtd} XP +${qtd} 🪙`, n * 70);
+            });
+            aplicarEstado(r.estado);
+            if (visita && visita.id === dono) mostrarVisita(r.vizinho);
+            if (posicoes.length > 1 && r.feitos) {
+                const total = Object.values(r.resultado).reduce((a, b) => a + b, 0);
+                toast(acao === 'pegar' ? `🫳 Pegou ${total} itens de ${r.feitos} canteiro(s)!` : `🤝 Resolveu ${total} problema(s) do vizinho!`);
+            } else if (posicoes.length === 1) {
+                descrever(posicoes[0]);
+            }
+            return r;
+        });
+    }
+
+    function acaoVisitaEmMassa(tipo) {
+        if (tipo === 'casa') return voltarCasa();
+        if (tipo === 'outro') return visitar(null);
+        if (!visita) return;
+        const ps = visita.canteiros.filter((c) => {
+            const i = info(c);
+            return tipo === 'pegar' ? podePegar(c, i) : (i.fase === 'crescendo' || i.fase === 'maduro') && i.probs.length > 0;
+        }).map((c) => c.posicao);
+        if (!ps.length) return toast(tipo === 'pegar' ? 'Nada pra pegar aqui agora 🤷' : 'A fazenda do vizinho está em ordem 🌤️');
+        executarVisita(tipo, ps);
+    }
+
     async function recarregar() {
         if (!token || pendentes) return;
         try {
             aplicarEstado(await rpc('fazenda_carregar', { p_token: token }));
+            if (visita) mostrarVisita(await rpc('fazenda_visitar', { p_token: token, p_vizinho: visita.id }));
         } catch (e) {
             if (e.code === 'token_invalido') tratarErro(e);
+            else if (e.code === 'vizinho_invalido') voltarCasa();
         }
     }
 
     /* ---------- Painéis ---------- */
-    function abrirPainel(nome, soAtualizar) {
+    function abrirPainel(nome, soAtualizar, boasVindas) {
         if (!soAtualizar) ultimoFoco = document.activeElement;
         painelAtual = nome;
         const corpo = el.painelCorpo;
@@ -534,15 +698,77 @@
                     <li>Aparecem ☘️ ervas, 🐛 pragas e 💧 seca: cada problema deixado custa 1 item na colheita.</li>
                     <li>Depois de madura, a planta <b>murcha</b> se ficar tempo demais sem colher.</li>
                     <li>Venda a colheita no 🛖 celeiro, compre sementes melhores e suba de nível para ganhar canteiros.</li>
+                    <li>Em 👥 <b>Vizinhos</b> você visita outras fazendas: <b>pega</b> um pouco da colheita madura ou <b>ajuda</b> com os problemas e ganha XP. Os vizinhos também podem passar na sua!</li>
                 </ul>
                 <div class="rodape-painel">
-                    <a class="btn secundario" href="indexversao2.html" style="text-decoration:none">↩ Voltar ao portfólio</a>
-                    <button type="button" class="btn perigo" data-sair>Sair desta fazenda</button>
+                    ${boasVindas
+                        ? '<span></span><button type="button" class="btn" data-fechar>Começar a jogar 🌱</button>'
+                        : `<a class="btn secundario" href="indexversao2.html" style="text-decoration:none">↩ Voltar ao portfólio</a>
+                    <button type="button" class="btn perigo" data-sair>Sair desta fazenda</button>`}
                 </div>`;
+            if (boasVindas) el.painelTitulo.textContent = '🌻 Bem-vindo(a) à fazenda!';
+        } else if (nome === 'vizinhos') {
+            el.painelTitulo.textContent = '👥 Vizinhos';
+            const novos = diarioNovos().length;
+            corpo.innerHTML = `
+                <div class="painel-abas" role="tablist">
+                    <button type="button" role="tab" data-aba-viz="ranking" class="${abaVizinhos === 'ranking' ? 'ativa' : ''}">🏆 Ranking</button>
+                    <button type="button" role="tab" data-aba-viz="diario" class="${abaVizinhos === 'diario' ? 'ativa' : ''}">📜 Diário${novos ? ` (${novos})` : ''}</button>
+                </div>
+                <div id="vizConteudo"></div>
+                <div class="rodape-painel">
+                    <span class="det">Visite alguém aleatório com colheita madura</span>
+                    <button type="button" class="btn" data-visitar="">🎲 Visitar alguém</button>
+                </div>`;
+            preencherVizinhos();
         }
         if (!soAtualizar) {
             el.painel.classList.add('aberto');
             el.painelFechar.focus();
+        }
+    }
+
+    const tempoAtras = (iso) => {
+        const s = Math.max(0, (agora() - Date.parse(iso)) / 1000);
+        if (s < 60) return 'agora há pouco';
+        if (s < 3600) return `há ${Math.floor(s / 60)} min`;
+        if (s < 86400) return `há ${Math.floor(s / 3600)} h`;
+        return `há ${Math.floor(s / 86400)} dia(s)`;
+    };
+
+    async function preencherVizinhos() {
+        const alvo = $('vizConteudo');
+        if (!alvo) return;
+        if (abaVizinhos === 'diario') {
+            const vistoAntes = Number(store.get(LS.diarioVisto)) || 0;
+            alvo.innerHTML = S.diario.length
+                ? '<div class="lista">' + S.diario.map((d) => `
+                    <div class="diario-item${quando(d) > vistoAntes ? ' novo' : ''}">
+                        <span class="ico">${d.tipo === 'roubo' ? '🦝' : '🤝'}</span>
+                        <span>${esc(textoDiario(d))}<small>${tempoAtras(d.em)}</small></span>
+                        ${S.jogador.id !== d.id ? `<span class="acoes"><button type="button" class="btn pequeno secundario" data-visitar="${esc(d.id)}">Visitar</button></span>` : ''}
+                    </div>`).join('') + '</div>'
+                : '<p class="vazio-msg">Ninguém passou pela sua fazenda ainda.<br>Quando um vizinho pegar ou ajudar, aparece aqui. 📜</p>';
+            marcarDiarioVisto();
+            return;
+        }
+        alvo.innerHTML = '<p class="vazio-msg">Carregando ranking… 🏆</p>';
+        try {
+            const r = await rpc('fazenda_ranking', { p_token: token });
+            if (painelAtual !== 'vizinhos' || abaVizinhos !== 'ranking') return;
+            const medalha = (n) => ['🥇', '🥈', '🥉'][n] || `${n + 1}º`;
+            alvo.innerHTML = `<p class="det" style="margin:0 0 8px">Você está em <b>${r.minha_posicao}º</b> de ${r.total} fazendas.</p>
+                <div class="lista">` + r.ranking.map((j, n) => `
+                    <div class="rank${j.eu ? ' eu' : ''}">
+                        <span class="pos">${medalha(n)}</span>
+                        <span style="min-width:0">
+                            <span class="nome" style="display:block">${esc(j.apelido)}${j.eu ? ' (você)' : ''}</span>
+                            <span class="det">Nv ${j.nivel} · ⭐ ${j.xp} XP · 🪙 ${j.patrimonio}</span>
+                        </span>
+                        ${j.eu ? '<span></span>' : `<button type="button" class="btn pequeno secundario" data-visitar="${esc(j.id)}">Visitar</button>`}
+                    </div>`).join('') + '</div>';
+        } catch (e) {
+            alvo.innerHTML = `<p class="vazio-msg">${esc(e.message)}</p>`;
         }
     }
 
@@ -575,6 +801,21 @@
             }).finally(() => { vend.disabled = false; });
             return;
         }
+        const aba = e.target.closest('[data-aba-viz]');
+        if (aba) {
+            abaVizinhos = aba.dataset.abaViz;
+            abrirPainel('vizinhos', true);
+            return;
+        }
+        const vis = e.target.closest('[data-visitar]');
+        if (vis) {
+            visitar(vis.dataset.visitar || null);
+            return;
+        }
+        if (e.target.closest('[data-fechar]')) {
+            fecharPainel();
+            return;
+        }
         if (e.target.closest('[data-copiar]')) {
             try {
                 await navigator.clipboard.writeText(store.get(LS.codigo));
@@ -603,6 +844,8 @@
     document.querySelectorAll('[data-painel]').forEach((b) => b.addEventListener('click', () => S && abrirPainel(b.dataset.painel)));
     el.btnSemente.addEventListener('click', () => S && abrirPainel('loja'));
     document.querySelectorAll('[data-massa]').forEach((b) => b.addEventListener('click', () => acaoEmMassa(b.dataset.massa)));
+    document.querySelectorAll('[data-visita]').forEach((b) => b.addEventListener('click', () => acaoVisitaEmMassa(b.dataset.visita)));
+    el.btnVoltarCasa.addEventListener('click', voltarCasa);
 
     /* ---------- Entrada / sessão ---------- */
     function mostrarEntrada() {
@@ -625,6 +868,10 @@
     function sair(apagarCodigo) {
         token = null;
         S = null;
+        visita = null;
+        document.body.classList.remove('visitando');
+        el.faixaVisita.hidden = el.acoesVisita.hidden = true;
+        el.acoesCasa.hidden = false;
         store.del(LS.token);
         if (apagarCodigo) store.del(LS.codigo);
     }
@@ -664,10 +911,7 @@
         enviarEntrada(el.formNova, 'fazenda_criar', { p_apelido: apelido }, (r) => {
             store.set(LS.codigo, r.codigo);
             // Mostra o código logo de cara para a pessoa anotar
-            setTimeout(() => {
-                abrirPainel('conta');
-                el.painelTitulo.textContent = '🌻 Bem-vindo(a) à fazenda!';
-            }, 50);
+            setTimeout(() => abrirPainel('conta', false, true), 50);
         });
     });
 
