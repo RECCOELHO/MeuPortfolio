@@ -92,16 +92,84 @@ create index if not exists fazenda_visitas_ator_idx on public.fazenda_visitas (a
 create index if not exists fazenda_jogadores_xp_idx on public.fazenda_jogadores (xp desc);
 create index if not exists fazenda_jogadores_criado_idx on public.fazenda_jogadores (criado_em desc);
 
+-- Fase 3: produtos de animais (ovo, leite) também vivem no catálogo,
+-- para poderem ir ao celeiro e ser vendidos. Só 'cultura' pode ser plantada.
+alter table public.fazenda_culturas add column if not exists tipo text not null default 'cultura';
+do $$ begin
+  alter table public.fazenda_culturas add constraint fazenda_culturas_tipo_chk check (tipo in ('cultura', 'produto'));
+exception when duplicate_object then null; end $$;
+
+-- Fase 3: animais
+create table if not exists public.fazenda_animais_tipos (
+  id          text primary key,
+  nome        text not null,
+  custo       int  not null,
+  nivel_min   int  not null,
+  maximo      int  not null,             -- quantos cada jogador pode ter
+  produto     text not null references public.fazenda_culturas(id),
+  tempo_seg   int  not null,             -- tempo para produzir depois de alimentado
+  racao       text not null references public.fazenda_culturas(id),
+  racao_qtd   int  not null,
+  ordem       int  not null default 0
+);
+
+create table if not exists public.fazenda_animais (
+  id             bigint generated always as identity primary key,
+  jogador_id     uuid not null references public.fazenda_jogadores(id) on delete cascade,
+  tipo           text not null references public.fazenda_animais_tipos(id),
+  alimentado_em  timestamptz,            -- null = com fome
+  criado_em      timestamptz not null default now()
+);
+create index if not exists fazenda_animais_jogador_idx on public.fazenda_animais (jogador_id);
+
+-- Fase 3: enfeites (aparecem em lugares fixos da fazenda)
+create table if not exists public.fazenda_enfeites_tipos (
+  id         text primary key,
+  nome       text not null,
+  sprite     int  not null,              -- índice no atlas do Kenney
+  custo      int  not null,
+  nivel_min  int  not null,
+  ordem      int  not null default 0
+);
+
+create table if not exists public.fazenda_enfeites (
+  jogador_id  uuid not null references public.fazenda_jogadores(id) on delete cascade,
+  slot        smallint not null check (slot between 0 and 7),
+  tipo        text not null references public.fazenda_enfeites_tipos(id),
+  primary key (jogador_id, slot)
+);
+
+-- Fase 3: missões diárias (3 por dia, geradas na primeira carga do dia)
+create table if not exists public.fazenda_missoes (
+  jogador_id  uuid not null references public.fazenda_jogadores(id) on delete cascade,
+  dia         date not null,
+  slot        smallint not null,
+  tipo        text not null check (tipo in ('colher', 'plantar', 'cuidar', 'vender', 'animal', 'ajudar')),
+  alvo        int  not null,
+  progresso   int  not null default 0,
+  moedas      int  not null,
+  xp          int  not null,
+  resgatada   boolean not null default false,
+  primary key (jogador_id, dia, slot)
+);
+
 -- RLS ligado e nenhuma policy = acesso direto negado para anon/authenticated
-alter table public.fazenda_culturas  enable row level security;
-alter table public.fazenda_jogadores enable row level security;
-alter table public.fazenda_sessoes   enable row level security;
-alter table public.fazenda_canteiros enable row level security;
-alter table public.fazenda_celeiro   enable row level security;
-alter table public.fazenda_visitas   enable row level security;
+alter table public.fazenda_culturas       enable row level security;
+alter table public.fazenda_jogadores      enable row level security;
+alter table public.fazenda_sessoes        enable row level security;
+alter table public.fazenda_canteiros      enable row level security;
+alter table public.fazenda_celeiro        enable row level security;
+alter table public.fazenda_visitas        enable row level security;
+alter table public.fazenda_animais_tipos  enable row level security;
+alter table public.fazenda_animais        enable row level security;
+alter table public.fazenda_enfeites_tipos enable row level security;
+alter table public.fazenda_enfeites       enable row level security;
+alter table public.fazenda_missoes        enable row level security;
 
 revoke all on public.fazenda_culturas, public.fazenda_jogadores, public.fazenda_sessoes,
-              public.fazenda_canteiros, public.fazenda_celeiro, public.fazenda_visitas
+              public.fazenda_canteiros, public.fazenda_celeiro, public.fazenda_visitas,
+              public.fazenda_animais_tipos, public.fazenda_animais,
+              public.fazenda_enfeites_tipos, public.fazenda_enfeites, public.fazenda_missoes
   from anon, authenticated;
 
 -- ------------------------------------------------------------
@@ -128,6 +196,37 @@ delete from public.fazenda_culturas k
    and not exists (select 1 from public.fazenda_canteiros c where c.cultura = k.id)
    and not exists (select 1 from public.fazenda_celeiro ce where ce.item = k.id)
    and not exists (select 1 from public.fazenda_visitas v where v.cultura = k.id);
+
+-- Produtos dos animais (tempo_seg/custo não se aplicam: ficam no tipo de animal)
+insert into public.fazenda_culturas (id, nome, emoji, tempo_seg, custo, venda, rendimento, xp, nivel_min, ordem, tipo) values
+  ('ovo',   'Ovo',   '🥚', 1, 0, 26, 1,  6, 2, 20, 'produto'),
+  ('leite', 'Leite', '🥛', 1, 0, 70, 1, 16, 4, 21, 'produto')
+on conflict (id) do update set
+  nome = excluded.nome, emoji = excluded.emoji, venda = excluded.venda,
+  xp = excluded.xp, nivel_min = excluded.nivel_min, ordem = excluded.ordem, tipo = excluded.tipo;
+
+insert into public.fazenda_animais_tipos (id, nome, custo, nivel_min, maximo, produto, tempo_seg, racao, racao_qtd, ordem) values
+  ('galinha', 'Galinha', 100, 2, 4, 'ovo',    3600, 'alface', 1, 1),
+  ('vaca',    'Vaca',    350, 4, 2, 'leite', 14400, 'batata', 2, 2)
+on conflict (id) do update set
+  nome = excluded.nome, custo = excluded.custo, nivel_min = excluded.nivel_min, maximo = excluded.maximo,
+  produto = excluded.produto, tempo_seg = excluded.tempo_seg, racao = excluded.racao,
+  racao_qtd = excluded.racao_qtd, ordem = excluded.ordem;
+
+insert into public.fazenda_enfeites_tipos (id, nome, sprite, custo, nivel_min, ordem) values
+  ('pedras',   'Pedras',            89,  30, 1, 1),
+  ('girassol', 'Girassol',          83,  40, 1, 2),
+  ('balde',    'Balde d''água',     73,  50, 1, 3),
+  ('arbusto',  'Arbusto',           39,  60, 1, 4),
+  ('barril',   'Barril',            85,  70, 2, 5),
+  ('feno',     'Fardo de feno',     96,  80, 2, 6),
+  ('amoreira', 'Amoreira',          78,  90, 3, 7),
+  ('pinheiro', 'Pinheiro',          15, 120, 3, 8),
+  ('caixote',  'Caixote de tomate', 47, 150, 4, 9),
+  ('bau',      'Baú',               76, 200, 5, 10)
+on conflict (id) do update set
+  nome = excluded.nome, sprite = excluded.sprite, custo = excluded.custo,
+  nivel_min = excluded.nivel_min, ordem = excluded.ordem;
 
 -- ------------------------------------------------------------
 -- Funções internas (não expostas à API)
@@ -249,6 +348,8 @@ begin
   select p_jogador, g from generate_series(0, v_max - 1) g
   on conflict do nothing;
 
+  perform fazenda_gerar_missoes(p_jogador);
+
   return jsonb_build_object(
     'agora', now(),
     'jogador', jsonb_build_object(
@@ -288,9 +389,24 @@ begin
       select jsonb_agg(jsonb_build_object(
                'id', id, 'nome', nome, 'emoji', emoji, 'tempo_seg', tempo_seg,
                'custo', custo, 'venda', venda, 'rendimento', rendimento,
-               'xp', xp, 'nivel_min', nivel_min)
+               'xp', xp, 'nivel_min', nivel_min, 'tipo', tipo)
              order by ordem)
-        from fazenda_culturas)
+        from fazenda_culturas),
+    'animais', coalesce((
+      select jsonb_agg(jsonb_build_object('id', id, 'tipo', tipo, 'alimentado_em', alimentado_em) order by id)
+        from fazenda_animais where jogador_id = p_jogador), '[]'::jsonb),
+    'animais_tipos', (
+      select jsonb_agg(to_jsonb(t) order by t.ordem) from fazenda_animais_tipos t),
+    'enfeites', coalesce((
+      select jsonb_agg(jsonb_build_object('slot', slot, 'tipo', tipo) order by slot)
+        from fazenda_enfeites where jogador_id = p_jogador), '[]'::jsonb),
+    'enfeites_tipos', (
+      select jsonb_agg(to_jsonb(t) order by t.ordem) from fazenda_enfeites_tipos t),
+    'missoes', coalesce((
+      select jsonb_agg(jsonb_build_object(
+               'slot', slot, 'tipo', tipo, 'alvo', alvo, 'progresso', progresso,
+               'moedas', moedas, 'xp', xp, 'resgatada', resgatada) order by slot)
+        from fazenda_missoes where jogador_id = p_jogador and dia = fazenda_hoje()), '[]'::jsonb)
   );
 end;
 $$;
@@ -342,7 +458,7 @@ begin
       raise exception 'precisa_arar';
     end if;
     select * into k from fazenda_culturas where id = p_cultura;
-    if not found then
+    if not found or k.tipo <> 'cultura' then
       raise exception 'cultura_invalida';
     end if;
     if fazenda_nivel(j.xp) < k.nivel_min then
@@ -357,6 +473,7 @@ begin
            erva = false, praga = false, seco = false, roubado = 0,
            prox_evento = now() + make_interval(secs => k.tempo_seg * (0.15 + random() * 0.35))
      where jogador_id = p_jogador and posicao = p_posicao;
+    perform fazenda_missao(p_jogador, 'plantar', 1);
 
   elsif p_acao in ('erva', 'praga', 'seco') then
     if c.estado <> 'plantado' or now() >= v_murcho
@@ -371,6 +488,7 @@ begin
            seco  = case when p_acao = 'seco'  then false else seco  end
      where jogador_id = p_jogador and posicao = p_posicao;
     update fazenda_jogadores set xp = xp + 1, moedas = moedas + 1 where id = p_jogador;
+    perform fazenda_missao(p_jogador, 'cuidar', 1);
 
   elsif p_acao = 'colher' then
     if c.estado <> 'plantado' or now() < v_maduro then
@@ -390,6 +508,7 @@ begin
        set estado = 'vazio', cultura = null, plantado_em = null,
            erva = false, praga = false, seco = false, roubado = 0, prox_evento = null
      where jogador_id = p_jogador and posicao = p_posicao;
+    perform fazenda_missao(p_jogador, 'colher', v_qtd);
 
   else
     raise exception 'acao_invalida';
@@ -568,6 +687,9 @@ begin
   end loop;
 
   update fazenda_jogadores set moedas = moedas + v_ganho where id = v_id;
+  if v_ganho > 0 then
+    perform fazenda_missao(v_id, 'vender', v_ganho);
+  end if;
 
   return jsonb_build_object('ganho', v_ganho, 'estado', fazenda_estado(v_id));
 end;
@@ -618,7 +740,13 @@ begin
                   where v.tipo = 'roubo' and v.ator_id = p_ator and v.dono_id = p_dono
                     and v.posicao = c.posicao and v.plantado_em = c.plantado_em))
              order by c.posicao)
-        from fazenda_canteiros c where c.jogador_id = p_dono), '[]'::jsonb)
+        from fazenda_canteiros c where c.jogador_id = p_dono), '[]'::jsonb),
+    'animais', coalesce((
+      select jsonb_agg(jsonb_build_object('id', id, 'tipo', tipo, 'alimentado_em', alimentado_em) order by id)
+        from fazenda_animais where jogador_id = p_dono), '[]'::jsonb),
+    'enfeites', coalesce((
+      select jsonb_agg(jsonb_build_object('slot', slot, 'tipo', tipo) order by slot)
+        from fazenda_enfeites where jogador_id = p_dono), '[]'::jsonb)
   );
 end;
 $$;
@@ -718,6 +846,7 @@ begin
 
   insert into fazenda_visitas (ator_id, dono_id, tipo, posicao, plantado_em, cultura, qtd)
   values (p_ator, p_dono, 'ajuda', p_posicao, c.plantado_em, k.id, v_n);
+  perform fazenda_missao(p_ator, 'ajudar', v_n);
 
   return v_n;
 end;
@@ -845,6 +974,249 @@ begin
 end;
 $$;
 
+-- ============================================================
+-- FASE 3 — ANIMAIS, ENFEITES E MISSÕES DIÁRIAS
+-- ============================================================
+
+-- "Hoje" no horário de Brasília (as missões viram à meia-noite daqui)
+create or replace function public.fazenda_hoje()
+returns date language sql stable as $$
+  select (now() at time zone 'America/Sao_Paulo')::date;
+$$;
+
+-- Sorteia as 3 missões do dia, se ainda não existirem
+create or replace function public.fazenda_gerar_missoes(p_jogador uuid)
+returns void
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_hoje  date := fazenda_hoje();
+  v_nivel int;
+  v_tipos text[] := array['colher', 'plantar', 'cuidar', 'vender'];
+  v_tipo  text;
+  v_alvo  int;
+  v_moeda int;
+begin
+  if exists (select 1 from fazenda_missoes where jogador_id = p_jogador and dia = v_hoje) then
+    return;
+  end if;
+  select fazenda_nivel(xp) into v_nivel from fazenda_jogadores where id = p_jogador;
+  if exists (select 1 from fazenda_animais where jogador_id = p_jogador) then
+    v_tipos := v_tipos || 'animal'::text;
+  end if;
+  if v_nivel >= 2 then
+    v_tipos := v_tipos || 'ajudar'::text;
+  end if;
+  select array_agg(t order by random()) into v_tipos from unnest(v_tipos) t;
+
+  for i in 1..3 loop
+    v_tipo := v_tipos[i];
+    v_alvo := case v_tipo
+      when 'colher'  then 8 + v_nivel * 2 + floor(random() * 6)::int
+      when 'plantar' then 4 + v_nivel + floor(random() * 3)::int
+      when 'cuidar'  then 3 + floor(random() * 3)::int
+      when 'vender'  then ((60 + v_nivel * 30 + floor(random() * 60)::int) / 10) * 10
+      else 2 + floor(random() * 3)::int
+    end;
+    v_moeda := case v_tipo
+      when 'colher'  then v_alvo * 3
+      when 'plantar' then v_alvo * 5
+      when 'vender'  then v_alvo / 3
+      when 'animal'  then v_alvo * 15
+      else v_alvo * 8
+    end + 10 * v_nivel;
+    insert into fazenda_missoes (jogador_id, dia, slot, tipo, alvo, moedas, xp)
+    values (p_jogador, v_hoje, i - 1, v_tipo, v_alvo, v_moeda, 5 + v_nivel * 3)
+    on conflict do nothing;
+  end loop;
+end;
+$$;
+
+-- Soma progresso nas missões de hoje daquele tipo
+create or replace function public.fazenda_missao(p_jogador uuid, p_tipo text, p_qtd int)
+returns void
+language sql security definer
+set search_path = public, extensions
+as $$
+  update fazenda_missoes
+     set progresso = least(alvo, progresso + p_qtd)
+   where jogador_id = p_jogador and dia = fazenda_hoje() and tipo = p_tipo and not resgatada;
+$$;
+
+-- Alimenta ou coleta um animal. Retorna quantos produtos coletou.
+create or replace function public.fazenda_animal_um(p_jogador uuid, p_animal bigint, p_acao text)
+returns int
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  r      record;
+  v_tem  int;
+begin
+  select a.id, a.alimentado_em, t.produto, t.tempo_seg, t.racao, t.racao_qtd, k.xp as produto_xp
+    into r
+    from fazenda_animais a
+    join fazenda_animais_tipos t on t.id = a.tipo
+    join fazenda_culturas k on k.id = t.produto
+   where a.id = p_animal and a.jogador_id = p_jogador
+     for update of a;
+  if not found then
+    raise exception 'animal_invalido';
+  end if;
+
+  if p_acao = 'alimentar' then
+    if r.alimentado_em is not null then
+      raise exception 'ja_alimentado';
+    end if;
+    select quantidade into v_tem from fazenda_celeiro
+     where jogador_id = p_jogador and item = r.racao
+       for update;
+    if coalesce(v_tem, 0) < r.racao_qtd then
+      raise exception 'sem_racao';
+    end if;
+    update fazenda_celeiro set quantidade = quantidade - r.racao_qtd
+     where jogador_id = p_jogador and item = r.racao;
+    update fazenda_animais set alimentado_em = now() where id = p_animal;
+    return 0;
+
+  elsif p_acao = 'coletar' then
+    if r.alimentado_em is null or now() < r.alimentado_em + make_interval(secs => r.tempo_seg) then
+      raise exception 'nao_pronto';
+    end if;
+    insert into fazenda_celeiro (jogador_id, item, quantidade)
+    values (p_jogador, r.produto, 1)
+    on conflict (jogador_id, item)
+    do update set quantidade = fazenda_celeiro.quantidade + 1;
+    update fazenda_jogadores set xp = xp + r.produto_xp where id = p_jogador;
+    update fazenda_animais set alimentado_em = null where id = p_animal;
+    perform fazenda_missao(p_jogador, 'animal', 1);
+    return 1;
+  end if;
+
+  raise exception 'acao_invalida';
+end;
+$$;
+
+-- p_categoria: animal | enfeite
+create or replace function public.fazenda_comprar(p_token text, p_categoria text, p_tipo text)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id    uuid := fazenda_auth(p_token);
+  j       record;
+  a       record;
+  e       record;
+  v_slot  int;
+begin
+  select * into j from fazenda_jogadores where id = v_id for update;
+
+  if p_categoria = 'animal' then
+    select * into a from fazenda_animais_tipos where id = p_tipo;
+    if not found then raise exception 'item_invalido'; end if;
+    if fazenda_nivel(j.xp) < a.nivel_min then raise exception 'nivel_insuficiente'; end if;
+    if (select count(*) from fazenda_animais where jogador_id = v_id and tipo = a.id) >= a.maximo then
+      raise exception 'limite_animais';
+    end if;
+    if j.moedas < a.custo then raise exception 'moedas_insuficientes'; end if;
+    update fazenda_jogadores set moedas = moedas - a.custo where id = v_id;
+    insert into fazenda_animais (jogador_id, tipo) values (v_id, a.id);
+
+  elsif p_categoria = 'enfeite' then
+    select * into e from fazenda_enfeites_tipos where id = p_tipo;
+    if not found then raise exception 'item_invalido'; end if;
+    if fazenda_nivel(j.xp) < e.nivel_min then raise exception 'nivel_insuficiente'; end if;
+    select min(g) into v_slot from generate_series(0, 7) g
+     where not exists (select 1 from fazenda_enfeites where jogador_id = v_id and slot = g);
+    if v_slot is null then raise exception 'sem_espaco'; end if;
+    if j.moedas < e.custo then raise exception 'moedas_insuficientes'; end if;
+    update fazenda_jogadores set moedas = moedas - e.custo where id = v_id;
+    insert into fazenda_enfeites (jogador_id, slot, tipo) values (v_id, v_slot, e.id);
+
+  else
+    raise exception 'item_invalido';
+  end if;
+
+  return jsonb_build_object('estado', fazenda_estado(v_id));
+end;
+$$;
+
+-- p_acao: alimentar | coletar. Lote igual ao fazenda_acao.
+create or replace function public.fazenda_animal(p_token text, p_acao text, p_ids bigint[])
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id     uuid := fazenda_auth(p_token);
+  v_animal bigint;
+  v_feitos int := 0;
+  v_qtd    int := 0;
+begin
+  if p_ids is null or array_length(p_ids, 1) is null or array_length(p_ids, 1) > 20 then
+    raise exception 'nada_a_fazer';
+  end if;
+  foreach v_animal in array p_ids loop
+    if array_length(p_ids, 1) = 1 then
+      v_qtd := v_qtd + fazenda_animal_um(v_id, v_animal, p_acao);
+      v_feitos := v_feitos + 1;
+    else
+      begin
+        v_qtd := v_qtd + fazenda_animal_um(v_id, v_animal, p_acao);
+        v_feitos := v_feitos + 1;
+      exception when others then
+        null;
+      end;
+    end if;
+  end loop;
+  return jsonb_build_object('feitos', v_feitos, 'coletado', v_qtd, 'estado', fazenda_estado(v_id));
+end;
+$$;
+
+-- Tira um enfeite e devolve metade do preço
+create or replace function public.fazenda_remover_enfeite(p_token text, p_slot int)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id    uuid := fazenda_auth(p_token);
+  v_tipo  text;
+begin
+  delete from fazenda_enfeites where jogador_id = v_id and slot = p_slot
+  returning tipo into v_tipo;
+  if v_tipo is null then raise exception 'item_invalido'; end if;
+  update fazenda_jogadores
+     set moedas = moedas + (select custo / 2 from fazenda_enfeites_tipos where id = v_tipo)
+   where id = v_id;
+  return jsonb_build_object('estado', fazenda_estado(v_id));
+end;
+$$;
+
+create or replace function public.fazenda_resgatar_missao(p_token text, p_slot int)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id uuid := fazenda_auth(p_token);
+  m    record;
+begin
+  select * into m from fazenda_missoes
+   where jogador_id = v_id and dia = fazenda_hoje() and slot = p_slot
+     for update;
+  if not found then raise exception 'missao_invalida'; end if;
+  if m.resgatada then raise exception 'ja_resgatada'; end if;
+  if m.progresso < m.alvo then raise exception 'missao_incompleta'; end if;
+  update fazenda_missoes set resgatada = true
+   where jogador_id = v_id and dia = m.dia and slot = m.slot;
+  update fazenda_jogadores set moedas = moedas + m.moedas, xp = xp + m.xp where id = v_id;
+  return jsonb_build_object('moedas', m.moedas, 'xp', m.xp, 'estado', fazenda_estado(v_id));
+end;
+$$;
+
 -- ------------------------------------------------------------
 -- Permissões: só a API pública fica executável pela chave anon
 -- ------------------------------------------------------------
@@ -867,7 +1239,15 @@ revoke execute on function
   public.fazenda_ajudar_um(uuid, uuid, int),
   public.fazenda_ranking(text),
   public.fazenda_visitar(text, uuid),
-  public.fazenda_acao_vizinho(text, uuid, text, int[])
+  public.fazenda_acao_vizinho(text, uuid, text, int[]),
+  public.fazenda_hoje(),
+  public.fazenda_gerar_missoes(uuid),
+  public.fazenda_missao(uuid, text, int),
+  public.fazenda_animal_um(uuid, bigint, text),
+  public.fazenda_comprar(text, text, text),
+  public.fazenda_animal(text, text, bigint[]),
+  public.fazenda_remover_enfeite(text, int),
+  public.fazenda_resgatar_missao(text, int)
 from public, anon, authenticated;
 
 grant execute on function
@@ -878,5 +1258,9 @@ grant execute on function
   public.fazenda_vender(text, text, int),
   public.fazenda_ranking(text),
   public.fazenda_visitar(text, uuid),
-  public.fazenda_acao_vizinho(text, uuid, text, int[])
+  public.fazenda_acao_vizinho(text, uuid, text, int[]),
+  public.fazenda_comprar(text, text, text),
+  public.fazenda_animal(text, text, bigint[]),
+  public.fazenda_remover_enfeite(text, int),
+  public.fazenda_resgatar_missao(text, int)
 to anon, authenticated;

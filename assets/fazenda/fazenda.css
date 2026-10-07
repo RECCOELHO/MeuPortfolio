@@ -20,6 +20,8 @@
     --texto: #3f2631;
     --texto-suave: #763b36;
     --px: 3px;             /* espessura da borda pixel */
+    --fonte-texto: 'Nunito', system-ui, sans-serif;
+    --fonte-pixel: 'Pixelify Sans', 'Nunito', monospace;
 }
 
 *,
@@ -35,13 +37,29 @@ body {
 }
 
 body {
-    font-family: 'Pixelify Sans', ui-monospace, monospace;
+    font-family: var(--fonte-texto);
+    font-weight: 700;
     color: var(--texto);
     background: var(--grama);
     overflow: hidden;
     -webkit-tap-highlight-color: transparent;
     user-select: none;
-    -webkit-font-smoothing: none;
+}
+
+/* Fonte pixel só nos títulos e números: o resto em Nunito, bem mais legível */
+.entrada h1,
+.painel h2,
+.apelido,
+.nivel-badge,
+.hud-moedas b,
+.contador,
+.secao-titulo,
+.rank .pos,
+.codigo-box code,
+.flut,
+.preco {
+    font-family: var(--fonte-pixel);
+    font-weight: 600;
 }
 
 button,
@@ -108,7 +126,7 @@ button {
     justify-content: center;
     gap: 6px;
     padding: 6px 12px;
-    font-weight: 600;
+    font-weight: 800;
     font-size: 16px;
     text-decoration: none;
     color: var(--texto);
@@ -413,7 +431,7 @@ button {
 }
 
 .acoes-massa em {
-    font-size: 12px;
+    font-size: 12.5px;
     white-space: nowrap;
 }
 
@@ -611,8 +629,13 @@ button.item:hover {
 }
 
 .nome {
-    font-weight: 700;
+    font-weight: 800;
     font-size: 16px;
+}
+
+.nome .qtd {
+    font-size: 13px;
+    color: var(--texto-suave);
 }
 
 .det {
@@ -890,4 +913,69 @@ button.item:hover {
         animation-iteration-count: 1 !important;
         transition: none !important;
     }
+}
+
+/* ---------- Fase 3: missões e enfeites ---------- */
+.missao {
+    display: grid;
+    grid-template-columns: 40px 1fr auto;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    background: var(--creme-luz);
+    box-shadow: 0 -2px 0 var(--o), 0 2px 0 var(--o), -2px 0 0 var(--o), 2px 0 0 var(--o), inset 0 -3px 0 var(--creme-2);
+}
+
+.missao .ico {
+    display: grid;
+    place-items: center;
+}
+
+.missao.pronta {
+    background: #fff1c4;
+    box-shadow: 0 -2px 0 var(--o), 0 2px 0 var(--o), -2px 0 0 var(--o), 2px 0 0 var(--o), inset 0 -3px 0 var(--ouro), 0 0 0 5px var(--ouro);
+}
+
+.missao.feita {
+    opacity: .6;
+}
+
+.barra-prog {
+    display: block;
+    height: 10px;
+    margin: 6px 2px 4px;
+    background: var(--madeira-esc);
+    box-shadow: 0 -2px 0 var(--o), 0 2px 0 var(--o), -2px 0 0 var(--o), 2px 0 0 var(--o);
+}
+
+.barra-prog i {
+    display: block;
+    height: 100%;
+    background: var(--grama-clara);
+    box-shadow: inset 0 -3px 0 var(--grama);
+}
+
+.enfeites-meus {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 4px 3px 8px;
+}
+
+.enfeite-meu {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 4px 6px;
+    border: 0;
+    background: var(--creme-luz);
+    font-size: 11px;
+    color: var(--texto-suave);
+    box-shadow: 0 -2px 0 var(--o), 0 2px 0 var(--o), -2px 0 0 var(--o), 2px 0 0 var(--o);
+}
+
+.enfeite-meu:hover {
+    background: #ffd9cf;
+    color: var(--vermelho);
 }
