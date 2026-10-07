@@ -2685,6 +2685,80 @@
             flex: none;
         }
 
+        /* em pé só a trilha de baixo */
+        .pong-campo.retrato .pong-joy[data-lado="esq"] {
+            display: none !important;
+        }
+
+        /* celular deitado: o jogo ocupa a tela inteira e o campo sempre cabe */
+        #hack-overlay.toque-deitado {
+            align-items: stretch;
+        }
+
+        #hack-overlay.toque-deitado .hack-terminal {
+            width: 100vw;
+            height: 100dvh;
+            border: 0;
+            border-radius: 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #hack-overlay.toque-deitado .hack-bar {
+            padding: 0.3rem 1rem;
+            padding-left: max(1rem, env(safe-area-inset-left));
+            padding-right: max(1rem, env(safe-area-inset-right));
+        }
+
+        #hack-overlay.toque-deitado .hack-body {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            padding: 0.8rem 1.2rem;
+        }
+
+        #hack-overlay.toque-deitado .hack-body:has(#screenGame.active) {
+            padding: 0;
+            overflow: hidden;
+        }
+
+        #hack-overlay.toque-deitado #screenGame {
+            margin: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        #hack-overlay.toque-deitado .pong-scoreboard {
+            padding: 0.2rem 1rem;
+        }
+
+        #hack-overlay.toque-deitado .pong-score-num {
+            font-size: 1.25rem;
+        }
+
+        #hack-overlay.toque-deitado .pong-campo {
+            flex: 1;
+            min-height: 0;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #hack-overlay.toque-deitado .pong-campo canvas {
+            flex: none;
+        }
+
+        #hack-overlay.toque-deitado .pong-campo .pong-joy {
+            flex: 1;
+            width: auto;
+            min-width: 72px;
+            align-self: stretch;
+            padding: 8px;
+        }
+
+        #hack-overlay.toque-deitado .pong-controls-bar {
+            display: none;
+        }
+
         .pong-campo.retrato .pong-joy {
             height: 84px;
             flex: none;
@@ -3705,7 +3779,7 @@
                         <div class="hack-intro-line">> Modo: <span class="acc">Jogador vs CPU</span></div>
                         <div class="hack-intro-line">> Controles: <span class="acc">W / S</span> ou <span class="acc">↑
                                 / ↓</span></div>
-                        <div class="hack-intro-line">> Mobile: <span class="acc2">arraste o dedo</span> na tela</div>
+                        <div class="hack-intro-line">> Celular: <span class="acc2">jogue deitado</span> e deslize o polegar na trilha ao lado do campo</div>
                         <div class="hack-intro-line">> Pause: <span class="acc">ESPAÇO</span></div>
                         <div class="hack-intro-line">> Primeiro a <span class="acc">7 pontos</span> vence.</div>
                     </div>
@@ -3734,10 +3808,13 @@
                         </div>
                     </div>
                     <div class="pong-campo" id="pongCampo">
+                        <!-- celular: trilhas fora do campo para o dedo não tampar a bola (arraste como um touchpad) -->
+                        <div class="pong-joy" data-lado="esq" aria-label="Controle da raquete (esquerda)">
+                            <div class="pong-joy-trilho"><div class="pong-joy-botao"></div></div>
+                        </div>
                         <canvas id="pongCanvas" width="600" height="300"></canvas>
-                        <!-- celular: trilha fora do campo para o dedo não tampar a bola -->
-                        <div class="pong-joy" id="pongJoy" aria-label="Controle da raquete">
-                            <div class="pong-joy-trilho"><div class="pong-joy-botao" id="pongJoyBotao"></div></div>
+                        <div class="pong-joy" data-lado="dir" aria-label="Controle da raquete">
+                            <div class="pong-joy-trilho"><div class="pong-joy-botao"></div></div>
                         </div>
                     </div>
                     <div class="pong-controls-bar">
@@ -4200,27 +4277,51 @@
             let vertical = false, dpr = 1, ultimoTempo = 0;
             const pauseBtn = document.getElementById('pongPauseBtn');
             const ehToque = window.matchMedia('(hover: none) and (pointer: coarse)');
-            overlay.classList.toggle('toque', ehToque.matches);
+            const campo = document.getElementById('pongCampo');
+            const trilhas = [...document.querySelectorAll('.pong-joy')];
+
+            // celular deitado: tela cheia; em pé: campo vertical com a trilha embaixo
+            function atualizarModoTela() {
+                const toque = ehToque.matches;
+                overlay.classList.toggle('toque', toque);
+                overlay.classList.toggle('toque-deitado', toque && window.innerWidth > window.innerHeight);
+            }
+            atualizarModoTela();
 
             function ajustarCanvas() {
                 if (!canvas) return;
+                atualizarModoTela();
                 vertical = window.innerHeight > window.innerWidth && window.innerWidth <= 820;
                 dpr = Math.min(window.devicePixelRatio || 1, 3);
                 canvas.classList.toggle('vertical', vertical);
-                // a trilha do joystick fica embaixo do campo (em pé) ou ao lado (deitado)
                 campo.classList.toggle('retrato', vertical);
                 canvas.width = (vertical ? CH : CW) * dpr;
                 canvas.height = (vertical ? CW : CH) * dpr;
+                // deitado no celular: o campo inteiro cabe na altura que sobra (nada fica fora da tela)
+                if (overlay.classList.contains('toque-deitado')) {
+                    const area = campo.getBoundingClientRect();
+                    const lateral = Math.max(72, area.width * 0.13);
+                    const h = Math.floor(Math.min(area.height - 8, (area.width - lateral * 2) / 2));
+                    canvas.style.height = h + 'px';
+                    canvas.style.width = (h * 2) + 'px';
+                } else {
+                    canvas.style.height = '';
+                    canvas.style.width = '';
+                }
             }
-            const campo = document.getElementById('pongCampo');
-            const joy = document.getElementById('pongJoy');
-            const joyBotao = document.getElementById('pongJoyBotao');
             function atualizarJoy() {
                 const p = playerY / (CH - PH);   // 0 = começo da trilha, 1 = fim
-                if (vertical) { joyBotao.style.left = (p * 100) + '%'; joyBotao.style.top = ''; }
-                else { joyBotao.style.top = (p * 100) + '%'; joyBotao.style.left = ''; }
+                for (const t of trilhas) {
+                    const b = t.querySelector('.pong-joy-botao');
+                    // a bolinha (46px) fica sempre dentro da trilha
+                    const pos = 'calc(23px + ' + p.toFixed(4) + ' * (100% - 46px))';
+                    if (vertical) { b.style.left = pos; b.style.top = ''; }
+                    else { b.style.top = pos; b.style.left = ''; }
+                }
             }
-            window.addEventListener('resize', () => { if (running) ajustarCanvas(); });
+            const aoGirar = () => { atualizarModoTela(); if (running) requestAnimationFrame(ajustarCanvas); };
+            window.addEventListener('resize', aoGirar);
+            window.addEventListener('orientationchange', aoGirar);
 
             /* --- Start / Stop --- */
             function startGame() {
@@ -4228,6 +4329,7 @@
                 ctx = canvas.getContext('2d');
                 showScreen(screenGame);
                 ajustarCanvas();
+                requestAnimationFrame(ajustarCanvas);   // de novo depois do layout da tela de jogo
 
                 pScore = 0; aScore = 0;
                 rally = 0;
@@ -4258,26 +4360,39 @@
                 screenGame.removeEventListener('pointerup', soltarJoy);
                 screenGame.removeEventListener('pointercancel', soltarJoy);
                 keyUp = false; keyDown = false;
-                joyAtivo = false;
+                arraste = null;
             }
-            let joyAtivo = false;
-            function soltarJoy() { joyAtivo = false; }
 
-            /* --- Toque / mouse: o dedo pode ficar em qualquer lugar da tela do jogo --- */
+            /* --- Controle ---
+               Trilha: arraste relativo, como um touchpad. O polegar pode começar em
+               qualquer ponto; a raquete anda o quanto o dedo desliza (com ganho, para
+               não precisar percorrer a trilha toda). No campo: a raquete vai até o dedo. */
+            const GANHO = 1.5;
+            let arraste = null;   // { id, inicio, base, tamanho }
+            function soltarJoy(e) { if (arraste && (!e || e.pointerId === arraste.id)) arraste = null; }
+
             function onPointer(e) {
                 if (e.target.closest('button')) return;
                 if (e.cancelable) e.preventDefault();
-                // joystick: posição do dedo na trilha = posição da raquete no campo
-                if (e.target.closest('#pongJoy') || (e.type === 'pointermove' && joyAtivo)) {
-                    if (e.type === 'pointerdown') {
-                        joyAtivo = true;
-                        try { joy.setPointerCapture(e.pointerId); } catch { /* ignora */ }
-                    }
-                    const r = joy.querySelector('.pong-joy-trilho').getBoundingClientRect();
-                    const p = vertical ? (e.clientX - r.left) / r.width : (e.clientY - r.top) / r.height;
-                    playerY = Math.max(0, Math.min(1, p)) * (CH - PH);
+                const zona = e.target.closest('.pong-joy');
+                if (e.type === 'pointerdown' && zona) {
+                    const r = zona.getBoundingClientRect();
+                    arraste = {
+                        id: e.pointerId,
+                        inicio: vertical ? e.clientX : e.clientY,
+                        base: playerY,
+                        tamanho: vertical ? r.width : r.height
+                    };
+                    try { zona.setPointerCapture(e.pointerId); } catch { /* ignora */ }
                     return;
                 }
+                if (arraste) {
+                    if (e.pointerId !== arraste.id) return;
+                    const d = (vertical ? e.clientX : e.clientY) - arraste.inicio;
+                    playerY = Math.max(0, Math.min(CH - PH, arraste.base + d * (CH / arraste.tamanho) * GANHO));
+                    return;
+                }
+                if (zona || (e.type === 'pointermove' && e.pointerType !== 'mouse' && e.buttons === 0)) return;
                 const rect = canvas.getBoundingClientRect();
                 // em pé, a raquete anda na horizontal (eixo x da tela)
                 const pos = vertical
@@ -4400,6 +4515,11 @@
                     ctx.fillRect(flashSide === 'player' ? 0 : CW / 2, 0, CW / 2, CH);
                     ctx.globalAlpha = 1;
                 }
+
+                // paredes de cima e de baixo visíveis (antes a bola batia numa linha que não aparecia)
+                ctx.fillStyle = 'rgba(200,240,68,0.35)';
+                ctx.fillRect(0, 0, CW, 3);
+                ctx.fillRect(0, CH - 3, CW, 3);
 
                 ctx.setLineDash([8, 10]);
                 ctx.strokeStyle = 'rgba(255,255,255,0.04)';
