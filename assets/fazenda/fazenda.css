@@ -34,6 +34,7 @@ html,
 body {
     margin: 0;
     height: 100%;
+    overscroll-behavior: none;   /* sem "puxar para atualizar" ao arrastar o mapa */
 }
 
 body {
@@ -99,7 +100,9 @@ button {
     z-index: 0;
     display: block;
     image-rendering: pixelated;
-    touch-action: manipulation;
+    /* o jogo cuida do arrastar; sem isso o celular "rouba" o gesto */
+    touch-action: none;
+    -webkit-user-select: none;
 }
 
 /* ---------- Caixas e botões com borda pixel (cantos em degrau) ---------- */

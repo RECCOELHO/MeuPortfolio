@@ -305,9 +305,14 @@
         }
 
         /* ---- câmera ---- */
+        // a câmera só passeia pelo terreno (mais uma bordinha de mata), nunca se perde no mato
         function limitarCamera() {
-            cam.x = vw >= MW ? (MW - vw) / 2 : Math.min(Math.max(cam.x, 0), MW - vw);
-            cam.y = vh >= MH ? (MH - vh) / 2 : Math.min(Math.max(cam.y, 0), MH - vh);
+            const borda = T * 1.5;
+            const minX = wx(0) - borda, maxX = wx(MAPA.w) + borda - vw;
+            const topo = margem.topo / escala, base = margem.base / escala;
+            const minY = wy(0) - borda - topo, maxY = wy(MAPA.h) + borda + base - vh;
+            cam.x = maxX < minX ? (minX + maxX) / 2 : Math.min(Math.max(cam.x, minX), maxX);
+            cam.y = maxY < minY ? (minY + maxY) / 2 : Math.min(Math.max(cam.y, minY), maxY);
         }
         // centraliza um ponto do mundo no meio da área útil (entre o topo e a barra)
         function focar(px, py) {
@@ -640,11 +645,21 @@
 
         /* ---- loop ---- */
         let ultimo = performance.now(), ultimoDesenho = 0;
+        const inercia = { vx: 0, vy: 0 };   // px do jogo por ms, depois de soltar o dedo
         function quadroAnim(agora) {
             const dt = Math.min(100, agora - ultimo);
             ultimo = agora;
             mover(dt);
-            if (agora - ultimoDesenho >= 1000 / 24) {
+            const deslizando = !toque && (Math.abs(inercia.vx) + Math.abs(inercia.vy)) > 0.002;
+            if (deslizando) {
+                cam.x += inercia.vx * dt;
+                cam.y += inercia.vy * dt;
+                const atrito = Math.pow(0.92, dt / 16);
+                inercia.vx *= atrito; inercia.vy *= atrito;
+                limitarCamera();
+            }
+            const movendo = deslizando || (toque && toque.arrastou);
+            if (movendo || agora - ultimoDesenho >= 1000 / 24) {
                 ultimoDesenho = agora;
                 desenhar(agora - t0);
             }
@@ -697,11 +712,8 @@
             ctx.imageSmoothingEnabled = false;
             ctx.fillStyle = PAL.g;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-            const cx = Math.round(cam.x), cy = Math.round(cam.y);
             const k = escala * dpr;
-            const sx = Math.max(0, cx), sy = Math.max(0, cy);
-            const sw = Math.min(MW, cx + vw + 1) - sx, sh = Math.min(MH, cy + vh + 1) - sy;
-            ctx.drawImage(mundo, sx, sy, sw, sh, (sx - cx) * k, (sy - cy) * k, sw * k, sh * k);
+            ctx.drawImage(mundo, 0, 0, MW, MH, -Math.round(cam.x * k), -Math.round(cam.y * k), MW * k, MH * k);
         }
 
         /* ---- entrada: toque/mouse, arrastar para mover a câmera ---- */
@@ -739,9 +751,13 @@
             return a === b;
         }
 
-        let toque = null;   // { id, x, y, camX, camY, arrastou }
+        let toque = null;   // { id, x, y, camX, camY, arrastou, ultX, ultY, ultT }
         canvas.addEventListener('pointerdown', (e) => {
-            toque = { id: e.pointerId, x: e.clientX, y: e.clientY, camX: cam.x, camY: cam.y, arrastou: false };
+            if (toque) return;   // ignora o segundo dedo
+            inercia.vx = inercia.vy = 0;
+            toque = { id: e.pointerId, x: e.clientX, y: e.clientY, camX: cam.x, camY: cam.y, arrastou: false,
+                      ultX: e.clientX, ultY: e.clientY, ultT: performance.now() };
+            if (e.pointerType !== 'mouse') { try { canvas.setPointerCapture(e.pointerId); } catch { /* ignora */ } }
         });
         canvas.addEventListener('pointermove', (e) => {
             if (toque && toque.id === e.pointerId) {
@@ -751,6 +767,11 @@
                     try { canvas.setPointerCapture(e.pointerId); } catch { /* ignora */ }
                 }
                 if (toque.arrastou) {
+                    const agoraT = performance.now(), passo = Math.max(1, agoraT - toque.ultT);
+                    // velocidade suavizada (px do jogo por ms) para a inércia ao soltar
+                    inercia.vx = inercia.vx * 0.6 + (-(e.clientX - toque.ultX) / escala / passo) * 0.4;
+                    inercia.vy = inercia.vy * 0.6 + (-(e.clientY - toque.ultY) / escala / passo) * 0.4;
+                    toque.ultX = e.clientX; toque.ultY = e.clientY; toque.ultT = agoraT;
                     cam.x = toque.camX - dx / escala;
                     cam.y = toque.camY - dy / escala;
                     limitarCamera();
@@ -768,6 +789,7 @@
         const soltar = (e) => {
             if (!toque || toque.id !== e.pointerId) return;
             const arrastou = toque.arrastou;
+            if (!arrastou || performance.now() - toque.ultT > 80) inercia.vx = inercia.vy = 0;
             toque = null;
             canvas.style.cursor = 'default';
             if (arrastou || e.type === 'pointercancel') return;
