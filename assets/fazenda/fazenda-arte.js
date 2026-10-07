@@ -306,13 +306,19 @@
 
         /* ---- câmera ---- */
         // a câmera só passeia pelo terreno (mais uma bordinha de mata), nunca se perde no mato
-        function limitarCamera() {
+        function faixaCamera() {
             const borda = T * 1.5;
-            const minX = wx(0) - borda, maxX = wx(MAPA.w) + borda - vw;
             const topo = margem.topo / escala, base = margem.base / escala;
-            const minY = wy(0) - borda - topo, maxY = wy(MAPA.h) + borda + base - vh;
-            cam.x = maxX < minX ? (minX + maxX) / 2 : Math.min(Math.max(cam.x, minX), maxX);
-            cam.y = maxY < minY ? (minY + maxY) / 2 : Math.min(Math.max(cam.y, minY), maxY);
+            let minX = wx(0) - borda, maxX = wx(MAPA.w) + borda - vw;
+            let minY = wy(0) - borda - topo, maxY = wy(MAPA.h) + borda + base - vh;
+            if (maxX < minX) minX = maxX = (minX + maxX) / 2;
+            if (maxY < minY) minY = maxY = (minY + maxY) / 2;
+            return { minX, maxX, minY, maxY };
+        }
+        function limitarCamera() {
+            const f = faixaCamera();
+            cam.x = Math.min(Math.max(cam.x, f.minX), f.maxX);
+            cam.y = Math.min(Math.max(cam.y, f.minY), f.maxY);
         }
         // centraliza um ponto do mundo no meio da área útil (entre o topo e a barra)
         function focar(px, py) {
@@ -320,6 +326,40 @@
             cam.x = px - vw / 2;
             cam.y = py - meioY;
             limitarCamera();
+            sincronizarRolagem();
+        }
+
+        /* ---- celular: arrastar com a rolagem nativa do navegador ----
+           Uma camada transparente rolável fica por cima do canvas. O dedo rola
+           essa camada (com a inércia do próprio aparelho) e a câmera só segue
+           a posição da rolagem. Toques rápidos viram cliques no jogo. */
+        const toqueNativo = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+        let rolagem = null, espaco = null, ajustandoRolagem = false, precisaDesenhar = false;
+        if (toqueNativo) {
+            rolagem = document.createElement('div');
+            rolagem.className = 'cena-rolagem';
+            rolagem.setAttribute('aria-hidden', 'true');
+            espaco = document.createElement('div');
+            rolagem.appendChild(espaco);
+            canvas.after(rolagem);
+            rolagem.addEventListener('scroll', () => {
+                if (ajustandoRolagem) return;
+                const f = faixaCamera();
+                cam.x = f.minX + rolagem.scrollLeft / escala;
+                cam.y = f.minY + rolagem.scrollTop / escala;
+                precisaDesenhar = true;
+            }, { passive: true });
+            rolagem.addEventListener('click', (e) => acionar(e.clientX, e.clientY));
+        }
+        function sincronizarRolagem() {
+            if (!rolagem) return;
+            const f = faixaCamera();
+            espaco.style.width = (innerWidth + (f.maxX - f.minX) * escala) + 'px';
+            espaco.style.height = (innerHeight + (f.maxY - f.minY) * escala) + 'px';
+            ajustandoRolagem = true;
+            rolagem.scrollLeft = (cam.x - f.minX) * escala;
+            rolagem.scrollTop = (cam.y - f.minY) * escala;
+            requestAnimationFrame(() => { ajustandoRolagem = false; });
         }
 
         function redimensionar() {
@@ -658,9 +698,10 @@
                 inercia.vx *= atrito; inercia.vy *= atrito;
                 limitarCamera();
             }
-            const movendo = deslizando || (toque && toque.arrastou);
+            const movendo = deslizando || (toque && toque.arrastou) || precisaDesenhar;
             if (movendo || agora - ultimoDesenho >= 1000 / 24) {
                 ultimoDesenho = agora;
+                precisaDesenhar = false;
                 desenhar(agora - t0);
             }
             requestAnimationFrame(quadroAnim);
@@ -793,14 +834,20 @@
             toque = null;
             canvas.style.cursor = 'default';
             if (arrastou || e.type === 'pointercancel') return;
-            const alvo = traduzir(alvoEm(e.clientX, e.clientY));
-            hover = alvoEm(e.clientX, e.clientY);
+            acionar(e.clientX, e.clientY);
+        };
+        // um toque/clique sem arrastar: aciona o que estiver embaixo
+        function acionar(clientX, clientY) {
+            const bruto = alvoEm(clientX, clientY);
+            const alvo = traduzir(bruto);
+            hover = bruto;
             if (alvo == null) return;
+            if (cb.aoPassar) cb.aoPassar(alvo);
             if (typeof alvo === 'object' && 'tx' in alvo) { if (cb.aoTile) cb.aoTile(alvo.tx, alvo.ty); }
             else if (alvo === 'celeiro') { if (cb.aoCeleiro) cb.aoCeleiro(); }
             else if (typeof alvo === 'object') { if (cb.aoAnimal) cb.aoAnimal(alvo.animal); }
             else if (cb.aoCanteiro) cb.aoCanteiro(alvo);
-        };
+        }
         canvas.addEventListener('pointerup', soltar);
         canvas.addEventListener('pointercancel', soltar);
         canvas.addEventListener('pointerleave', () => { if (!toque) hover = null; });
