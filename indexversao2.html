@@ -2594,6 +2594,130 @@
             }
         }
 
+        /* --- Pong: pausa, placar compacto e celular --- */
+        .pong-pause {
+            margin-top: 0.25rem;
+            min-width: 34px;
+            height: 26px;
+            padding: 0 0.6rem;
+            background: #18181f;
+            border: 1px solid rgba(200, 240, 68, 0.3);
+            border-radius: 2px;
+            color: #c8f044;
+            font: 700 0.7rem 'DM Mono', monospace;
+            cursor: pointer;
+        }
+
+        .lb-row {
+            grid-template-columns: 28px 1fr 64px 40px 48px;
+        }
+
+        .lb-row .lb-placar {
+            text-align: center;
+            font-family: 'Syne', sans-serif;
+            white-space: nowrap;
+        }
+
+        .lb-row .lb-placar b {
+            font-weight: 700;
+        }
+
+        .lb-row .lb-placar i {
+            font-style: normal;
+            color: #3a3a50;
+            margin: 0 0.25rem;
+        }
+
+        #hack-overlay .so-toque {
+            display: none;
+        }
+
+        #hack-overlay.toque .so-toque {
+            display: flex;
+        }
+
+        #hack-overlay.toque .so-teclado {
+            display: none;
+        }
+
+        #screenGame {
+            touch-action: none;
+        }
+
+        #pongCanvas.vertical {
+            aspect-ratio: 1 / 2;
+            width: min(100%, calc((100dvh - 190px) / 2));
+            margin: 0 auto;
+        }
+
+        @media (max-width: 760px) {
+
+            /* no celular o jogo ocupa a tela inteira */
+            #hack-overlay {
+                align-items: stretch;
+            }
+
+            .hack-terminal {
+                width: 100vw;
+                height: 100dvh;
+                border: 0;
+                border-radius: 0;
+                display: flex;
+                flex-direction: column;
+            }
+
+            .hack-bar {
+                padding-top: max(0.75rem, env(safe-area-inset-top));
+            }
+
+            .hack-close {
+                font-size: 1.1rem;
+                padding: 0.2rem 0.5rem;
+            }
+
+            .hack-body {
+                flex: 1;
+                min-height: 0;
+                overflow-y: auto;
+            }
+
+            #screenGame {
+                flex: 1;
+                justify-content: space-between;
+                background: #0a0a0f;
+            }
+
+            #screenGame canvas {
+                flex: none;
+            }
+
+            .pong-controls-bar {
+                padding-bottom: max(0.55rem, env(safe-area-inset-bottom));
+                text-align: center;
+            }
+
+            .hack-start-btn {
+                align-self: stretch;
+                justify-content: center;
+                padding: 1rem;
+            }
+
+            .hack-result-btns {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                width: 100%;
+            }
+
+            .lb-body {
+                max-height: none;
+            }
+
+            .lb-row {
+                grid-template-columns: 24px 1fr 56px 34px 42px;
+                font-size: 0.66rem;
+            }
+        }
+
         /* MODAL CONTATO */
         .modal-tech-overlay {
             position: fixed;
@@ -3537,7 +3661,7 @@
                         </div>
                         <div class="pong-center">
                             <div class="pong-to-win">Primeiro a <span>7</span></div>
-                            <div class="pong-separator">—</div>
+                            <button type="button" class="pong-pause" id="pongPauseBtn" aria-label="Pausar">II</button>
                         </div>
                         <div class="pong-score-side">
                             <div class="pong-score-num ai" id="aScoreEl">0</div>
@@ -3546,11 +3670,12 @@
                     </div>
                     <canvas id="pongCanvas" width="600" height="300"></canvas>
                     <div class="pong-controls-bar">
-                        <div class="pong-key-hint"><span class="pong-key">W</span><span class="pong-key">S</span> mover
+                        <div class="pong-key-hint so-teclado"><span class="pong-key">W</span><span class="pong-key">S</span> mover
                         </div>
-                        <div class="pong-key-hint"><span class="pong-key">↑</span><span class="pong-key">↓</span> mover
+                        <div class="pong-key-hint so-teclado"><span class="pong-key">↑</span><span class="pong-key">↓</span> mover
                         </div>
-                        <div class="pong-key-hint"><span class="pong-key">ESPAÇO</span> pausar</div>
+                        <div class="pong-key-hint so-teclado"><span class="pong-key">ESPAÇO</span> pausar</div>
+                        <div class="pong-key-hint so-toque">arraste o dedo em qualquer lugar para mover a raquete</div>
                     </div>
                 </div>
 
@@ -3589,16 +3714,15 @@
                 <div class="hack-screen" id="screenLeaderboard">
                     <div class="lb-wrap">
                         <div class="lb-header">
-                            <span class="lb-title">🏆 RANKING GLOBAL — TOP 20</span>
+                            <span class="lb-title">🏆 RANKING — TOP 20</span>
                             <button class="hack-result-btn" id="lbBackBtn"
-                                style="padding:0.28rem 0.75rem;font-size:0.6rem;">← VOLTAR</button>
+                                style="padding:0.28rem 0.75rem;font-size:0.6rem;white-space:nowrap;">← VOLTAR</button>
                         </div>
                         <div class="lb-body">
                             <div class="lb-row lb-head">
                                 <span style="text-align:center">#</span>
                                 <span>NOME</span>
-                                <span style="text-align:center">VOCÊ</span>
-                                <span style="text-align:center">CPU</span>
+                                <span style="text-align:center">PLACAR</span>
                                 <span style="text-align:center">NOTA</span>
                                 <span style="text-align:right">TEMPO</span>
                             </div>
@@ -3625,33 +3749,36 @@
            SUPABASE CONFIG
            → Preencha com seus dados em supabase.com > Project Settings > API
         ============================================================ */
-        const SUPABASE_URL = 'https://vhdjqppzylxdksgjzvsh.supabase.co';
+        // em localhost dá pra apontar para um backend de teste: indexversao2.html?api=http://localhost:8787
+        const SUPABASE_URL = (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && new URLSearchParams(location.search).get('api'))
+            || 'https://vhdjqppzylxdksgjzvsh.supabase.co';
         const SUPABASE_KEY = 'sb_publishable_y-rrBFvf0QRFG3WL3P0kxQ_gItonE2U';
 
-        async function saveScore(nome, pontos_jogador, pontos_cpu, tempo, nota) {
+        /* Ranking do Pong: funções pong_salvar / pong_ranking (ver supabase/pong.sql).
+           A nota é recalculada no servidor a partir do placar. */
+        async function pongRpc(fn, args) {
+            const res = await fetch(SUPABASE_URL + '/rest/v1/rpc/' + fn, {
+                method: 'POST',
+                headers: {
+                    'apikey': SUPABASE_KEY,
+                    'Authorization': 'Bearer ' + SUPABASE_KEY,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(args || {})
+            });
+            const data = await res.json().catch(() => null);
+            if (!res.ok) throw new Error((data && data.message) || 'erro');
+            return data;
+        }
+
+        async function saveScore(nome, jogador, cpu, tempoSeg) {
             try {
-                const res = await fetch(SUPABASE_URL + '/rest/v1/leaderboard', {
-                    method: 'POST',
-                    headers: {
-                        'apikey': SUPABASE_KEY,
-                        'Authorization': 'Bearer ' + SUPABASE_KEY,
-                        'Content-Type': 'application/json',
-                        'Prefer': 'return=minimal'
-                    },
-                    body: JSON.stringify({ nome, pontos_jogador, pontos_cpu, tempo, nota })
-                });
-                return res.ok;
-            } catch { return false; }
+                return await pongRpc('pong_salvar', { p_nome: nome, p_jogador: jogador, p_cpu: cpu, p_tempo: tempoSeg });
+            } catch (e) { return { erro: e.message }; }
         }
 
         async function loadLeaderboard() {
-            try {
-                const res = await fetch(
-                    SUPABASE_URL + '/rest/v1/leaderboard?select=*&order=pontos_jogador.desc,pontos_cpu.asc,tempo.asc&limit=20',
-                    { headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY } }
-                );
-                return res.ok ? await res.json() : [];
-            } catch { return []; }
+            try { return await pongRpc('pong_ranking'); } catch { return null; }
         }
 
         /* ============================================================
@@ -3879,6 +4006,7 @@
                 document.body.style.overflow = 'hidden';
                 showScreen(screenIntro);
             }
+            window.abrirPong = openGame;   // usado pelo terminal secreto (comando "pong")
             function closeGame() {
                 overlay.classList.remove('open');
                 document.body.classList.remove('game-active');
@@ -3893,7 +4021,7 @@
                 if (!overlay.classList.contains('open')) return;
                 if (e.key === 'Escape') { closeGame(); return; }
                 if (e.key === 'Enter' && screenIntro.classList.contains('active')) startGame();
-                if (e.key === ' ' && screenGame.classList.contains('active')) { paused = !paused; e.preventDefault(); }
+                if (e.key === ' ' && screenGame.classList.contains('active')) { alternarPausa(); e.preventDefault(); }
                 if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') { keyUp = true; e.preventDefault(); }
                 if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') { keyDown = true; e.preventDefault(); }
             });
@@ -3920,18 +4048,19 @@
                     saveStatus.textContent = '';
                     saveStatus.className = 'hack-save-status';
 
-                    const grade = document.getElementById('rGrade').textContent;
-                    const player = parseInt(document.getElementById('rPlayer').textContent);
-                    const cpu = parseInt(document.getElementById('rCpu').textContent);
-                    const time = document.getElementById('rTime').textContent;
-
-                    const ok = await saveScore(nome, player, cpu, time, grade);
-                    if (ok) {
-                        saveStatus.textContent = '✓ RESULTADO SALVO NO RANKING!';
+                    const r = await saveScore(nome, pScore, aScore, ultimoTempo);
+                    if (r && !r.erro) {
+                        saveStatus.textContent = `✓ SALVO! VOCÊ É O ${r.posicao}º DO RANKING.`;
                         saveStatus.className = 'hack-save-status ok';
                         saveBtn.textContent = 'SALVO ✓';
                     } else {
-                        saveStatus.textContent = '✕ FALHA AO SALVAR. TENTE NOVAMENTE.';
+                        const motivos = {
+                            nome_invalido: 'NOME INVÁLIDO (1 A 20 LETRAS).',
+                            muitos_envios: 'MUITOS ENVIOS AGORA. ESPERE UM POUCO.',
+                            placar_invalido: 'PLACAR INVÁLIDO.',
+                            tempo_invalido: 'TEMPO INVÁLIDO.'
+                        };
+                        saveStatus.textContent = '✕ ' + (motivos[r && r.erro] || 'FALHA AO SALVAR. TENTE NOVAMENTE.');
                         saveStatus.className = 'hack-save-status err';
                         saveBtn.disabled = false;
                         saveBtn.textContent = 'SALVAR NO RANKING';
@@ -3964,8 +4093,12 @@
                 showScreen(screenLeaderboard);
                 lbRows.innerHTML = '<div class="lb-loading"><div class="lb-spinner"></div> Carregando...</div>';
                 const data = await loadLeaderboard();
+                if (data === null) {
+                    lbRows.innerHTML = '<div class="lb-empty">Não deu para carregar o ranking.<br>Tente de novo em instantes.</div>';
+                    return;
+                }
                 if (!data.length) {
-                    lbRows.innerHTML = '<div class="lb-empty">Nenhuma vitória registrada ainda.<br>Seja o primeiro! 🏆</div>';
+                    lbRows.innerHTML = '<div class="lb-empty">Nenhuma partida registrada ainda.<br>Seja o primeiro! 🏆</div>';
                     return;
                 }
                 // Os dados vêm de um banco em que qualquer visitante grava: escapa tudo antes de montar o HTML
@@ -3983,19 +4116,37 @@
                 <div class="lb-row">
                     ${rk}
                     <span class="lb-nome">${esc(r.nome)}</span>
-                    <span class="lb-p">${esc(r.pontos_jogador)}</span>
-                    <span class="lb-c">${esc(r.pontos_cpu)}</span>
+                    <span class="lb-placar"><b class="lb-p">${esc(r.jogador)}</b><i>×</i><b class="lb-c">${esc(r.cpu)}</b></span>
                     <span class="lb-nota" style="color:${gc}">${notaRaw}</span>
-                    <span class="lb-tempo">${esc(r.tempo)}</span>
+                    <span class="lb-tempo">${esc(r.tempo)}s</span>
                 </div>`;
                 }).join('');
             }
+
+            /* --- Tamanho do campo ---
+               A lógica do jogo é sempre "deitada" (600 x 300). Com o celular em pé
+               o campo é desenhado girado: você embaixo, a CPU em cima. */
+            let vertical = false, dpr = 1, ultimoTempo = 0;
+            const pauseBtn = document.getElementById('pongPauseBtn');
+            const ehToque = window.matchMedia('(hover: none) and (pointer: coarse)');
+            overlay.classList.toggle('toque', ehToque.matches);
+
+            function ajustarCanvas() {
+                if (!canvas) return;
+                vertical = window.innerHeight > window.innerWidth && window.innerWidth <= 820;
+                dpr = Math.min(window.devicePixelRatio || 1, 3);
+                canvas.classList.toggle('vertical', vertical);
+                canvas.width = (vertical ? CH : CW) * dpr;
+                canvas.height = (vertical ? CW : CH) * dpr;
+            }
+            window.addEventListener('resize', () => { if (running) ajustarCanvas(); });
 
             /* --- Start / Stop --- */
             function startGame() {
                 canvas = document.getElementById('pongCanvas');
                 ctx = canvas.getContext('2d');
                 showScreen(screenGame);
+                ajustarCanvas();
 
                 pScore = 0; aScore = 0;
                 rally = 0;
@@ -4003,12 +4154,14 @@
                 gameStartTime = Date.now();
                 trail = [];
                 flashAlpha = 0;
+                pauseBtn.textContent = 'II';
 
                 playerY = CH / 2 - PH / 2;
                 aiY = CH / 2 - PH / 2;
                 updateScoreDisplay();
 
-                canvas.addEventListener('touchmove', onTouch, { passive: false });
+                screenGame.addEventListener('pointerdown', onPointer);
+                screenGame.addEventListener('pointermove', onPointer);
                 serveBall(Math.random() > 0.5 ? 1 : -1, true);
                 lastTimestamp = performance.now();
                 animId = requestAnimationFrame(loop);
@@ -4017,17 +4170,29 @@
                 running = false;
                 if (animId) cancelAnimationFrame(animId);
                 clearTimeout(countdownTimer);
-                if (canvas) canvas.removeEventListener('touchmove', onTouch);
+                screenGame.removeEventListener('pointerdown', onPointer);
+                screenGame.removeEventListener('pointermove', onPointer);
                 keyUp = false; keyDown = false;
             }
 
-            /* --- Touch --- */
-            function onTouch(e) {
-                e.preventDefault();
+            /* --- Toque / mouse: o dedo pode ficar em qualquer lugar da tela do jogo --- */
+            function onPointer(e) {
+                if (e.target.closest('button')) return;
+                if (e.cancelable) e.preventDefault();
                 const rect = canvas.getBoundingClientRect();
-                const ty = (e.touches[0].clientY - rect.top) * (CH / rect.height);
-                playerY = Math.max(0, Math.min(CH - PH, ty - PH / 2));
+                // em pé, a raquete anda na horizontal (eixo x da tela)
+                const pos = vertical
+                    ? (e.clientX - rect.left) * (CH / rect.width)
+                    : (e.clientY - rect.top) * (CH / rect.height);
+                playerY = Math.max(0, Math.min(CH - PH, pos - PH / 2));
             }
+
+            function alternarPausa() {
+                if (!running || gameOver) return;
+                paused = !paused;
+                pauseBtn.textContent = paused ? '▶' : 'II';
+            }
+            pauseBtn.addEventListener('click', alternarPausa);
 
             /* --- Ball serve --- */
             function serveBall(dir, immediate) {
@@ -4122,6 +4287,9 @@
 
             /* --- Draw --- */
             function draw() {
+                // em pé: gira o campo (x lógico vira o eixo vertical, você embaixo)
+                if (vertical) ctx.setTransform(0, -dpr, dpr, 0, 0, CW * dpr);
+                else ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
                 ctx.clearRect(0, 0, CW, CH);
                 ctx.fillStyle = '#0a0a0f';
                 ctx.fillRect(0, 0, CW, CH);
@@ -4140,15 +4308,18 @@
                 ctx.setLineDash([]);
 
                 if (paused) {
+                    // texto sempre "em pé", mesmo com o campo girado
+                    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                    const W = vertical ? CH : CW, H = vertical ? CW : CH;
                     ctx.fillStyle = 'rgba(10,10,15,0.75)';
-                    ctx.fillRect(0, 0, CW, CH);
+                    ctx.fillRect(0, 0, W, H);
                     ctx.fillStyle = '#c8f044';
                     ctx.font = '700 20px Syne, sans-serif';
                     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                    ctx.fillText('PAUSADO', CW / 2, CH / 2 - 14);
+                    ctx.fillText('PAUSADO', W / 2, H / 2 - 14);
                     ctx.fillStyle = '#6b6b80';
                     ctx.font = '400 10px DM Mono, monospace';
-                    ctx.fillText('ESPAÇO para continuar', CW / 2, CH / 2 + 12);
+                    ctx.fillText(ehToque.matches ? 'toque em ▶ para continuar' : 'ESPAÇO para continuar', W / 2, H / 2 + 12);
                     return;
                 }
 
@@ -4201,7 +4372,8 @@
                 saveStatus.textContent = '';
                 saveStatus.className = 'hack-save-status';
 
-                const elapsed = ((Date.now() - gameStartTime) / 1000).toFixed(0);
+                const elapsed = Math.max(1, Math.round((Date.now() - gameStartTime) / 1000));
+                ultimoTempo = elapsed;
                 const won = pScore >= WINNING;
 
                 const title = document.getElementById('resultTitle');
@@ -4667,7 +4839,7 @@
                 })();
 
                 const COMANDOS = {
-                    help: () => ['comandos: help, ls, cat <arquivo>, whoami, clear, exit', 'o comando secreto tem a ver com plantar...'],
+                    help: () => ['comandos: help, ls, cat <arquivo>, whoami, pong, clear, exit', 'o comando secreto tem a ver com plantar...'],
                     ls: () => ['projetos/   curriculo.pdf   segredo.txt   fazenda/'],
                     whoami: () => ['visitante (por enquanto)'],
                     sudo: () => [['boa tentativa.', 'erro']],
@@ -4685,6 +4857,13 @@
                     if (!cmd) return;
                     if (cmd === 'clear') { saida.innerHTML = ''; return; }
                     if (cmd === 'exit') { fechar(); return; }
+                    if (cmd === 'pong' && window.abrirPong) {
+                        await digitar('> iniciando PONG.EXE ...', 'ok', 25);
+                        await pausa(300);
+                        fechar();
+                        window.abrirPong();
+                        return;
+                    }
                     if (cmd === 'farm' || cmd === 'fazenda' || cmd === './farm') {
                         prompt.hidden = true;
                         await digitar('> ACESSO CONCEDIDO', 'ok', 40);
