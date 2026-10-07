@@ -122,21 +122,23 @@ create table if not exists public.fazenda_animais (
 );
 create index if not exists fazenda_animais_jogador_idx on public.fazenda_animais (jogador_id);
 
--- Fase 3: enfeites (aparecem em lugares fixos da fazenda)
-create table if not exists public.fazenda_enfeites_tipos (
+-- Fase 3: modo construir — itens que o jogador coloca em qualquer quadrado
+-- livre do terreno (mapa fixo de 22 x 13; ver fazenda_livre)
+create table if not exists public.fazenda_itens (
   id         text primary key,
   nome       text not null,
-  sprite     int  not null,              -- índice no atlas do Kenney
+  categoria  text not null check (categoria in ('caminho', 'natureza', 'objeto')),
   custo      int  not null,
   nivel_min  int  not null,
   ordem      int  not null default 0
 );
 
-create table if not exists public.fazenda_enfeites (
+create table if not exists public.fazenda_construcoes (
   jogador_id  uuid not null references public.fazenda_jogadores(id) on delete cascade,
-  slot        smallint not null check (slot between 0 and 7),
-  tipo        text not null references public.fazenda_enfeites_tipos(id),
-  primary key (jogador_id, slot)
+  x           smallint not null,
+  y           smallint not null,
+  tipo        text not null references public.fazenda_itens(id),
+  primary key (jogador_id, x, y)
 );
 
 -- Fase 3: missões diárias (3 por dia, geradas na primeira carga do dia)
@@ -162,14 +164,14 @@ alter table public.fazenda_celeiro        enable row level security;
 alter table public.fazenda_visitas        enable row level security;
 alter table public.fazenda_animais_tipos  enable row level security;
 alter table public.fazenda_animais        enable row level security;
-alter table public.fazenda_enfeites_tipos enable row level security;
-alter table public.fazenda_enfeites       enable row level security;
+alter table public.fazenda_itens          enable row level security;
+alter table public.fazenda_construcoes    enable row level security;
 alter table public.fazenda_missoes        enable row level security;
 
 revoke all on public.fazenda_culturas, public.fazenda_jogadores, public.fazenda_sessoes,
               public.fazenda_canteiros, public.fazenda_celeiro, public.fazenda_visitas,
               public.fazenda_animais_tipos, public.fazenda_animais,
-              public.fazenda_enfeites_tipos, public.fazenda_enfeites, public.fazenda_missoes
+              public.fazenda_itens, public.fazenda_construcoes, public.fazenda_missoes
   from anon, authenticated;
 
 -- ------------------------------------------------------------
@@ -213,20 +215,49 @@ on conflict (id) do update set
   produto = excluded.produto, tempo_seg = excluded.tempo_seg, racao = excluded.racao,
   racao_qtd = excluded.racao_qtd, ordem = excluded.ordem;
 
-insert into public.fazenda_enfeites_tipos (id, nome, sprite, custo, nivel_min, ordem) values
-  ('pedras',   'Pedras',            89,  30, 1, 1),
-  ('girassol', 'Girassol',          83,  40, 1, 2),
-  ('balde',    'Balde d''água',     73,  50, 1, 3),
-  ('arbusto',  'Arbusto',           39,  60, 1, 4),
-  ('barril',   'Barril',            85,  70, 2, 5),
-  ('feno',     'Fardo de feno',     96,  80, 2, 6),
-  ('amoreira', 'Amoreira',          78,  90, 3, 7),
-  ('pinheiro', 'Pinheiro',          15, 120, 3, 8),
-  ('caixote',  'Caixote de tomate', 47, 150, 4, 9),
-  ('bau',      'Baú',               76, 200, 5, 10)
+-- Itens do modo construir (a arte de cada um fica no cliente, em fazenda-arte.js)
+insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem) values
+  ('cerca',         'Cerca de madeira',    'caminho',    8, 1,  1),
+  ('caminho_terra', 'Caminho de terra',    'caminho',    4, 1,  2),
+  ('caminho_pedra', 'Caminho de pedras',   'caminho',    6, 1,  3),
+  ('flores',        'Flores',              'natureza',  15, 1, 10),
+  ('girassol',      'Girassol',            'natureza',  40, 1, 11),
+  ('arbusto',       'Arbusto',             'natureza',  30, 1, 12),
+  ('cogumelos',     'Cogumelos',           'natureza',  25, 1, 13),
+  ('arvore',        'Árvore',              'natureza',  60, 2, 14),
+  ('arvore_outono', 'Árvore de outono',    'natureza',  70, 2, 15),
+  ('pinheiro',      'Pinheiro',            'natureza',  80, 3, 16),
+  ('amoreira',      'Amoreira',            'natureza',  90, 3, 17),
+  ('pedras',        'Pedras',              'objeto',    20, 1, 20),
+  ('tora',          'Tora de madeira',     'objeto',    25, 1, 21),
+  ('placa',         'Placa',               'objeto',    20, 1, 22),
+  ('balde',         'Balde d''água',       'objeto',    30, 1, 23),
+  ('barril',        'Barril',              'objeto',    50, 2, 24),
+  ('feno',          'Fardo de feno',       'objeto',    60, 2, 25),
+  ('alvo',          'Alvo',                'objeto',    80, 3, 26),
+  ('caixote',       'Caixote de tomate',   'objeto',   100, 4, 27),
+  ('colmeia',       'Colmeia',             'objeto',   120, 4, 28),
+  ('bau',           'Baú',                 'objeto',   150, 5, 29),
+  ('boneco_neve',   'Boneco de neve',      'objeto',   150, 5, 30)
 on conflict (id) do update set
-  nome = excluded.nome, sprite = excluded.sprite, custo = excluded.custo,
+  nome = excluded.nome, categoria = excluded.categoria, custo = excluded.custo,
   nivel_min = excluded.nivel_min, ordem = excluded.ordem;
+
+-- Quem rodou a primeira versão da fase 3 tinha "enfeites" em 8 lugares fixos:
+-- eles viram construções numa fileira livre do mapa e as tabelas antigas saem.
+do $$
+begin
+  if to_regclass('public.fazenda_enfeites') is not null then
+    insert into public.fazenda_construcoes (jogador_id, x, y, tipo)
+    select e.jogador_id, 9 + e.slot, 9, e.tipo
+      from public.fazenda_enfeites e
+     where exists (select 1 from public.fazenda_itens i where i.id = e.tipo)
+    on conflict do nothing;
+    drop table public.fazenda_enfeites;
+  end if;
+  drop table if exists public.fazenda_enfeites_tipos;
+  drop function if exists public.fazenda_remover_enfeite(text, int);
+end $$;
 
 -- ------------------------------------------------------------
 -- Funções internas (não expostas à API)
@@ -397,11 +428,11 @@ begin
         from fazenda_animais where jogador_id = p_jogador), '[]'::jsonb),
     'animais_tipos', (
       select jsonb_agg(to_jsonb(t) order by t.ordem) from fazenda_animais_tipos t),
-    'enfeites', coalesce((
-      select jsonb_agg(jsonb_build_object('slot', slot, 'tipo', tipo) order by slot)
-        from fazenda_enfeites where jogador_id = p_jogador), '[]'::jsonb),
-    'enfeites_tipos', (
-      select jsonb_agg(to_jsonb(t) order by t.ordem) from fazenda_enfeites_tipos t),
+    'construcoes', coalesce((
+      select jsonb_agg(jsonb_build_object('x', x, 'y', y, 'tipo', tipo))
+        from fazenda_construcoes where jogador_id = p_jogador), '[]'::jsonb),
+    'itens', (
+      select jsonb_agg(to_jsonb(t) order by t.ordem) from fazenda_itens t),
     'missoes', coalesce((
       select jsonb_agg(jsonb_build_object(
                'slot', slot, 'tipo', tipo, 'alvo', alvo, 'progresso', progresso,
@@ -744,9 +775,9 @@ begin
     'animais', coalesce((
       select jsonb_agg(jsonb_build_object('id', id, 'tipo', tipo, 'alimentado_em', alimentado_em) order by id)
         from fazenda_animais where jogador_id = p_dono), '[]'::jsonb),
-    'enfeites', coalesce((
-      select jsonb_agg(jsonb_build_object('slot', slot, 'tipo', tipo) order by slot)
-        from fazenda_enfeites where jogador_id = p_dono), '[]'::jsonb)
+    'construcoes', coalesce((
+      select jsonb_agg(jsonb_build_object('x', x, 'y', y, 'tipo', tipo))
+        from fazenda_construcoes where jogador_id = p_dono), '[]'::jsonb)
   );
 end;
 $$;
@@ -1098,7 +1129,7 @@ begin
 end;
 $$;
 
--- p_categoria: animal | enfeite
+-- p_categoria: animal (as construções têm funções próprias, logo abaixo)
 create or replace function public.fazenda_comprar(p_token text, p_categoria text, p_tipo text)
 returns jsonb
 language plpgsql security definer
@@ -1108,8 +1139,6 @@ declare
   v_id    uuid := fazenda_auth(p_token);
   j       record;
   a       record;
-  e       record;
-  v_slot  int;
 begin
   select * into j from fazenda_jogadores where id = v_id for update;
 
@@ -1123,17 +1152,6 @@ begin
     if j.moedas < a.custo then raise exception 'moedas_insuficientes'; end if;
     update fazenda_jogadores set moedas = moedas - a.custo where id = v_id;
     insert into fazenda_animais (jogador_id, tipo) values (v_id, a.id);
-
-  elsif p_categoria = 'enfeite' then
-    select * into e from fazenda_enfeites_tipos where id = p_tipo;
-    if not found then raise exception 'item_invalido'; end if;
-    if fazenda_nivel(j.xp) < e.nivel_min then raise exception 'nivel_insuficiente'; end if;
-    select min(g) into v_slot from generate_series(0, 7) g
-     where not exists (select 1 from fazenda_enfeites where jogador_id = v_id and slot = g);
-    if v_slot is null then raise exception 'sem_espaco'; end if;
-    if j.moedas < e.custo then raise exception 'moedas_insuficientes'; end if;
-    update fazenda_jogadores set moedas = moedas - e.custo where id = v_id;
-    insert into fazenda_enfeites (jogador_id, slot, tipo) values (v_id, v_slot, e.id);
 
   else
     raise exception 'item_invalido';
@@ -1175,23 +1193,88 @@ begin
 end;
 $$;
 
--- Tira um enfeite e devolve metade do preço
-create or replace function public.fazenda_remover_enfeite(p_token text, p_slot int)
+/* ---------- Modo construir ----------
+   O terreno é um mapa fixo de 22 x 13 quadrados. Áreas reservadas
+   (precisam bater com MAPA em assets/fazenda/fazenda-arte.js):
+     celeiro x1..3 y1..6 · casa x5..7 y1..3 · galinheiro x0..6 y7..8
+     campo x9..14 y3..6 · pasto x16..21 y0..6 */
+create or replace function public.fazenda_livre(p_x int, p_y int)
+returns boolean language sql immutable as $$
+  select p_x between 0 and 21 and p_y between 0 and 12
+     and not (p_x between 1 and 3  and p_y between 1 and 6)
+     and not (p_x between 5 and 7  and p_y between 1 and 3)
+     and not (p_x between 0 and 6  and p_y between 7 and 8)
+     and not (p_x between 9 and 14 and p_y between 3 and 6)
+     and not (p_x between 16 and 21 and p_y between 0 and 6);
+$$;
+
+-- Compra um item e coloca no quadrado (x, y)
+create or replace function public.fazenda_construir(p_token text, p_tipo text, p_x int, p_y int)
 returns jsonb
 language plpgsql security definer
 set search_path = public, extensions
 as $$
 declare
-  v_id    uuid := fazenda_auth(p_token);
-  v_tipo  text;
+  v_id uuid := fazenda_auth(p_token);
+  j    record;
+  i    record;
 begin
-  delete from fazenda_enfeites where jogador_id = v_id and slot = p_slot
+  select * into j from fazenda_jogadores where id = v_id for update;
+  select * into i from fazenda_itens where id = p_tipo;
+  if not found then raise exception 'item_invalido'; end if;
+  if fazenda_nivel(j.xp) < i.nivel_min then raise exception 'nivel_insuficiente'; end if;
+  if not fazenda_livre(p_x, p_y) then raise exception 'lugar_reservado'; end if;
+  if exists (select 1 from fazenda_construcoes where jogador_id = v_id and x = p_x and y = p_y) then
+    raise exception 'lugar_ocupado';
+  end if;
+  if (select count(*) from fazenda_construcoes where jogador_id = v_id) >= 200 then
+    raise exception 'limite_construcoes';
+  end if;
+  if j.moedas < i.custo then raise exception 'moedas_insuficientes'; end if;
+  update fazenda_jogadores set moedas = moedas - i.custo where id = v_id;
+  insert into fazenda_construcoes (jogador_id, x, y, tipo) values (v_id, p_x, p_y, i.id);
+  return jsonb_build_object('estado', fazenda_estado(v_id));
+end;
+$$;
+
+-- Leva uma construção de (x, y) para (nx, ny)
+create or replace function public.fazenda_mover(p_token text, p_x int, p_y int, p_nx int, p_ny int)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id uuid := fazenda_auth(p_token);
+begin
+  if not fazenda_livre(p_nx, p_ny) then raise exception 'lugar_reservado'; end if;
+  if exists (select 1 from fazenda_construcoes where jogador_id = v_id and x = p_nx and y = p_ny) then
+    raise exception 'lugar_ocupado';
+  end if;
+  update fazenda_construcoes set x = p_nx, y = p_ny
+   where jogador_id = v_id and x = p_x and y = p_y;
+  if not found then raise exception 'item_invalido'; end if;
+  return jsonb_build_object('estado', fazenda_estado(v_id));
+end;
+$$;
+
+-- Tira uma construção e devolve metade do preço
+create or replace function public.fazenda_demolir(p_token text, p_x int, p_y int)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id   uuid := fazenda_auth(p_token);
+  v_tipo text;
+begin
+  delete from fazenda_construcoes where jogador_id = v_id and x = p_x and y = p_y
   returning tipo into v_tipo;
   if v_tipo is null then raise exception 'item_invalido'; end if;
   update fazenda_jogadores
-     set moedas = moedas + (select custo / 2 from fazenda_enfeites_tipos where id = v_tipo)
+     set moedas = moedas + (select custo / 2 from fazenda_itens where id = v_tipo)
    where id = v_id;
-  return jsonb_build_object('estado', fazenda_estado(v_id));
+  return jsonb_build_object('devolvido', (select custo / 2 from fazenda_itens where id = v_tipo),
+                            'estado', fazenda_estado(v_id));
 end;
 $$;
 
@@ -1246,8 +1329,11 @@ revoke execute on function
   public.fazenda_animal_um(uuid, bigint, text),
   public.fazenda_comprar(text, text, text),
   public.fazenda_animal(text, text, bigint[]),
-  public.fazenda_remover_enfeite(text, int),
-  public.fazenda_resgatar_missao(text, int)
+  public.fazenda_resgatar_missao(text, int),
+  public.fazenda_livre(int, int),
+  public.fazenda_construir(text, text, int, int),
+  public.fazenda_mover(text, int, int, int, int),
+  public.fazenda_demolir(text, int, int)
 from public, anon, authenticated;
 
 grant execute on function
@@ -1261,6 +1347,8 @@ grant execute on function
   public.fazenda_acao_vizinho(text, uuid, text, int[]),
   public.fazenda_comprar(text, text, text),
   public.fazenda_animal(text, text, bigint[]),
-  public.fazenda_remover_enfeite(text, int),
-  public.fazenda_resgatar_missao(text, int)
+  public.fazenda_resgatar_missao(text, int),
+  public.fazenda_construir(text, text, int, int),
+  public.fazenda_mover(text, int, int, int, int),
+  public.fazenda_demolir(text, int, int)
 to anon, authenticated;

@@ -979,3 +979,142 @@ button.item:hover {
     background: #ffd9cf;
     color: var(--vermelho);
 }
+
+/* ---------- Modo construir ---------- */
+.botao.amarelo {
+    background: var(--ouro);
+    box-shadow:
+        0 calc(var(--px) * -1) 0 0 var(--o),
+        0 var(--px) 0 0 var(--o),
+        calc(var(--px) * -1) 0 0 0 var(--o),
+        var(--px) 0 0 0 var(--o),
+        inset 0 calc(var(--px) * -1) 0 0 var(--laranja),
+        inset 0 var(--px) 0 0 #ffe29a,
+        0 calc(var(--px) * 2) 0 0 var(--o);
+}
+
+.px-alto {
+    display: inline-flex;
+    flex-direction: column;
+    vertical-align: middle;
+    flex-shrink: 0;
+}
+
+.barra-constr {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: max(12px, env(safe-area-inset-bottom));
+    z-index: 25;
+    padding: 10px 12px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background: var(--creme);
+}
+
+.constr-topo {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.constr-abas {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.constr-abas button {
+    border: 0;
+    padding: 5px 10px;
+    font-weight: 800;
+    font-size: 13px;
+    color: var(--texto-suave);
+    background: var(--creme-2);
+    box-shadow: 0 -2px 0 var(--o), 0 2px 0 var(--o), -2px 0 0 var(--o), 2px 0 0 var(--o);
+}
+
+.constr-abas button.ativa {
+    color: var(--o);
+    background: var(--creme-luz);
+    box-shadow: 0 -2px 0 var(--o), 0 2px 0 var(--o), -2px 0 0 var(--o), 2px 0 0 var(--o), inset 0 -3px 0 var(--ouro);
+}
+
+.constr-ferramentas {
+    display: flex;
+    gap: 12px;
+}
+
+.constr-ferramentas .botao.ativa {
+    background: #fff1c4;
+    box-shadow:
+        0 calc(var(--px) * -1) 0 0 var(--o),
+        0 var(--px) 0 0 var(--o),
+        calc(var(--px) * -1) 0 0 0 var(--o),
+        var(--px) 0 0 0 var(--o),
+        inset 0 calc(var(--px) * -1) 0 0 var(--ouro),
+        0 0 0 4px var(--ouro);
+}
+
+.paleta {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    padding: 4px 4px 6px;
+    scrollbar-color: var(--madeira-esc) var(--creme-2);
+}
+
+.paleta-item {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 2px;
+    min-width: 54px;
+    height: 62px;
+    padding: 4px 6px;
+    border: 0;
+    background: var(--creme-luz);
+    font-size: 11px;
+    box-shadow: 0 -2px 0 var(--o), 0 2px 0 var(--o), -2px 0 0 var(--o), 2px 0 0 var(--o), inset 0 -3px 0 var(--creme-2);
+}
+
+.paleta-item small {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    font-weight: 800;
+}
+
+.paleta-item.selecionado {
+    background: #effbd9;
+    box-shadow: 0 -2px 0 var(--o), 0 2px 0 var(--o), -2px 0 0 var(--o), 2px 0 0 var(--o), inset 0 -3px 0 var(--grama), 0 0 0 4px var(--grama);
+}
+
+.paleta-item.travado {
+    opacity: .5;
+}
+
+body.construindo .status {
+    bottom: 150px;
+}
+
+@media (max-width: 760px) {
+    .barra-constr {
+        left: 8px;
+        right: 8px;
+    }
+
+    .constr-ferramentas {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    body.construindo .status {
+        bottom: 168px;
+    }
+}
