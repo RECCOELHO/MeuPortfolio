@@ -186,6 +186,7 @@
     }
 
     const ARQUIVOS = { farm: 'tiny-farm.png', town: 'tiny-town.png', ski: 'tiny-ski.png' };
+    const VERSAO_ARTE = '1';   // troque se as imagens dos pacotes mudarem (cache de 4 h do Cloudflare)
     function htmlTile(i, px = 32, pacote = 'farm') {
         const c = i % COLS, l = Math.floor(i / COLS);
         const img = pacote === 'farm' ? '' : `background-image:url('assets/fazenda/${ARQUIVOS[pacote]}');`;
@@ -209,7 +210,7 @@
             atlasPronto = Promise.all(Object.entries(atlas).map(([p, img]) => new Promise((ok, erro) => {
                 img.onload = ok;
                 img.onerror = () => erro(new Error('Não deu para carregar a arte da fazenda.'));
-                img.src = 'assets/fazenda/' + ARQUIVOS[p];
+                img.src = 'assets/fazenda/' + ARQUIVOS[p] + '?v=' + VERSAO_ARTE;
             })));
         }
         return atlasPronto;
