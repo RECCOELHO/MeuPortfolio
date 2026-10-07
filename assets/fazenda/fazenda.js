@@ -22,7 +22,10 @@
     const POLL_MS = 30000;
 
     /* ---------- Armazenamento local (protegido) ---------- */
-    const LS = { token: 'fazenda_token', codigo: 'fazenda_codigo', semente: 'fazenda_semente', diarioVisto: 'fazenda_diario_visto' };
+    const LS = {
+        token: 'fazenda_token', codigo: 'fazenda_codigo', semente: 'fazenda_semente',
+        diarioVisto: 'fazenda_diario_visto', mudo: 'fazenda_mudo', tutorial: 'fazenda_tutorial'
+    };
     const store = {
         get(k) { try { return localStorage.getItem(k); } catch { return null; } },
         set(k, v) { try { localStorage.setItem(k, v); } catch { /* ignora */ } },
@@ -117,6 +120,49 @@
 
     document.querySelectorAll('[data-spr]').forEach((s) => { s.outerHTML = spr(Number(s.dataset.spr), Number(s.dataset.px) || 32, s.dataset.pack || 'farm'); });
     document.querySelectorAll('[data-ico]').forEach((s) => { s.outerHTML = ico(s.dataset.ico, Number(s.dataset.px) || 18); });
+
+    /* ---------- Sons 8-bit (sintetizados na hora, sem arquivos) ---------- */
+    const som = (() => {
+        let ctx = null;
+        let mudo = store.get(LS.mudo) === '1';
+        function audio() {
+            if (!ctx) {
+                const C = window.AudioContext || window.webkitAudioContext;
+                if (!C) return null;
+                ctx = new C();
+            }
+            if (ctx.state === 'suspended') ctx.resume();
+            return ctx;
+        }
+        function nota(freq, ini, dur, tipo = 'square', vol = 0.05) {
+            const c = audio();
+            if (!c) return;
+            const o = c.createOscillator(), g = c.createGain(), t = c.currentTime + ini;
+            o.type = tipo;
+            o.frequency.setValueAtTime(freq, t);
+            g.gain.setValueAtTime(vol, t);
+            g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+            o.connect(g).connect(c.destination);
+            o.start(t);
+            o.stop(t + dur + 0.02);
+        }
+        const SONS = {
+            arar: () => { nota(180, 0, 0.08, 'triangle', 0.09); nota(130, 0.06, 0.09, 'triangle', 0.07); },
+            plantar: () => { nota(523, 0, 0.07); nota(784, 0.06, 0.1); },
+            colher: () => { nota(523, 0, 0.06); nota(659, 0.06, 0.06); nota(784, 0.12, 0.12); },
+            cuidar: () => { nota(880, 0, 0.06, 'triangle', 0.07); nota(1175, 0.05, 0.08, 'triangle', 0.06); },
+            moeda: () => { nota(988, 0, 0.06); nota(1319, 0.06, 0.16); },
+            construir: () => { nota(220, 0, 0.05, 'square', 0.05); nota(330, 0.05, 0.07, 'square', 0.05); },
+            erro: () => { nota(170, 0, 0.12, 'sawtooth', 0.035); nota(120, 0.1, 0.16, 'sawtooth', 0.035); },
+            festa: () => { [523, 659, 784, 1047].forEach((f, n) => nota(f, n * 0.09, 0.14)); }
+        };
+        return {
+            tocar(nome) { if (!mudo && SONS[nome]) { try { SONS[nome](); } catch { /* sem áudio */ } } },
+            alternar() { mudo = !mudo; store.set(LS.mudo, mudo ? '1' : '0'); return mudo; },
+            get mudo() { return mudo; }
+        };
+    })();
+    const SOM_DA_ACAO = { arar: 'arar', plantar: 'plantar', colher: 'colher', erva: 'cuidar', praga: 'cuidar', seco: 'cuidar' };
 
     /* ---------- Estado ---------- */
     let token = store.get(LS.token);
@@ -317,7 +363,25 @@
         if (dentro(pasto)) return 'o pasto';
         return 'fora do terreno';
     };
-    const construcaoEm = (x, y) => (S.construcoes || []).find((c) => c.x === x && c.y === y);
+    const tamanhoItem = (tipo) => {
+        const it = tipoItem(tipo);
+        return { w: (it && it.largura) || 1, h: (it && it.altura) || 1 };
+    };
+    // construção que ocupa o quadrado (x, y) — casas ocupam 3x3 a partir do canto
+    const construcaoEm = (x, y) => (S.construcoes || []).find((c) => {
+        const t = tamanhoItem(c.tipo);
+        return x >= c.x && y >= c.y && x < c.x + t.w && y < c.y + t.h;
+    });
+    function cabeAqui(x, y, w, h, ignorar) {
+        for (let dy = 0; dy < h; dy++) {
+            for (let dx = 0; dx < w; dx++) {
+                if (!A.livre(x + dx, y + dy)) return false;
+                const o = construcaoEm(x + dx, y + dy);
+                if (o && o !== ignorar) return false;
+            }
+        }
+        return true;
+    }
 
     function descreverTile(x, y) {
         if (!A.livre(x, y)) return mostrarStatus(`${ico('cadeado', 12)} Aqui fica ${NOME_AREA(x, y)}: não dá para construir.`);
@@ -362,7 +426,7 @@
 
     function desenharPaleta() {
         if (!S || !S.itens) return;
-        const abas = [['caminho', 'Cercas e caminhos'], ['natureza', 'Natureza'], ['objeto', 'Objetos']];
+        const abas = [['caminho', 'Cercas e caminhos'], ['natureza', 'Natureza'], ['objeto', 'Objetos'], ['construcao', 'Casas']];
         el.constrAbas.innerHTML = abas.map(([id, txt]) =>
             `<button type="button" data-constr-aba="${id}" class="${constr.aba === id ? 'ativa' : ''}">${txt}</button>`).join('');
         el.constrItens.innerHTML = S.itens.filter((i) => i.categoria === constr.aba).map((i) => {
@@ -396,13 +460,17 @@
         if (constr.modo === 'colocar') {
             const it = tipoItem(constr.tipo);
             if (!it) return toast('Escolha um item na barra de baixo.');
-            if (ocupado) return toast(ERROS.lugar_ocupado, 'erro');
+            const tam = tamanhoItem(it.id);
+            if (!cabeAqui(x, y, tam.w, tam.h)) {
+                return toast(tam.w > 1 ? `Não cabe aqui: ${esc(it.nome.toLowerCase())} precisa de ${tam.w}×${tam.h} quadrados livres.` : ERROS.lugar_ocupado, 'erro');
+            }
             if (it.nivel_min > S.jogador.nivel) return toast(`${esc(it.nome)} libera no nível ${it.nivel_min}.`);
             if (S.jogador.moedas < it.custo) return toast(ERROS.moedas_insuficientes, 'erro');
             // aparece na hora; o servidor confirma em seguida
             S.construcoes.push({ x, y, tipo: it.id });
             S.jogador.moedas -= it.custo;
             desenharHud();
+            som.tocar('construir');
             flutuarTile(x, y, `−${it.custo} ${ico('moeda', 16)}`);
             enfileirar([], async () => {
                 const r = await rpc('fazenda_construir', { p_token: token, p_tipo: it.id, p_x: x, p_y: y });
@@ -411,7 +479,7 @@
         } else if (constr.modo === 'mover') {
             if (!constr.movendo) {
                 if (!ocupado) return toast('Toque num item para mover.');
-                constr.movendo = { x, y };
+                constr.movendo = { x: ocupado.x, y: ocupado.y, tipo: ocupado.tipo, ...tamanhoItem(ocupado.tipo) };
                 atualizarModo();
                 return mostrarStatus('Agora toque no lugar novo.');
             }
@@ -419,19 +487,22 @@
             constr.movendo = null;
             atualizarModo();
             if (de.x === x && de.y === y) return;
-            if (ocupado) return toast(ERROS.lugar_ocupado, 'erro');
             const c = construcaoEm(de.x, de.y);
+            if (!cabeAqui(x, y, de.w, de.h, c)) return toast(ERROS.lugar_ocupado, 'erro');
             if (c) { c.x = x; c.y = y; }
+            som.tocar('construir');
             enfileirar([], async () => {
                 const r = await rpc('fazenda_mover', { p_token: token, p_x: de.x, p_y: de.y, p_nx: x, p_ny: y });
                 aplicarEstado(r.estado);
             });
         } else if (constr.modo === 'guardar') {
             if (!ocupado) return;
+            const ax = ocupado.x, ay = ocupado.y;
             S.construcoes = S.construcoes.filter((c) => c !== ocupado);
             enfileirar([], async () => {
-                const r = await rpc('fazenda_demolir', { p_token: token, p_x: x, p_y: y });
-                flutuarTile(x, y, `+${r.devolvido} ${ico('moeda', 16)}`);
+                const r = await rpc('fazenda_demolir', { p_token: token, p_x: ax, p_y: ay });
+                flutuarTile(ax, ay, `+${r.devolvido} ${ico('moeda', 16)}`);
+                som.tocar('moeda');
                 aplicarEstado(r.estado);
             });
         }
@@ -561,6 +632,7 @@
         ids.forEach((id) => { antes[id] = S.animais.find((x) => x.id === id); });
         return enfileirar([], async () => {
             const r = await rpc('fazenda_animal', { p_token: token, p_acao: acao, p_ids: ids });
+            if (r.feitos) som.tocar(acao === 'coletar' ? 'colher' : 'cuidar');
             ids.forEach((id, n) => {
                 const a = antes[id], t = a && tipoAnimal(a.tipo);
                 if (!t) return;
@@ -597,6 +669,16 @@
         for (const k of estado.culturas) culturas[k.id] = k;
         if (!culturas[semente]) semente = 'alface';
 
+        if (antes && antes.conquistas && estado.conquistas) {
+            const velhas = new Set(antes.conquistas.map((c) => c.id));
+            estado.conquistas.filter((c) => !velhas.has(c.id)).forEach((c) => {
+                const t = (estado.conquistas_tipos || []).find((x) => x.id === c.id);
+                if (!t) return;
+                toast(`${ico('medalha', 22)} Conquista: <b>${esc(t.nome)}</b>! +${moeda(t.recompensa)}`, 'festa');
+                som.tocar('festa');
+            });
+        }
+        if (antes && estado.jogador.nivel > antes.jogador.nivel) som.tocar('festa');
         if (antes && estado.jogador.nivel > antes.jogador.nivel) {
             const novas = estado.culturas.filter((k) => k.nivel_min > antes.jogador.nivel && k.nivel_min <= estado.jogador.nivel);
             let msg = `${ico('xp', 20)} Nível ${estado.jogador.nivel}!`;
@@ -643,6 +725,7 @@
     /* ---------- Feedback visual ---------- */
     // html: monte com esc() em qualquer texto vindo de jogadores ou do servidor
     function toast(html, tipo) {
+        if (tipo === 'erro') som.tocar('erro');
         const t = document.createElement('div');
         t.className = 'toast' + (tipo === 'erro' ? ' erro-t' : tipo === 'festa' ? ' festa' : '');
         t.innerHTML = html;
@@ -748,7 +831,9 @@
                 const feitos = posicoes.length === 1 ? posicoes : posicoes.filter((p) => !mesmoEstado(p, r.estado));
                 feitos.forEach((p, n) => flutuar(p, fb, n * 60));
             }
+            if (r.feitos > 0 || Object.keys(r.colhido || {}).length) som.tocar(SOM_DA_ACAO[acao]);
             aplicarEstado(r.estado);
+            tutorialEvento(acao);
             if (posicoes.length > 1) resumoMassa(acao, r, k);
             else descrever(posicoes[0]);
             return r;
@@ -875,6 +960,7 @@
             const r = await rpc('fazenda_acao_vizinho', {
                 p_token: token, p_vizinho: dono, p_acao: acao, p_posicoes: posicoes
             });
+            if (r.feitos) som.tocar(acao === 'pegar' ? 'colher' : 'cuidar');
             Object.entries(r.resultado).forEach(([pos, qtd], n) => {
                 const c = canteiro(Number(pos));
                 const k = c && culturas[c.cultura];
@@ -925,6 +1011,7 @@
         painelAtual = nome;
         const corpo = el.painelCorpo;
         if (nome === 'loja') {
+            if (!soAtualizar) tutorialEvento('loja');
             el.painelTitulo.innerHTML = `${spr(9, 32)} Loja`;
             const abas = `<div class="painel-abas" role="tablist">
                 ${[['sementes', 'Sementes'], ['animais', 'Animais']].map(([id, txt]) =>
@@ -957,10 +1044,16 @@
                     </div>`;
             }
         } else if (nome === 'conta') {
-            el.painelTitulo.innerHTML = boasVindas ? `${spr(83, 32)} Bem-vindo(a) à fazenda!` : `${spr(76, 32)} Sua fazenda`;
+            el.painelTitulo.innerHTML = boasVindas ? `${spr(83, 32)} Bem-vindo(a) à fazenda!` : `${spr(109, 32)} Perfil`;
             const codigo = store.get(LS.codigo);
+            const minhas = (S.conquistas || []).map((c) => c.id);
             corpo.innerHTML = `
-                <p>Fazendeiro(a): <b>${esc(S.jogador.apelido)}</b> · Nível ${S.jogador.nivel}</p>
+                <p>Fazendeiro(a): <b>${esc(S.jogador.apelido)}</b> · Nível ${S.jogador.nivel}${S.criado_em ? ` · desde ${desde(S.criado_em)}` : ''}</p>
+                ${boasVindas ? '' : `
+                <h3 class="secao-titulo">Conquistas (${minhas.length}/${(S.conquistas_tipos || []).length})</h3>
+                ${htmlConquistas(minhas)}
+                <h3 class="secao-titulo">Seus números</h3>
+                ${htmlEstatisticas(S.estatisticas)}`}
                 <h3 class="secao-titulo">Código de recuperação</h3>
                 ${codigo ? `<div class="codigo-box"><code>${esc(codigo)}</code><button type="button" class="botao pequeno creme" data-copiar>Copiar</button></div>` : '<p class="aviso">O código não está salvo neste aparelho. Se você anotou, ele continua valendo.</p>'}
                 <p class="aviso">Guarde esse código: é o único jeito de abrir sua fazenda em outro aparelho ou se o navegador for limpo.</p>
@@ -971,7 +1064,7 @@
                     <li>Aparecem ${ico('erva', 14)} ervas, ${ico('praga', 14)} pragas e ${ico('seco', 12)} seca: cada problema deixado custa 1 item na colheita.</li>
                     <li>Depois de madura, a planta <b>murcha</b> se ficar tempo demais sem colher.</li>
                     <li>Toque no <b>celeiro</b> para vender a colheita, compre sementes melhores e suba de nível para ganhar canteiros.</li>
-                    <li>Na loja tem <b>animais</b>: dê ração (sai do celeiro) e colete ovos e leite. </li>
+                    <li>Na loja tem <b>animais</b>: dê ração (sai do celeiro) e colete ovos, leite e lã.</li>
                     <li>No botão <b>Construir</b> você coloca cercas, caminhos, árvores, flores e objetos onde quiser. Toque em <b>Pronto</b> para fechar.</li>
                     <li>Cumpra as <b>missões do dia</b> para ganhar moedas e XP extras.</li>
                     <li>Em <b>Vizinhos</b> você visita outras fazendas: <b>pega</b> um pouco da colheita madura ou <b>ajuda</b> com os problemas e ganha XP.</li>
@@ -979,9 +1072,20 @@
                 <div class="rodape-painel">
                     ${boasVindas
                         ? '<span></span><button type="button" class="botao verde" data-fechar>Começar a jogar</button>'
-                        : `<a class="botao creme" href="indexversao2.html">Voltar ao portfólio</a>
+                        : `<button type="button" class="botao creme" data-tutorial>Ver o tutorial</button>
+                    <button type="button" class="botao creme" data-som>${som.mudo ? 'Ligar sons' : 'Desligar sons'}</button>
+                    <a class="botao creme" href="indexversao2.html">Voltar ao portfólio</a>
                     <button type="button" class="botao vermelho" data-sair>Sair desta fazenda</button>`}
                 </div>`;
+        } else if (nome === 'perfilVizinho' && visita) {
+            const p = visita.perfil || {};
+            el.painelTitulo.innerHTML = `${spr(108, 32)} ${esc(visita.apelido)}`;
+            corpo.innerHTML = `
+                <p>Nível <b>${visita.nivel}</b>${p.criado_em ? ` · fazendeiro(a) desde ${desde(p.criado_em)}` : ''}</p>
+                <h3 class="secao-titulo">Conquistas (${(p.conquistas || []).length}/${(S.conquistas_tipos || []).length})</h3>
+                ${htmlConquistas(p.conquistas || [])}
+                <h3 class="secao-titulo">Números</h3>
+                ${htmlEstatisticas(p.estatisticas)}`;
         } else if (nome === 'vizinhos') {
             el.painelTitulo.innerHTML = `${spr(108, 32)} Vizinhos`;
             const novos = diarioNovos().length;
@@ -1002,6 +1106,33 @@
             el.painelFechar.focus();
         }
     }
+
+    /* ---- perfil: conquistas e números ---- */
+    function htmlConquistas(obtidas) {
+        const tipos = (S && S.conquistas_tipos) || [];
+        if (!tipos.length) return '<p class="det">As conquistas aparecem quando o banco estiver atualizado.</p>';
+        // as já obtidas aparecem primeiro
+        const ordenadas = [...tipos].sort((a, b) => obtidas.includes(b.id) - obtidas.includes(a.id));
+        return '<div class="medalhas">' + ordenadas.map((t) => {
+            const ok = obtidas.includes(t.id);
+            return `<div class="medalha${ok ? '' : ' trancada'}">
+                ${ico(ok ? 'medalha' : 'medalha_off', 24)}
+                <span><b>${esc(t.nome)}</b><small>${esc(t.descricao)}${ok ? '' : ` · prêmio ${moeda(t.recompensa)}`}</small></span>
+            </div>`;
+        }).join('') + '</div>';
+    }
+
+    function htmlEstatisticas(e) {
+        e = e || {};
+        const linhas = [
+            ['colher', 'itens colhidos'], ['plantar', 'sementes plantadas'], ['cuidar', 'problemas resolvidos'],
+            ['vender', 'moedas em vendas'], ['animal', 'produtos dos animais'], ['ajudar', 'ajudas a vizinhos'],
+            ['pegar', 'itens pegos de vizinhos']
+        ];
+        return '<div class="estatisticas">' + linhas.map(([k, txt]) => `<div><b>${e[k] || 0}</b><span>${txt}</span></div>`).join('') + '</div>';
+    }
+
+    const desde = (iso) => iso ? new Date(iso).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }) : '';
 
     /* ---- conteúdo da loja e das missões ---- */
     function htmlLojaSementes() {
@@ -1145,7 +1276,7 @@
             const item = vend.dataset.vender === '*' ? null : vend.dataset.vender;
             enfileirar([], async () => {
                 const r = await rpc('fazenda_vender', { p_token: token, p_item: item, p_quantidade: null });
-                if (r.ganho > 0) toast(`Vendeu por ${ico('moeda', 16)} ${r.ganho}!`);
+                if (r.ganho > 0) { toast(`Vendeu por ${ico('moeda', 16)} ${r.ganho}!`); som.tocar('moeda'); tutorialEvento('vender'); }
                 aplicarEstado(r.estado);
             }).finally(() => { vend.disabled = false; });
             return;
@@ -1176,6 +1307,7 @@
                 const r = await rpc('fazenda_resgatar_missao', { p_token: token, p_slot: Number(resg.dataset.resgatar) });
                 aplicarEstado(r.estado);
                 toast(`Missão cumprida! +${moeda(r.moedas)} +${r.xp} ${ico('xp', 16)}`, 'festa');
+                som.tocar('festa');
                 if (painelAtual === 'missoes') abrirPainel('missoes', true);
             });
             return;
@@ -1193,6 +1325,19 @@
         }
         if (e.target.closest('[data-fechar]')) {
             fecharPainel();
+            if (store.get(LS.tutorial) === null) iniciarTutorial();
+            return;
+        }
+        if (e.target.closest('[data-tutorial]')) {
+            fecharPainel();
+            iniciarTutorial();
+            return;
+        }
+        const bSom = e.target.closest('[data-som]');
+        if (bSom) {
+            som.alternar();
+            bSom.textContent = som.mudo ? 'Ligar sons' : 'Desligar sons';
+            atualizarBotaoSom();
             return;
         }
         if (e.target.closest('[data-copiar]')) {
@@ -1225,6 +1370,54 @@
     document.querySelectorAll('[data-massa]').forEach((b) => b.addEventListener('click', () => acaoEmMassa(b.dataset.massa)));
     document.querySelectorAll('[data-visita]').forEach((b) => b.addEventListener('click', () => acaoVisitaEmMassa(b.dataset.visita)));
     el.btnVoltarCasa.addEventListener('click', voltarCasa);
+    $('btnPerfilVizinho').addEventListener('click', () => { if (visita) abrirPainel('perfilVizinho'); });
+
+    /* ---------- botão de som no topo ---------- */
+    const btnSom = $('btnSom');
+    function atualizarBotaoSom() {
+        btnSom.innerHTML = ico(som.mudo ? 'mudo' : 'som', 22);
+        btnSom.setAttribute('aria-label', som.mudo ? 'Ligar sons' : 'Desligar sons');
+    }
+    btnSom.addEventListener('click', () => { som.alternar(); atualizarBotaoSom(); som.tocar('moeda'); });
+    atualizarBotaoSom();
+
+    /* ---------- tutorial (primeira vez na fazenda) ---------- */
+    const TUTORIAL = [
+        { texto: 'Bem-vindo(a)! Toque num canteiro de <b>terra escura</b> (já arado) para plantar alface.', ate: ['plantar'] },
+        { texto: 'Plantou! A alface fica pronta em 2 minutos, mesmo com a página fechada. Enquanto isso, espie a <b>Loja</b> lá em cima.', ate: ['loja', 'colher'] },
+        { texto: 'Quando a planta brilhar, toque nela para <b>colher</b>. Apareceu erva, praga ou seca? Toque para resolver antes.', ate: ['colher'] },
+        { texto: 'Colheu! Agora toque no <b>celeiro</b> (o prédio vermelho) e venda a colheita para ganhar moedas.', ate: ['vender'] },
+        { texto: 'Mandou bem! Cumpra as <b>Missões</b> do dia, compre animais na Loja e use <b>Construir</b> para deixar a fazenda do seu jeito.', ate: [] }
+    ];
+    let passoTutorial = -1;
+    const elTut = $('tutorial');
+    function mostrarPasso() {
+        const p = TUTORIAL[passoTutorial];
+        if (!p) return encerrarTutorial();
+        elTut.hidden = false;
+        elTut.style.top = (el.hud.getBoundingClientRect().bottom + 8) + 'px';   // logo abaixo do topo
+        $('tutTexto').innerHTML = `<small>Passo ${passoTutorial + 1} de ${TUTORIAL.length}</small>${p.texto}`;
+        $('tutProximo').textContent = passoTutorial === TUTORIAL.length - 1 ? 'Começar' : 'Próximo';
+    }
+    function iniciarTutorial() {
+        passoTutorial = 0;
+        store.set(LS.tutorial, '0');
+        mostrarPasso();
+    }
+    function encerrarTutorial() {
+        passoTutorial = -1;
+        elTut.hidden = true;
+        store.set(LS.tutorial, 'feito');
+    }
+    function tutorialEvento(evento) {
+        const p = TUTORIAL[passoTutorial];
+        if (!p || !p.ate.includes(evento)) return;
+        passoTutorial++;
+        store.set(LS.tutorial, String(passoTutorial));
+        mostrarPasso();
+    }
+    $('tutProximo').addEventListener('click', () => { passoTutorial++; mostrarPasso(); });
+    $('tutPular').addEventListener('click', encerrarTutorial);
 
     el.btnConstruir.addEventListener('click', abrirConstrucao);
     el.barraConstr.addEventListener('click', (e) => {
@@ -1368,6 +1561,8 @@
         try {
             aplicarEstado(await rpc('fazenda_carregar', { p_token: token }));
             mostrarFazenda();
+            const salvo = store.get(LS.tutorial);
+            if (salvo !== null && salvo !== 'feito') { passoTutorial = Number(salvo) || 0; mostrarPasso(); }
         } catch (e) {
             if (e.code === 'token_invalido') sair(false);
             mostrarEntrada();

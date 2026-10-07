@@ -78,6 +78,7 @@
         abobora:  { fases: [64, 65, 66], murcho: 67, item: 68, semente: 70 }, // arte: trigo
         morango:  { fases: [81, 39, 78], murcho: 43, item: 78, semente: 74 }, // arte: amora
         ovo:      { fases: [125, 125, 125], murcho: 125, item: 125, semente: 125 },
+        la:       { fases: [74, 74, 74], murcho: 74, item: 74, semente: 74 },
         leite:    { fases: [123, 123, 123], murcho: 123, item: 123, semente: 123 }
     };
     const CULTURA_PADRAO = CULTURAS.alface;
@@ -113,6 +114,8 @@
             case 'colmeia': return { p: 'town', i: 94 };
             case 'bau': return { p: 'farm', i: 76 };
             case 'boneco_neve': return { p: 'ski', i: 64 };
+            case 'casa_vermelha': return { p: 'town', w: 3, h: 3, grade: [[52, 53, 55], [64, 65, 67], [84, 85, 75]] };
+            case 'casa_azul': return { p: 'town', w: 3, h: 3, grade: [[48, 49, 51], [60, 61, 63], [88, 89, 79]] };
             default: return { p: 'farm', i: 89 };
         }
     }
@@ -152,7 +155,11 @@
         coracao: ['.oo.oo.', 'orrorRo', 'orwrrRo', 'orrrrRo', '.orrRo.', '..oRo..', '...o...'],
         missao: ['ooooooo.', 'okkkkkko', 'okoooko.', 'okkkkkko', 'okoooko.', 'okkkkkko', 'okooko..', 'okkkkko.', 'oooooo..'],
         mover: ['....o....', '...oko...', '..okkko..', '....o....', 'oko.o.oko', 'okkoooko.', 'oko.o.oko', '....o....', '..okkko..', '...oko...', '....o....'],
-        lixeira: ['..ooooo..', 'ooooooooo', 'okkkkkkko', '.okokoko.', '.okokoko.', '.okokoko.', '.okokoko.', '.okkkkko.', '..ooooo..']
+        lixeira: ['..ooooo..', 'ooooooooo', 'okkkkkkko', '.okokoko.', '.okokoko.', '.okokoko.', '.okokoko.', '.okkkkko.', '..ooooo..'],
+        medalha: ['.oo...oo.', '.obo.obo.', '..obobo..', '...ooo...', '..oyyyo..', '.oywyyYo.', '.oyyyyYo.', '.oyyyYYo.', '..oYYYo..', '...ooo...'],
+        medalha_off: ['.oo...oo.', '.oSo.oSo.', '..oSoSo..', '...ooo...', '..ossso..', '.ossssSo.', '.ossssSo.', '.osssSSo.', '..oSSSo..', '...ooo...'],
+        som: ['....o....', '...oo.o..', 'oooko..o.', 'okkko.o.o', 'okkko.o.o', 'okkko.o.o', 'oooko..o.', '...oo.o..', '....o....'],
+        mudo: ['....o....', '...oo....', 'oooko.o.o', 'okkko..o.', 'okkko.o.o', 'okkko....', 'oooko....', '...oo....', '....o....']
     };
 
     const icones = {};
@@ -196,6 +203,10 @@
     // Ícone de item para a UI (árvores altas mostram as duas peças)
     function htmlItem(id, px = 32) {
         const a = arteItem(id, estacao());
+        if (a.grade) {
+            const m = Math.round(px / a.w);
+            return `<span class="px-grade" style="width:${m * a.w}px;height:${m * a.h}px;grid-template-columns:repeat(${a.w},${m}px)">${a.grade.flat().map((i) => htmlTile(i, m, a.p)).join('')}</span>`;
+        }
         const i = a.auto === 'cerca' ? 45 : a.auto === 'terra' ? 25 : a.i;
         if (a.topo == null) return htmlTile(i, px, a.p);
         const m = Math.round(px / 2);
@@ -278,6 +289,7 @@
         const f = fundo.getContext('2d');
 
         let escala = 3, dpr = 1, vw = 0, vh = 0;           // vw/vh: tela em pixels do jogo
+        let escalaBase = 3, zoomFator = 1;                 // zoom: pinça no celular, rodinha no PC
         const cam = { x: 0, y: 0 };
         let margem = { topo: 0, base: 0 };
         let visual = () => null;
@@ -378,7 +390,8 @@
             if (s < 2.5) s = Math.min(Math.max(areaH / (MAPA.h * T), 2.5), 3.4);
             s = Math.min(s, 6);
             if (s >= 3) s = Math.floor(s);
-            escala = s;
+            escalaBase = s;
+            escala = s * zoomFator;
             vw = W / escala;
             vh = H / escala;
             atores.clear();
@@ -574,10 +587,27 @@
         }
 
         /* ---- construções do jogador ---- */
-        function mapaConstrucoes(lista) {
+        function mapaConstrucoes(lista, ignorar) {
             const m = new Map();
-            for (const c of lista) m.set(c.x + ',' + c.y, c.tipo);
+            m.ocupado = new Set();
+            for (const c of lista) {
+                m.set(c.x + ',' + c.y, c.tipo);
+                if (ignorar && c.x === ignorar.x && c.y === ignorar.y) continue;
+                const a = arteItem(c.tipo, EST);
+                for (let dy = 0; dy < (a.h || 1); dy++) {
+                    for (let dx = 0; dx < (a.w || 1); dx++) m.ocupado.add((c.x + dx) + ',' + (c.y + dy));
+                }
+            }
             return m;
+        }
+        // cabe um item de w x h com o canto em (tx, ty)?
+        function cabe(tx, ty, w, h, ocupado) {
+            for (let dy = 0; dy < h; dy++) {
+                for (let dx = 0; dx < w; dx++) {
+                    if (!livre(tx + dx, ty + dy) || ocupado.has((tx + dx) + ',' + (ty + dy))) return false;
+                }
+            }
+            return true;
         }
         // devolve os sprites de uma construção já com o encaixe automático resolvido
         function spritesDe(tipo, x, y, m) {
@@ -666,21 +696,33 @@
                 }
             }
             const sel = construcao.movendo;
-            if (sel) moldura(wx(sel.x), wy(sel.y), T, T, Math.floor(tempo / 250) % 2 ? PAL.y : PAL.w);
+            if (sel) moldura(wx(sel.x), wy(sel.y), T * (sel.w || 1), T * (sel.h || 1), Math.floor(tempo / 250) % 2 ? PAL.y : PAL.w);
             if (hover && typeof hover === 'object' && 'tx' in hover) {
                 const { tx, ty } = hover;
                 const x = wx(tx), y = wy(ty);
-                const ocupado = m.has(tx + ',' + ty);
-                const pode = livre(tx, ty) && (construcao.modo === 'colocar' || construcao.movendo ? !ocupado : ocupado);
-                if (pode && construcao.modo === 'colocar' && construcao.tipo) {
-                    const temp = new Map(m); temp.set(tx + ',' + ty, construcao.tipo);
-                    const s = spritesDe(construcao.tipo, tx, ty, temp);
+                const tipo = construcao.modo === 'colocar' ? construcao.tipo : sel ? sel.tipo : null;
+                const a = tipo ? arteItem(tipo, EST) : {};
+                const w = a.w || 1, h = a.h || 1;
+                let pode;
+                if (construcao.modo === 'colocar' || sel) {
+                    const ocup = sel ? mapaConstrucoes(construcoesFn() || [], sel).ocupado : m.ocupado;
+                    pode = cabe(tx, ty, w, h, ocup);
+                } else {
+                    pode = m.ocupado.has(tx + ',' + ty);
+                }
+                if (pode && tipo && (construcao.modo === 'colocar' || sel)) {
                     q.globalAlpha = 0.65;
-                    if (s.topo != null) tile(q, s.topo, x, y - T, false, s.p);
-                    tile(q, s.i, x, y, false, s.p);
+                    if (a.grade) {
+                        a.grade.forEach((linha, dy) => linha.forEach((i, dx) => tile(q, i, x + dx * T, y + dy * T, false, a.p)));
+                    } else {
+                        const temp = new Map(m); temp.set(tx + ',' + ty, tipo);
+                        const sp = spritesDe(tipo, tx, ty, temp);
+                        if (sp.topo != null) tile(q, sp.topo, x, y - T, false, sp.p);
+                        tile(q, sp.i, x, y, false, sp.p);
+                    }
                     q.globalAlpha = 1;
                 }
-                moldura(x, y, T, T, pode ? PAL.w : PAL.r);
+                moldura(x, y, T * (pode && tipo ? w : 1), T * (pode && tipo ? h : 1), pode ? PAL.w : PAL.r);
             }
         }
 
@@ -718,6 +760,7 @@
             for (const c of lista) {
                 const s = spritesDe(c.tipo, c.x, c.y, m);
                 if (s.chao) tile(q, s.i, wx(c.x), wy(c.y), false, s.p);   // caminho/flores: chão
+                else if (s.grade) pe.push({ ...s, x: wx(c.x), y: wy(c.y + s.h - 1), gy: wy(c.y), flip: false, bob: 0 });
                 else pe.push({ ...s, x: wx(c.x), y: wy(c.y), flip: false, bob: 0 });
             }
 
@@ -731,6 +774,10 @@
             pe.push({ p: 'farm', i: 109, x: fazendeiro.x, y: fazendeiro.y, flip: fazendeiro.flip, bob: andando && Math.floor(tempo / 120) % 2 ? -1 : 0 });
             pe.sort((a, b) => a.y - b.y).forEach((a) => {
                 const x = Math.round(a.x), y = Math.round(a.y) + a.bob;
+                if (a.grade) {
+                    a.grade.forEach((linha, dy) => linha.forEach((i, dx) => tile(q, i, x + dx * T, a.gy + dy * T, false, a.p)));
+                    return;
+                }
                 if (a.topo != null) tile(q, a.topo, x, y - T, a.flip, a.p);
                 tile(q, a.i, x, y, a.flip, a.p);
             });
@@ -854,6 +901,53 @@
         canvas.addEventListener('pointerleave', () => { if (!toque) hover = null; });
 
         window.addEventListener('resize', redimensionar);
+
+        /* ---- zoom ---- */
+        // muda o zoom mantendo parado o ponto que está embaixo do dedo/mouse
+        function aplicarZoom(fator, fx, fy) {
+            const novo = Math.min(2.2, Math.max(0.6, fator));
+            if (novo === zoomFator) return;
+            const mx = cam.x + fx / escala, my = cam.y + fy / escala;
+            zoomFator = novo;
+            escala = escalaBase * zoomFator;
+            vw = innerWidth / escala;
+            vh = innerHeight / escala;
+            cam.x = mx - fx / escala;
+            cam.y = my - fy / escala;
+            limitarCamera();
+            sincronizarRolagem();
+            precisaDesenhar = true;
+        }
+        canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            aplicarZoom(zoomFator * (e.deltaY < 0 ? 1.12 : 1 / 1.12), e.clientX, e.clientY);
+        }, { passive: false });
+        if (rolagem) {
+            let pinca = null;
+            const distancia = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+            rolagem.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 2) {
+                    pinca = { d: distancia(e.touches), fator: zoomFator };
+                    rolagem.style.overflow = 'hidden';   // enquanto pinça, a rolagem não briga com o zoom
+                }
+            }, { passive: true });
+            rolagem.addEventListener('touchmove', (e) => {
+                if (!pinca || e.touches.length !== 2) return;
+                e.preventDefault();
+                const meioX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+                const meioY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+                aplicarZoom(pinca.fator * distancia(e.touches) / pinca.d, meioX, meioY);
+            }, { passive: false });
+            const fimPinca = (e) => {
+                if (pinca && e.touches.length < 2) {
+                    pinca = null;
+                    rolagem.style.overflow = '';
+                    sincronizarRolagem();
+                }
+            };
+            rolagem.addEventListener('touchend', fimPinca);
+            rolagem.addEventListener('touchcancel', fimPinca);
+        }
 
         return {
             iniciar() {
