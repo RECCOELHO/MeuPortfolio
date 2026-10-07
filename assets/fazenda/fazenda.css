@@ -1121,3 +1121,24 @@ body.construindo .status {
         bottom: 168px;
     }
 }
+
+/* ---------- Celular: camada de rolagem nativa por cima do canvas ---------- */
+.cena-rolagem {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    overflow: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    touch-action: pan-x pan-y;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.cena-rolagem::-webkit-scrollbar {
+    display: none;
+}
+
+.cena-rolagem > div {
+    pointer-events: none;
+}
