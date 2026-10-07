@@ -59,7 +59,9 @@
         animal_invalido: 'Esse animal não está mais aqui.',
         limite_animais: 'Você já tem o máximo desse animal.',
         item_invalido: 'Item inválido.',
-        sem_espaco: 'Não tem mais lugar para enfeites. Tire um antes.',
+        lugar_reservado: 'Esse lugar é reservado (celeiro, casa, campo, pasto ou galinheiro).',
+        lugar_ocupado: 'Já tem algo nesse lugar.',
+        limite_construcoes: 'Sua fazenda já está cheia de construções. Guarde algumas antes.',
         missao_invalida: 'Missão não encontrada.',
         ja_resgatada: 'Você já pegou essa recompensa.',
         missao_incompleta: 'Termine a missão antes de resgatar.'
@@ -102,16 +104,18 @@
         painel: $('painel'), painelTitulo: $('painelTitulo'), painelCorpo: $('painelCorpo'), painelFechar: $('painelFechar'),
         faixaVisita: $('faixaVisita'), visitaApelido: $('visitaApelido'), visitaNivel: $('visitaNivel'),
         btnVoltarCasa: $('btnVoltarCasa'), acoesVisita: $('acoesVisita'), acoesCasa: $('acoesCasa'),
-        diarioCont: $('hudDiario'), missoesCont: $('hudMissoes')
+        diarioCont: $('hudDiario'), missoesCont: $('hudMissoes'),
+        barraConstr: $('barraConstr'), constrAbas: $('constrAbas'), constrItens: $('constrItens'),
+        constrFerramentas: $('constrFerramentas'), btnConstruir: $('btnConstruir')
     };
 
     /* ---------- Ícones (pixel art) ---------- */
     const ico = (nome, px) => A.htmlIcone(nome, px);
-    const spr = (i, px) => A.htmlTile(i, px);
+    const spr = (i, px, pacote) => A.htmlTile(i, px, pacote);
     const moeda = (n) => `${ico('moeda', 14)}${n}`;
     const itemDe = (k, px = 22) => spr(A.cultura(k.id).item, px);
 
-    document.querySelectorAll('[data-spr]').forEach((s) => { s.outerHTML = spr(Number(s.dataset.spr), Number(s.dataset.px) || 32); });
+    document.querySelectorAll('[data-spr]').forEach((s) => { s.outerHTML = spr(Number(s.dataset.spr), Number(s.dataset.px) || 32, s.dataset.pack || 'farm'); });
     document.querySelectorAll('[data-ico]').forEach((s) => { s.outerHTML = ico(s.dataset.ico, Number(s.dataset.px) || 18); });
 
     /* ---------- Estado ---------- */
@@ -234,9 +238,9 @@
         return v;
     }
 
-    /* ---------- Animais e enfeites ---------- */
+    /* ---------- Animais e construções ---------- */
     const tipoAnimal = (id) => S && S.animais_tipos && S.animais_tipos.find((t) => t.id === id);
-    const tipoEnfeite = (id) => S && S.enfeites_tipos && S.enfeites_tipos.find((t) => t.id === id);
+    const tipoItem = (id) => S && S.itens && S.itens.find((t) => t.id === id);
     const meusAnimais = () => (visita ? visita.animais : S && S.animais) || [];
     const naCeleiro = (item) => (S && S.celeiro[item]) || 0;
 
@@ -256,7 +260,15 @@
         { id: 'd3', tipo: 'vaca', estado: 'produzindo' },
         { id: 'd4', tipo: 'vaca', estado: 'fome', racao: 20 }
     ];
-    const DEMO_ENFEITES = [{ slot: 0, sprite: 83 }, { slot: 1, sprite: 83 }, { slot: 2, sprite: 83 }, { slot: 3, sprite: 96 }, { slot: 4, sprite: 85 }];
+    // Construções de enfeite atrás da tela de entrada
+    const DEMO_CONSTRUCOES = [
+        ...[8, 9, 10, 11, 12, 13, 14, 15].map((x) => ({ x, y: 8, tipo: 'caminho_terra' })),
+        ...[9, 10, 11, 12, 13, 14].map((x) => ({ x, y: 2, tipo: 'cerca' })),
+        { x: 8, y: 2, tipo: 'girassol' }, { x: 15, y: 2, tipo: 'girassol' },
+        { x: 8, y: 10, tipo: 'arvore' }, { x: 12, y: 10, tipo: 'pinheiro' }, { x: 15, y: 10, tipo: 'arvore_outono' },
+        { x: 10, y: 10, tipo: 'flores' }, { x: 11, y: 10, tipo: 'flores' }, { x: 14, y: 9, tipo: 'feno' },
+        { x: 17, y: 8, tipo: 'colmeia' }, { x: 19, y: 9, tipo: 'placa' }
+    ];
 
     function visualAnimais() {
         if (!S) return DEMO_ANIMAIS;
@@ -270,30 +282,165 @@
         });
     }
 
-    function visualEnfeites() {
-        if (!S) return DEMO_ENFEITES;
-        const lista = (visita ? visita.enfeites : S.enfeites) || [];
-        return lista.map((e) => ({ slot: e.slot, sprite: (tipoEnfeite(e.tipo) || {}).sprite })).filter((e) => e.sprite != null);
+    function visualConstrucoes() {
+        if (!S) return DEMO_CONSTRUCOES;
+        return (visita ? visita.construcoes : S.construcoes) || [];
     }
 
     const cena = A.criarCena(el.canvas, {
         aoCanteiro: (p) => clicarCanteiro(p),
         aoAnimal: (id) => clicarAnimal(id),
+        aoTile: (x, y) => tocarTile(x, y),
         aoCeleiro: () => { if (S && !painelAtual) abrirPainel('celeiro'); },
         aoPassar: (alvo) => {
             if (!S || alvo == null) return;
             if (alvo === 'celeiro') mostrarStatus(`${spr(11, 22)} Celeiro: toque para ver e vender a colheita.`);
+            else if (typeof alvo === 'object' && 'tx' in alvo) descreverTile(alvo.tx, alvo.ty);
             else if (typeof alvo === 'object') descreverAnimal(alvo.animal);
             else descrever(alvo);
         }
     });
     cena.definirVisual(visualCanteiro);
     cena.definirAnimais(visualAnimais);
-    cena.definirEnfeites(visualEnfeites);
+    cena.definirConstrucoes(visualConstrucoes);
+
+    /* ---------- Modo construir (abre e fecha pelo botão) ---------- */
+    const constr = { ativo: false, modo: 'colocar', tipo: null, movendo: null, aba: 'caminho' };
+    const atualizarModo = () => cena.definirModoConstrucao({ ...constr });
+    const NOME_AREA = (x, y) => {
+        const dentro = (r) => x >= r.x && y >= r.y && x < r.x + r.w && y < r.y + r.h;
+        const [cel, casa, gal, campo, pasto] = A.MAPA.reservas;
+        if (dentro(cel)) return 'o celeiro';
+        if (dentro(casa)) return 'a casa';
+        if (dentro(gal)) return 'o galinheiro';
+        if (dentro(campo)) return 'o campo';
+        if (dentro(pasto)) return 'o pasto';
+        return 'fora do terreno';
+    };
+    const construcaoEm = (x, y) => (S.construcoes || []).find((c) => c.x === x && c.y === y);
+
+    function descreverTile(x, y) {
+        if (!A.livre(x, y)) return mostrarStatus(`${ico('cadeado', 12)} Aqui fica ${NOME_AREA(x, y)}: não dá para construir.`);
+        const c = construcaoEm(x, y);
+        const it = c && tipoItem(c.tipo);
+        if (constr.modo === 'guardar') {
+            return mostrarStatus(it ? `${A.htmlItem(c.tipo, 22)} Toque para guardar ${esc(it.nome.toLowerCase())} (volta ${moeda(Math.floor(it.custo / 2))}).` : 'Nada para guardar aqui.');
+        }
+        if (constr.modo === 'mover') {
+            if (constr.movendo) return mostrarStatus(c ? 'Esse lugar está ocupado.' : 'Toque para levar o item para cá.');
+            return mostrarStatus(it ? `${A.htmlItem(c.tipo, 22)} Toque para escolher ${esc(it.nome.toLowerCase())} e depois o novo lugar.` : 'Toque num item para mover.');
+        }
+        const sel = tipoItem(constr.tipo);
+        if (c) return mostrarStatus(`${A.htmlItem(c.tipo, 22)} ${esc(it ? it.nome : c.tipo)}. Use Mover ou Guardar para mudar.`);
+        mostrarStatus(sel ? `${A.htmlItem(sel.id, 22)} Toque para colocar ${esc(sel.nome.toLowerCase())} (${moeda(sel.custo)}).` : 'Escolha um item na barra de baixo.');
+    }
+
+    function abrirConstrucao() {
+        if (!S || visita) return;
+        constr.ativo = true;
+        constr.modo = 'colocar';
+        constr.movendo = null;
+        document.body.classList.add('construindo');
+        el.barraConstr.hidden = false;
+        el.barra.hidden = true;
+        desenharPaleta();
+        atualizarModo();
+        mostrarStatus('Modo construir: escolha um item e toque nos quadrados livres. Arraste para ver o terreno.');
+        ajustarMargens();
+    }
+
+    function fecharConstrucao() {
+        constr.ativo = false;
+        constr.movendo = null;
+        document.body.classList.remove('construindo');
+        el.barraConstr.hidden = true;
+        el.barra.hidden = false;
+        atualizarModo();
+        mostrarStatus('Fazenda salva do seu jeito!');
+        ajustarMargens();
+    }
+
+    function desenharPaleta() {
+        if (!S || !S.itens) return;
+        const abas = [['caminho', 'Cercas e caminhos'], ['natureza', 'Natureza'], ['objeto', 'Objetos']];
+        el.constrAbas.innerHTML = abas.map(([id, txt]) =>
+            `<button type="button" data-constr-aba="${id}" class="${constr.aba === id ? 'ativa' : ''}">${txt}</button>`).join('');
+        el.constrItens.innerHTML = S.itens.filter((i) => i.categoria === constr.aba).map((i) => {
+            const travado = i.nivel_min > S.jogador.nivel;
+            const sel = constr.modo === 'colocar' && constr.tipo === i.id;
+            return `<button type="button" class="paleta-item${sel ? ' selecionado' : ''}${travado ? ' travado' : ''}" data-item="${esc(i.id)}" title="${esc(i.nome)}">
+                ${travado ? ico('cadeado', 18) : A.htmlItem(i.id, 32)}
+                <small>${travado ? `Nv ${i.nivel_min}` : `${ico('moeda', 11)}${i.custo}`}</small>
+            </button>`;
+        }).join('');
+        el.constrFerramentas.querySelectorAll('[data-ferramenta]').forEach((b) => b.classList.toggle('ativa', b.dataset.ferramenta === constr.modo));
+    }
+
+    function flutuarTile(x, y, html) {
+        const pos = cena.telaDoTile(x, y);
+        const f = document.createElement('div');
+        f.className = 'flut';
+        f.innerHTML = html;
+        f.style.left = `${pos.x}px`;
+        f.style.top = `${pos.y}px`;
+        el.flut.appendChild(f);
+        setTimeout(() => f.remove(), 1300);
+    }
+
+    function tocarTile(x, y) {
+        if (!constr.ativo || !S) return;
+        descreverTile(x, y);
+        if (!A.livre(x, y)) return toast(`Aqui fica ${NOME_AREA(x, y)}.`, 'erro');
+        const ocupado = construcaoEm(x, y);
+
+        if (constr.modo === 'colocar') {
+            const it = tipoItem(constr.tipo);
+            if (!it) return toast('Escolha um item na barra de baixo.');
+            if (ocupado) return toast(ERROS.lugar_ocupado, 'erro');
+            if (it.nivel_min > S.jogador.nivel) return toast(`${esc(it.nome)} libera no nível ${it.nivel_min}.`);
+            if (S.jogador.moedas < it.custo) return toast(ERROS.moedas_insuficientes, 'erro');
+            // aparece na hora; o servidor confirma em seguida
+            S.construcoes.push({ x, y, tipo: it.id });
+            S.jogador.moedas -= it.custo;
+            desenharHud();
+            flutuarTile(x, y, `−${it.custo} ${ico('moeda', 16)}`);
+            enfileirar([], async () => {
+                const r = await rpc('fazenda_construir', { p_token: token, p_tipo: it.id, p_x: x, p_y: y });
+                aplicarEstado(r.estado);
+            }).then(() => { if (!S.construcoes.some((c) => c.x === x && c.y === y)) recarregar(); });
+        } else if (constr.modo === 'mover') {
+            if (!constr.movendo) {
+                if (!ocupado) return toast('Toque num item para mover.');
+                constr.movendo = { x, y };
+                atualizarModo();
+                return mostrarStatus('Agora toque no lugar novo.');
+            }
+            const de = constr.movendo;
+            constr.movendo = null;
+            atualizarModo();
+            if (de.x === x && de.y === y) return;
+            if (ocupado) return toast(ERROS.lugar_ocupado, 'erro');
+            const c = construcaoEm(de.x, de.y);
+            if (c) { c.x = x; c.y = y; }
+            enfileirar([], async () => {
+                const r = await rpc('fazenda_mover', { p_token: token, p_x: de.x, p_y: de.y, p_nx: x, p_ny: y });
+                aplicarEstado(r.estado);
+            });
+        } else if (constr.modo === 'guardar') {
+            if (!ocupado) return;
+            S.construcoes = S.construcoes.filter((c) => c !== ocupado);
+            enfileirar([], async () => {
+                const r = await rpc('fazenda_demolir', { p_token: token, p_x: x, p_y: y });
+                flutuarTile(x, y, `+${r.devolvido} ${ico('moeda', 16)}`);
+                aplicarEstado(r.estado);
+            });
+        }
+    }
 
     function ajustarMargens() {
         const topo = el.hud.hidden ? 24 : el.hud.getBoundingClientRect().bottom + 8;
-        const base = el.barra.hidden ? 24 : window.innerHeight - el.barra.getBoundingClientRect().top + 44;
+        const barra = !el.barraConstr.hidden ? el.barraConstr : el.barra.hidden ? null : el.barra;
+        const base = barra ? window.innerHeight - barra.getBoundingClientRect().top + 44 : 24;
         cena.definirMargens(Math.round(topo), Math.round(base));
     }
     window.addEventListener('resize', ajustarMargens);
@@ -443,6 +590,7 @@
     function aplicarEstado(estado) {
         const antes = S;
         if (!estado.diario) estado.diario = []; // banco ainda sem o SQL da fase 2
+        if (!estado.construcoes) estado.construcoes = [];
         S = estado;
         offset = Date.parse(estado.agora) - Date.now();
         culturas = {};
@@ -458,6 +606,7 @@
         }
         avisarDiario();
         desenharHud();
+        if (constr.ativo) desenharPaleta();
         if (['loja', 'celeiro', 'missoes'].includes(painelAtual)) abrirPainel(painelAtual, true);
     }
 
@@ -681,6 +830,7 @@
 
     /* ---------- Visitas aos vizinhos ---------- */
     function mostrarVisita(v) {
+        if (constr.ativo) fecharConstrucao();
         visita = v;
         offset = Date.parse(v.agora) - Date.now();
         document.body.classList.add('visitando');
@@ -777,11 +927,10 @@
         if (nome === 'loja') {
             el.painelTitulo.innerHTML = `${spr(9, 32)} Loja`;
             const abas = `<div class="painel-abas" role="tablist">
-                ${[['sementes', 'Sementes'], ['animais', 'Animais'], ['enfeites', 'Enfeites']].map(([id, txt]) =>
+                ${[['sementes', 'Sementes'], ['animais', 'Animais']].map(([id, txt]) =>
                     `<button type="button" role="tab" data-aba-loja="${id}" class="${abaLoja === id ? 'ativa' : ''}">${txt}</button>`).join('')}
             </div>`;
             if (abaLoja === 'animais') corpo.innerHTML = abas + htmlLojaAnimais();
-            else if (abaLoja === 'enfeites') corpo.innerHTML = abas + htmlLojaEnfeites();
             else corpo.innerHTML = abas + htmlLojaSementes();
         } else if (nome === 'missoes') {
             el.painelTitulo.innerHTML = `${ico('missao', 26)} Missões do dia`;
@@ -822,7 +971,8 @@
                     <li>Aparecem ${ico('erva', 14)} ervas, ${ico('praga', 14)} pragas e ${ico('seco', 12)} seca: cada problema deixado custa 1 item na colheita.</li>
                     <li>Depois de madura, a planta <b>murcha</b> se ficar tempo demais sem colher.</li>
                     <li>Toque no <b>celeiro</b> para vender a colheita, compre sementes melhores e suba de nível para ganhar canteiros.</li>
-                    <li>Na loja tem <b>animais</b>: dê ração (sai do celeiro) e colete ovos e leite. Os <b>enfeites</b> deixam a fazenda do seu jeito.</li>
+                    <li>Na loja tem <b>animais</b>: dê ração (sai do celeiro) e colete ovos e leite. </li>
+                    <li>No botão <b>Construir</b> você coloca cercas, caminhos, árvores, flores e objetos onde quiser. Toque em <b>Pronto</b> para fechar.</li>
                     <li>Cumpra as <b>missões do dia</b> para ganhar moedas e XP extras.</li>
                     <li>Em <b>Vizinhos</b> você visita outras fazendas: <b>pega</b> um pouco da colheita madura ou <b>ajuda</b> com os problemas e ganha XP.</li>
                 </ul>
@@ -897,28 +1047,6 @@
                     : `<button type="button" class="botao pequeno verde" data-comprar="animal:${esc(t.id)}">${ico('moeda', 14)} ${t.custo}</button>`}
             </div>`;
         }).join('') + '</div><p class="aviso">Toque no animal com fome para dar a ração (sai do seu celeiro) e volte para coletar o produto.</p>';
-    }
-
-    function htmlLojaEnfeites() {
-        const meus = S.enfeites || [];
-        const tipos = S.enfeites_tipos || [];
-        const lista = meus.length
-            ? '<div class="enfeites-meus">' + meus.map((e) => {
-                const t = tipoEnfeite(e.tipo);
-                return t ? `<button type="button" class="enfeite-meu" data-remover="${e.slot}" title="Tirar ${esc(t.nome)} (devolve ${t.custo / 2 | 0})">${spr(t.sprite, 36)}<small>tirar</small></button>` : '';
-            }).join('') + '</div>'
-            : '<p class="det">Você ainda não tem enfeites.</p>';
-        return `<h3 class="secao-titulo">Na sua fazenda (${meus.length}/8)</h3>${lista}
-            <h3 class="secao-titulo">Comprar</h3>
-            <div class="lista">` + tipos.map((t) => {
-                const travado = t.nivel_min > S.jogador.nivel;
-                return `<div class="item${travado ? ' travada' : ''}">
-                    <span class="ico">${travado ? ico('cadeado', 28) : spr(t.sprite, 44)}</span>
-                    <span><span class="nome">${esc(t.nome)}</span><span class="det"><span>só enfeite: deixa a fazenda mais bonita</span></span></span>
-                    ${travado ? `<span class="preco">Nível ${t.nivel_min}</span>`
-                        : `<button type="button" class="botao pequeno verde" data-comprar="enfeite:${esc(t.id)}" ${meus.length >= 8 ? 'disabled' : ''}>${ico('moeda', 14)} ${t.custo}</button>`}
-                </div>`;
-            }).join('') + '</div>';
     }
 
     const TEXTO_MISSAO = {
@@ -1035,20 +1163,10 @@
             enfileirar([], async () => {
                 const r = await rpc('fazenda_comprar', { p_token: token, p_categoria: categoria, p_tipo: tipo });
                 aplicarEstado(r.estado);
-                const nome = categoria === 'animal' ? (tipoAnimal(tipo) || {}).nome : (tipoEnfeite(tipo) || {}).nome;
+                const nome = (tipoAnimal(tipo) || {}).nome;
                 toast(`${esc(nome || 'Item')} chegou na fazenda!`);
                 if (painelAtual === 'loja') abrirPainel('loja', true);
             }).finally(() => { comp.disabled = false; });
-            return;
-        }
-        const rem = e.target.closest('[data-remover]');
-        if (rem) {
-            enfileirar([], async () => {
-                const r = await rpc('fazenda_remover_enfeite', { p_token: token, p_slot: Number(rem.dataset.remover) });
-                aplicarEstado(r.estado);
-                toast('Enfeite guardado. Metade do valor voltou pra você.');
-                if (painelAtual === 'loja') abrirPainel('loja', true);
-            });
             return;
         }
         const resg = e.target.closest('[data-resgatar]');
@@ -1108,6 +1226,34 @@
     document.querySelectorAll('[data-visita]').forEach((b) => b.addEventListener('click', () => acaoVisitaEmMassa(b.dataset.visita)));
     el.btnVoltarCasa.addEventListener('click', voltarCasa);
 
+    el.btnConstruir.addEventListener('click', abrirConstrucao);
+    el.barraConstr.addEventListener('click', (e) => {
+        const aba = e.target.closest('[data-constr-aba]');
+        if (aba) { constr.aba = aba.dataset.constrAba; desenharPaleta(); return; }
+        const item = e.target.closest('[data-item]');
+        if (item) {
+            const it = tipoItem(item.dataset.item);
+            if (!it) return;
+            if (it.nivel_min > S.jogador.nivel) return toast(`${esc(it.nome)} libera no nível ${it.nivel_min}.`);
+            constr.modo = 'colocar';
+            constr.tipo = it.id;
+            constr.movendo = null;
+            desenharPaleta();
+            atualizarModo();
+            mostrarStatus(`${A.htmlItem(it.id, 22)} ${esc(it.nome)} (${moeda(it.custo)}): toque nos quadrados livres.`);
+            return;
+        }
+        const ferr = e.target.closest('[data-ferramenta]');
+        if (ferr) {
+            if (ferr.dataset.ferramenta === 'pronto') return fecharConstrucao();
+            constr.modo = ferr.dataset.ferramenta;
+            constr.movendo = null;
+            desenharPaleta();
+            atualizarModo();
+            mostrarStatus(constr.modo === 'mover' ? 'Mover: toque num item e depois no lugar novo.' : 'Guardar: toque num item para tirar (volta metade do valor).');
+        }
+    });
+
     /* ---------- Entrada / sessão ---------- */
     function mostrarEntrada() {
         el.hud.hidden = el.barra.hidden = el.status.hidden = true;
@@ -1121,7 +1267,8 @@
     function mostrarFazenda() {
         el.entrada.classList.remove('aberto');
         el.hud.hidden = el.barra.hidden = el.status.hidden = false;
-        mostrarStatus('Toque num canteiro para cuidar dele. O celeiro guarda sua colheita.');
+        const est = { primavera: 'Primavera', verao: 'Verão', outono: 'Outono', inverno: 'Inverno' }[A.estacao()];
+        mostrarStatus(`${est} na fazenda! Toque num canteiro para cuidar dele. Arraste para ver o terreno.`);
         ajustarMargens();
     }
 
@@ -1130,6 +1277,7 @@
     }
 
     function sair(apagarCodigo) {
+        if (constr.ativo) fecharConstrucao();
         token = null;
         S = null;
         visita = null;

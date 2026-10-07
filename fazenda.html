@@ -67,7 +67,21 @@
             <button type="button" class="botao" data-massa="cuidar"><span data-spr="84" data-px="28"></span><em>Cuidar</em></button>
             <button type="button" class="botao" data-massa="arar"><span data-spr="86" data-px="28"></span><em>Arar tudo</em></button>
             <button type="button" class="botao" data-massa="plantar"><span data-spr="81" data-px="28"></span><em>Plantar tudo</em></button>
+            <button type="button" class="botao amarelo" id="btnConstruir"><span data-spr="127" data-pack="town" data-px="28"></span><em>Construir</em></button>
         </div>
+    </footer>
+
+    <!-- ===== BARRA DO MODO CONSTRUIR (abre no botão Construir, fecha no Pronto) ===== -->
+    <footer class="barra-constr caixa" id="barraConstr" hidden>
+        <div class="constr-topo">
+            <div class="constr-abas" id="constrAbas"></div>
+            <div class="constr-ferramentas" id="constrFerramentas">
+                <button type="button" class="botao pequeno creme" data-ferramenta="mover"><span data-ico="mover" data-px="14"></span>Mover</button>
+                <button type="button" class="botao pequeno creme" data-ferramenta="guardar"><span data-ico="lixeira" data-px="14"></span>Guardar</button>
+                <button type="button" class="botao pequeno verde" data-ferramenta="pronto">Pronto</button>
+            </div>
+        </div>
+        <div class="paleta" id="constrItens"></div>
     </footer>
 
     <div class="toasts" id="toasts" aria-live="polite"></div>

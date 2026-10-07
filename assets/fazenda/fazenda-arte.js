@@ -1,22 +1,26 @@
 /* ============================================================
    FAZENDINHA SECRETA — arte e cena
-   Pixel art do pacote "Tiny Farm" do Kenney (CC0, kenney.nl),
-   desenhada num <canvas>. Os ícones pequenos (moeda, XP, praga...)
-   são desenhados aqui mesmo, na mesma paleta do pacote.
+   Pixel art dos pacotes "Tiny Farm", "Tiny Town" e "Tiny Ski" do
+   Kenney (CC0, kenney.nl), desenhada num <canvas>. Os ícones pequenos
+   (moeda, XP, praga...) são desenhados aqui, na mesma paleta.
+
+   A fazenda é um mapa fixo de 22 x 13 quadrados cercado de mata.
+   No PC a câmera mostra tudo; no celular dá para arrastar com o dedo.
 
    Expõe window.FazendaArte com:
-     carregar()              → Promise quando a arte estiver pronta
-     criarCena(canvas, cb)   → motor da cena (mapa, canteiros, animais, enfeites)
-     htmlTile(i, px)         → <span> com um sprite do pacote (para a UI)
-     htmlIcone(nome, px)     → <img> com um ícone pixel
-     cultura(id)             → sprites de cada fase de uma cultura/produto
-     ANIMAL                  → sprite de cada tipo de animal
+     carregar()                → Promise quando a arte estiver pronta
+     criarCena(canvas, cb)     → motor da cena
+     htmlTile(i, px, pacote)   → <span> com um sprite (para a UI)
+     htmlIcone(nome, px)       → <img> com um ícone pixel
+     htmlItem(id, px)          → <span> com a arte de um item construível
+     cultura(id), ANIMAL       → sprites de culturas e animais
+     estacao(), livre(x, y)    → estação do ano e se um quadrado aceita construção
 ============================================================ */
 (function () {
     'use strict';
 
     const T = 16;           // tamanho do tile
-    const COLS = 12;        // colunas do atlas
+    const COLS = 12;        // colunas dos atlas
     const LINHAS = 11;
 
     const PAL = {
@@ -24,6 +28,43 @@
         r: '#c34b35', R: '#aa2c23', b: '#99d8f8', B: '#79a7e8', w: '#ffffff', p: '#d176d0',
         P: '#9b4ca3', s: '#c0cbdc', S: '#8b9bb4', k: '#fec99c', t: '#eaa56c', d: '#cf8254', n: '#763b36'
     };
+
+    /* ---------- Mapa fixo da fazenda (precisa bater com fazenda_livre no SQL) ---------- */
+    const MAPA = {
+        w: 22, h: 13,
+        celeiro: { x: 1, y: 1 },                     // 3 x 6
+        casa: { x: 5, y: 1 },                        // 3 x 3
+        campo: { x: 9, y: 4 },                       // 6 x 3
+        fazendeiro: { x: 8, y: 4 },
+        galinheiro: { x: 0, y: 7, w: 7, h: 2 },
+        pasto: { x: 16, y: 0, w: 6, h: 7 },          // cercado, porteira embaixo
+        porteira: [18, 19],
+        cochos: [{ i: 110, x: 18, y: 1 }, { i: 111, x: 19, y: 1 }],
+        reservas: [
+            { x: 1, y: 1, w: 3, h: 6 }, { x: 5, y: 1, w: 3, h: 3 }, { x: 0, y: 7, w: 7, h: 2 },
+            { x: 9, y: 3, w: 6, h: 4 }, { x: 16, y: 0, w: 6, h: 7 }
+        ]
+    };
+    const MARGEM = 9;   // quadrados de mata em volta do terreno
+
+    function livre(x, y) {
+        if (x < 0 || y < 0 || x >= MAPA.w || y >= MAPA.h) return false;
+        return !MAPA.reservas.some((r) => x >= r.x && y >= r.y && x < r.x + r.w && y < r.y + r.h);
+    }
+
+    /* ---------- Estação do ano (hemisfério sul) ---------- */
+    function estacao() {
+        try {
+            const forcada = new URLSearchParams(location.search).get('estacao');
+            if (['primavera', 'verao', 'outono', 'inverno'].includes(forcada)) return forcada;
+        } catch { /* ignora */ }
+        const d = new Date(), m = d.getMonth() + 1, dia = d.getDate();
+        const md = m * 100 + dia;
+        if (md >= 1221 || md < 320) return 'verao';
+        if (md < 621) return 'outono';
+        if (md < 923) return 'inverno';
+        return 'primavera';
+    }
 
     /* ---------- Sprites do pacote por cultura ----------
        fases: [broto, crescendo, maduro], murcho, item colhido, semente (loja) */
@@ -42,132 +83,89 @@
     const CULTURA_PADRAO = CULTURAS.alface;
     const ANIMAL = { galinha: 122, vaca: 121, ovelha: 120 };
 
+    /* ---------- Arte dos itens construíveis ----------
+       p = pacote, i = tile, topo = tile de cima (árvores altas), auto = encaixe automático */
+    function arteItem(id, est) {
+        const inv = est === 'inverno';
+        switch (id) {
+            case 'cerca': return { p: 'town', auto: 'cerca' };
+            case 'caminho_terra': return { p: 'town', auto: 'terra', chao: true };
+            case 'caminho_pedra': return { p: 'town', i: 43, chao: true };
+            case 'flores': return { p: 'town', i: 2, chao: true };
+            case 'girassol': return { p: 'farm', i: 83 };
+            case 'arbusto': return inv ? { p: 'ski', i: 31 } : { p: 'town', i: 5 };
+            case 'cogumelos': return { p: 'town', i: 29 };
+            case 'arvore':
+                if (inv) return { p: 'ski', i: 19, topo: 7 };
+                if (est === 'outono') return { p: 'town', i: 15, topo: 3 };
+                return { p: 'town', i: 16, topo: 4 };
+            case 'arvore_outono': return inv ? { p: 'ski', i: 19, topo: 7 } : { p: 'town', i: 15, topo: 3 };
+            case 'pinheiro': return inv ? { p: 'ski', i: 18, topo: 6 } : { p: 'farm', i: 15, topo: 3 };
+            case 'amoreira': return { p: 'farm', i: 78 };
+            case 'pedras': return { p: 'farm', i: 89 };
+            case 'tora': return { p: 'town', i: 106 };
+            case 'placa': return { p: 'town', i: 83 };
+            case 'balde': return { p: 'farm', i: 73 };
+            case 'barril': return { p: 'farm', i: 85 };
+            case 'feno': return { p: 'farm', i: 96 };
+            case 'alvo': return { p: 'town', i: 95 };
+            case 'caixote': return { p: 'farm', i: 47 };
+            case 'colmeia': return { p: 'town', i: 94 };
+            case 'bau': return { p: 'farm', i: 76 };
+            case 'boneco_neve': return { p: 'ski', i: 64 };
+            default: return { p: 'farm', i: 89 };
+        }
+    }
+
+    // Cerca: escolhe a peça pelos vizinhos (cima, baixo, esquerda, direita)
+    function tileCerca(c, b, e, d) {
+        if (e && d) return 45;
+        if (c && b) return 59;
+        if (d && b) return 44;
+        if (e && b) return 46;
+        if (d && c) return 68;
+        if (e && c) return 70;
+        if (d) return 44;
+        if (e) return 46;
+        if (b) return 56;
+        if (c) return 71;
+        return 47;
+    }
+    // Caminho de terra: bloco 3x3 do Tiny Town (bordas com grama onde não há vizinho)
+    function tileTerra(c, b, e, d) {
+        const linha = !c && b ? 0 : c && !b ? 2 : 1;
+        const coluna = !e && d ? 0 : e && !d ? 2 : 1;
+        return [12, 24, 36][linha] + coluna;
+    }
+
     /* ---------- Ícones pixel (mesma paleta) ---------- */
     const ICONES = {
-        moeda: [
-            '..oooo..',
-            '.oyyyyo.',
-            'oywyyyYo',
-            'oywyYyYo',
-            'oyyyYyYo',
-            'oyyyyYYo',
-            '.oYYYYo.',
-            '..oooo..'
-        ],
-        xp: [
-            '....o....',
-            '...oyo...',
-            '..oywyo..',
-            'oooywyooo',
-            'oyyyyyyYo',
-            '.oyyyyYo.',
-            '.oyyoyYo.',
-            'oyYo.oYYo',
-            'ooo...ooo'
-        ],
-        praga: [
-            '.o.....o.',
-            '..o...o..',
-            '..ooooo..',
-            '.oPwpPPo.',
-            'oPpPPPpPo',
-            'oPPPPPPPo',
-            '.oPPpPPo.',
-            '..ooooo..'
-        ],
-        seco: [
-            '...o...',
-            '..obo..',
-            '..obo..',
-            '.obbbo.',
-            'obwbbbo',
-            'obwbbBo',
-            'obbbbBo',
-            '.oBBBo.',
-            '..ooo..'
-        ],
-        erva: [
-            '.o.....o.',
-            'oGo.o.oGo',
-            'oGgoGogGo',
-            '.oGgGgGo.',
-            '..oGgGo..',
-            '...oGo...',
-            '...oGo...',
-            '....o....'
-        ],
-        cadeado: [
-            '..ooo..',
-            '.o...o.',
-            '.o...o.',
-            'ooooooo',
-            'oyyyyyo',
-            'oyyoyyo',
-            'oyyoyyo',
-            'oYYYYYo',
-            'ooooooo'
-        ],
-        check: [
-            '......oo',
-            '.....oGo',
-            'oo..oGo.',
-            'oGooGo..',
-            '.oGGo...',
-            '..oo....'
-        ],
-        brilho: [
-            '..w..',
-            '..w..',
-            'ww.ww',
-            '..w..',
-            '..w..'
-        ],
-        mao: [
-            '..o.o.o..',
-            '.oko.oko.',
-            '.okokoko.',
-            'ooko.okoo',
-            'okkkkkkko',
-            'okkkkkkko',
-            '.okkkkko.',
-            '..ooooo..'
-        ],
-        coracao: [
-            '.oo.oo.',
-            'orrorRo',
-            'orwrrRo',
-            'orrrrRo',
-            '.orrRo.',
-            '..oRo..',
-            '...o...'
-        ],
-        missao: [
-            'ooooooo.',
-            'okkkkkko',
-            'okoooko.',
-            'okkkkkko',
-            'okoooko.',
-            'okkkkkko',
-            'okooko..',
-            'okkkkko.',
-            'oooooo..'
-        ]
+        moeda: ['..oooo..', '.oyyyyo.', 'oywyyyYo', 'oywyYyYo', 'oyyyYyYo', 'oyyyyYYo', '.oYYYYo.', '..oooo..'],
+        xp: ['....o....', '...oyo...', '..oywyo..', 'oooywyooo', 'oyyyyyyYo', '.oyyyyYo.', '.oyyoyYo.', 'oyYo.oYYo', 'ooo...ooo'],
+        praga: ['.o.....o.', '..o...o..', '..ooooo..', '.oPwpPPo.', 'oPpPPPpPo', 'oPPPPPPPo', '.oPPpPPo.', '..ooooo..'],
+        seco: ['...o...', '..obo..', '..obo..', '.obbbo.', 'obwbbbo', 'obwbbBo', 'obbbbBo', '.oBBBo.', '..ooo..'],
+        erva: ['.o.....o.', 'oGo.o.oGo', 'oGgoGogGo', '.oGgGgGo.', '..oGgGo..', '...oGo...', '...oGo...', '....o....'],
+        cadeado: ['..ooo..', '.o...o.', '.o...o.', 'ooooooo', 'oyyyyyo', 'oyyoyyo', 'oyyoyyo', 'oYYYYYo', 'ooooooo'],
+        check: ['......oo', '.....oGo', 'oo..oGo.', 'oGooGo..', '.oGGo...', '..oo....'],
+        brilho: ['..w..', '..w..', 'ww.ww', '..w..', '..w..'],
+        mao: ['..o.o.o..', '.oko.oko.', '.okokoko.', 'ooko.okoo', 'okkkkkkko', 'okkkkkkko', '.okkkkko.', '..ooooo..'],
+        coracao: ['.oo.oo.', 'orrorRo', 'orwrrRo', 'orrrrRo', '.orrRo.', '..oRo..', '...o...'],
+        missao: ['ooooooo.', 'okkkkkko', 'okoooko.', 'okkkkkko', 'okoooko.', 'okkkkkko', 'okooko..', 'okkkkko.', 'oooooo..'],
+        mover: ['....o....', '...oko...', '..okkko..', '....o....', 'oko.o.oko', 'okkoooko.', 'oko.o.oko', '....o....', '..okkko..', '...oko...', '....o....'],
+        lixeira: ['..ooooo..', 'ooooooooo', 'okkkkkkko', '.okokoko.', '.okokoko.', '.okokoko.', '.okokoko.', '.okkkkko.', '..ooooo..']
     };
 
     const icones = {};
-    function montarIcones() {
-        for (const [nome, linhas] of Object.entries(ICONES)) {
-            const c = document.createElement('canvas');
-            c.width = Math.max(...linhas.map((l) => l.length));
-            c.height = linhas.length;
-            const x = c.getContext('2d');
-            linhas.forEach((linha, yy) => [...linha].forEach((ch, xx) => {
-                if (PAL[ch]) { x.fillStyle = PAL[ch]; x.fillRect(xx, yy, 1, 1); }
-            }));
-            icones[nome] = c;
-        }
+    for (const [nome, linhas] of Object.entries(ICONES)) {
+        const c = document.createElement('canvas');
+        c.width = Math.max(...linhas.map((l) => l.length));
+        c.height = linhas.length;
+        const x = c.getContext('2d');
+        linhas.forEach((linha, yy) => [...linha].forEach((ch, xx) => {
+            if (PAL[ch]) { x.fillStyle = PAL[ch]; x.fillRect(xx, yy, 1, 1); }
+        }));
+        icones[nome] = c;
     }
-    montarIcones();
 
     const urls = {};
     function iconeURL(nome) {
@@ -187,35 +185,47 @@
         return `<img class="px-ico" src="${iconeURL(nome)}" width="${px}" height="${h}" alt="">`;
     }
 
-    function htmlTile(i, px = 32) {
+    const ARQUIVOS = { farm: 'tiny-farm.png', town: 'tiny-town.png', ski: 'tiny-ski.png' };
+    function htmlTile(i, px = 32, pacote = 'farm') {
         const c = i % COLS, l = Math.floor(i / COLS);
-        return `<span class="px-spr" style="width:${px}px;height:${px}px;background-size:${COLS * px}px ${LINHAS * px}px;background-position:-${c * px}px -${l * px}px" aria-hidden="true"></span>`;
+        const img = pacote === 'farm' ? '' : `background-image:url('assets/fazenda/${ARQUIVOS[pacote]}');`;
+        return `<span class="px-spr" style="${img}width:${px}px;height:${px}px;background-size:${COLS * px}px ${LINHAS * px}px;background-position:-${c * px}px -${l * px}px" aria-hidden="true"></span>`;
+    }
+
+    // Ícone de item para a UI (árvores altas mostram as duas peças)
+    function htmlItem(id, px = 32) {
+        const a = arteItem(id, estacao());
+        const i = a.auto === 'cerca' ? 45 : a.auto === 'terra' ? 25 : a.i;
+        if (a.topo == null) return htmlTile(i, px, a.p);
+        const m = Math.round(px / 2);
+        return `<span class="px-alto" style="width:${m}px;height:${px}px">${htmlTile(a.topo, m, a.p)}${htmlTile(i, m, a.p)}</span>`;
     }
 
     /* ---------- Atlas ---------- */
-    const atlas = new Image();
+    const atlas = { farm: new Image(), town: new Image(), ski: new Image() };
     let atlasPronto = null;
     function carregar() {
         if (!atlasPronto) {
-            atlasPronto = new Promise((ok, erro) => {
-                atlas.onload = ok;
-                atlas.onerror = () => erro(new Error('Não deu para carregar a arte da fazenda.'));
-                atlas.src = 'assets/fazenda/tiny-farm.png';
-            });
+            atlasPronto = Promise.all(Object.entries(atlas).map(([p, img]) => new Promise((ok, erro) => {
+                img.onload = ok;
+                img.onerror = () => erro(new Error('Não deu para carregar a arte da fazenda.'));
+                img.src = 'assets/fazenda/' + ARQUIVOS[p];
+            })));
         }
         return atlasPronto;
     }
 
-    function tile(ctx, i, x, y, flip) {
+    function tile(ctx, i, x, y, flip, pacote = 'farm') {
+        const img = atlas[pacote];
         const sx = (i % COLS) * T, sy = Math.floor(i / COLS) * T;
         if (flip) {
             ctx.save();
             ctx.translate(x + T, y);
             ctx.scale(-1, 1);
-            ctx.drawImage(atlas, sx, sy, T, T, 0, 0, T, T);
+            ctx.drawImage(img, sx, sy, T, T, 0, 0, T, T);
             ctx.restore();
         } else {
-            ctx.drawImage(atlas, sx, sy, T, T, x, y, T, T);
+            ctx.drawImage(img, sx, sy, T, T, x, y, T, T);
         }
     }
 
@@ -223,7 +233,7 @@
         ctx.drawImage(icones[nome], Math.round(x), Math.round(y));
     }
 
-    /* ---------- Gerador pseudoaleatório estável (decoração não "pula") ---------- */
+    /* ---------- Gerador pseudoaleatório estável (a mata não "pula") ---------- */
     function rng(seed) {
         let s = seed >>> 0 || 1;
         return () => {
@@ -239,7 +249,6 @@
         return h >>> 0;
     }
 
-    /* ---------- Layouts (em tiles, relativos ao "núcleo" da fazenda) ---------- */
     const CELEIRO = [
         [null, 82, null],
         [93, 94, 95],
@@ -248,32 +257,7 @@
         [[90, 129], [91, 130], [92, 131]],
         [114, 126, 116]
     ];
-
-    const LAYOUTS = {
-        paisagem: {
-            w: 18, h: 8,
-            celeiro: { x: 0, y: 0 },
-            campo: { x: 6, y: 2 },
-            casaFazendeiro: { x: 4, y: 5 },
-            terra: [{ x: 0, y: 6, w: 4, h: 2 }],
-            objetos: [{ i: 110, x: 14, y: 2 }, { i: 111, x: 15, y: 2 }],
-            // lugares dos enfeites comprados
-            slots: [{ x: 6, y: 0 }, { x: 8, y: 0 }, { x: 10, y: 0 }, { x: 12, y: 4 }, { x: 12, y: 5 }, { x: 4, y: 1 }, { x: 7, y: 6 }, { x: 10, y: 6 }],
-            pasto: { x: 13, y: 3, w: 4, h: 3 },
-            galinhas: { x: 0, y: 6, w: 5, h: 2 }
-        },
-        retrato: {
-            w: 9, h: 13,
-            celeiro: { x: 0, y: 0 },
-            campo: { x: 1, y: 8 },
-            casaFazendeiro: { x: 4, y: 6 },
-            terra: [{ x: 0, y: 6, w: 4, h: 1 }],
-            objetos: [{ i: 110, x: 5, y: 1 }, { i: 111, x: 6, y: 1 }],
-            slots: [{ x: 3, y: 4 }, { x: 3, y: 5 }, { x: 0, y: 7 }, { x: 8, y: 7 }, { x: 8, y: 9 }, { x: 0, y: 11 }, { x: 7, y: 11 }, { x: 8, y: 2 }],
-            pasto: { x: 4, y: 2, w: 4, h: 2 },
-            galinhas: { x: 0, y: 6, w: 9, h: 1 }
-        }
-    };
+    const CASA = [[52, 53, 55], [64, 65, 67], [84, 85, 75]];   // Tiny Town
 
     /* ============================================================
        CENA
@@ -281,38 +265,56 @@
     function criarCena(canvas, cb) {
         cb = cb || {};
         const ctx = canvas.getContext('2d');
-        const quadro = document.createElement('canvas');   // a cena em pixels do jogo (1:1)
-        const q = quadro.getContext('2d');
-        const fundo = document.createElement('canvas');    // grama + decoração estática
+        const EST = estacao();
+
+        // mundo inteiro em pixels do jogo (terreno + mata em volta)
+        const MW = (MAPA.w + MARGEM * 2) * T, MH = (MAPA.h + MARGEM * 2) * T;
+        const mundo = document.createElement('canvas');
+        mundo.width = MW; mundo.height = MH;
+        const q = mundo.getContext('2d');
+        const fundo = document.createElement('canvas');
+        fundo.width = MW; fundo.height = MH;
         const f = fundo.getContext('2d');
 
-        let escala = 3, dpr = 1, cols = 0, linhas = 0;
-        let L = LAYOUTS.paisagem;
-        let nucleo = { x: 0, y: 0 };
+        let escala = 3, dpr = 1, vw = 0, vh = 0;           // vw/vh: tela em pixels do jogo
+        const cam = { x: 0, y: 0 };
         let margem = { topo: 0, base: 0 };
-        let visual = () => null;       // (posicao) → como desenhar o canteiro
-        let animaisFn = () => [];      // → [{id, tipo, estado, progresso, racao, produto}]
-        let enfeitesFn = () => [];     // → [{slot, sprite}]
-        let hover = null;              // número do canteiro, 'celeiro' ou 'a:<id>'
-        const atores = new Map();      // animais na tela, por id
+        let visual = () => null;
+        let animaisFn = () => [];
+        let construcoesFn = () => [];
+        let construcao = { ativo: false };                 // estado do modo construir
+        let hover = null;                                  // canteiro, 'celeiro', 'a:<id>' ou {tx, ty}
+        const atores = new Map();
         const fazendeiro = { x: 0, y: 0, tx: 0, ty: 0, flip: false, passo: 0 };
         const t0 = performance.now();
 
-        /* ---- geometria ---- */
-        const campoX = () => (nucleo.x + L.campo.x) * T;
-        const campoY = () => (nucleo.y + L.campo.y) * T;
+        /* ---- geometria (coordenadas do mundo, em pixels do jogo) ---- */
+        const wx = (tx) => (MARGEM + tx) * T;
+        const wy = (ty) => (MARGEM + ty) * T;
         function posCanteiro(p) {
-            return { x: campoX() + (p % 6) * T, y: campoY() + Math.floor(p / 6) * T };
+            return { x: wx(MAPA.campo.x + (p % 6)), y: wy(MAPA.campo.y + Math.floor(p / 6)) };
         }
         function retCeleiro() {
-            return { x: (nucleo.x + L.celeiro.x) * T, y: (nucleo.y + L.celeiro.y) * T, w: 3 * T, h: 6 * T };
+            return { x: wx(MAPA.celeiro.x), y: wy(MAPA.celeiro.y), w: 3 * T, h: 6 * T };
         }
         function areaDe(tipo) {
-            const a = tipo === 'galinha' ? L.galinhas : L.pasto;
-            return {
-                x0: (nucleo.x + a.x) * T, y0: (nucleo.y + a.y) * T,
-                x1: (nucleo.x + a.x + a.w - 1) * T, y1: (nucleo.y + a.y + a.h - 1) * T
-            };
+            const a = tipo === 'galinha'
+                ? { x: MAPA.galinheiro.x, y: MAPA.galinheiro.y, w: MAPA.galinheiro.w, h: MAPA.galinheiro.h }
+                : { x: MAPA.pasto.x + 1, y: MAPA.pasto.y + 2, w: MAPA.pasto.w - 2, h: MAPA.pasto.h - 3 };
+            return { x0: wx(a.x), y0: wy(a.y), x1: wx(a.x + a.w - 1), y1: wy(a.y + a.h - 1) };
+        }
+
+        /* ---- câmera ---- */
+        function limitarCamera() {
+            cam.x = vw >= MW ? (MW - vw) / 2 : Math.min(Math.max(cam.x, 0), MW - vw);
+            cam.y = vh >= MH ? (MH - vh) / 2 : Math.min(Math.max(cam.y, 0), MH - vh);
+        }
+        // centraliza um ponto do mundo no meio da área útil (entre o topo e a barra)
+        function focar(px, py) {
+            const meioY = (margem.topo + (innerHeight - margem.topo - margem.base) / 2) / escala;
+            cam.x = px - vw / 2;
+            cam.y = py - meioY;
+            limitarCamera();
         }
 
         function redimensionar() {
@@ -324,108 +326,131 @@
             canvas.style.height = H + 'px';
 
             const areaW = W - 24;
-            const areaH = Math.max(160, H - margem.topo - margem.base - 16);
-            const sP = Math.min(areaW / (LAYOUTS.paisagem.w * T), areaH / (LAYOUTS.paisagem.h * T));
-            const sR = Math.min(areaW / (LAYOUTS.retrato.w * T), areaH / (LAYOUTS.retrato.h * T));
-            L = sP >= sR ? LAYOUTS.paisagem : LAYOUTS.retrato;
-            let s = Math.min(Math.max(sP, sR), 6);
-            if (s >= 3) s = Math.floor(s);           // escala inteira = pixels perfeitos
-            escala = Math.max(s, 1.5);
-
-            cols = Math.ceil(W / (T * escala)) + 1;
-            linhas = Math.ceil(H / (T * escala)) + 1;
-            const topoT = margem.topo / (T * escala);
-            const areaT = areaH / (T * escala);
-            nucleo = {
-                x: Math.floor((W / (T * escala) - L.w) / 2),
-                y: Math.floor(topoT + (areaT - L.h) / 2)
-            };
-            quadro.width = fundo.width = cols * T;
-            quadro.height = fundo.height = linhas * T;
-            montarFundo();
-            atores.clear();                          // reposiciona os animais na nova área
-            const c = L.casaFazendeiro;
-            fazendeiro.x = fazendeiro.tx = (nucleo.x + c.x) * T;
-            fazendeiro.y = fazendeiro.ty = (nucleo.y + c.y) * T;
+            const areaH = Math.max(200, H - margem.topo - margem.base - 12);
+            let s = Math.min(areaW / (MAPA.w * T), areaH / (MAPA.h * T));
+            // celular em pé: o terreno não cabe na largura, então usa a altura e deixa arrastar
+            if (s < 2.5) s = Math.min(Math.max(areaH / (MAPA.h * T), 2.5), 3.4);
+            s = Math.min(s, 6);
+            if (s >= 3) s = Math.floor(s);
+            escala = s;
+            vw = W / escala;
+            vh = H / escala;
+            atores.clear();
+            const c = MAPA.fazendeiro;
+            fazendeiro.x = fazendeiro.tx = wx(c.x);
+            fazendeiro.y = fazendeiro.ty = wy(c.y);
+            // começa olhando para o campo
+            focar(wx(MAPA.campo.x + 3), wy(MAPA.campo.y + 1));
         }
 
-        /* ---- fundo estático ---- */
-        function ocupado(tx, ty) {
-            const nx = tx - nucleo.x, ny = ty - nucleo.y;
-            return nx >= -1 && ny >= -1 && nx <= L.w && ny <= L.h;
-        }
-
-        function manchaTerra(x, y, w, h, r) {
-            f.fillStyle = PAL.t;
-            for (let yy = 0; yy < h; yy++) {
-                for (let xx = 0; xx < w; xx++) {
-                    const borda = (xx < 2 || yy < 2 || xx > w - 3 || yy > h - 3);
-                    if (borda && r() < 0.35) continue;
-                    f.fillRect(x + xx, y + yy, 1, 1);
-                }
-            }
-            for (let n = 0; n < (w * h) / 40; n++) {
-                f.fillStyle = r() < 0.5 ? PAL.d : PAL.k;
-                f.fillRect(x + 3 + Math.floor(r() * (w - 6)), y + 3 + Math.floor(r() * (h - 6)), 1, 1);
-            }
+        /* ---- fundo estático: grama, mata, celeiro, casa, pasto ---- */
+        function dentroTerreno(tx, ty) {
+            return tx >= 0 && ty >= 0 && tx < MAPA.w && ty < MAPA.h;
         }
 
         function montarFundo() {
-            const r = rng(cols * 73856093 ^ linhas * 19349663);
-            f.fillStyle = PAL.g;
-            f.fillRect(0, 0, fundo.width, fundo.height);
+            const r = rng(20261007);
+            const corGrama = EST === 'inverno' ? '#9fcf86' : PAL.g;
+            f.fillStyle = corGrama;
+            f.fillRect(0, 0, MW, MH);
 
-            // textura da grama: tufos, pontinhos claros e flores
-            for (let n = 0; n < cols * linhas * 2.2; n++) {
-                const x = Math.floor(r() * fundo.width), y = Math.floor(r() * fundo.height);
+            // neve fora do terreno no inverno, com borda irregular
+            if (EST === 'inverno') {
+                const img = f.getImageData(0, 0, MW, MH);
+                const x0 = wx(0), y0 = wy(0), x1 = wx(MAPA.w), y1 = wy(MAPA.h);
+                for (let y = 0; y < MH; y++) {
+                    for (let x = 0; x < MW; x++) {
+                        const dx = Math.max(x0 - x, x - x1, 0), dy = Math.max(y0 - y, y - y1, 0);
+                        const dist = Math.max(dx, dy);
+                        const ruido = (Math.sin(x * 0.37) + Math.sin(y * 0.29) + Math.sin((x + y) * 0.11)) * 2 + 6;
+                        if (dist > ruido) {
+                            const k = (y * MW + x) * 4;
+                            const brilho = r() < 0.02;
+                            img.data[k] = brilho ? 255 : 236; img.data[k + 1] = brilho ? 255 : 244; img.data[k + 2] = 255;
+                        }
+                    }
+                }
+                f.putImageData(img, 0, 0);
+            }
+
+            // textura: tufos, pontinhos e flores (mais flores na primavera, folhas no outono)
+            const flores = { primavera: 0.3, verao: 0.14, outono: 0.04, inverno: 0.02 }[EST];
+            for (let n = 0; n < (MW * MH) / 60; n++) {
+                const x = Math.floor(r() * MW), y = Math.floor(r() * MH);
+                const tx = Math.floor(x / T) - MARGEM, ty = Math.floor(y / T) - MARGEM;
+                if (EST === 'inverno' && !dentroTerreno(tx, ty)) continue;
                 const v = r();
-                if (v < 0.55) {
+                if (v < 0.5) {
                     f.fillStyle = PAL.G;
                     f.fillRect(x, y, 1, 1); f.fillRect(x + 2, y, 1, 1); f.fillRect(x + 1, y + 1, 1, 1);
-                } else if (v < 0.85) {
-                    f.fillStyle = PAL.l;
+                } else if (v < 0.5 + (EST === 'outono' ? 0.3 : 0.2)) {
+                    f.fillStyle = EST === 'outono' ? (r() < 0.5 ? PAL.Y : PAL.y) : EST === 'inverno' ? PAL.w : PAL.l;
                     f.fillRect(x, y, 1, 1);
-                } else if (!ocupado(Math.floor(x / T), Math.floor(y / T))) {
-                    f.fillStyle = v < 0.93 ? PAL.y : PAL.w;
+                    if (EST === 'outono') f.fillRect(x + 1, y, 1, 1);
+                } else if (r() < flores * 3) {
+                    f.fillStyle = r() < 0.4 ? PAL.y : r() < 0.5 ? PAL.w : PAL.p;
                     f.fillRect(x, y - 1, 1, 1); f.fillRect(x - 1, y, 3, 1); f.fillRect(x, y + 1, 1, 1);
                     f.fillStyle = PAL.Y;
                     f.fillRect(x, y, 1, 1);
                 }
             }
 
-            // terra batida em volta do celeiro
-            for (const m of L.terra) {
-                manchaTerra((nucleo.x + m.x) * T - 4, (nucleo.y + m.y) * T - 2, m.w * T + 8, m.h * T + 4, r);
-            }
-
-            // floresta nas bordas e árvores soltas fora do núcleo
-            const arvores = [];
-            for (let ty = -1; ty < linhas; ty++) {
-                for (let tx = -1; tx < cols; tx++) {
-                    if (ocupado(tx, ty)) continue;
-                    // distância (em tiles) até a borda do núcleo: quanto mais longe, mais mato
-                    const longe = Math.max(
-                        nucleo.x - 1 - tx, tx - (nucleo.x + L.w),
-                        nucleo.y - 1 - ty, ty - (nucleo.y + L.h)
-                    );
-                    const chance = longe >= 3 ? 0.85 : longe === 2 ? 0.45 : 0.12;
-                    if (r() < chance) {
-                        const v = r();
-                        const i = longe >= 2 ? (v < 0.75 ? 15 : v < 0.9 ? 27 : 39) : (v < 0.4 ? 39 : v < 0.6 ? 78 : v < 0.75 ? 89 : v < 0.85 ? 77 : 15);
-                        arvores.push({ i, x: tx * T + Math.floor((r() - 0.5) * 6), y: ty * T + Math.floor((r() - 0.5) * 6) });
-                    }
+            // terra batida do galinheiro (bloco 3x3 do Tiny Town)
+            const g = MAPA.galinheiro;
+            for (let yy = 0; yy < g.h; yy++) {
+                for (let xx = 0; xx < g.w; xx++) {
+                    tile(f, tileTerra(yy > 0, yy < g.h - 1, xx > 0, xx < g.w - 1), wx(g.x + xx), wy(g.y + yy), false, 'town');
                 }
             }
-            arvores.sort((a, b) => a.y - b.y).forEach((a) => tile(f, a.i, a.x, a.y));
 
-            // celeiro
+            // mata em volta do terreno: árvores de duas peças, conforme a estação
+            const arvores = [];
+            for (let ty = -MARGEM; ty < MAPA.h + MARGEM; ty++) {
+                for (let tx = -MARGEM; tx < MAPA.w + MARGEM; tx++) {
+                    if (dentroTerreno(tx, ty)) continue;
+                    const longe = Math.max(-tx, tx - MAPA.w + 1, -ty, ty - MAPA.h + 1);
+                    const chance = longe >= 3 ? 0.9 : longe === 2 ? 0.6 : 0.3;
+                    if (r() >= chance) continue;
+                    const v = r();
+                    let a;
+                    if (EST === 'inverno') {
+                        a = v < 0.6 ? { p: 'ski', i: 18, topo: 6 } : v < 0.75 ? { p: 'ski', i: 19, topo: 7 } : v < 0.9 ? { p: 'ski', i: 30 } : v < 0.98 ? { p: 'ski', i: 31 } : { p: 'ski', i: 64 };
+                    } else if (EST === 'outono') {
+                        a = v < 0.45 ? { p: 'town', i: 15, topo: 3 } : v < 0.7 ? { p: 'farm', i: 15, topo: 3 } : v < 0.85 ? { p: 'town', i: 27 } : { p: 'town', i: 5 };
+                    } else {
+                        a = v < 0.45 ? { p: 'farm', i: 15, topo: 3 } : v < 0.75 ? { p: 'town', i: 16, topo: 4 } : v < 0.85 ? { p: 'farm', i: 27 } : v < 0.93 ? { p: 'town', i: 28 } : { p: 'town', i: 5 };
+                    }
+                    arvores.push({ ...a, x: wx(tx) + Math.floor((r() - 0.5) * 6), y: wy(ty) + Math.floor((r() - 0.5) * 4) });
+                }
+            }
+            arvores.sort((a, b) => a.y - b.y).forEach((a) => {
+                if (a.topo != null) tile(f, a.topo, a.x, a.y - T, false, a.p);
+                tile(f, a.i, a.x, a.y, false, a.p);
+            });
+
+            // celeiro e casa
             const c = retCeleiro();
             CELEIRO.forEach((linha, yy) => linha.forEach((cel, xx) => {
                 if (cel == null) return;
                 (Array.isArray(cel) ? cel : [cel]).forEach((i) => tile(f, i, c.x + xx * T, c.y + yy * T));
             }));
+            CASA.forEach((linha, yy) => linha.forEach((i, xx) => tile(f, i, wx(MAPA.casa.x + xx), wy(MAPA.casa.y + yy), false, 'town')));
 
-            for (const o of L.objetos) tile(f, o.i, (nucleo.x + o.x) * T, (nucleo.y + o.y) * T);
+            // pasto cercado com porteira
+            const pa = MAPA.pasto;
+            const ehCerca = (tx, ty) => {
+                if (tx < pa.x || ty < pa.y || tx >= pa.x + pa.w || ty >= pa.y + pa.h) return false;
+                const borda = tx === pa.x || ty === pa.y || tx === pa.x + pa.w - 1 || ty === pa.y + pa.h - 1;
+                if (!borda) return false;
+                return !(ty === pa.y + pa.h - 1 && MAPA.porteira.includes(tx));
+            };
+            for (let ty = pa.y; ty < pa.y + pa.h; ty++) {
+                for (let tx = pa.x; tx < pa.x + pa.w; tx++) {
+                    if (!ehCerca(tx, ty)) continue;
+                    tile(f, tileCerca(ehCerca(tx, ty - 1), ehCerca(tx, ty + 1), ehCerca(tx - 1, ty), ehCerca(tx + 1, ty)), wx(tx), wy(ty), false, 'town');
+                }
+            }
+            for (const o of MAPA.cochos) tile(f, o.i, wx(o.x), wy(o.y));
         }
 
         /* ---- animais ---- */
@@ -451,8 +476,7 @@
 
         function mover(dt) {
             for (const a of atores.values()) {
-                // com fome ou com produto pronto, o animal fica parado esperando o toque
-                if (a.v && a.v.estado !== 'produzindo') continue;
+                if (a.v && a.v.estado !== 'produzindo') continue;   // esperando o toque
                 if (a.espera > 0) { a.espera -= dt; continue; }
                 const dx = a.tx - a.x, dy = a.ty - a.y, d = Math.hypot(dx, dy);
                 if (d < 0.5) {
@@ -477,7 +501,6 @@
         }
 
         /* ---- desenhos auxiliares ---- */
-        // balão branco com contorno e cantos em degrau; a ponta fica embaixo, no meio
         function balao(bx, by, w, h) {
             q.fillStyle = PAL.o;
             q.fillRect(bx + 1, by, w - 2, h);
@@ -495,8 +518,8 @@
             q.fillStyle = PAL.l; q.fillRect(x + 1, y + 1, Math.max(1, Math.round(10 * Math.min(1, p))), 1);
         }
 
-        function moldura(x, y, w, h) {
-            q.fillStyle = PAL.w;
+        function moldura(x, y, w, h, cor = PAL.w) {
+            q.fillStyle = cor;
             const c = 4;
             q.fillRect(x - 1, y - 1, c, 1); q.fillRect(x - 1, y - 1, 1, c);
             q.fillRect(x + w - c + 1, y - 1, c, 1); q.fillRect(x + w, y - 1, 1, c);
@@ -504,12 +527,28 @@
             q.fillRect(x + w - c + 1, y + h, c, 1); q.fillRect(x + w, y + h - c + 1, 1, c);
         }
 
+        /* ---- construções do jogador ---- */
+        function mapaConstrucoes(lista) {
+            const m = new Map();
+            for (const c of lista) m.set(c.x + ',' + c.y, c.tipo);
+            return m;
+        }
+        // devolve os sprites de uma construção já com o encaixe automático resolvido
+        function spritesDe(tipo, x, y, m) {
+            const a = arteItem(tipo, EST);
+            if (a.auto) {
+                const igual = (dx, dy) => m.get((x + dx) + ',' + (y + dy)) === tipo;
+                const f2 = a.auto === 'cerca' ? tileCerca : tileTerra;
+                return { p: a.p, i: f2(igual(0, -1), igual(0, 1), igual(-1, 0), igual(1, 0)), chao: a.chao };
+            }
+            return a;
+        }
+
         /* ---- canteiros ---- */
         function desenharCanteiro(p, tempo) {
             const v = visual(p);
             const { x, y } = posCanteiro(p);
             if (!v || v.solo === 'bloqueado') {
-                // grama com contorno tracejado e cadeado
                 q.fillStyle = 'rgba(63,38,49,.28)';
                 for (let k = 2; k < T - 2; k += 3) {
                     q.fillRect(x + k, y + 1, 2, 1); q.fillRect(x + k, y + T - 2, 2, 1);
@@ -521,7 +560,7 @@
                 return;
             }
             tile(q, v.solo === 'arado' ? 1 : 0, x, y);
-            if (v.seco) {   // terra rachada
+            if (v.seco) {
                 q.fillStyle = PAL.k;
                 q.fillRect(x + 4, y + 5, 3, 1); q.fillRect(x + 6, y + 6, 1, 2);
                 q.fillRect(x + 9, y + 10, 3, 1); q.fillRect(x + 9, y + 11, 1, 1);
@@ -565,6 +604,40 @@
             }
         }
 
+        /* ---- modo construir: grade, fantasma do item e seleção ---- */
+        function desenharGrade(m, tempo) {
+            for (let ty = 0; ty < MAPA.h; ty++) {
+                for (let tx = 0; tx < MAPA.w; tx++) {
+                    const x = wx(tx), y = wy(ty);
+                    if (!livre(tx, ty)) {
+                        q.fillStyle = 'rgba(195,75,53,.16)';
+                        q.fillRect(x, y, T, T);
+                    } else {
+                        q.fillStyle = 'rgba(63,38,49,.18)';
+                        q.fillRect(x, y, 1, 1); q.fillRect(x + T - 1, y, 1, 1);
+                        q.fillRect(x, y + T - 1, 1, 1); q.fillRect(x + T - 1, y + T - 1, 1, 1);
+                    }
+                }
+            }
+            const sel = construcao.movendo;
+            if (sel) moldura(wx(sel.x), wy(sel.y), T, T, Math.floor(tempo / 250) % 2 ? PAL.y : PAL.w);
+            if (hover && typeof hover === 'object' && 'tx' in hover) {
+                const { tx, ty } = hover;
+                const x = wx(tx), y = wy(ty);
+                const ocupado = m.has(tx + ',' + ty);
+                const pode = livre(tx, ty) && (construcao.modo === 'colocar' || construcao.movendo ? !ocupado : ocupado);
+                if (pode && construcao.modo === 'colocar' && construcao.tipo) {
+                    const temp = new Map(m); temp.set(tx + ',' + ty, construcao.tipo);
+                    const s = spritesDe(construcao.tipo, tx, ty, temp);
+                    q.globalAlpha = 0.65;
+                    if (s.topo != null) tile(q, s.topo, x, y - T, false, s.p);
+                    tile(q, s.i, x, y, false, s.p);
+                    q.globalAlpha = 1;
+                }
+                moldura(x, y, T, T, pode ? PAL.w : PAL.r);
+            }
+        }
+
         /* ---- loop ---- */
         let ultimo = performance.now(), ultimoDesenho = 0;
         function quadroAnim(agora) {
@@ -581,25 +654,35 @@
         function desenhar(tempo) {
             sincronizarAnimais();
             q.drawImage(fundo, 0, 0);
+
+            const lista = construcoesFn() || [];
+            const m = mapaConstrucoes(lista);
+            const pe = [];   // coisas "em pé", ordenadas pela altura
+            for (const c of lista) {
+                const s = spritesDe(c.tipo, c.x, c.y, m);
+                if (s.chao) tile(q, s.i, wx(c.x), wy(c.y), false, s.p);   // caminho/flores: chão
+                else pe.push({ ...s, x: wx(c.x), y: wy(c.y), flip: false, bob: 0 });
+            }
+
             for (let p = 0; p < 18; p++) desenharCanteiro(p, tempo);
 
-            // enfeites, animais e fazendeiro ordenados pela altura (mais embaixo = mais na frente)
-            const cena = [];
-            for (const e of enfeitesFn()) {
-                const s = L.slots[e.slot];
-                if (s) cena.push({ i: e.sprite, x: (nucleo.x + s.x) * T, y: (nucleo.y + s.y) * T, flip: false, bob: 0 });
-            }
             for (const a of atores.values()) {
                 const parado = a.v && a.v.estado !== 'produzindo';
-                cena.push({ i: a.i, x: a.x, y: a.y, flip: a.flip, bob: parado && Math.floor(tempo / 600) % 2 ? -1 : 0 });
+                pe.push({ p: 'farm', i: a.i, x: a.x, y: a.y, flip: a.flip, bob: parado && Math.floor(tempo / 600) % 2 ? -1 : 0 });
             }
             const andando = fazendeiro.passo > 0;
-            cena.push({ i: 109, x: fazendeiro.x, y: fazendeiro.y, flip: fazendeiro.flip, bob: andando && Math.floor(tempo / 120) % 2 ? -1 : 0 });
-            cena.sort((a, b) => a.y - b.y).forEach((a) => tile(q, a.i, Math.round(a.x), Math.round(a.y) + a.bob, a.flip));
+            pe.push({ p: 'farm', i: 109, x: fazendeiro.x, y: fazendeiro.y, flip: fazendeiro.flip, bob: andando && Math.floor(tempo / 120) % 2 ? -1 : 0 });
+            pe.sort((a, b) => a.y - b.y).forEach((a) => {
+                const x = Math.round(a.x), y = Math.round(a.y) + a.bob;
+                if (a.topo != null) tile(q, a.topo, x, y - T, a.flip, a.p);
+                tile(q, a.i, x, y, a.flip, a.p);
+            });
 
             for (const a of atores.values()) if (a.v) desenharSinalAnimal(a, tempo);
 
-            if (typeof hover === 'number') {
+            if (construcao.ativo) {
+                desenharGrade(m, tempo);
+            } else if (typeof hover === 'number') {
                 const { x, y } = posCanteiro(hover);
                 moldura(x, y, T, T);
             } else if (hover === 'celeiro') {
@@ -610,25 +693,34 @@
                 if (a) moldura(Math.round(a.x), Math.round(a.y), T, T);
             }
 
+            // recorte da câmera ampliado para a tela
             ctx.imageSmoothingEnabled = false;
-            ctx.drawImage(quadro, 0, 0, quadro.width * escala * dpr, quadro.height * escala * dpr);
+            ctx.fillStyle = PAL.g;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            const cx = Math.round(cam.x), cy = Math.round(cam.y);
+            const k = escala * dpr;
+            const sx = Math.max(0, cx), sy = Math.max(0, cy);
+            const sw = Math.min(MW, cx + vw + 1) - sx, sh = Math.min(MH, cy + vh + 1) - sy;
+            ctx.drawImage(mundo, sx, sy, sw, sh, (sx - cx) * k, (sy - cy) * k, sw * k, sh * k);
         }
 
-        /* ---- entrada do mouse/toque ---- */
+        /* ---- entrada: toque/mouse, arrastar para mover a câmera ---- */
         const idDoHover = (h) => {
             const bruto = h.slice(2);
             return atores.has(bruto) ? bruto : Number(bruto);
         };
+        const paraMundo = (clientX, clientY) => ({ x: cam.x + clientX / escala, y: cam.y + clientY / escala });
 
         function alvoEm(clientX, clientY) {
-            const px = clientX / escala, py = clientY / escala;
-            // animais primeiro (quem está mais na frente ganha); o balão também conta
+            const { x: px, y: py } = paraMundo(clientX, clientY);
+            const tx = Math.floor(px / T) - MARGEM, ty = Math.floor(py / T) - MARGEM;
+            if (construcao.ativo) return dentroTerreno(tx, ty) ? { tx, ty } : null;
             const lista = [...atores.values()].sort((a, b) => b.y - a.y);
             for (const a of lista) {
                 const topo = a.v && a.v.estado !== 'produzindo' ? a.y - 22 : a.y;
                 if (px >= a.x - 1 && px < a.x + T + 1 && py >= topo && py < a.y + T) return 'a:' + a.id;
             }
-            const cx = campoX(), cy = campoY();
+            const cx = wx(MAPA.campo.x), cy = wy(MAPA.campo.y);
             if (px >= cx && py >= cy && px < cx + 6 * T && py < cy + 3 * T) {
                 return Math.floor((py - cy) / T) * 6 + Math.floor((px - cx) / T);
             }
@@ -637,33 +729,65 @@
             return null;
         }
 
-        canvas.addEventListener('pointermove', (e) => {
-            const alvo = alvoEm(e.clientX, e.clientY);
-            if (alvo !== hover) {
-                hover = alvo;
-                canvas.style.cursor = alvo == null ? 'default' : 'pointer';
-                if (cb.aoPassar) cb.aoPassar(traduzir(alvo));
-            }
-        });
-        canvas.addEventListener('pointerleave', () => { hover = null; });
-        canvas.addEventListener('click', (e) => {
-            const alvo = traduzir(alvoEm(e.clientX, e.clientY));
-            if (alvo == null) return;
-            if (alvo === 'celeiro') { if (cb.aoCeleiro) cb.aoCeleiro(); }
-            else if (typeof alvo === 'object') { if (cb.aoAnimal) cb.aoAnimal(alvo.animal); }
-            else if (cb.aoCanteiro) cb.aoCanteiro(alvo);
-        });
-
-        // devolve para o jogo: número (canteiro), 'celeiro' ou { animal: id }
         function traduzir(alvo) {
             if (typeof alvo === 'string' && alvo.startsWith('a:')) return { animal: idDoHover(alvo) };
             return alvo;
         }
 
+        function mesmoAlvo(a, b) {
+            if (a && b && typeof a === 'object' && typeof b === 'object') return a.tx === b.tx && a.ty === b.ty;
+            return a === b;
+        }
+
+        let toque = null;   // { id, x, y, camX, camY, arrastou }
+        canvas.addEventListener('pointerdown', (e) => {
+            toque = { id: e.pointerId, x: e.clientX, y: e.clientY, camX: cam.x, camY: cam.y, arrastou: false };
+        });
+        canvas.addEventListener('pointermove', (e) => {
+            if (toque && toque.id === e.pointerId) {
+                const dx = e.clientX - toque.x, dy = e.clientY - toque.y;
+                if (!toque.arrastou && Math.hypot(dx, dy) > 8) {
+                    toque.arrastou = true;
+                    try { canvas.setPointerCapture(e.pointerId); } catch { /* ignora */ }
+                }
+                if (toque.arrastou) {
+                    cam.x = toque.camX - dx / escala;
+                    cam.y = toque.camY - dy / escala;
+                    limitarCamera();
+                    canvas.style.cursor = 'grabbing';
+                    return;
+                }
+            }
+            const alvo = alvoEm(e.clientX, e.clientY);
+            if (!mesmoAlvo(alvo, hover)) {
+                hover = alvo;
+                canvas.style.cursor = alvo == null ? 'default' : 'pointer';
+                if (cb.aoPassar) cb.aoPassar(traduzir(alvo));
+            }
+        });
+        const soltar = (e) => {
+            if (!toque || toque.id !== e.pointerId) return;
+            const arrastou = toque.arrastou;
+            toque = null;
+            canvas.style.cursor = 'default';
+            if (arrastou || e.type === 'pointercancel') return;
+            const alvo = traduzir(alvoEm(e.clientX, e.clientY));
+            hover = alvoEm(e.clientX, e.clientY);
+            if (alvo == null) return;
+            if (typeof alvo === 'object' && 'tx' in alvo) { if (cb.aoTile) cb.aoTile(alvo.tx, alvo.ty); }
+            else if (alvo === 'celeiro') { if (cb.aoCeleiro) cb.aoCeleiro(); }
+            else if (typeof alvo === 'object') { if (cb.aoAnimal) cb.aoAnimal(alvo.animal); }
+            else if (cb.aoCanteiro) cb.aoCanteiro(alvo);
+        };
+        canvas.addEventListener('pointerup', soltar);
+        canvas.addEventListener('pointercancel', soltar);
+        canvas.addEventListener('pointerleave', () => { if (!toque) hover = null; });
+
         window.addEventListener('resize', redimensionar);
 
         return {
             iniciar() {
+                montarFundo();
                 redimensionar();
                 requestAnimationFrame(quadroAnim);
             },
@@ -674,8 +798,8 @@
             },
             definirVisual(fn) { visual = fn; },
             definirAnimais(fn) { animaisFn = fn; },
-            definirEnfeites(fn) { enfeitesFn = fn; },
-            // fazendeiro caminha até o canteiro ou animal (só enfeite)
+            definirConstrucoes(fn) { construcoesFn = fn; },
+            definirModoConstrucao(estado) { construcao = estado || { ativo: false }; },
             irAte(p) {
                 const { x, y } = posCanteiro(p);
                 fazendeiro.tx = x;
@@ -688,18 +812,19 @@
                 fazendeiro.ty = a.y;
             },
             voltarParaCasa() {
-                const c = L.casaFazendeiro;
-                fazendeiro.tx = (nucleo.x + c.x) * T;
-                fazendeiro.ty = (nucleo.y + c.y) * T;
+                fazendeiro.tx = wx(MAPA.fazendeiro.x);
+                fazendeiro.ty = wy(MAPA.fazendeiro.y);
             },
-            // posição na tela (px CSS), para os números flutuantes
             telaDoCanteiro(p) {
                 const { x, y } = posCanteiro(p);
-                return { x: (x + T / 2) * escala, y: (y - 2) * escala };
+                return { x: (x + T / 2 - cam.x) * escala, y: (y - 2 - cam.y) * escala };
             },
             telaDoAnimal(id) {
                 const a = atores.get(id);
-                return a ? { x: (a.x + T / 2) * escala, y: (a.y - 4) * escala } : { x: innerWidth / 2, y: innerHeight / 2 };
+                return a ? { x: (a.x + T / 2 - cam.x) * escala, y: (a.y - 4 - cam.y) * escala } : { x: innerWidth / 2, y: innerHeight / 2 };
+            },
+            telaDoTile(tx, ty) {
+                return { x: (wx(tx) + T / 2 - cam.x) * escala, y: (wy(ty) - 2 - cam.y) * escala };
             }
         };
     }
@@ -709,7 +834,11 @@
         criarCena,
         htmlTile,
         htmlIcone,
+        htmlItem,
         ANIMAL,
+        MAPA,
+        livre,
+        estacao,
         cultura: (id) => CULTURAS[id] || CULTURA_PADRAO
     };
 })();
