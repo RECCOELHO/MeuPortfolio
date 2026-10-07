@@ -52,7 +52,17 @@
         nenhum_vizinho: 'Ainda não tem vizinhos por aqui. Chame alguém para jogar!',
         ja_pegou: 'Você já pegou desse canteiro. Deixa um pouco pro dono!',
         nada_pra_pegar: 'Esse canteiro já foi bem visitado… não sobrou nada.',
-        limite_pegadas: 'Você já pegou demais hoje. Volte amanhã.'
+        limite_pegadas: 'Você já pegou demais hoje. Volte amanhã.',
+        sem_racao: 'Falta ração no celeiro.',
+        ja_alimentado: 'Esse bicho já comeu.',
+        nao_pronto: 'Ainda não tem nada pra coletar.',
+        animal_invalido: 'Esse animal não está mais aqui.',
+        limite_animais: 'Você já tem o máximo desse animal.',
+        item_invalido: 'Item inválido.',
+        sem_espaco: 'Não tem mais lugar para enfeites. Tire um antes.',
+        missao_invalida: 'Missão não encontrada.',
+        ja_resgatada: 'Você já pegou essa recompensa.',
+        missao_incompleta: 'Termine a missão antes de resgatar.'
     };
 
     async function rpc(fn, args) {
@@ -92,7 +102,7 @@
         painel: $('painel'), painelTitulo: $('painelTitulo'), painelCorpo: $('painelCorpo'), painelFechar: $('painelFechar'),
         faixaVisita: $('faixaVisita'), visitaApelido: $('visitaApelido'), visitaNivel: $('visitaNivel'),
         btnVoltarCasa: $('btnVoltarCasa'), acoesVisita: $('acoesVisita'), acoesCasa: $('acoesCasa'),
-        diarioCont: $('hudDiario')
+        diarioCont: $('hudDiario'), missoesCont: $('hudMissoes')
     };
 
     /* ---------- Ícones (pixel art) ---------- */
@@ -109,6 +119,7 @@
     let S = null;                 // último estado vindo do servidor
     let visita = null;            // fazenda do vizinho sendo visitada (null = em casa)
     let abaVizinhos = 'ranking';
+    let abaLoja = 'sementes';
     let ultimoAvisoDiario = Number(store.get(LS.diarioVisto)) || 0;
     let culturas = {};            // id -> cultura
     let offset = 0;               // relógio do servidor - relógio local (ms)
@@ -223,16 +234,62 @@
         return v;
     }
 
+    /* ---------- Animais e enfeites ---------- */
+    const tipoAnimal = (id) => S && S.animais_tipos && S.animais_tipos.find((t) => t.id === id);
+    const tipoEnfeite = (id) => S && S.enfeites_tipos && S.enfeites_tipos.find((t) => t.id === id);
+    const meusAnimais = () => (visita ? visita.animais : S && S.animais) || [];
+    const naCeleiro = (item) => (S && S.celeiro[item]) || 0;
+
+    function infoAnimal(a) {
+        const t = tipoAnimal(a.tipo);
+        if (!t) return { estado: 'produzindo' };
+        if (!a.alimentado_em) return { estado: 'fome', t };
+        const pronto = Date.parse(a.alimentado_em) + t.tempo_seg * 1000;
+        const falta = pronto - agora();
+        if (falta <= 0) return { estado: 'pronto', t };
+        return { estado: 'produzindo', t, prog: 1 - falta / (t.tempo_seg * 1000), resta: falta };
+    }
+
+    const DEMO_ANIMAIS = [
+        { id: 'd1', tipo: 'galinha', estado: 'pronto', produto: 125 },
+        { id: 'd2', tipo: 'galinha', estado: 'produzindo' },
+        { id: 'd3', tipo: 'vaca', estado: 'produzindo' },
+        { id: 'd4', tipo: 'vaca', estado: 'fome', racao: 20 }
+    ];
+    const DEMO_ENFEITES = [{ slot: 0, sprite: 83 }, { slot: 1, sprite: 83 }, { slot: 2, sprite: 83 }, { slot: 3, sprite: 96 }, { slot: 4, sprite: 85 }];
+
+    function visualAnimais() {
+        if (!S) return DEMO_ANIMAIS;
+        return meusAnimais().map((a) => {
+            const i = infoAnimal(a);
+            return {
+                id: a.id, tipo: a.tipo, estado: i.estado, progresso: i.prog,
+                racao: i.t ? A.cultura(i.t.racao).item : null,
+                produto: i.t ? A.cultura(i.t.produto).item : null
+            };
+        });
+    }
+
+    function visualEnfeites() {
+        if (!S) return DEMO_ENFEITES;
+        const lista = (visita ? visita.enfeites : S.enfeites) || [];
+        return lista.map((e) => ({ slot: e.slot, sprite: (tipoEnfeite(e.tipo) || {}).sprite })).filter((e) => e.sprite != null);
+    }
+
     const cena = A.criarCena(el.canvas, {
         aoCanteiro: (p) => clicarCanteiro(p),
+        aoAnimal: (id) => clicarAnimal(id),
         aoCeleiro: () => { if (S && !painelAtual) abrirPainel('celeiro'); },
         aoPassar: (alvo) => {
-            if (!S) return;
+            if (!S || alvo == null) return;
             if (alvo === 'celeiro') mostrarStatus(`${spr(11, 22)} Celeiro: toque para ver e vender a colheita.`);
-            else if (typeof alvo === 'number') descrever(alvo);
+            else if (typeof alvo === 'object') descreverAnimal(alvo.animal);
+            else descrever(alvo);
         }
     });
     cena.definirVisual(visualCanteiro);
+    cena.definirAnimais(visualAnimais);
+    cena.definirEnfeites(visualEnfeites);
 
     function ajustarMargens() {
         const topo = el.hud.hidden ? 24 : el.hud.getBoundingClientRect().bottom + 8;
@@ -259,6 +316,9 @@
         const totalCeleiro = Object.values(S.celeiro).reduce((a, b) => a + b, 0);
         el.celeiroCont.textContent = totalCeleiro;
         el.celeiroCont.hidden = !totalCeleiro;
+        const prontas = (S.missoes || []).filter((m) => !m.resgatada && m.progresso >= m.alvo).length;
+        el.missoesCont.textContent = prontas;
+        el.missoesCont.hidden = !prontas;
 
         const k = culturas[semente];
         el.semIcone.innerHTML = k ? spr(A.cultura(k.id).item, 32) : '';
@@ -309,6 +369,76 @@
         mostrarStatus(txt);
     }
 
+    function descreverAnimal(id) {
+        const a = meusAnimais().find((x) => x.id === id);
+        if (!a) return;
+        const i = infoAnimal(a);
+        if (!i.t) return;
+        const racao = culturas[i.t.racao], produto = culturas[i.t.produto];
+        const nome = esc(i.t.nome);
+        if (visita) {
+            return mostrarStatus(`${spr(A.ANIMAL[a.tipo], 22)} ${nome} do vizinho.`);
+        }
+        if (i.estado === 'fome') {
+            const tem = naCeleiro(i.t.racao);
+            mostrarStatus(`${spr(A.ANIMAL[a.tipo], 22)} ${nome} com fome! Come ${i.t.racao_qtd} ${racao ? itemDe(racao, 18) + esc(racao.nome.toLowerCase()) : ''}` +
+                (tem >= i.t.racao_qtd ? ' — toque para alimentar.' : ` — você tem ${tem} no celeiro.`));
+        } else if (i.estado === 'pronto') {
+            mostrarStatus(`${spr(A.ANIMAL[a.tipo], 22)} ${produto ? itemDe(produto, 18) + esc(produto.nome) : ''} pronto! Toque para coletar.`);
+        } else {
+            mostrarStatus(`${spr(A.ANIMAL[a.tipo], 22)} ${nome} produzindo ${produto ? esc(produto.nome.toLowerCase()) : ''} · pronto em ${fmtTempo(i.resta)}.`);
+        }
+    }
+
+    function clicarAnimal(id) {
+        if (!S || painelAtual || visita) return;
+        descreverAnimal(id);
+        const a = S.animais.find((x) => x.id === id);
+        if (!a) return;
+        const i = infoAnimal(a);
+        if (i.estado === 'fome') {
+            if (naCeleiro(i.t.racao) < i.t.racao_qtd) {
+                const r = culturas[i.t.racao];
+                return toast(`Falta ${r ? esc(r.nome.toLowerCase()) : 'ração'} no celeiro: plante e colha primeiro.`, 'erro');
+            }
+            cena.irAteAnimal(id);
+            executarAnimal('alimentar', [id]);
+        } else if (i.estado === 'pronto') {
+            cena.irAteAnimal(id);
+            executarAnimal('coletar', [id]);
+        }
+    }
+
+    function executarAnimal(acao, ids) {
+        const antes = {};
+        ids.forEach((id) => { antes[id] = S.animais.find((x) => x.id === id); });
+        return enfileirar([], async () => {
+            const r = await rpc('fazenda_animal', { p_token: token, p_acao: acao, p_ids: ids });
+            ids.forEach((id, n) => {
+                const a = antes[id], t = a && tipoAnimal(a.tipo);
+                if (!t) return;
+                const depois = r.estado.animais.find((x) => x.id === id);
+                const mudou = depois && depois.alimentado_em !== a.alimentado_em;
+                if (!mudou) return;
+                const html = acao === 'coletar'
+                    ? `+1 ${itemDe(culturas[t.produto], 20)} +${culturas[t.produto].xp} ${ico('xp', 16)}`
+                    : `−${t.racao_qtd} ${itemDe(culturas[t.racao], 20)}`;
+                setTimeout(() => {
+                    const pos = cena.telaDoAnimal(id);
+                    const f = document.createElement('div');
+                    f.className = 'flut';
+                    f.innerHTML = html;
+                    f.style.left = `${pos.x}px`;
+                    f.style.top = `${pos.y}px`;
+                    el.flut.appendChild(f);
+                    setTimeout(() => f.remove(), 1300);
+                }, n * 80);
+            });
+            aplicarEstado(r.estado);
+            return r;
+        });
+    }
+
     /* ---------- Estado vindo do servidor ---------- */
     function aplicarEstado(estado) {
         const antes = S;
@@ -328,7 +458,7 @@
         }
         avisarDiario();
         desenharHud();
-        if (painelAtual === 'loja' || painelAtual === 'celeiro') abrirPainel(painelAtual, true);
+        if (['loja', 'celeiro', 'missoes'].includes(painelAtual)) abrirPainel(painelAtual, true);
     }
 
     /* ---------- Diário: quem passou pela sua fazenda ---------- */
@@ -485,7 +615,7 @@
         if (!r.feitos) return;
         if (acao === 'colher') {
             const total = Object.values(r.colhido).reduce((a, b) => a + b, 0);
-            toast(`${spr(88, 22)} Colheu ${total} itens de ${r.feitos} canteiro(s)!`);
+            toast(`${spr(35, 22)} Colheu ${total} itens de ${r.feitos} canteiro(s)!`);
         } else if (acao === 'plantar') {
             toast(`${itemDe(k)} Plantou ${r.feitos} × ${esc(k.nome.toLowerCase())}`);
         } else if (acao === 'arar') {
@@ -500,9 +630,15 @@
     async function acaoEmMassa(tipo) {
         if (!S) return;
         if (tipo === 'colher') {
+            // colhe os canteiros maduros e coleta os produtos dos animais
             const ps = posicoesOnde((c, i) => i.fase === 'maduro');
-            if (!ps.length) return toast('Nada maduro ainda.');
-            executar('colher', ps);
+            const prontos = (S.animais || []).filter((a) => infoAnimal(a).estado === 'pronto').map((a) => a.id);
+            if (!ps.length && !prontos.length) return toast('Nada pronto ainda.');
+            if (ps.length) executar('colher', ps);
+            if (prontos.length) {
+                const r = await executarAnimal('coletar', prontos);
+                if (r && r.coletado) toast(`Coletou ${r.coletado} produto(s) dos animais!`);
+            }
         } else if (tipo === 'arar') {
             const ps = posicoesOnde((c, i) => i.fase === 'vazio' || i.fase === 'murcho');
             if (!ps.length) return toast('Nenhum canteiro precisa ser arado.');
@@ -523,6 +659,20 @@
                     const r = await executar(prob, ps);
                     if (r) total += r.feitos;
                 }
+            }
+            // alimenta os animais com fome, até onde a ração do celeiro der
+            const estoque = { ...S.celeiro };
+            const famintos = (S.animais || []).filter((a) => {
+                const i = infoAnimal(a);
+                if (i.estado !== 'fome' || !i.t) return false;
+                if ((estoque[i.t.racao] || 0) < i.t.racao_qtd) return false;
+                estoque[i.t.racao] -= i.t.racao_qtd;
+                return true;
+            }).map((a) => a.id);
+            if (famintos.length) {
+                algum = true;
+                const r = await executarAnimal('alimentar', famintos);
+                if (r && r.feitos) toast(`Alimentou ${r.feitos} animal(is).`);
             }
             if (!algum) toast('Tudo em ordem por aqui.');
             else if (total) toast(`${spr(84, 22)} Resolveu ${total} problema(s)!`);
@@ -625,24 +775,17 @@
         painelAtual = nome;
         const corpo = el.painelCorpo;
         if (nome === 'loja') {
-            el.painelTitulo.innerHTML = `${spr(9, 32)} Loja de sementes`;
-            corpo.innerHTML = '<div class="lista">' + S.culturas.map((k) => {
-                const travada = k.nivel_min > S.jogador.nivel;
-                const lucro = k.venda * k.rendimento - k.custo;
-                return `<button type="button" class="item${k.id === semente ? ' selecionada' : ''}${travada ? ' travada' : ''}" data-semente="${esc(k.id)}" ${travada ? 'aria-disabled="true"' : ''}>
-                    <span class="ico">${travada ? ico('cadeado', 28) : spr(A.cultura(k.id).item, 44)}</span>
-                    <span>
-                        <span class="nome">${esc(k.nome)}</span>
-                        <span class="det">
-                            <span>${fmtDuracao(k.tempo_seg)}</span>
-                            <span>colhe ${k.rendimento} × ${moeda(k.venda)}</span>
-                            <span>+${k.xp} ${ico('xp', 13)}</span>
-                            <span>lucro ${moeda(lucro)}</span>
-                        </span>
-                    </span>
-                    <span class="preco">${travada ? `Nível ${k.nivel_min}` : `${ico('moeda', 16)} ${k.custo}`}</span>
-                </button>`;
-            }).join('') + '</div><p class="aviso">Escolha uma semente e depois toque nos canteiros arados (ou em “Plantar tudo”).</p>';
+            el.painelTitulo.innerHTML = `${spr(9, 32)} Loja`;
+            const abas = `<div class="painel-abas" role="tablist">
+                ${[['sementes', 'Sementes'], ['animais', 'Animais'], ['enfeites', 'Enfeites']].map(([id, txt]) =>
+                    `<button type="button" role="tab" data-aba-loja="${id}" class="${abaLoja === id ? 'ativa' : ''}">${txt}</button>`).join('')}
+            </div>`;
+            if (abaLoja === 'animais') corpo.innerHTML = abas + htmlLojaAnimais();
+            else if (abaLoja === 'enfeites') corpo.innerHTML = abas + htmlLojaEnfeites();
+            else corpo.innerHTML = abas + htmlLojaSementes();
+        } else if (nome === 'missoes') {
+            el.painelTitulo.innerHTML = `${ico('missao', 26)} Missões do dia`;
+            corpo.innerHTML = htmlMissoes();
         } else if (nome === 'celeiro') {
             el.painelTitulo.innerHTML = `${spr(11, 32)} Celeiro`;
             const itens = S.culturas.filter((k) => S.celeiro[k.id] > 0);
@@ -679,6 +822,8 @@
                     <li>Aparecem ${ico('erva', 14)} ervas, ${ico('praga', 14)} pragas e ${ico('seco', 12)} seca: cada problema deixado custa 1 item na colheita.</li>
                     <li>Depois de madura, a planta <b>murcha</b> se ficar tempo demais sem colher.</li>
                     <li>Toque no <b>celeiro</b> para vender a colheita, compre sementes melhores e suba de nível para ganhar canteiros.</li>
+                    <li>Na loja tem <b>animais</b>: dê ração (sai do celeiro) e colete ovos e leite. Os <b>enfeites</b> deixam a fazenda do seu jeito.</li>
+                    <li>Cumpra as <b>missões do dia</b> para ganhar moedas e XP extras.</li>
                     <li>Em <b>Vizinhos</b> você visita outras fazendas: <b>pega</b> um pouco da colheita madura ou <b>ajuda</b> com os problemas e ganha XP.</li>
                 </ul>
                 <div class="rodape-painel">
@@ -706,6 +851,103 @@
             el.painel.classList.add('aberto');
             el.painelFechar.focus();
         }
+    }
+
+    /* ---- conteúdo da loja e das missões ---- */
+    function htmlLojaSementes() {
+        return '<div class="lista">' + S.culturas.filter((k) => k.tipo !== 'produto').map((k) => {
+            const travada = k.nivel_min > S.jogador.nivel;
+            const lucro = k.venda * k.rendimento - k.custo;
+            return `<button type="button" class="item${k.id === semente ? ' selecionada' : ''}${travada ? ' travada' : ''}" data-semente="${esc(k.id)}" ${travada ? 'aria-disabled="true"' : ''}>
+                <span class="ico">${travada ? ico('cadeado', 28) : spr(A.cultura(k.id).item, 44)}</span>
+                <span>
+                    <span class="nome">${esc(k.nome)}</span>
+                    <span class="det">
+                        <span>${fmtDuracao(k.tempo_seg)}</span>
+                        <span>colhe ${k.rendimento} × ${moeda(k.venda)}</span>
+                        <span>+${k.xp} ${ico('xp', 13)}</span>
+                        <span>lucro ${moeda(lucro)}</span>
+                    </span>
+                </span>
+                <span class="preco">${travada ? `Nível ${k.nivel_min}` : `${ico('moeda', 16)} ${k.custo}`}</span>
+            </button>`;
+        }).join('') + '</div><p class="aviso">Escolha uma semente e depois toque nos canteiros arados (ou em “Plantar tudo”).</p>';
+    }
+
+    function htmlLojaAnimais() {
+        const tipos = S.animais_tipos || [];
+        if (!tipos.length) return '<p class="vazio-msg">Os animais chegam em breve.</p>';
+        return '<div class="lista">' + tipos.map((t) => {
+            const tem = S.animais.filter((a) => a.tipo === t.id).length;
+            const travado = t.nivel_min > S.jogador.nivel;
+            const cheio = tem >= t.maximo;
+            const racao = culturas[t.racao], produto = culturas[t.produto];
+            return `<div class="item${travado ? ' travada' : ''}">
+                <span class="ico">${travado ? ico('cadeado', 28) : spr(A.ANIMAL[t.id], 44)}</span>
+                <span>
+                    <span class="nome">${esc(t.nome)} <small class="qtd">${tem}/${t.maximo}</small></span>
+                    <span class="det">
+                        <span>come ${t.racao_qtd} ${racao ? itemDe(racao, 16) : ''}</span>
+                        <span>dá ${produto ? itemDe(produto, 16) + esc(produto.nome.toLowerCase()) : ''} a cada ${fmtDuracao(t.tempo_seg)}</span>
+                        <span>vende ${moeda(produto ? produto.venda : 0)}</span>
+                    </span>
+                </span>
+                ${travado ? `<span class="preco">Nível ${t.nivel_min}</span>`
+                    : cheio ? '<span class="preco">Completo</span>'
+                    : `<button type="button" class="botao pequeno verde" data-comprar="animal:${esc(t.id)}">${ico('moeda', 14)} ${t.custo}</button>`}
+            </div>`;
+        }).join('') + '</div><p class="aviso">Toque no animal com fome para dar a ração (sai do seu celeiro) e volte para coletar o produto.</p>';
+    }
+
+    function htmlLojaEnfeites() {
+        const meus = S.enfeites || [];
+        const tipos = S.enfeites_tipos || [];
+        const lista = meus.length
+            ? '<div class="enfeites-meus">' + meus.map((e) => {
+                const t = tipoEnfeite(e.tipo);
+                return t ? `<button type="button" class="enfeite-meu" data-remover="${e.slot}" title="Tirar ${esc(t.nome)} (devolve ${t.custo / 2 | 0})">${spr(t.sprite, 36)}<small>tirar</small></button>` : '';
+            }).join('') + '</div>'
+            : '<p class="det">Você ainda não tem enfeites.</p>';
+        return `<h3 class="secao-titulo">Na sua fazenda (${meus.length}/8)</h3>${lista}
+            <h3 class="secao-titulo">Comprar</h3>
+            <div class="lista">` + tipos.map((t) => {
+                const travado = t.nivel_min > S.jogador.nivel;
+                return `<div class="item${travado ? ' travada' : ''}">
+                    <span class="ico">${travado ? ico('cadeado', 28) : spr(t.sprite, 44)}</span>
+                    <span><span class="nome">${esc(t.nome)}</span><span class="det"><span>só enfeite: deixa a fazenda mais bonita</span></span></span>
+                    ${travado ? `<span class="preco">Nível ${t.nivel_min}</span>`
+                        : `<button type="button" class="botao pequeno verde" data-comprar="enfeite:${esc(t.id)}" ${meus.length >= 8 ? 'disabled' : ''}>${ico('moeda', 14)} ${t.custo}</button>`}
+                </div>`;
+            }).join('') + '</div>';
+    }
+
+    const TEXTO_MISSAO = {
+        colher: (n) => `Colha ${n} itens`,
+        plantar: (n) => `Plante ${n} sementes`,
+        cuidar: (n) => `Resolva ${n} problemas na sua fazenda`,
+        vender: (n) => `Ganhe ${n} moedas vendendo`,
+        animal: (n) => `Colete ${n} produtos dos animais`,
+        ajudar: (n) => `Ajude vizinhos com ${n} problemas`
+    };
+    const ICONE_MISSAO = { colher: spr(35, 32), plantar: spr(81, 32), cuidar: spr(84, 32), vender: spr(11, 32), animal: spr(125, 32), ajudar: ico('coracao', 26) };
+
+    function htmlMissoes() {
+        const ms = S.missoes || [];
+        if (!ms.length) return '<p class="vazio-msg">As missões aparecem quando o banco estiver atualizado.</p>';
+        return '<div class="lista">' + ms.map((m) => {
+            const pronta = m.progresso >= m.alvo;
+            return `<div class="missao${m.resgatada ? ' feita' : pronta ? ' pronta' : ''}">
+                <span class="ico">${ICONE_MISSAO[m.tipo] || ''}</span>
+                <span>
+                    <span class="nome">${TEXTO_MISSAO[m.tipo] ? TEXTO_MISSAO[m.tipo](m.alvo) : esc(m.tipo)}</span>
+                    <span class="barra-prog"><i style="width:${Math.min(100, (m.progresso / m.alvo) * 100)}%"></i></span>
+                    <span class="det"><span>${m.progresso}/${m.alvo}</span><span>prêmio ${moeda(m.moedas)} +${m.xp} ${ico('xp', 13)}</span></span>
+                </span>
+                ${m.resgatada ? `<span class="preco">${ico('check', 18)} Feita</span>`
+                    : pronta ? `<button type="button" class="botao pequeno verde" data-resgatar="${m.slot}">Resgatar</button>`
+                    : '<span></span>'}
+            </div>`;
+        }).join('') + '</div><p class="aviso">Novas missões todo dia à meia-noite (horário de Brasília).</p>';
     }
 
     const tempoAtras = (iso) => {
@@ -778,6 +1020,46 @@
                 if (r.ganho > 0) toast(`Vendeu por ${ico('moeda', 16)} ${r.ganho}!`);
                 aplicarEstado(r.estado);
             }).finally(() => { vend.disabled = false; });
+            return;
+        }
+        const abaL = e.target.closest('[data-aba-loja]');
+        if (abaL) {
+            abaLoja = abaL.dataset.abaLoja;
+            abrirPainel('loja', true);
+            return;
+        }
+        const comp = e.target.closest('[data-comprar]');
+        if (comp) {
+            const [categoria, tipo] = comp.dataset.comprar.split(':');
+            comp.disabled = true;
+            enfileirar([], async () => {
+                const r = await rpc('fazenda_comprar', { p_token: token, p_categoria: categoria, p_tipo: tipo });
+                aplicarEstado(r.estado);
+                const nome = categoria === 'animal' ? (tipoAnimal(tipo) || {}).nome : (tipoEnfeite(tipo) || {}).nome;
+                toast(`${esc(nome || 'Item')} chegou na fazenda!`);
+                if (painelAtual === 'loja') abrirPainel('loja', true);
+            }).finally(() => { comp.disabled = false; });
+            return;
+        }
+        const rem = e.target.closest('[data-remover]');
+        if (rem) {
+            enfileirar([], async () => {
+                const r = await rpc('fazenda_remover_enfeite', { p_token: token, p_slot: Number(rem.dataset.remover) });
+                aplicarEstado(r.estado);
+                toast('Enfeite guardado. Metade do valor voltou pra você.');
+                if (painelAtual === 'loja') abrirPainel('loja', true);
+            });
+            return;
+        }
+        const resg = e.target.closest('[data-resgatar]');
+        if (resg) {
+            resg.disabled = true;
+            enfileirar([], async () => {
+                const r = await rpc('fazenda_resgatar_missao', { p_token: token, p_slot: Number(resg.dataset.resgatar) });
+                aplicarEstado(r.estado);
+                toast(`Missão cumprida! +${moeda(r.moedas)} +${r.xp} ${ico('xp', 16)}`, 'festa');
+                if (painelAtual === 'missoes') abrirPainel('missoes', true);
+            });
             return;
         }
         const aba = e.target.closest('[data-aba-viz]');

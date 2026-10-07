@@ -6,10 +6,11 @@
 
    Expõe window.FazendaArte com:
      carregar()              → Promise quando a arte estiver pronta
-     criarCena(canvas, cb)   → motor da cena (mapa, canteiros, animais)
+     criarCena(canvas, cb)   → motor da cena (mapa, canteiros, animais, enfeites)
      htmlTile(i, px)         → <span> com um sprite do pacote (para a UI)
      htmlIcone(nome, px)     → <img> com um ícone pixel
-     cultura(id)             → sprites de cada fase de uma cultura
+     cultura(id)             → sprites de cada fase de uma cultura/produto
+     ANIMAL                  → sprite de cada tipo de animal
 ============================================================ */
 (function () {
     'use strict';
@@ -25,7 +26,7 @@
     };
 
     /* ---------- Sprites do pacote por cultura ----------
-       fases: [broto, crescendo, quase pronto/maduro], murcho, item colhido, semente (loja) */
+       fases: [broto, crescendo, maduro], murcho, item colhido, semente (loja) */
     const CULTURAS = {
         alface:   { fases: [52, 53, 54], murcho: 55, item: 56, semente: 58 },
         cenoura:  { fases: [4, 5, 6],    murcho: 7,  item: 8,  semente: 10 },
@@ -34,9 +35,12 @@
         tomate:   { fases: [40, 41, 42], murcho: 43, item: 44, semente: 46 },
         girassol: { fases: [81, 80, 83], murcho: 67, item: 83, semente: 74 },
         abobora:  { fases: [64, 65, 66], murcho: 67, item: 68, semente: 70 }, // arte: trigo
-        morango:  { fases: [81, 39, 78], murcho: 43, item: 78, semente: 74 }  // arte: amora
+        morango:  { fases: [81, 39, 78], murcho: 43, item: 78, semente: 74 }, // arte: amora
+        ovo:      { fases: [125, 125, 125], murcho: 125, item: 125, semente: 125 },
+        leite:    { fases: [123, 123, 123], murcho: 123, item: 123, semente: 123 }
     };
     const CULTURA_PADRAO = CULTURAS.alface;
+    const ANIMAL = { galinha: 122, vaca: 121, ovelha: 120 };
 
     /* ---------- Ícones pixel (mesma paleta) ---------- */
     const ICONES = {
@@ -136,6 +140,17 @@
             '.orrRo.',
             '..oRo..',
             '...o...'
+        ],
+        missao: [
+            'ooooooo.',
+            'okkkkkko',
+            'okoooko.',
+            'okkkkkko',
+            'okoooko.',
+            'okkkkkko',
+            'okooko..',
+            'okkkkko.',
+            'oooooo..'
         ]
     };
 
@@ -218,6 +233,11 @@
             return s / 4294967296;
         };
     }
+    function hash(v) {
+        let h = 2166136261;
+        for (const ch of String(v)) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); }
+        return h >>> 0;
+    }
 
     /* ---------- Layouts (em tiles, relativos ao "núcleo" da fazenda) ---------- */
     const CELEIRO = [
@@ -236,13 +256,9 @@
             campo: { x: 6, y: 2 },
             casaFazendeiro: { x: 4, y: 5 },
             terra: [{ x: 0, y: 6, w: 4, h: 2 }],
-            cercas: [],
-            objetos: [
-                { i: 110, x: 14, y: 2 }, { i: 111, x: 15, y: 2 },
-                { i: 96, x: 3, y: 4 }, { i: 85, x: 3, y: 5 }, { i: 73, x: 0, y: 7 },
-                { i: 47, x: 12, y: 5 }, { i: 11, x: 12, y: 4 },
-                { i: 83, x: 6, y: 0 }, { i: 83, x: 8, y: 0 }, { i: 83, x: 10, y: 0 }, { i: 78, x: 16, y: 6 }, { i: 78, x: 13, y: 1 }
-            ],
+            objetos: [{ i: 110, x: 14, y: 2 }, { i: 111, x: 15, y: 2 }],
+            // lugares dos enfeites comprados
+            slots: [{ x: 6, y: 0 }, { x: 8, y: 0 }, { x: 10, y: 0 }, { x: 12, y: 4 }, { x: 12, y: 5 }, { x: 4, y: 1 }, { x: 7, y: 6 }, { x: 10, y: 6 }],
             pasto: { x: 13, y: 3, w: 4, h: 3 },
             galinhas: { x: 0, y: 6, w: 5, h: 2 }
         },
@@ -252,12 +268,8 @@
             campo: { x: 1, y: 8 },
             casaFazendeiro: { x: 4, y: 6 },
             terra: [{ x: 0, y: 6, w: 4, h: 1 }],
-            cercas: [],
-            objetos: [
-                { i: 110, x: 5, y: 1 }, { i: 111, x: 6, y: 1 },
-                { i: 96, x: 3, y: 4 }, { i: 85, x: 3, y: 5 },
-                { i: 47, x: 7, y: 11 }, { i: 11, x: 0, y: 11 }, { i: 83, x: 8, y: 7 }, { i: 83, x: 0, y: 7 }
-            ],
+            objetos: [{ i: 110, x: 5, y: 1 }, { i: 111, x: 6, y: 1 }],
+            slots: [{ x: 3, y: 4 }, { x: 3, y: 5 }, { x: 0, y: 7 }, { x: 8, y: 7 }, { x: 8, y: 9 }, { x: 0, y: 11 }, { x: 7, y: 11 }, { x: 8, y: 2 }],
             pasto: { x: 4, y: 2, w: 4, h: 2 },
             galinhas: { x: 0, y: 6, w: 9, h: 1 }
         }
@@ -278,11 +290,13 @@
         let L = LAYOUTS.paisagem;
         let nucleo = { x: 0, y: 0 };
         let margem = { topo: 0, base: 0 };
-        let visual = () => null;     // (posicao) → como desenhar o canteiro
-        let hover = null;            // posição do canteiro sob o mouse, ou 'celeiro'
-        let animais = [];
+        let visual = () => null;       // (posicao) → como desenhar o canteiro
+        let animaisFn = () => [];      // → [{id, tipo, estado, progresso, racao, produto}]
+        let enfeitesFn = () => [];     // → [{slot, sprite}]
+        let hover = null;              // número do canteiro, 'celeiro' ou 'a:<id>'
+        const atores = new Map();      // animais na tela, por id
         const fazendeiro = { x: 0, y: 0, tx: 0, ty: 0, flip: false, passo: 0 };
-        let t0 = performance.now();
+        const t0 = performance.now();
 
         /* ---- geometria ---- */
         const campoX = () => (nucleo.x + L.campo.x) * T;
@@ -292,6 +306,13 @@
         }
         function retCeleiro() {
             return { x: (nucleo.x + L.celeiro.x) * T, y: (nucleo.y + L.celeiro.y) * T, w: 3 * T, h: 6 * T };
+        }
+        function areaDe(tipo) {
+            const a = tipo === 'galinha' ? L.galinhas : L.pasto;
+            return {
+                x0: (nucleo.x + a.x) * T, y0: (nucleo.y + a.y) * T,
+                x1: (nucleo.x + a.x + a.w - 1) * T, y1: (nucleo.y + a.y + a.h - 1) * T
+            };
         }
 
         function redimensionar() {
@@ -322,7 +343,7 @@
             quadro.width = fundo.width = cols * T;
             quadro.height = fundo.height = linhas * T;
             montarFundo();
-            montarAnimais();
+            atores.clear();                          // reposiciona os animais na nova área
             const c = L.casaFazendeiro;
             fazendeiro.x = fazendeiro.tx = (nucleo.x + c.x) * T;
             fazendeiro.y = fazendeiro.ty = (nucleo.y + c.y) * T;
@@ -404,40 +425,40 @@
                 (Array.isArray(cel) ? cel : [cel]).forEach((i) => tile(f, i, c.x + xx * T, c.y + yy * T));
             }));
 
-            // cercas e objetos
-            for (const ce of L.cercas) {
-                tile(f, 98, (nucleo.x + ce.x) * T, (nucleo.y + ce.y) * T);
-                tile(f, 99, (nucleo.x + ce.x + 1) * T, (nucleo.y + ce.y) * T);
-            }
             for (const o of L.objetos) tile(f, o.i, (nucleo.x + o.x) * T, (nucleo.y + o.y) * T);
         }
 
-        /* ---- animais andando ---- */
-        function montarAnimais() {
-            const r = rng(4242);
-            const area = (a) => ({
-                x0: (nucleo.x + a.x) * T, y0: (nucleo.y + a.y) * T,
-                x1: (nucleo.x + a.x + a.w - 1) * T, y1: (nucleo.y + a.y + a.h - 1) * T
-            });
-            const pasto = area(L.pasto), quintal = area(L.galinhas);
-            const novo = (i, a, vel) => {
-                const x = a.x0 + r() * (a.x1 - a.x0), y = a.y0 + r() * (a.y1 - a.y0);
-                return { i, a, vel, x, y, tx: x, ty: y, flip: false, espera: r() * 3000 };
-            };
-            animais = [
-                novo(121, pasto, 4), novo(120, pasto, 4), novo(121, pasto, 4),
-                novo(122, quintal, 10), novo(122, quintal, 10), novo(122, quintal, 10)
-            ];
+        /* ---- animais ---- */
+        function sincronizarAnimais() {
+            const vistos = new Set();
+            for (const v of animaisFn()) {
+                vistos.add(v.id);
+                let a = atores.get(v.id);
+                if (!a || a.tipo !== v.tipo) {
+                    const area = areaDe(v.tipo);
+                    const r = rng(hash(v.id));
+                    const x = area.x0 + r() * (area.x1 - area.x0), y = area.y0 + r() * (area.y1 - area.y0);
+                    a = {
+                        id: v.id, tipo: v.tipo, i: ANIMAL[v.tipo] || 122, area, x, y, tx: x, ty: y,
+                        flip: r() < 0.5, espera: r() * 2500, vel: v.tipo === 'galinha' ? 10 : 4
+                    };
+                    atores.set(v.id, a);
+                }
+                a.v = v;
+            }
+            for (const id of [...atores.keys()]) if (!vistos.has(id)) atores.delete(id);
         }
 
-        function moverAnimais(dt) {
-            for (const a of animais) {
+        function mover(dt) {
+            for (const a of atores.values()) {
+                // com fome ou com produto pronto, o animal fica parado esperando o toque
+                if (a.v && a.v.estado !== 'produzindo') continue;
                 if (a.espera > 0) { a.espera -= dt; continue; }
                 const dx = a.tx - a.x, dy = a.ty - a.y, d = Math.hypot(dx, dy);
                 if (d < 0.5) {
                     a.espera = 800 + Math.random() * 3500;
-                    a.tx = a.a.x0 + Math.random() * (a.a.x1 - a.a.x0);
-                    a.ty = a.a.y0 + Math.random() * (a.a.y1 - a.a.y0);
+                    a.tx = a.area.x0 + Math.random() * (a.area.x1 - a.area.x0);
+                    a.ty = a.area.y0 + Math.random() * (a.area.y1 - a.area.y0);
                     continue;
                 }
                 const passo = Math.min(d, a.vel * dt / 1000);
@@ -453,6 +474,34 @@
             } else {
                 fazendeiro.passo = 0;
             }
+        }
+
+        /* ---- desenhos auxiliares ---- */
+        // balão branco com contorno e cantos em degrau; a ponta fica embaixo, no meio
+        function balao(bx, by, w, h) {
+            q.fillStyle = PAL.o;
+            q.fillRect(bx + 1, by, w - 2, h);
+            q.fillRect(bx, by + 1, w, h - 2);
+            q.fillRect(bx + Math.floor(w / 2) - 2, by + h, 4, 1);
+            q.fillRect(bx + Math.floor(w / 2) - 1, by + h + 1, 2, 1);
+            q.fillStyle = PAL.w;
+            q.fillRect(bx + 1, by + 1, w - 2, h - 2);
+            q.fillRect(bx + Math.floor(w / 2) - 1, by + h - 1, 2, 1);
+        }
+
+        function barraProgresso(x, y, p) {
+            q.fillStyle = PAL.o; q.fillRect(x, y, 12, 3);
+            q.fillStyle = PAL.d; q.fillRect(x + 1, y + 1, 10, 1);
+            q.fillStyle = PAL.l; q.fillRect(x + 1, y + 1, Math.max(1, Math.round(10 * Math.min(1, p))), 1);
+        }
+
+        function moldura(x, y, w, h) {
+            q.fillStyle = PAL.w;
+            const c = 4;
+            q.fillRect(x - 1, y - 1, c, 1); q.fillRect(x - 1, y - 1, 1, c);
+            q.fillRect(x + w - c + 1, y - 1, c, 1); q.fillRect(x + w, y - 1, 1, c);
+            q.fillRect(x - 1, y + h, c, 1); q.fillRect(x - 1, y + h - c + 1, 1, c);
+            q.fillRect(x + w - c + 1, y + h, c, 1); q.fillRect(x + w, y + h - c + 1, 1, c);
         }
 
         /* ---- canteiros ---- */
@@ -481,42 +530,39 @@
                 const bob = v.maduro && Math.floor(tempo / 450) % 2 ? -1 : 0;
                 tile(q, v.planta, x, y - 2 + bob);
             }
-            if (v.progresso != null) {
-                q.fillStyle = PAL.o; q.fillRect(x + 2, y + T - 3, 12, 3);
-                q.fillStyle = PAL.d; q.fillRect(x + 3, y + T - 2, 10, 1);
-                q.fillStyle = PAL.l; q.fillRect(x + 3, y + T - 2, Math.max(1, Math.round(10 * v.progresso)), 1);
-            }
+            if (v.progresso != null) barraProgresso(x + 2, y + T - 3, v.progresso);
             if (v.maduro && !v.cinza && Math.floor(tempo / 300) % 4 !== 0) {
                 icone(q, 'brilho', x + 11 + (Math.floor(tempo / 1200) % 2) * -9, y - 2);
             }
             if (v.check) icone(q, 'check', x + 8, y + 9);
             if (v.probs && v.probs.length) {
-                // balãozinho com os problemas
                 const w = v.probs.length * 10 + 3, bx = x + T / 2 - Math.floor(w / 2);
                 const by = y - 14 + (Math.floor(tempo / 500) % 2);
-                q.fillStyle = PAL.o; q.fillRect(bx, by, w, 13); q.fillRect(bx + 1, by - 1, w - 2, 15);
-                q.fillStyle = PAL.w; q.fillRect(bx + 1, by, w - 2, 13);
-                q.fillStyle = PAL.o; q.fillRect(bx + Math.floor(w / 2) - 1, by + 13, 3, 2);
-                q.fillStyle = PAL.w; q.fillRect(bx + Math.floor(w / 2), by + 13, 1, 1);
+                balao(bx, by, w, 12);
                 v.probs.forEach((pr, n) => icone(q, pr, bx + 2 + n * 10, by + 2));
             }
-            if (v.pegar) {
-                const by = y - 12 + (Math.floor(tempo / 400) % 2);
-                icone(q, 'mao', x + 4, by);
-            }
+            if (v.pegar) icone(q, 'mao', x + 4, y - 12 + (Math.floor(tempo / 400) % 2));
             if (v.pendente && Math.floor(tempo / 150) % 2) {
                 q.fillStyle = 'rgba(255,255,255,.35)';
                 q.fillRect(x + 1, y + 1, T - 2, T - 2);
             }
         }
 
-        function moldura(x, y, w, h) {
-            q.fillStyle = PAL.w;
-            const c = 4;
-            q.fillRect(x - 1, y - 1, c, 1); q.fillRect(x - 1, y - 1, 1, c);
-            q.fillRect(x + w - c + 1, y - 1, c, 1); q.fillRect(x + w, y - 1, 1, c);
-            q.fillRect(x - 1, y + h, c, 1); q.fillRect(x - 1, y + h - c + 1, 1, c);
-            q.fillRect(x + w - c + 1, y + h, c, 1); q.fillRect(x + w, y + h - c + 1, 1, c);
+        function desenharSinalAnimal(a, tempo) {
+            const v = a.v;
+            const x = Math.round(a.x), y = Math.round(a.y);
+            if (v.estado === 'fome' && v.racao != null) {
+                const by = y - 21 + (Math.floor(tempo / 500) % 2);
+                balao(x - 2, by, 20, 18);
+                tile(q, v.racao, x, by + 1);
+            } else if (v.estado === 'pronto' && v.produto != null) {
+                const by = y - 21 + (Math.floor(tempo / 350) % 2);
+                balao(x - 2, by, 20, 18);
+                tile(q, v.produto, x, by + 1);
+                if (Math.floor(tempo / 300) % 3) icone(q, 'brilho', x + 15, by - 3);
+            } else if (v.estado === 'produzindo' && v.progresso != null) {
+                barraProgresso(x + 2, y + T, v.progresso);
+            }
         }
 
         /* ---- loop ---- */
@@ -524,7 +570,7 @@
         function quadroAnim(agora) {
             const dt = Math.min(100, agora - ultimo);
             ultimo = agora;
-            moverAnimais(dt);
+            mover(dt);
             if (agora - ultimoDesenho >= 1000 / 24) {
                 ultimoDesenho = agora;
                 desenhar(agora - t0);
@@ -533,14 +579,25 @@
         }
 
         function desenhar(tempo) {
+            sincronizarAnimais();
             q.drawImage(fundo, 0, 0);
             for (let p = 0; p < 18; p++) desenharCanteiro(p, tempo);
 
-            // personagens ordenados pela altura (quem está mais embaixo fica na frente)
-            const atores = animais.map((a) => ({ i: a.i, x: a.x, y: a.y, flip: a.flip, bob: 0 }));
+            // enfeites, animais e fazendeiro ordenados pela altura (mais embaixo = mais na frente)
+            const cena = [];
+            for (const e of enfeitesFn()) {
+                const s = L.slots[e.slot];
+                if (s) cena.push({ i: e.sprite, x: (nucleo.x + s.x) * T, y: (nucleo.y + s.y) * T, flip: false, bob: 0 });
+            }
+            for (const a of atores.values()) {
+                const parado = a.v && a.v.estado !== 'produzindo';
+                cena.push({ i: a.i, x: a.x, y: a.y, flip: a.flip, bob: parado && Math.floor(tempo / 600) % 2 ? -1 : 0 });
+            }
             const andando = fazendeiro.passo > 0;
-            atores.push({ i: 109, x: fazendeiro.x, y: fazendeiro.y, flip: fazendeiro.flip, bob: andando && Math.floor(tempo / 120) % 2 ? -1 : 0 });
-            atores.sort((a, b) => a.y - b.y).forEach((a) => tile(q, a.i, Math.round(a.x), Math.round(a.y) + a.bob, a.flip));
+            cena.push({ i: 109, x: fazendeiro.x, y: fazendeiro.y, flip: fazendeiro.flip, bob: andando && Math.floor(tempo / 120) % 2 ? -1 : 0 });
+            cena.sort((a, b) => a.y - b.y).forEach((a) => tile(q, a.i, Math.round(a.x), Math.round(a.y) + a.bob, a.flip));
+
+            for (const a of atores.values()) if (a.v) desenharSinalAnimal(a, tempo);
 
             if (typeof hover === 'number') {
                 const { x, y } = posCanteiro(hover);
@@ -548,6 +605,9 @@
             } else if (hover === 'celeiro') {
                 const c = retCeleiro();
                 moldura(c.x, c.y + T, c.w, c.h - T);
+            } else if (typeof hover === 'string' && hover.startsWith('a:')) {
+                const a = atores.get(idDoHover(hover));
+                if (a) moldura(Math.round(a.x), Math.round(a.y), T, T);
             }
 
             ctx.imageSmoothingEnabled = false;
@@ -555,8 +615,19 @@
         }
 
         /* ---- entrada do mouse/toque ---- */
+        const idDoHover = (h) => {
+            const bruto = h.slice(2);
+            return atores.has(bruto) ? bruto : Number(bruto);
+        };
+
         function alvoEm(clientX, clientY) {
             const px = clientX / escala, py = clientY / escala;
+            // animais primeiro (quem está mais na frente ganha); o balão também conta
+            const lista = [...atores.values()].sort((a, b) => b.y - a.y);
+            for (const a of lista) {
+                const topo = a.v && a.v.estado !== 'produzindo' ? a.y - 22 : a.y;
+                if (px >= a.x - 1 && px < a.x + T + 1 && py >= topo && py < a.y + T) return 'a:' + a.id;
+            }
             const cx = campoX(), cy = campoY();
             if (px >= cx && py >= cy && px < cx + 6 * T && py < cy + 3 * T) {
                 return Math.floor((py - cy) / T) * 6 + Math.floor((px - cx) / T);
@@ -571,15 +642,23 @@
             if (alvo !== hover) {
                 hover = alvo;
                 canvas.style.cursor = alvo == null ? 'default' : 'pointer';
-                if (cb.aoPassar) cb.aoPassar(alvo);
+                if (cb.aoPassar) cb.aoPassar(traduzir(alvo));
             }
         });
         canvas.addEventListener('pointerleave', () => { hover = null; });
         canvas.addEventListener('click', (e) => {
-            const alvo = alvoEm(e.clientX, e.clientY);
+            const alvo = traduzir(alvoEm(e.clientX, e.clientY));
+            if (alvo == null) return;
             if (alvo === 'celeiro') { if (cb.aoCeleiro) cb.aoCeleiro(); }
-            else if (typeof alvo === 'number' && cb.aoCanteiro) cb.aoCanteiro(alvo);
+            else if (typeof alvo === 'object') { if (cb.aoAnimal) cb.aoAnimal(alvo.animal); }
+            else if (cb.aoCanteiro) cb.aoCanteiro(alvo);
         });
+
+        // devolve para o jogo: número (canteiro), 'celeiro' ou { animal: id }
+        function traduzir(alvo) {
+            if (typeof alvo === 'string' && alvo.startsWith('a:')) return { animal: idDoHover(alvo) };
+            return alvo;
+        }
 
         window.addEventListener('resize', redimensionar);
 
@@ -594,21 +673,33 @@
                 redimensionar();
             },
             definirVisual(fn) { visual = fn; },
-            // fazendeiro caminha até o canteiro (só enfeite)
+            definirAnimais(fn) { animaisFn = fn; },
+            definirEnfeites(fn) { enfeitesFn = fn; },
+            // fazendeiro caminha até o canteiro ou animal (só enfeite)
             irAte(p) {
                 const { x, y } = posCanteiro(p);
                 fazendeiro.tx = x;
                 fazendeiro.ty = y + T - 4;
+            },
+            irAteAnimal(id) {
+                const a = atores.get(id);
+                if (!a) return;
+                fazendeiro.tx = a.x + (a.x > fazendeiro.x ? -12 : 12);
+                fazendeiro.ty = a.y;
             },
             voltarParaCasa() {
                 const c = L.casaFazendeiro;
                 fazendeiro.tx = (nucleo.x + c.x) * T;
                 fazendeiro.ty = (nucleo.y + c.y) * T;
             },
-            // posição na tela (px CSS) do centro de um canteiro, para números flutuantes
+            // posição na tela (px CSS), para os números flutuantes
             telaDoCanteiro(p) {
                 const { x, y } = posCanteiro(p);
                 return { x: (x + T / 2) * escala, y: (y - 2) * escala };
+            },
+            telaDoAnimal(id) {
+                const a = atores.get(id);
+                return a ? { x: (a.x + T / 2) * escala, y: (a.y - 4) * escala } : { x: innerWidth / 2, y: innerHeight / 2 };
             }
         };
     }
@@ -618,6 +709,7 @@
         criarCena,
         htmlTile,
         htmlIcone,
+        ANIMAL,
         cultura: (id) => CULTURAS[id] || CULTURA_PADRAO
     };
 })();
