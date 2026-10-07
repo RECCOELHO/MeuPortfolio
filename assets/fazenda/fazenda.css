@@ -1142,3 +1142,104 @@ body.construindo .status {
 .cena-rolagem > div {
     pointer-events: none;
 }
+
+/* ---------- Fase 4: casas no ícone, perfil, conquistas e tutorial ---------- */
+.px-grade {
+    display: inline-grid;
+    vertical-align: middle;
+    flex-shrink: 0;
+}
+
+.medalhas {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    gap: 10px;
+    padding: 3px;
+}
+
+.medalha {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    background: #fff1c4;
+    box-shadow: 0 -2px 0 var(--o), 0 2px 0 var(--o), -2px 0 0 var(--o), 2px 0 0 var(--o);
+}
+
+.medalha.trancada {
+    background: var(--creme-luz);
+    opacity: .7;
+}
+
+.medalha b {
+    display: block;
+    font-size: 14px;
+}
+
+.medalha small {
+    display: block;
+    font-size: 12px;
+    color: var(--texto-suave);
+}
+
+.estatisticas {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 10px;
+    padding: 3px;
+}
+
+.estatisticas div {
+    padding: 6px 8px;
+    background: var(--creme-luz);
+    box-shadow: 0 -2px 0 var(--o), 0 2px 0 var(--o), -2px 0 0 var(--o), 2px 0 0 var(--o);
+}
+
+.estatisticas b {
+    display: block;
+    font-family: var(--fonte-pixel);
+    font-size: 20px;
+}
+
+.estatisticas span {
+    font-size: 12px;
+    color: var(--texto-suave);
+}
+
+.tutorial {
+    position: fixed;
+    left: 50%;
+    top: 96px;
+    transform: translateX(-50%);
+    z-index: 22;
+    width: min(520px, calc(100% - 32px));
+    padding: 10px 14px;
+    background: #fff1c4;
+    font-size: 15px;
+    line-height: 1.4;
+}
+
+.tutorial small {
+    display: block;
+    font-size: 12px;
+    color: var(--texto-suave);
+    margin-bottom: 2px;
+}
+
+.tut-botoes {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 8px;
+}
+
+#btnSom {
+    padding: 6px 10px;
+}
+
+@media (max-width: 760px) {
+    .tutorial {
+        top: 124px;
+        font-size: 14px;
+    }
+}

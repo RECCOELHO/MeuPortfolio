@@ -12,7 +12,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&family=Pixelify+Sans:wght@500;600;700&display=swap" rel="stylesheet">
     <!-- ?v=: o Cloudflare guarda CSS/JS por 4 h no navegador; troque a versão a cada deploy da fazenda -->
-    <link rel="stylesheet" href="assets/fazenda/fazenda.css?v=20261007-2">
+    <link rel="stylesheet" href="assets/fazenda/fazenda.css?v=20261007-3">
 </head>
 
 <body>
@@ -38,7 +38,8 @@
             <button type="button" class="botao" data-painel="celeiro"><span data-spr="11" data-px="28"></span><em>Celeiro</em><b class="contador" id="hudCeleiro" hidden>0</b></button>
             <button type="button" class="botao" data-painel="missoes"><span data-ico="missao" data-px="22"></span><em>Missões</em><b class="contador" id="hudMissoes" hidden>0</b></button>
             <button type="button" class="botao" data-painel="vizinhos"><span data-spr="108" data-px="28"></span><em>Vizinhos</em><b class="contador" id="hudDiario" hidden>0</b></button>
-            <button type="button" class="botao" data-painel="conta" aria-label="Conta e ajuda"><span data-spr="76" data-px="28"></span><em>Conta</em></button>
+            <button type="button" class="botao" data-painel="conta" aria-label="Perfil e ajuda"><span data-spr="109" data-px="28"></span><em>Perfil</em></button>
+            <button type="button" class="botao" id="btnSom" aria-label="Desligar sons"></button>
             <a href="indexversao2.html" class="botao" aria-label="Voltar ao portfólio"><span data-spr="127" data-px="28"></span><em>Sair</em></a>
         </nav>
     </header>
@@ -46,7 +47,17 @@
     <div class="faixa-visita caixa" id="faixaVisita" hidden>
         <span data-spr="108" data-px="28"></span>
         <span>Fazenda de <b id="visitaApelido">—</b> · Nv <b id="visitaNivel">1</b></span>
+        <button type="button" class="botao pequeno creme" id="btnPerfilVizinho">Perfil</button>
         <button type="button" class="botao pequeno verde" id="btnVoltarCasa">Minha fazenda</button>
+    </div>
+
+    <!-- tutorial da primeira visita -->
+    <div class="tutorial caixa" id="tutorial" role="status" hidden>
+        <div id="tutTexto"></div>
+        <div class="tut-botoes">
+            <button type="button" class="botao pequeno creme" id="tutPular">Pular</button>
+            <button type="button" class="botao pequeno verde" id="tutProximo">Próximo</button>
+        </div>
     </div>
 
     <div class="status caixa" id="status" aria-live="polite" hidden>Toque num canteiro para cuidar dele.</div>
@@ -128,8 +139,8 @@
         </div>
     </section>
 
-    <script src="assets/fazenda/fazenda-arte.js?v=20261007-2" defer></script>
-    <script src="assets/fazenda/fazenda.js?v=20261007-2" defer></script>
+    <script src="assets/fazenda/fazenda-arte.js?v=20261007-3" defer></script>
+    <script src="assets/fazenda/fazenda.js?v=20261007-3" defer></script>
 </body>
 
 </html>

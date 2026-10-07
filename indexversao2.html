@@ -2650,6 +2650,71 @@
             margin: 0 auto;
         }
 
+        /* Joystick do celular: trilha fora do campo (ao lado deitado, embaixo em pé) */
+        .pong-campo {
+            display: flex;
+            align-items: stretch;
+        }
+
+        .pong-campo canvas {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .pong-campo.retrato {
+            flex-direction: column;
+        }
+
+        .pong-campo.retrato canvas {
+            flex: none;
+        }
+
+        .pong-joy {
+            display: none;
+            padding: 10px;
+            background: #0a0a0f;
+            touch-action: none;
+        }
+
+        #hack-overlay.toque .pong-joy {
+            display: flex;
+        }
+
+        .pong-campo:not(.retrato) .pong-joy {
+            width: 78px;
+            flex: none;
+        }
+
+        .pong-campo.retrato .pong-joy {
+            height: 84px;
+            flex: none;
+        }
+
+        .pong-joy-trilho {
+            position: relative;
+            flex: 1;
+            border: 1px dashed rgba(200, 240, 68, 0.35);
+            border-radius: 40px;
+            background: rgba(200, 240, 68, 0.05);
+        }
+
+        .pong-joy-botao {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 46px;
+            height: 46px;
+            border-radius: 50%;
+            background: #c8f044;
+            box-shadow: 0 0 18px rgba(200, 240, 68, 0.6), inset 0 -4px 0 rgba(0, 0, 0, 0.2);
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
+
+        #hack-overlay.toque #pongCanvas.vertical {
+            width: min(100%, calc((100dvh - 280px) / 2));
+        }
+
         @media (max-width: 760px) {
 
             /* no celular o jogo ocupa a tela inteira */
@@ -3668,14 +3733,20 @@
                             <div class="pong-score-lbl">CPU</div>
                         </div>
                     </div>
-                    <canvas id="pongCanvas" width="600" height="300"></canvas>
+                    <div class="pong-campo" id="pongCampo">
+                        <canvas id="pongCanvas" width="600" height="300"></canvas>
+                        <!-- celular: trilha fora do campo para o dedo não tampar a bola -->
+                        <div class="pong-joy" id="pongJoy" aria-label="Controle da raquete">
+                            <div class="pong-joy-trilho"><div class="pong-joy-botao" id="pongJoyBotao"></div></div>
+                        </div>
+                    </div>
                     <div class="pong-controls-bar">
                         <div class="pong-key-hint so-teclado"><span class="pong-key">W</span><span class="pong-key">S</span> mover
                         </div>
                         <div class="pong-key-hint so-teclado"><span class="pong-key">↑</span><span class="pong-key">↓</span> mover
                         </div>
                         <div class="pong-key-hint so-teclado"><span class="pong-key">ESPAÇO</span> pausar</div>
-                        <div class="pong-key-hint so-toque">arraste o dedo em qualquer lugar para mover a raquete</div>
+                        <div class="pong-key-hint so-toque">use a trilha fora do campo (ou arraste no campo) para mover a raquete</div>
                     </div>
                 </div>
 
@@ -4136,8 +4207,18 @@
                 vertical = window.innerHeight > window.innerWidth && window.innerWidth <= 820;
                 dpr = Math.min(window.devicePixelRatio || 1, 3);
                 canvas.classList.toggle('vertical', vertical);
+                // a trilha do joystick fica embaixo do campo (em pé) ou ao lado (deitado)
+                campo.classList.toggle('retrato', vertical);
                 canvas.width = (vertical ? CH : CW) * dpr;
                 canvas.height = (vertical ? CW : CH) * dpr;
+            }
+            const campo = document.getElementById('pongCampo');
+            const joy = document.getElementById('pongJoy');
+            const joyBotao = document.getElementById('pongJoyBotao');
+            function atualizarJoy() {
+                const p = playerY / (CH - PH);   // 0 = começo da trilha, 1 = fim
+                if (vertical) { joyBotao.style.left = (p * 100) + '%'; joyBotao.style.top = ''; }
+                else { joyBotao.style.top = (p * 100) + '%'; joyBotao.style.left = ''; }
             }
             window.addEventListener('resize', () => { if (running) ajustarCanvas(); });
 
@@ -4162,6 +4243,8 @@
 
                 screenGame.addEventListener('pointerdown', onPointer);
                 screenGame.addEventListener('pointermove', onPointer);
+                screenGame.addEventListener('pointerup', soltarJoy);
+                screenGame.addEventListener('pointercancel', soltarJoy);
                 serveBall(Math.random() > 0.5 ? 1 : -1, true);
                 lastTimestamp = performance.now();
                 animId = requestAnimationFrame(loop);
@@ -4172,13 +4255,29 @@
                 clearTimeout(countdownTimer);
                 screenGame.removeEventListener('pointerdown', onPointer);
                 screenGame.removeEventListener('pointermove', onPointer);
+                screenGame.removeEventListener('pointerup', soltarJoy);
+                screenGame.removeEventListener('pointercancel', soltarJoy);
                 keyUp = false; keyDown = false;
+                joyAtivo = false;
             }
+            let joyAtivo = false;
+            function soltarJoy() { joyAtivo = false; }
 
             /* --- Toque / mouse: o dedo pode ficar em qualquer lugar da tela do jogo --- */
             function onPointer(e) {
                 if (e.target.closest('button')) return;
                 if (e.cancelable) e.preventDefault();
+                // joystick: posição do dedo na trilha = posição da raquete no campo
+                if (e.target.closest('#pongJoy') || (e.type === 'pointermove' && joyAtivo)) {
+                    if (e.type === 'pointerdown') {
+                        joyAtivo = true;
+                        try { joy.setPointerCapture(e.pointerId); } catch { /* ignora */ }
+                    }
+                    const r = joy.querySelector('.pong-joy-trilho').getBoundingClientRect();
+                    const p = vertical ? (e.clientX - r.left) / r.width : (e.clientY - r.top) / r.height;
+                    playerY = Math.max(0, Math.min(1, p)) * (CH - PH);
+                    return;
+                }
                 const rect = canvas.getBoundingClientRect();
                 // em pé, a raquete anda na horizontal (eixo x da tela)
                 const pos = vertical
@@ -4223,6 +4322,7 @@
                 lastTimestamp = ts;
                 if (!paused && !resetting) update(dt);
                 draw();
+                atualizarJoy();
                 animId = requestAnimationFrame(loop);
             }
 

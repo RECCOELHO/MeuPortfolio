@@ -141,6 +141,43 @@ create table if not exists public.fazenda_construcoes (
   primary key (jogador_id, x, y)
 );
 
+-- Fase 4: construções grandes (casas 3x3). (x, y) é o canto de cima à esquerda.
+alter table public.fazenda_itens add column if not exists largura smallint not null default 1;
+alter table public.fazenda_itens add column if not exists altura smallint not null default 1;
+alter table public.fazenda_itens drop constraint if exists fazenda_itens_categoria_check;
+alter table public.fazenda_itens add constraint fazenda_itens_categoria_check
+  check (categoria in ('caminho', 'natureza', 'objeto', 'construcao'));
+
+-- Fase 4: números de cada jogador (para conquistas e perfil)
+create table if not exists public.fazenda_estatisticas (
+  jogador_id  uuid primary key references public.fazenda_jogadores(id) on delete cascade,
+  colher      int not null default 0,
+  plantar     int not null default 0,
+  cuidar      int not null default 0,
+  vender      int not null default 0,
+  animal      int not null default 0,
+  ajudar      int not null default 0,
+  pegar       int not null default 0
+);
+
+-- Fase 4: conquistas (medida = coluna das estatísticas, 'nivel' ou 'construcoes')
+create table if not exists public.fazenda_conquistas_tipos (
+  id          text primary key,
+  nome        text not null,
+  descricao   text not null,
+  medida      text not null,
+  meta        int  not null,
+  recompensa  int  not null,
+  ordem       int  not null default 0
+);
+
+create table if not exists public.fazenda_conquistas (
+  jogador_id  uuid not null references public.fazenda_jogadores(id) on delete cascade,
+  conquista   text not null references public.fazenda_conquistas_tipos(id),
+  obtida_em   timestamptz not null default now(),
+  primary key (jogador_id, conquista)
+);
+
 -- Fase 3: missões diárias (3 por dia, geradas na primeira carga do dia)
 create table if not exists public.fazenda_missoes (
   jogador_id  uuid not null references public.fazenda_jogadores(id) on delete cascade,
@@ -167,11 +204,15 @@ alter table public.fazenda_animais        enable row level security;
 alter table public.fazenda_itens          enable row level security;
 alter table public.fazenda_construcoes    enable row level security;
 alter table public.fazenda_missoes        enable row level security;
+alter table public.fazenda_estatisticas   enable row level security;
+alter table public.fazenda_conquistas_tipos enable row level security;
+alter table public.fazenda_conquistas     enable row level security;
 
 revoke all on public.fazenda_culturas, public.fazenda_jogadores, public.fazenda_sessoes,
               public.fazenda_canteiros, public.fazenda_celeiro, public.fazenda_visitas,
               public.fazenda_animais_tipos, public.fazenda_animais,
-              public.fazenda_itens, public.fazenda_construcoes, public.fazenda_missoes
+              public.fazenda_itens, public.fazenda_construcoes, public.fazenda_missoes,
+              public.fazenda_estatisticas, public.fazenda_conquistas_tipos, public.fazenda_conquistas
   from anon, authenticated;
 
 -- ------------------------------------------------------------
@@ -202,14 +243,16 @@ delete from public.fazenda_culturas k
 -- Produtos dos animais (tempo_seg/custo não se aplicam: ficam no tipo de animal)
 insert into public.fazenda_culturas (id, nome, emoji, tempo_seg, custo, venda, rendimento, xp, nivel_min, ordem, tipo) values
   ('ovo',   'Ovo',   '🥚', 1, 0, 26, 1,  6, 2, 20, 'produto'),
-  ('leite', 'Leite', '🥛', 1, 0, 70, 1, 16, 4, 21, 'produto')
+  ('leite', 'Leite', '🥛', 1, 0, 70, 1, 16, 4, 21, 'produto'),
+  ('la',    'Lã',    '🧶', 1, 0, 150, 1, 32, 6, 22, 'produto')
 on conflict (id) do update set
   nome = excluded.nome, emoji = excluded.emoji, venda = excluded.venda,
   xp = excluded.xp, nivel_min = excluded.nivel_min, ordem = excluded.ordem, tipo = excluded.tipo;
 
 insert into public.fazenda_animais_tipos (id, nome, custo, nivel_min, maximo, produto, tempo_seg, racao, racao_qtd, ordem) values
   ('galinha', 'Galinha', 100, 2, 4, 'ovo',    3600, 'alface', 1, 1),
-  ('vaca',    'Vaca',    350, 4, 2, 'leite', 14400, 'batata', 2, 2)
+  ('vaca',    'Vaca',    350, 4, 2, 'leite', 14400, 'batata', 2, 2),
+  ('ovelha',  'Ovelha',  600, 6, 2, 'la',    28800, 'abobora', 2, 3)
 on conflict (id) do update set
   nome = excluded.nome, custo = excluded.custo, nivel_min = excluded.nivel_min, maximo = excluded.maximo,
   produto = excluded.produto, tempo_seg = excluded.tempo_seg, racao = excluded.racao,
@@ -242,6 +285,34 @@ insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem) 
 on conflict (id) do update set
   nome = excluded.nome, categoria = excluded.categoria, custo = excluded.custo,
   nivel_min = excluded.nivel_min, ordem = excluded.ordem;
+
+-- Construções grandes (3 x 3) — fase 4
+insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem, largura, altura) values
+  ('casa_vermelha', 'Casinha vermelha', 'construcao',  600,  8, 40, 3, 3),
+  ('casa_azul',     'Casinha azul',     'construcao',  900, 10, 41, 3, 3)
+on conflict (id) do update set
+  nome = excluded.nome, categoria = excluded.categoria, custo = excluded.custo,
+  nivel_min = excluded.nivel_min, ordem = excluded.ordem,
+  largura = excluded.largura, altura = excluded.altura;
+
+insert into public.fazenda_conquistas_tipos (id, nome, descricao, medida, meta, recompensa, ordem) values
+  ('primeira_colheita', 'Primeira colheita',   'Colha pela primeira vez',         'colher',        1,   20,  1),
+  ('colhedor',          'Colhedor',            'Colha 100 itens',                 'colher',      100,  100,  2),
+  ('mestre_colheita',   'Mestre da colheita',  'Colha 1.000 itens',               'colher',     1000,  500,  3),
+  ('plantador',         'Plantador',           'Plante 50 sementes',              'plantar',      50,   60,  4),
+  ('cuidadoso',         'Cuidadoso',           'Resolva 50 problemas na fazenda', 'cuidar',       50,   80,  5),
+  ('comerciante',       'Comerciante',         'Ganhe 1.000 moedas vendendo',     'vender',     1000,  100,  6),
+  ('magnata',           'Magnata',             'Ganhe 10.000 moedas vendendo',    'vender',    10000,  500,  7),
+  ('rancheiro',         'Rancheiro',           'Colete 25 produtos dos animais',  'animal',       25,  120,  8),
+  ('bom_vizinho',       'Bom vizinho',         'Ajude vizinhos com 20 problemas', 'ajudar',       20,  150,  9),
+  ('guaxinim',          'Guaxinim',            'Pegue 20 itens de vizinhos',      'pegar',        20,   80, 10),
+  ('construtor',        'Construtor',          'Tenha 25 construções',            'construcoes',  25,  100, 11),
+  ('arquiteto',         'Arquiteto',           'Tenha 75 construções',            'construcoes',  75,  300, 12),
+  ('nivel_5',           'Fazendeiro nível 5',  'Chegue ao nível 5',               'nivel',         5,  100, 13),
+  ('nivel_10',          'Fazendeiro nível 10', 'Chegue ao nível 10',              'nivel',        10,  400, 14)
+on conflict (id) do update set
+  nome = excluded.nome, descricao = excluded.descricao, medida = excluded.medida,
+  meta = excluded.meta, recompensa = excluded.recompensa, ordem = excluded.ordem;
 
 -- Quem rodou a primeira versão da fase 3 tinha "enfeites" em 8 lugares fixos:
 -- eles viram construções numa fileira livre do mapa e as tabelas antigas saem.
@@ -370,6 +441,7 @@ declare
   v_nivel int;
   v_max   int;
 begin
+  perform fazenda_checar_conquistas(p_jogador);
   select * into j from fazenda_jogadores where id = p_jogador;
   v_nivel := fazenda_nivel(j.xp);
   v_max := fazenda_max_canteiros(v_nivel);
@@ -433,6 +505,13 @@ begin
         from fazenda_construcoes where jogador_id = p_jogador), '[]'::jsonb),
     'itens', (
       select jsonb_agg(to_jsonb(t) order by t.ordem) from fazenda_itens t),
+    'estatisticas', (select to_jsonb(e) - 'jogador_id' from fazenda_estatisticas e where e.jogador_id = p_jogador),
+    'conquistas', coalesce((
+      select jsonb_agg(jsonb_build_object('id', conquista, 'em', obtida_em) order by obtida_em)
+        from fazenda_conquistas where jogador_id = p_jogador), '[]'::jsonb),
+    'conquistas_tipos', (
+      select jsonb_agg(to_jsonb(t) order by t.ordem) from fazenda_conquistas_tipos t),
+    'criado_em', j.criado_em,
     'missoes', coalesce((
       select jsonb_agg(jsonb_build_object(
                'slot', slot, 'tipo', tipo, 'alvo', alvo, 'progresso', progresso,
@@ -777,7 +856,12 @@ begin
         from fazenda_animais where jogador_id = p_dono), '[]'::jsonb),
     'construcoes', coalesce((
       select jsonb_agg(jsonb_build_object('x', x, 'y', y, 'tipo', tipo))
-        from fazenda_construcoes where jogador_id = p_dono), '[]'::jsonb)
+        from fazenda_construcoes where jogador_id = p_dono), '[]'::jsonb),
+    'perfil', jsonb_build_object(
+      'criado_em', j.criado_em,
+      'estatisticas', (select to_jsonb(e) - 'jogador_id' from fazenda_estatisticas e where e.jogador_id = p_dono),
+      'conquistas', coalesce((select jsonb_agg(conquista order by obtida_em)
+                                from fazenda_conquistas where jogador_id = p_dono), '[]'::jsonb))
   );
 end;
 $$;
@@ -831,6 +915,7 @@ begin
   do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
   insert into fazenda_visitas (ator_id, dono_id, tipo, posicao, plantado_em, cultura, qtd)
   values (p_ator, p_dono, 'roubo', p_posicao, c.plantado_em, k.id, v_qtd);
+  perform fazenda_missao(p_ator, 'pegar', v_qtd);
 
   return v_qtd;
 end;
@@ -1065,14 +1150,64 @@ end;
 $$;
 
 -- Soma progresso nas missões de hoje daquele tipo
+-- e soma nas estatísticas do jogador (para conquistas e perfil)
+drop function if exists public.fazenda_missao(uuid, text, int);
 create or replace function public.fazenda_missao(p_jogador uuid, p_tipo text, p_qtd int)
 returns void
-language sql security definer
+language plpgsql security definer
 set search_path = public, extensions
 as $$
+begin
   update fazenda_missoes
      set progresso = least(alvo, progresso + p_qtd)
    where jogador_id = p_jogador and dia = fazenda_hoje() and tipo = p_tipo and not resgatada;
+  if p_tipo in ('colher', 'plantar', 'cuidar', 'vender', 'animal', 'ajudar', 'pegar') then
+    insert into fazenda_estatisticas (jogador_id) values (p_jogador) on conflict do nothing;
+    execute format('update fazenda_estatisticas set %I = %I + $1 where jogador_id = $2', p_tipo, p_tipo)
+      using p_qtd, p_jogador;
+  end if;
+end;
+$$;
+
+-- Libera as conquistas que o jogador já alcançou (com prêmio em moedas)
+create or replace function public.fazenda_checar_conquistas(p_jogador uuid)
+returns void
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  s        record;
+  r        record;
+  v_nivel  int;
+  v_constr int;
+  v_valor  int;
+begin
+  insert into fazenda_estatisticas (jogador_id) values (p_jogador) on conflict do nothing;
+  select * into s from fazenda_estatisticas where jogador_id = p_jogador;
+  select fazenda_nivel(xp) into v_nivel from fazenda_jogadores where id = p_jogador;
+  select count(*) into v_constr from fazenda_construcoes where jogador_id = p_jogador;
+  for r in
+    select t.* from fazenda_conquistas_tipos t
+     where not exists (select 1 from fazenda_conquistas c where c.jogador_id = p_jogador and c.conquista = t.id)
+  loop
+    v_valor := case r.medida
+      when 'nivel' then v_nivel
+      when 'construcoes' then v_constr
+      when 'colher' then s.colher
+      when 'plantar' then s.plantar
+      when 'cuidar' then s.cuidar
+      when 'vender' then s.vender
+      when 'animal' then s.animal
+      when 'ajudar' then s.ajudar
+      when 'pegar' then s.pegar
+      else 0
+    end;
+    if v_valor >= r.meta then
+      insert into fazenda_conquistas (jogador_id, conquista) values (p_jogador, r.id) on conflict do nothing;
+      update fazenda_jogadores set moedas = moedas + r.recompensa where id = p_jogador;
+    end if;
+  end loop;
+end;
 $$;
 
 -- Alimenta ou coleta um animal. Retorna quantos produtos coletou.
@@ -1223,8 +1358,15 @@ begin
   select * into i from fazenda_itens where id = p_tipo;
   if not found then raise exception 'item_invalido'; end if;
   if fazenda_nivel(j.xp) < i.nivel_min then raise exception 'nivel_insuficiente'; end if;
-  if not fazenda_livre(p_x, p_y) then raise exception 'lugar_reservado'; end if;
-  if exists (select 1 from fazenda_construcoes where jogador_id = v_id and x = p_x and y = p_y) then
+  -- todos os quadrados da área precisam estar livres
+  if exists (select 1 from generate_series(p_x, p_x + i.largura - 1) gx, generate_series(p_y, p_y + i.altura - 1) gy
+              where not fazenda_livre(gx, gy)) then
+    raise exception 'lugar_reservado';
+  end if;
+  if exists (select 1 from fazenda_construcoes c join fazenda_itens k on k.id = c.tipo
+              where c.jogador_id = v_id
+                and c.x < p_x + i.largura and p_x < c.x + k.largura
+                and c.y < p_y + i.altura  and p_y < c.y + k.altura) then
     raise exception 'lugar_ocupado';
   end if;
   if (select count(*) from fazenda_construcoes where jogador_id = v_id) >= 200 then
@@ -1245,9 +1387,19 @@ set search_path = public, extensions
 as $$
 declare
   v_id uuid := fazenda_auth(p_token);
+  i    record;
 begin
-  if not fazenda_livre(p_nx, p_ny) then raise exception 'lugar_reservado'; end if;
-  if exists (select 1 from fazenda_construcoes where jogador_id = v_id and x = p_nx and y = p_ny) then
+  select k.* into i from fazenda_construcoes c join fazenda_itens k on k.id = c.tipo
+   where c.jogador_id = v_id and c.x = p_x and c.y = p_y;
+  if not found then raise exception 'item_invalido'; end if;
+  if exists (select 1 from generate_series(p_nx, p_nx + i.largura - 1) gx, generate_series(p_ny, p_ny + i.altura - 1) gy
+              where not fazenda_livre(gx, gy)) then
+    raise exception 'lugar_reservado';
+  end if;
+  if exists (select 1 from fazenda_construcoes c join fazenda_itens k on k.id = c.tipo
+              where c.jogador_id = v_id and not (c.x = p_x and c.y = p_y)
+                and c.x < p_nx + i.largura and p_nx < c.x + k.largura
+                and c.y < p_ny + i.altura  and p_ny < c.y + k.altura) then
     raise exception 'lugar_ocupado';
   end if;
   update fazenda_construcoes set x = p_nx, y = p_ny
@@ -1333,7 +1485,8 @@ revoke execute on function
   public.fazenda_livre(int, int),
   public.fazenda_construir(text, text, int, int),
   public.fazenda_mover(text, int, int, int, int),
-  public.fazenda_demolir(text, int, int)
+  public.fazenda_demolir(text, int, int),
+  public.fazenda_checar_conquistas(uuid)
 from public, anon, authenticated;
 
 grant execute on function
