@@ -5,30 +5,23 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="robots" content="noindex, nofollow">
-    <meta name="theme-color" content="#7ec8e3">
+    <meta name="theme-color" content="#4e974c">
     <title>Fazendinha Secreta</title>
-    <link rel="icon"
-        href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌻</text></svg>">
+    <link rel="icon" type="image/png" href="assets/fazenda/tiny-farm.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="assets/fazenda/fazenda.css">
 </head>
 
 <body>
-    <!-- ===== CENÁRIO ===== -->
-    <div class="ceu" aria-hidden="true">
-        <div class="sol"></div>
-        <div class="nuvem n1"></div>
-        <div class="nuvem n2"></div>
-        <div class="nuvem n3"></div>
-        <div class="morros"></div>
-    </div>
+    <!-- Arte: "Tiny Farm" de Kenney (www.kenney.nl), licença CC0 -->
+    <canvas id="cena" class="cena" aria-label="Fazenda"></canvas>
 
     <!-- ===== HUD ===== -->
     <header class="hud" id="hud" hidden>
-        <div class="hud-perfil">
-            <div class="avatar" aria-hidden="true">🧑‍🌾</div>
+        <div class="hud-perfil caixa">
+            <span data-spr="109" data-px="40"></span>
             <div class="perfil-info">
                 <div class="apelido" id="hudApelido">—</div>
                 <div class="nivel">
@@ -38,54 +31,41 @@
                 </div>
             </div>
         </div>
-        <div class="hud-moedas" title="Moedas"><span aria-hidden="true">🪙</span> <b id="hudMoedas">0</b></div>
+        <div class="hud-moedas caixa" title="Moedas"><span data-ico="moeda" data-px="20"></span><b id="hudMoedas">0</b></div>
         <nav class="hud-botoes">
-            <button type="button" data-painel="loja"><span aria-hidden="true">🛒</span><em>Loja</em></button>
-            <button type="button" data-painel="celeiro"><span aria-hidden="true">🛖</span><em>Celeiro</em><b class="contador" id="hudCeleiro" hidden>0</b></button>
-            <button type="button" data-painel="vizinhos"><span aria-hidden="true">👥</span><em>Vizinhos</em><b class="contador" id="hudDiario" hidden>0</b></button>
-            <button type="button" data-painel="conta" aria-label="Conta e ajuda"><span aria-hidden="true">⚙️</span><em>Conta</em></button>
-            <a href="indexversao2.html" class="voltar" aria-label="Voltar ao portfólio"><span aria-hidden="true">↩</span><em>Sair</em></a>
+            <button type="button" class="botao" data-painel="loja"><span data-spr="9" data-px="28"></span><em>Loja</em></button>
+            <button type="button" class="botao" data-painel="celeiro"><span data-spr="11" data-px="28"></span><em>Celeiro</em><b class="contador" id="hudCeleiro" hidden>0</b></button>
+            <button type="button" class="botao" data-painel="vizinhos"><span data-spr="108" data-px="28"></span><em>Vizinhos</em><b class="contador" id="hudDiario" hidden>0</b></button>
+            <button type="button" class="botao" data-painel="conta" aria-label="Conta e ajuda"><span data-spr="76" data-px="28"></span><em>Conta</em></button>
+            <a href="indexversao2.html" class="botao" aria-label="Voltar ao portfólio"><span data-spr="127" data-px="28"></span><em>Sair</em></a>
         </nav>
     </header>
 
-    <!-- ===== FAZENDA ===== -->
-    <main class="cena" id="cena" hidden>
-        <div class="decor" aria-hidden="true">
-            <span class="casa">🏡</span>
-            <span class="arvore a1">🌳</span>
-            <span class="arvore a2">🌲</span>
-            <span class="arvore a3">🌳</span>
-            <span class="galinha g1">🐔</span>
-            <span class="galinha g2">🐤</span>
-            <span class="moinho">🌾</span>
-        </div>
-        <div class="faixa-visita" id="faixaVisita" hidden>
-            <span>🏡 Fazenda de <b id="visitaApelido">—</b> · Nv <b id="visitaNivel">1</b></span>
-            <button type="button" class="btn pequeno" id="btnVoltarCasa">↩ Minha fazenda</button>
-        </div>
-        <div class="campo-wrap">
-            <div class="campo" id="campo" role="grid" aria-label="Canteiros da fazenda"></div>
-        </div>
-        <div class="status" id="status" aria-live="polite">Toque num canteiro para cuidar dele.</div>
-    </main>
+    <div class="faixa-visita caixa" id="faixaVisita" hidden>
+        <span data-spr="108" data-px="28"></span>
+        <span>Fazenda de <b id="visitaApelido">—</b> · Nv <b id="visitaNivel">1</b></span>
+        <button type="button" class="botao pequeno verde" id="btnVoltarCasa">Minha fazenda</button>
+    </div>
+
+    <div class="status caixa" id="status" aria-live="polite" hidden>Toque num canteiro para cuidar dele.</div>
 
     <!-- ===== BARRA DE AÇÕES ===== -->
     <footer class="barra" id="barra" hidden>
-        <button type="button" class="semente-atual" id="btnSemente" aria-label="Escolher semente">
-            <span class="sem-emoji" id="semEmoji">🥬</span>
+        <button type="button" class="botao semente-atual" id="btnSemente" aria-label="Escolher semente">
+            <span id="semIcone"></span>
             <span class="sem-info"><small>Semente</small><b id="semNome">Alface</b></span>
         </button>
         <div class="acoes-massa" id="acoesVisita" hidden>
-            <button type="button" data-visita="pegar"><span aria-hidden="true">🫳</span><em>Pegar tudo</em></button>
-            <button type="button" data-visita="ajudar"><span aria-hidden="true">🤝</span><em>Ajudar tudo</em></button>
-            <button type="button" data-visita="outro"><span aria-hidden="true">🎲</span><em>Outro vizinho</em></button>
-            <button type="button" data-visita="casa"><span aria-hidden="true">🏠</span><em>Voltar</em></button>
+            <button type="button" class="botao" data-visita="pegar"><span data-ico="mao" data-px="26"></span><em>Pegar tudo</em></button>
+            <button type="button" class="botao" data-visita="ajudar"><span data-ico="coracao" data-px="24"></span><em>Ajudar tudo</em></button>
+            <button type="button" class="botao" data-visita="outro"><span data-spr="108" data-px="28"></span><em>Outro vizinho</em></button>
+            <button type="button" class="botao" data-visita="casa"><span data-spr="126" data-px="28"></span><em>Voltar</em></button>
         </div>
         <div class="acoes-massa" id="acoesCasa">
-            <button type="button" data-massa="colher"><span aria-hidden="true">🧺</span><em>Colher tudo</em></button>
-            <button type="button" data-massa="cuidar"><span aria-hidden="true">🧑‍🌾</span><em>Cuidar</em></button>
-            <button type="button" data-massa="arar"><span aria-hidden="true">⛏️</span><em>Arar tudo</em></button>
-            <button type="button" data-massa="plantar"><span aria-hidden="true">🌱</span><em>Plantar tudo</em></button>
+            <button type="button" class="botao" data-massa="colher"><span data-spr="88" data-px="28"></span><em>Colher tudo</em></button>
+            <button type="button" class="botao" data-massa="cuidar"><span data-spr="84" data-px="28"></span><em>Cuidar</em></button>
+            <button type="button" class="botao" data-massa="arar"><span data-spr="86" data-px="28"></span><em>Arar tudo</em></button>
+            <button type="button" class="botao" data-massa="plantar"><span data-spr="81" data-px="28"></span><em>Plantar tudo</em></button>
         </div>
     </footer>
 
@@ -95,9 +75,9 @@
     <!-- ===== ENTRADA ===== -->
     <section class="modal aberto" id="telaEntrada" role="dialog" aria-modal="true" aria-labelledby="entradaTitulo">
         <div class="cartao entrada">
-            <div class="logo" aria-hidden="true">🌻</div>
+            <div class="logo" aria-hidden="true"><span data-spr="83" data-px="72"></span></div>
             <h1 id="entradaTitulo">Fazendinha Secreta</h1>
-            <p class="sub">Você achou o segredo do portfólio! Plante, cuide, colha e fique rico. 🪙</p>
+            <p class="sub">Você achou o segredo do portfólio! Plante, cuide, colha e fique rico.</p>
 
             <div class="carregando" id="entradaCarregando">Abrindo a porteira…</div>
 
@@ -109,29 +89,30 @@
                 <form class="aba ativa" data-aba="nova" id="formNova" autocomplete="off">
                     <label for="inApelido">Como te chamam na roça?</label>
                     <input id="inApelido" maxlength="20" minlength="2" required placeholder="Seu apelido">
-                    <button type="submit" class="btn-principal">Começar a plantar 🌱</button>
+                    <button type="submit" class="botao grande verde">Começar a plantar</button>
                 </form>
                 <form class="aba" data-aba="codigo" id="formCodigo" autocomplete="off">
                     <label for="inCodigo">Código de recuperação</label>
                     <input id="inCodigo" required placeholder="MILHO-XXXX-XXXX" spellcheck="false" autocapitalize="characters">
-                    <button type="submit" class="btn-principal">Voltar pra minha fazenda 🏡</button>
+                    <button type="submit" class="botao grande verde">Voltar pra minha fazenda</button>
                 </form>
                 <p class="erro" id="entradaErro" role="alert"></p>
             </div>
         </div>
     </section>
 
-    <!-- ===== PAINEL GENÉRICO (loja, celeiro, conta, avisos) ===== -->
+    <!-- ===== PAINEL GENÉRICO (loja, celeiro, vizinhos, conta) ===== -->
     <section class="modal" id="painel" role="dialog" aria-modal="true" aria-labelledby="painelTitulo">
         <div class="cartao painel">
             <header>
                 <h2 id="painelTitulo">—</h2>
-                <button type="button" class="fechar" id="painelFechar" aria-label="Fechar">✕</button>
+                <button type="button" class="botao fechar" id="painelFechar" aria-label="Fechar">✕</button>
             </header>
             <div class="painel-corpo" id="painelCorpo"></div>
         </div>
     </section>
 
+    <script src="assets/fazenda/fazenda-arte.js" defer></script>
     <script src="assets/fazenda/fazenda.js" defer></script>
 </body>
 

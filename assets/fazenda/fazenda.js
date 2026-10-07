@@ -2,11 +2,12 @@
    FAZENDINHA SECRETA — cliente
    Todas as regras (tempo, moedas, nível) são validadas no Supabase
    pelas funções fazenda_* (ver supabase/fazenda.sql). Aqui só
-   desenhamos o estado e mandamos as ações.
+   desenhamos o estado (via fazenda-arte.js) e mandamos as ações.
 ============================================================ */
 (function () {
     'use strict';
 
+    const A = window.FazendaArte;
     const SUPABASE_URL = 'https://vhdjqppzylxdksgjzvsh.supabase.co';
     const SUPABASE_KEY = 'sb_publishable_y-rrBFvf0QRFG3WL3P0kxQ_gItonE2U';
 
@@ -39,19 +40,19 @@
         precisa_arar: 'Are o canteiro antes de plantar.',
         cultura_invalida: 'Semente inválida.',
         nivel_insuficiente: 'Você ainda não tem nível para essa semente.',
-        moedas_insuficientes: 'Moedas insuficientes 🪙',
+        moedas_insuficientes: 'Moedas insuficientes.',
         nada_a_fazer: 'Nada pra fazer aqui.',
         nao_maduro: 'Ainda não está pronto.',
         murchou: 'Essa planta murchou… are o canteiro para limpar.',
         acao_invalida: 'Ação inválida.',
         quantidade_invalida: 'Quantidade inválida.',
         muitas_fazendas: 'Muita gente chegando agora! Tente de novo daqui a pouco.',
-        propria_fazenda: 'Essa é a sua própria fazenda 😄',
+        propria_fazenda: 'Essa é a sua própria fazenda!',
         vizinho_invalido: 'Essa fazenda não existe mais.',
         nenhum_vizinho: 'Ainda não tem vizinhos por aqui. Chame alguém para jogar!',
-        ja_pegou: 'Você já pegou desse canteiro. Deixa um pouco pro dono 😅',
-        nada_pra_pegar: 'Esse canteiro já foi bem visitado… não sobrou nada pra pegar.',
-        limite_pegadas: 'Você já pegou demais hoje. Volte amanhã 🌙'
+        ja_pegou: 'Você já pegou desse canteiro. Deixa um pouco pro dono!',
+        nada_pra_pegar: 'Esse canteiro já foi bem visitado… não sobrou nada.',
+        limite_pegadas: 'Você já pegou demais hoje. Volte amanhã.'
     };
 
     async function rpc(fn, args) {
@@ -80,10 +81,10 @@
     /* ---------- DOM ---------- */
     const $ = (id) => document.getElementById(id);
     const el = {
-        hud: $('hud'), cena: $('cena'), barra: $('barra'), campo: $('campo'), status: $('status'),
+        canvas: $('cena'), hud: $('hud'), barra: $('barra'), status: $('status'),
         apelido: $('hudApelido'), nivel: $('hudNivel'), xpBar: $('hudXpBar'), xp: $('hudXp'),
         moedas: $('hudMoedas'), celeiroCont: $('hudCeleiro'),
-        semEmoji: $('semEmoji'), semNome: $('semNome'), btnSemente: $('btnSemente'),
+        semIcone: $('semIcone'), semNome: $('semNome'), btnSemente: $('btnSemente'),
         toasts: $('toasts'), flut: $('flutuantes'),
         entrada: $('telaEntrada'), entradaCarregando: $('entradaCarregando'), entradaAbas: $('entradaAbas'),
         entradaErro: $('entradaErro'), formNova: $('formNova'), formCodigo: $('formCodigo'),
@@ -93,6 +94,15 @@
         btnVoltarCasa: $('btnVoltarCasa'), acoesVisita: $('acoesVisita'), acoesCasa: $('acoesCasa'),
         diarioCont: $('hudDiario')
     };
+
+    /* ---------- Ícones (pixel art) ---------- */
+    const ico = (nome, px) => A.htmlIcone(nome, px);
+    const spr = (i, px) => A.htmlTile(i, px);
+    const moeda = (n) => `${ico('moeda', 14)}${n}`;
+    const itemDe = (k, px = 22) => spr(A.cultura(k.id).item, px);
+
+    document.querySelectorAll('[data-spr]').forEach((s) => { s.outerHTML = spr(Number(s.dataset.spr), Number(s.dataset.px) || 32); });
+    document.querySelectorAll('[data-ico]').forEach((s) => { s.outerHTML = ico(s.dataset.ico, Number(s.dataset.px) || 18); });
 
     /* ---------- Estado ---------- */
     let token = store.get(LS.token);
@@ -105,9 +115,10 @@
     let semente = store.get(LS.semente) || 'alface';
     let fila = Promise.resolve(); // ações em série para o estado nunca voltar no tempo
     let pendentes = 0;
+    const pendentesPos = new Set();
     let painelAtual = null;
     let ultimoFoco = null;
-    const tiles = [];
+    let voltaFazendeiro = null;
 
     const agora = () => Date.now() + offset;
     const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -130,6 +141,11 @@
     const nivelParaCanteiro = (pos) => Math.floor((pos - 6) / 2) + 2;
 
     /* ---------- Leitura de um canteiro ---------- */
+    function canteiro(p) {
+        const fonte = visita || S;
+        return fonte && fonte.canteiros.find((c) => c.posicao === p);
+    }
+
     function info(c) {
         if (!c) return { fase: 'bloqueado' };
         if (c.estado !== 'plantado') return { fase: c.estado };
@@ -172,105 +188,60 @@
         return null;
     }
 
-    const PROB = { erva: '☘️', praga: '🐛', seco: '💧' };
     const PROB_NOME = { erva: 'erva daninha', praga: 'praga', seco: 'terra seca' };
+    const probsHtml = (probs) => probs.map((x) => ico(x, 14)).join('');
 
-    /* ---------- Render ---------- */
-    function montarCampo() {
-        for (let p = 0; p < TOTAL_CANTEIROS; p++) {
-            const b = document.createElement('button');
-            b.type = 'button';
-            b.className = 'canteiro';
-            b.dataset.pos = p;
-            b.innerHTML = '<span class="sprite"><span class="planta"></span><span class="brilho" hidden>✨</span><span class="probs" hidden></span><span class="rotulo"></span></span>';
-            b.addEventListener('click', () => clicarCanteiro(p));
-            b.addEventListener('mouseenter', () => descrever(p));
-            b.addEventListener('focus', () => descrever(p));
-            el.campo.appendChild(b);
-            tiles.push({
-                b,
-                planta: b.querySelector('.planta'),
-                brilho: b.querySelector('.brilho'),
-                probs: b.querySelector('.probs'),
-                rotulo: b.querySelector('.rotulo'),
-                chave: ''
-            });
-        }
-    }
+    /* ---------- Cena ---------- */
+    // Fazenda de enfeite que aparece atrás da tela de entrada
+    const DEMO = [
+        { solo: 'arado', planta: 6, maduro: true }, { solo: 'arado', planta: 29, progresso: 0.6 },
+        { solo: 'arado', planta: 42, maduro: true }, { solo: 'arado', planta: 52, progresso: 0.2, probs: ['erva'] },
+        { solo: 'arado', planta: 66, maduro: true }, { solo: 'arado' },
+        { solo: 'arado', planta: 17, progresso: 0.5 }, { solo: 'vazio' }
+    ];
 
-    function canteiro(p) {
-        const fonte = visita || S;
-        return fonte && fonte.canteiros.find((c) => c.posicao === p);
-    }
-
-    function desenharCanteiro(p) {
-        const t = tiles[p];
+    function visualCanteiro(p) {
+        if (!S) return DEMO[p] || { solo: 'bloqueado' };
         const c = canteiro(p);
         const i = info(c);
-        let classe = 'canteiro', planta = '', plantaCls = 'planta', rotulo = '', rotCls = 'rotulo', probs = '', brilho = false, label;
-
-        if (i.fase === 'bloqueado') {
-            classe += ' bloqueado';
-            planta = '🔒'; plantaCls += ' f2';
-            rotulo = `Nv ${nivelParaCanteiro(p)}`;
-            label = `Canteiro bloqueado até o nível ${nivelParaCanteiro(p)}`;
-        } else if (i.fase === 'vazio') {
-            classe += ' vazio';
-            label = 'Canteiro vazio: arar';
-        } else if (i.fase === 'arado') {
-            classe += ' arado';
-            label = 'Canteiro arado: plantar';
+        const pendente = pendentesPos.has(p);
+        if (i.fase === 'bloqueado') return { solo: 'bloqueado' };
+        if (i.fase === 'vazio' || i.fase === 'arado') return { solo: i.fase, pendente };
+        const arte = A.cultura(i.k.id);
+        const v = { solo: 'arado', seco: c.seco && i.fase !== 'murcho', pendente };
+        if (i.fase === 'murcho') {
+            v.planta = arte.murcho;
         } else {
-            classe += ' plantado';
-            if (c.seco) classe += ' com-seco';
-            if (i.fase === 'murcho') {
-                planta = '🥀'; plantaCls += ' murcho';
-                rotulo = 'Murchou'; rotCls += ' ruim';
-                label = `${i.k.nome} murchou: arar para limpar`;
-            } else if (i.fase === 'maduro') {
-                planta = i.k.emoji; plantaCls += ' maduro';
-                rotulo = 'Pronto!'; rotCls += ' pronto';
-                brilho = true;
-                label = `${i.k.nome} pronto para colher`;
-                if (visita) {
-                    if (c.ja_peguei) { rotulo = '✓ Pegou'; rotCls = 'rotulo cinza'; brilho = false; label = `${i.k.nome}: você já pegou daqui`; }
-                    else if (c.roubado >= limitePegar(i.k)) { rotulo = 'Vigiado'; rotCls = 'rotulo cinza'; brilho = false; label = `${i.k.nome}: não sobrou nada pra pegar`; }
-                    else { rotulo = '🫳 Pegar!'; rotCls = 'rotulo pegar'; label = `${i.k.nome} maduro: dá pra pegar um pouco`; }
-                }
-            } else {
-                if (i.prog < 0.33) { planta = '🌱'; plantaCls += ' f1'; }
-                else if (i.prog < 0.66) { planta = '🌿'; plantaCls += ' f2'; }
-                else { planta = i.k.emoji; plantaCls += ' f3'; }
-                rotulo = fmtTempo(i.resta);
-                label = `${i.k.nome}, faltam ${fmtTempo(i.resta)}`;
-            }
-            if (i.fase !== 'murcho' && i.probs.length) {
-                probs = i.probs.map((x) => PROB[x]).join('');
-                label += `. Problemas: ${i.probs.map((x) => PROB_NOME[x]).join(', ')}`;
-            }
+            v.probs = i.probs;
+            if (i.fase === 'maduro') { v.planta = arte.fases[2]; v.maduro = true; }
+            else { v.planta = i.prog < 0.5 ? arte.fases[0] : arte.fases[1]; v.progresso = i.prog; }
         }
-
-        // Só mexe no DOM quando algo visual mudou (rótulo de tempo muda todo segundo)
-        const chave = [classe, planta, plantaCls, probs, brilho].join('|');
-        if (chave !== t.chave) {
-            t.chave = chave;
-            t.b.className = classe + (t.b.classList.contains('pendente') ? ' pendente' : '');
-            t.planta.className = plantaCls;
-            t.planta.textContent = planta;
-            t.probs.textContent = probs;
-            t.probs.hidden = !probs;
-            t.brilho.hidden = !brilho;
+        if (visita && i.fase === 'maduro') {
+            if (podePegar(c, i)) v.pegar = true;
+            else { v.cinza = true; v.check = !!c.ja_peguei; }
         }
-        if (t.rotulo.textContent !== rotulo) t.rotulo.textContent = rotulo;
-        if (t.rotulo.className !== rotCls) t.rotulo.className = rotCls;
-        t.b.setAttribute('aria-label', `Canteiro ${p + 1}: ${label}`);
-        t.b.disabled = i.fase === 'bloqueado';
+        return v;
     }
 
-    function desenharCampo() {
-        for (let p = 0; p < TOTAL_CANTEIROS; p++) desenharCanteiro(p);
-    }
+    const cena = A.criarCena(el.canvas, {
+        aoCanteiro: (p) => clicarCanteiro(p),
+        aoCeleiro: () => { if (S && !painelAtual) abrirPainel('celeiro'); },
+        aoPassar: (alvo) => {
+            if (!S) return;
+            if (alvo === 'celeiro') mostrarStatus(`${spr(11, 22)} Celeiro: toque para ver e vender a colheita.`);
+            else if (typeof alvo === 'number') descrever(alvo);
+        }
+    });
+    cena.definirVisual(visualCanteiro);
 
+    function ajustarMargens() {
+        const topo = el.hud.hidden ? 24 : el.hud.getBoundingClientRect().bottom + 8;
+        const base = el.barra.hidden ? 24 : window.innerHeight - el.barra.getBoundingClientRect().top + 44;
+        cena.definirMargens(Math.round(topo), Math.round(base));
+    }
+    window.addEventListener('resize', ajustarMargens);
+
+    /* ---------- HUD e status ---------- */
     function desenharHud() {
         const j = S.jogador;
         el.apelido.textContent = j.apelido;
@@ -290,50 +261,52 @@
         el.celeiroCont.hidden = !totalCeleiro;
 
         const k = culturas[semente];
-        el.semEmoji.textContent = k ? k.emoji : '🌱';
-        el.semNome.textContent = k ? `${k.nome} · 🪙${k.custo}` : 'Escolher';
+        el.semIcone.innerHTML = k ? spr(A.cultura(k.id).item, 32) : '';
+        el.semNome.innerHTML = k ? `${esc(k.nome)} · ${moeda(k.custo)}` : 'Escolher';
+    }
+
+    function mostrarStatus(html) {
+        el.status.innerHTML = html;
     }
 
     function descreverVisita(c, i) {
-        if (i.fase === 'bloqueado') return '🔒 Canteiro bloqueado do vizinho.';
-        if (i.fase === 'vazio' || i.fase === 'arado') return '🟫 Canteiro livre. Nada pra fazer aqui.';
-        if (i.fase === 'murcho') return `🥀 O ${i.k.nome} do vizinho murchou.`;
+        if (i.fase === 'bloqueado') return `${ico('cadeado', 12)} Canteiro bloqueado do vizinho.`;
+        if (i.fase === 'vazio' || i.fase === 'arado') return 'Canteiro livre. Nada pra fazer aqui.';
+        const item = itemDe(i.k);
+        if (i.fase === 'murcho') return `O ${esc(i.k.nome.toLowerCase())} do vizinho murchou.`;
         let txt;
         if (i.fase === 'maduro') {
-            if (c.ja_peguei) txt = `${i.k.emoji} Você já pegou desse ${i.k.nome}.`;
-            else if (c.roubado >= limitePegar(i.k)) txt = `${i.k.emoji} Já pegaram bastante desse ${i.k.nome}.`;
-            else txt = `${i.k.emoji} ${i.k.nome} maduro! Toque para pegar 1 ou 2 🫳`;
+            if (c.ja_peguei) txt = `${item} Você já pegou desse ${esc(i.k.nome.toLowerCase())}.`;
+            else if (c.roubado >= limitePegar(i.k)) txt = `${item} Já pegaram bastante desse ${esc(i.k.nome.toLowerCase())}.`;
+            else txt = `${item} ${esc(i.k.nome)} maduro! Toque para pegar 1 ou 2 ${ico('mao', 16)}`;
         } else {
-            txt = `${i.k.emoji} ${i.k.nome} do vizinho · fica pronto em ${fmtTempo(i.resta)}.`;
+            txt = `${item} ${esc(i.k.nome)} do vizinho · pronto em ${fmtTempo(i.resta)}.`;
         }
-        if (i.probs.length) txt += ` Ajude com ${i.probs.map((x) => PROB[x]).join('')}: +${i.probs.length} XP e 🪙 pra você.`;
+        if (i.probs.length) txt += ` Ajude com ${probsHtml(i.probs)} e ganhe +${i.probs.length} ${ico('xp', 14)} e ${moeda(i.probs.length)}.`;
         return txt;
     }
 
     function descrever(p) {
         const c = canteiro(p);
         const i = info(c);
-        if (visita) {
-            el.status.textContent = descreverVisita(c, i);
-            return;
-        }
+        if (visita) return mostrarStatus(descreverVisita(c, i));
         let txt;
         switch (i.fase) {
-            case 'bloqueado': txt = `🔒 Libera no nível ${nivelParaCanteiro(p)}.`; break;
-            case 'vazio': txt = '⛏️ Terra batida. Toque para arar (+1 XP).'; break;
+            case 'bloqueado': txt = `${ico('cadeado', 12)} Libera no nível ${nivelParaCanteiro(p)}.`; break;
+            case 'vazio': txt = `${spr(86, 22)} Terra batida. Toque para arar (+1 ${ico('xp', 14)}).`; break;
             case 'arado': {
                 const k = culturas[semente];
-                txt = k ? `🌱 Pronto para plantar ${k.emoji} ${k.nome} (🪙${k.custo}).` : '🌱 Pronto para plantar.';
+                txt = k ? `${itemDe(k)} Toque para plantar ${esc(k.nome.toLowerCase())} (${moeda(k.custo)}).` : 'Pronto para plantar.';
                 break;
             }
-            case 'murcho': txt = `🥀 ${i.k.nome} murchou. Toque para limpar e arar.`; break;
-            case 'maduro': txt = `${i.k.emoji} ${i.k.nome} pronto! Murcha em ${fmtTempo(i.resta)}.`; break;
-            default: txt = `${i.k.emoji} ${i.k.nome} · ${Math.floor(i.prog * 100)}% · colhe em ${fmtTempo(i.resta)}.`;
+            case 'murcho': txt = `${spr(A.cultura(i.k.id).murcho, 22)} ${esc(i.k.nome)} murchou. Toque para limpar.`; break;
+            case 'maduro': txt = `${itemDe(i.k)} ${esc(i.k.nome)} pronto! Toque para colher. Murcha em ${fmtTempo(i.resta)}.`; break;
+            default: txt = `${itemDe(i.k)} ${esc(i.k.nome)} · ${Math.floor(i.prog * 100)}% · pronto em ${fmtTempo(i.resta)}.`;
         }
         if (i.probs && i.probs.length && i.fase !== 'murcho') {
-            txt += ` Cuide: ${i.probs.map((x) => `${PROB[x]} ${PROB_NOME[x]}`).join(', ')} (−1 cada na colheita).`;
+            txt += ` Cuide de ${probsHtml(i.probs)} (−1 cada na colheita).`;
         }
-        el.status.textContent = txt;
+        mostrarStatus(txt);
     }
 
     /* ---------- Estado vindo do servidor ---------- */
@@ -348,14 +321,13 @@
 
         if (antes && estado.jogador.nivel > antes.jogador.nivel) {
             const novas = estado.culturas.filter((k) => k.nivel_min > antes.jogador.nivel && k.nivel_min <= estado.jogador.nivel);
-            let msg = `🎉 Nível ${estado.jogador.nivel}!`;
+            let msg = `${ico('xp', 20)} Nível ${estado.jogador.nivel}!`;
             if (estado.jogador.max_canteiros > antes.jogador.max_canteiros) msg += ' +2 canteiros';
-            if (novas.length) msg += ` · Nova semente: ${novas.map((k) => k.emoji + ' ' + k.nome).join(', ')}`;
+            if (novas.length) msg += ` · Nova semente: ${novas.map((k) => itemDe(k) + esc(k.nome)).join(', ')}`;
             toast(msg, 'festa');
         }
         avisarDiario();
         desenharHud();
-        desenharCampo();
         if (painelAtual === 'loja' || painelAtual === 'celeiro') abrirPainel(painelAtual, true);
     }
 
@@ -365,10 +337,10 @@
 
     function textoDiario(d) {
         const k = culturas[d.cultura];
-        const item = k ? `${k.emoji} ${k.nome.toLowerCase()}` : d.cultura;
+        const item = k ? `${itemDe(k, 18)}${esc(k.nome.toLowerCase())}` : esc(d.cultura);
         return d.tipo === 'roubo'
-            ? `${d.apelido} pegou ${d.qtd} ${item} da sua fazenda!`
-            : `${d.apelido} cuidou do seu ${item} (${d.qtd} problema${d.qtd > 1 ? 's' : ''}) 💚`;
+            ? `<b>${esc(d.apelido)}</b> pegou ${d.qtd} ${item} da sua fazenda!`
+            : `<b>${esc(d.apelido)}</b> cuidou do seu ${item} (${d.qtd} problema${d.qtd > 1 ? 's' : ''}).`;
     }
 
     function avisarDiario() {
@@ -380,7 +352,7 @@
         if (!ineditos.length) return;
         ultimoAvisoDiario = Math.max(...ineditos.map(quando));
         const d = ineditos[0];
-        toast((d.tipo === 'roubo' ? '🦝 ' : '🤝 ') + textoDiario(d) + (ineditos.length > 1 ? ` (+${ineditos.length - 1} no diário 👥)` : ''));
+        toast((d.tipo === 'roubo' ? ico('mao', 18) : ico('coracao', 16)) + ' ' + textoDiario(d) + (ineditos.length > 1 ? ` (+${ineditos.length - 1} no diário)` : ''));
     }
 
     function marcarDiarioVisto() {
@@ -390,35 +362,38 @@
     }
 
     /* ---------- Feedback visual ---------- */
-    function toast(msg, tipo) {
+    // html: monte com esc() em qualquer texto vindo de jogadores ou do servidor
+    function toast(html, tipo) {
         const t = document.createElement('div');
         t.className = 'toast' + (tipo === 'erro' ? ' erro-t' : tipo === 'festa' ? ' festa' : '');
-        t.textContent = msg;
+        t.innerHTML = html;
         el.toasts.appendChild(t);
         while (el.toasts.children.length > 3) el.toasts.firstChild.remove();
         setTimeout(() => t.remove(), tipo === 'festa' ? 4600 : 3100);
     }
 
-    function flutuar(p, texto, atraso = 0) {
-        const r = tiles[p].planta.getBoundingClientRect();
+    function flutuar(p, html, atraso = 0) {
         setTimeout(() => {
+            const pos = cena.telaDoCanteiro(p);
             const f = document.createElement('div');
             f.className = 'flut';
-            f.textContent = texto;
-            f.style.left = `${r.left + r.width / 2}px`;
-            f.style.top = `${r.top}px`;
+            f.innerHTML = html;
+            f.style.left = `${pos.x}px`;
+            f.style.top = `${pos.y}px`;
             el.flut.appendChild(f);
-            setTimeout(() => f.remove(), 1400);
+            setTimeout(() => f.remove(), 1300);
         }, atraso);
     }
 
     /* ---------- Ações ---------- */
     function enfileirar(posicoes, tarefa) {
-        posicoes.forEach((p) => tiles[p].b.classList.add('pendente'));
+        posicoes.forEach((p) => pendentesPos.add(p));
         pendentes++;
+        clearTimeout(voltaFazendeiro);
         const execucao = fila.then(tarefa).catch(tratarErro).finally(() => {
             pendentes--;
-            posicoes.forEach((p) => tiles[p].b.classList.remove('pendente'));
+            posicoes.forEach((p) => pendentesPos.delete(p));
+            if (!pendentes) voltaFazendeiro = setTimeout(() => cena.voltarParaCasa(), 6000);
         });
         fila = execucao;
         return execucao;
@@ -431,33 +406,33 @@
             mostrarErroEntrada(e.message);
             return;
         }
-        toast(e.message || 'Algo deu errado.', 'erro');
+        toast(esc(e.message || 'Algo deu errado.'), 'erro');
     }
 
     const FEEDBACK = {
-        arar: () => '+1 XP',
-        plantar: (k) => `−${k.custo} 🪙`,
-        erva: () => '+1 XP +1 🪙',
-        praga: () => '+1 XP +1 🪙',
-        seco: () => '+1 XP +1 🪙'
+        arar: () => `+1 ${ico('xp', 16)}`,
+        plantar: (k) => `−${k.custo} ${ico('moeda', 16)}`,
+        erva: () => `+1 ${ico('xp', 16)} +1 ${ico('moeda', 16)}`,
+        praga: () => `+1 ${ico('xp', 16)} +1 ${ico('moeda', 16)}`,
+        seco: () => `+1 ${ico('xp', 16)} +1 ${ico('moeda', 16)}`
     };
 
     function validarPlantio() {
         const k = culturas[semente];
         if (!k || k.nivel_min > S.jogador.nivel) {
             abrirPainel('loja');
-            toast('Escolha uma semente na loja 🛒');
+            toast('Escolha uma semente na loja.');
             return null;
         }
         return k;
     }
 
     function clicarCanteiro(p) {
-        if (!S) return;
+        if (!S || painelAtual) return;
         descrever(p);
         if (visita) {
             const av = acaoVisita(canteiro(p));
-            if (av) executarVisita(av, [p]);
+            if (av) { cena.irAte(p); executarVisita(av, [p]); }
             return;
         }
         const acao = acaoPara(canteiro(p));
@@ -467,10 +442,11 @@
             k = validarPlantio();
             if (!k) return;
             if (S.jogador.moedas < k.custo) {
-                toast(`Faltam moedas para ${k.nome}. Venda a colheita no celeiro 🛖`, 'erro');
+                toast(`Faltam moedas para ${esc(k.nome.toLowerCase())}. Venda a colheita no celeiro.`, 'erro');
                 return;
             }
         }
+        cena.irAte(p);
         executar(acao, [p], k);
     }
 
@@ -486,7 +462,7 @@
                 Object.entries(r.colhido).forEach(([pos, qtd], n) => {
                     const c = canteiro(Number(pos));
                     const kc = c && culturas[c.cultura];
-                    flutuar(Number(pos), `+${qtd} ${kc ? kc.emoji : ''}  +${kc ? kc.xp : 0} XP`, n * 80);
+                    if (kc) flutuar(Number(pos), `+${qtd} ${itemDe(kc, 20)} +${kc.xp} ${ico('xp', 16)}`, n * 80);
                 });
             } else if (r.feitos > 0) {
                 const fb = FEEDBACK[acao](k);
@@ -509,11 +485,11 @@
         if (!r.feitos) return;
         if (acao === 'colher') {
             const total = Object.values(r.colhido).reduce((a, b) => a + b, 0);
-            toast(`🧺 Colheu ${total} itens de ${r.feitos} canteiro(s)!`);
+            toast(`${spr(88, 22)} Colheu ${total} itens de ${r.feitos} canteiro(s)!`);
         } else if (acao === 'plantar') {
-            toast(`🌱 Plantou ${r.feitos} × ${k.emoji} ${k.nome}`);
+            toast(`${itemDe(k)} Plantou ${r.feitos} × ${esc(k.nome.toLowerCase())}`);
         } else if (acao === 'arar') {
-            toast(`⛏️ Arou ${r.feitos} canteiro(s)`);
+            toast(`${spr(86, 22)} Arou ${r.feitos} canteiro(s)`);
         }
     }
 
@@ -525,7 +501,7 @@
         if (!S) return;
         if (tipo === 'colher') {
             const ps = posicoesOnde((c, i) => i.fase === 'maduro');
-            if (!ps.length) return toast('Nada maduro ainda ⏳');
+            if (!ps.length) return toast('Nada maduro ainda.');
             executar('colher', ps);
         } else if (tipo === 'arar') {
             const ps = posicoesOnde((c, i) => i.fase === 'vazio' || i.fase === 'murcho');
@@ -536,7 +512,7 @@
             if (!ps.length) return toast('Nenhum canteiro arado livre.');
             const k = validarPlantio();
             if (!k) return;
-            if (S.jogador.moedas < k.custo) return toast(`Faltam moedas para ${k.nome}.`, 'erro');
+            if (S.jogador.moedas < k.custo) return toast(`Faltam moedas para ${esc(k.nome.toLowerCase())}.`, 'erro');
             executar('plantar', ps, k);
         } else if (tipo === 'cuidar') {
             let algum = false, total = 0;
@@ -548,8 +524,8 @@
                     if (r) total += r.feitos;
                 }
             }
-            if (!algum) toast('Tudo em ordem por aqui 🌤️');
-            else if (total) toast(`🧑‍🌾 Resolveu ${total} problema(s)!`);
+            if (!algum) toast('Tudo em ordem por aqui.');
+            else if (total) toast(`${spr(84, 22)} Resolveu ${total} problema(s)!`);
         }
     }
 
@@ -563,7 +539,7 @@
         el.visitaNivel.textContent = v.nivel;
         el.acoesVisita.hidden = false;
         el.acoesCasa.hidden = true;
-        desenharCampo();
+        el.btnSemente.hidden = true;
     }
 
     function visitar(id) {
@@ -574,9 +550,9 @@
             mostrarVisita(v);
             if (trocou) {
                 const prontos = v.canteiros.filter((c) => podePegar(c, info(c))).length;
-                el.status.textContent = prontos
-                    ? `👀 ${v.apelido} tem ${prontos} canteiro(s) maduro(s). Pegue um pouquinho… ou ajude!`
-                    : `🌾 Você está na fazenda de ${v.apelido}. Ajude com ervas, pragas e seca para ganhar XP.`;
+                mostrarStatus(prontos
+                    ? `<b>${esc(v.apelido)}</b> tem ${prontos} canteiro(s) maduro(s). Pegue um pouquinho… ou ajude!`
+                    : `Você está na fazenda de <b>${esc(v.apelido)}</b>. Ajude com ${probsHtml(['erva', 'praga', 'seco'])} para ganhar ${ico('xp', 14)}.`);
             }
         });
     }
@@ -587,8 +563,9 @@
         el.faixaVisita.hidden = true;
         el.acoesVisita.hidden = true;
         el.acoesCasa.hidden = false;
-        el.status.textContent = 'De volta à sua fazenda 🏡';
-        desenharCampo();
+        el.btnSemente.hidden = false;
+        mostrarStatus('De volta à sua fazenda.');
+        cena.voltarParaCasa();
         recarregar();
     }
 
@@ -601,13 +578,17 @@
             Object.entries(r.resultado).forEach(([pos, qtd], n) => {
                 const c = canteiro(Number(pos));
                 const k = c && culturas[c.cultura];
-                flutuar(Number(pos), acao === 'pegar' ? `+${qtd} ${k ? k.emoji : ''}` : `+${qtd} XP +${qtd} 🪙`, n * 70);
+                flutuar(Number(pos), acao === 'pegar'
+                    ? `+${qtd} ${k ? itemDe(k, 20) : ''}`
+                    : `+${qtd} ${ico('xp', 16)} +${qtd} ${ico('moeda', 16)}`, n * 70);
             });
             aplicarEstado(r.estado);
             if (visita && visita.id === dono) mostrarVisita(r.vizinho);
             if (posicoes.length > 1 && r.feitos) {
                 const total = Object.values(r.resultado).reduce((a, b) => a + b, 0);
-                toast(acao === 'pegar' ? `🫳 Pegou ${total} itens de ${r.feitos} canteiro(s)!` : `🤝 Resolveu ${total} problema(s) do vizinho!`);
+                toast(acao === 'pegar'
+                    ? `${ico('mao', 18)} Pegou ${total} itens de ${r.feitos} canteiro(s)!`
+                    : `${ico('coracao', 16)} Resolveu ${total} problema(s) do vizinho!`);
             } else if (posicoes.length === 1) {
                 descrever(posicoes[0]);
             }
@@ -623,7 +604,7 @@
             const i = info(c);
             return tipo === 'pegar' ? podePegar(c, i) : (i.fase === 'crescendo' || i.fase === 'maduro') && i.probs.length > 0;
         }).map((c) => c.posicao);
-        if (!ps.length) return toast(tipo === 'pegar' ? 'Nada pra pegar aqui agora 🤷' : 'A fazenda do vizinho está em ordem 🌤️');
+        if (!ps.length) return toast(tipo === 'pegar' ? 'Nada pra pegar aqui agora.' : 'A fazenda do vizinho está em ordem.');
         executarVisita(tipo, ps);
     }
 
@@ -644,81 +625,80 @@
         painelAtual = nome;
         const corpo = el.painelCorpo;
         if (nome === 'loja') {
-            el.painelTitulo.textContent = '🛒 Loja de sementes';
+            el.painelTitulo.innerHTML = `${spr(9, 32)} Loja de sementes`;
             corpo.innerHTML = '<div class="lista">' + S.culturas.map((k) => {
                 const travada = k.nivel_min > S.jogador.nivel;
                 const lucro = k.venda * k.rendimento - k.custo;
                 return `<button type="button" class="item${k.id === semente ? ' selecionada' : ''}${travada ? ' travada' : ''}" data-semente="${esc(k.id)}" ${travada ? 'aria-disabled="true"' : ''}>
-                    <span class="ico">${travada ? '🔒' : esc(k.emoji)}</span>
+                    <span class="ico">${travada ? ico('cadeado', 28) : spr(A.cultura(k.id).item, 44)}</span>
                     <span>
                         <span class="nome">${esc(k.nome)}</span>
                         <span class="det">
-                            <span>⏱ ${fmtDuracao(k.tempo_seg)}</span>
-                            <span>🧺 ${k.rendimento} × 🪙${k.venda}</span>
-                            <span>⭐ +${k.xp} XP</span>
-                            <span>📈 lucro 🪙${lucro}</span>
+                            <span>${fmtDuracao(k.tempo_seg)}</span>
+                            <span>colhe ${k.rendimento} × ${moeda(k.venda)}</span>
+                            <span>+${k.xp} ${ico('xp', 13)}</span>
+                            <span>lucro ${moeda(lucro)}</span>
                         </span>
                     </span>
-                    <span class="preco">${travada ? `Nv ${k.nivel_min}` : `🪙 ${k.custo}`}</span>
+                    <span class="preco">${travada ? `Nível ${k.nivel_min}` : `${ico('moeda', 16)} ${k.custo}`}</span>
                 </button>`;
-            }).join('') + '</div><p class="aviso" style="margin-top:14px">Toque numa semente para escolher. Depois toque nos canteiros arados (ou em “Plantar tudo”).</p>';
+            }).join('') + '</div><p class="aviso">Escolha uma semente e depois toque nos canteiros arados (ou em “Plantar tudo”).</p>';
         } else if (nome === 'celeiro') {
-            el.painelTitulo.textContent = '🛖 Celeiro';
+            el.painelTitulo.innerHTML = `${spr(11, 32)} Celeiro`;
             const itens = S.culturas.filter((k) => S.celeiro[k.id] > 0);
             if (!itens.length) {
-                corpo.innerHTML = '<p class="vazio-msg">Seu celeiro está vazio.<br>Colha algo e volte aqui para vender! 🧺</p>';
+                corpo.innerHTML = `<p class="vazio-msg">${spr(76, 48)}<br>Seu celeiro está vazio.<br>Colha algo e volte aqui para vender!</p>`;
             } else {
                 const total = itens.reduce((a, k) => a + S.celeiro[k.id] * k.venda, 0);
                 corpo.innerHTML = '<div class="lista">' + itens.map((k) => `
                     <div class="item">
-                        <span class="ico">${esc(k.emoji)}</span>
+                        <span class="ico">${spr(A.cultura(k.id).item, 44)}</span>
                         <span>
                             <span class="nome">${esc(k.nome)} × ${S.celeiro[k.id]}</span>
-                            <span class="det"><span>🪙${k.venda} cada</span><span>total 🪙${S.celeiro[k.id] * k.venda}</span></span>
+                            <span class="det"><span>${moeda(k.venda)} cada</span><span>total ${moeda(S.celeiro[k.id] * k.venda)}</span></span>
                         </span>
-                        <button type="button" class="btn pequeno" data-vender="${esc(k.id)}">Vender</button>
+                        <button type="button" class="botao pequeno verde" data-vender="${esc(k.id)}">Vender</button>
                     </div>`).join('') + `</div>
                     <div class="rodape-painel">
-                        <span>Valor total: <b>🪙 ${total}</b></span>
-                        <button type="button" class="btn" data-vender="*">Vender tudo</button>
+                        <span class="preco">Valor total: ${ico('moeda', 16)} ${total}</span>
+                        <button type="button" class="botao verde" data-vender="*">Vender tudo</button>
                     </div>`;
             }
         } else if (nome === 'conta') {
-            el.painelTitulo.textContent = '⚙️ Sua fazenda';
+            el.painelTitulo.innerHTML = boasVindas ? `${spr(83, 32)} Bem-vindo(a) à fazenda!` : `${spr(76, 32)} Sua fazenda`;
             const codigo = store.get(LS.codigo);
             corpo.innerHTML = `
                 <p>Fazendeiro(a): <b>${esc(S.jogador.apelido)}</b> · Nível ${S.jogador.nivel}</p>
-                <h3 class="secao-titulo">🔑 Código de recuperação</h3>
-                ${codigo ? `<div class="codigo-box"><code>${esc(codigo)}</code><button type="button" class="btn pequeno secundario" data-copiar>Copiar</button></div>` : '<p class="aviso">O código não está salvo neste aparelho. Se você anotou, ele continua valendo.</p>'}
+                <h3 class="secao-titulo">Código de recuperação</h3>
+                ${codigo ? `<div class="codigo-box"><code>${esc(codigo)}</code><button type="button" class="botao pequeno creme" data-copiar>Copiar</button></div>` : '<p class="aviso">O código não está salvo neste aparelho. Se você anotou, ele continua valendo.</p>'}
                 <p class="aviso">Guarde esse código: é o único jeito de abrir sua fazenda em outro aparelho ou se o navegador for limpo.</p>
-                <h3 class="secao-titulo">📖 Como jogar</h3>
+                <h3 class="secao-titulo">Como jogar</h3>
                 <ul class="ajuda">
                     <li>Toque num canteiro e ele faz a ação certa: <b>arar</b>, <b>plantar</b>, <b>cuidar</b> ou <b>colher</b>.</li>
                     <li>As plantas crescem em tempo real, mesmo com a página fechada.</li>
-                    <li>Aparecem ☘️ ervas, 🐛 pragas e 💧 seca: cada problema deixado custa 1 item na colheita.</li>
+                    <li>Aparecem ${ico('erva', 14)} ervas, ${ico('praga', 14)} pragas e ${ico('seco', 12)} seca: cada problema deixado custa 1 item na colheita.</li>
                     <li>Depois de madura, a planta <b>murcha</b> se ficar tempo demais sem colher.</li>
-                    <li>Venda a colheita no 🛖 celeiro, compre sementes melhores e suba de nível para ganhar canteiros.</li>
-                    <li>Em 👥 <b>Vizinhos</b> você visita outras fazendas: <b>pega</b> um pouco da colheita madura ou <b>ajuda</b> com os problemas e ganha XP. Os vizinhos também podem passar na sua!</li>
+                    <li>Toque no <b>celeiro</b> para vender a colheita, compre sementes melhores e suba de nível para ganhar canteiros.</li>
+                    <li>Em <b>Vizinhos</b> você visita outras fazendas: <b>pega</b> um pouco da colheita madura ou <b>ajuda</b> com os problemas e ganha XP.</li>
                 </ul>
                 <div class="rodape-painel">
                     ${boasVindas
-                        ? '<span></span><button type="button" class="btn" data-fechar>Começar a jogar 🌱</button>'
-                        : `<a class="btn secundario" href="indexversao2.html" style="text-decoration:none">↩ Voltar ao portfólio</a>
-                    <button type="button" class="btn perigo" data-sair>Sair desta fazenda</button>`}
+                        ? '<span></span><button type="button" class="botao verde" data-fechar>Começar a jogar</button>'
+                        : `<a class="botao creme" href="indexversao2.html">Voltar ao portfólio</a>
+                    <button type="button" class="botao vermelho" data-sair>Sair desta fazenda</button>`}
                 </div>`;
-            if (boasVindas) el.painelTitulo.textContent = '🌻 Bem-vindo(a) à fazenda!';
         } else if (nome === 'vizinhos') {
-            el.painelTitulo.textContent = '👥 Vizinhos';
+            el.painelTitulo.innerHTML = `${spr(108, 32)} Vizinhos`;
             const novos = diarioNovos().length;
             corpo.innerHTML = `
                 <div class="painel-abas" role="tablist">
-                    <button type="button" role="tab" data-aba-viz="ranking" class="${abaVizinhos === 'ranking' ? 'ativa' : ''}">🏆 Ranking</button>
-                    <button type="button" role="tab" data-aba-viz="diario" class="${abaVizinhos === 'diario' ? 'ativa' : ''}">📜 Diário${novos ? ` (${novos})` : ''}</button>
+                    <button type="button" role="tab" data-aba-viz="ranking" class="${abaVizinhos === 'ranking' ? 'ativa' : ''}">Ranking</button>
+                    <button type="button" role="tab" data-aba-viz="diario" class="${abaVizinhos === 'diario' ? 'ativa' : ''}">Diário${novos ? ` (${novos})` : ''}</button>
                 </div>
                 <div id="vizConteudo"></div>
                 <div class="rodape-painel">
-                    <span class="det">Visite alguém aleatório com colheita madura</span>
-                    <button type="button" class="btn" data-visitar="">🎲 Visitar alguém</button>
+                    <span class="det">Visite alguém com colheita madura</span>
+                    <button type="button" class="botao verde" data-visitar="">Visitar alguém</button>
                 </div>`;
             preencherVizinhos();
         }
@@ -744,28 +724,27 @@
             alvo.innerHTML = S.diario.length
                 ? '<div class="lista">' + S.diario.map((d) => `
                     <div class="diario-item${quando(d) > vistoAntes ? ' novo' : ''}">
-                        <span class="ico">${d.tipo === 'roubo' ? '🦝' : '🤝'}</span>
-                        <span>${esc(textoDiario(d))}<small>${tempoAtras(d.em)}</small></span>
-                        ${S.jogador.id !== d.id ? `<span class="acoes"><button type="button" class="btn pequeno secundario" data-visitar="${esc(d.id)}">Visitar</button></span>` : ''}
+                        <span>${d.tipo === 'roubo' ? ico('mao', 22) : ico('coracao', 20)}</span>
+                        <span>${textoDiario(d)}<small>${tempoAtras(d.em)}</small></span>
+                        ${S.jogador.id !== d.id ? `<button type="button" class="botao pequeno creme" data-visitar="${esc(d.id)}">Visitar</button>` : '<span></span>'}
                     </div>`).join('') + '</div>'
-                : '<p class="vazio-msg">Ninguém passou pela sua fazenda ainda.<br>Quando um vizinho pegar ou ajudar, aparece aqui. 📜</p>';
+                : '<p class="vazio-msg">Ninguém passou pela sua fazenda ainda.<br>Quando um vizinho pegar ou ajudar, aparece aqui.</p>';
             marcarDiarioVisto();
             return;
         }
-        alvo.innerHTML = '<p class="vazio-msg">Carregando ranking… 🏆</p>';
+        alvo.innerHTML = '<p class="vazio-msg">Carregando ranking…</p>';
         try {
             const r = await rpc('fazenda_ranking', { p_token: token });
             if (painelAtual !== 'vizinhos' || abaVizinhos !== 'ranking') return;
-            const medalha = (n) => ['🥇', '🥈', '🥉'][n] || `${n + 1}º`;
-            alvo.innerHTML = `<p class="det" style="margin:0 0 8px">Você está em <b>${r.minha_posicao}º</b> de ${r.total} fazendas.</p>
+            alvo.innerHTML = `<p class="det" style="margin:0 0 12px">Você está em <b>${r.minha_posicao}º</b> de ${r.total} fazendas.</p>
                 <div class="lista">` + r.ranking.map((j, n) => `
                     <div class="rank${j.eu ? ' eu' : ''}">
-                        <span class="pos">${medalha(n)}</span>
+                        <span class="pos">${n + 1}º</span>
                         <span style="min-width:0">
-                            <span class="nome" style="display:block">${esc(j.apelido)}${j.eu ? ' (você)' : ''}</span>
-                            <span class="det">Nv ${j.nivel} · ⭐ ${j.xp} XP · 🪙 ${j.patrimonio}</span>
+                            <span class="nome">${esc(j.apelido)}${j.eu ? ' (você)' : ''}</span>
+                            <span class="det"><span>Nível ${j.nivel}</span><span>${j.xp} ${ico('xp', 13)}</span><span>${moeda(j.patrimonio)}</span></span>
                         </span>
-                        ${j.eu ? '<span></span>' : `<button type="button" class="btn pequeno secundario" data-visitar="${esc(j.id)}">Visitar</button>`}
+                        ${j.eu ? '<span></span>' : `<button type="button" class="botao pequeno creme" data-visitar="${esc(j.id)}">Visitar</button>`}
                     </div>`).join('') + '</div>';
         } catch (e) {
             alvo.innerHTML = `<p class="vazio-msg">${esc(e.message)}</p>`;
@@ -782,12 +761,12 @@
         const sem = e.target.closest('[data-semente]');
         if (sem) {
             const k = culturas[sem.dataset.semente];
-            if (k.nivel_min > S.jogador.nivel) return toast(`🔒 ${k.nome} libera no nível ${k.nivel_min}.`);
+            if (k.nivel_min > S.jogador.nivel) return toast(`${ico('cadeado', 12)} ${esc(k.nome)} libera no nível ${k.nivel_min}.`);
             semente = k.id;
             store.set(LS.semente, semente);
             desenharHud();
             fecharPainel();
-            toast(`Semente escolhida: ${k.emoji} ${k.nome}`);
+            toast(`Semente escolhida: ${itemDe(k)} ${esc(k.nome)}`);
             return;
         }
         const vend = e.target.closest('[data-vender]');
@@ -796,7 +775,7 @@
             const item = vend.dataset.vender === '*' ? null : vend.dataset.vender;
             enfileirar([], async () => {
                 const r = await rpc('fazenda_vender', { p_token: token, p_item: item, p_quantidade: null });
-                if (r.ganho > 0) toast(`💰 Vendeu por 🪙 ${r.ganho}!`);
+                if (r.ganho > 0) toast(`Vendeu por ${ico('moeda', 16)} ${r.ganho}!`);
                 aplicarEstado(r.estado);
             }).finally(() => { vend.disabled = false; });
             return;
@@ -819,7 +798,7 @@
         if (e.target.closest('[data-copiar]')) {
             try {
                 await navigator.clipboard.writeText(store.get(LS.codigo));
-                toast('Código copiado 📋');
+                toast('Código copiado!');
             } catch {
                 toast('Não deu para copiar. Anote o código.', 'erro');
             }
@@ -849,16 +828,19 @@
 
     /* ---------- Entrada / sessão ---------- */
     function mostrarEntrada() {
-        el.hud.hidden = el.cena.hidden = el.barra.hidden = true;
+        el.hud.hidden = el.barra.hidden = el.status.hidden = true;
         el.entrada.classList.add('aberto');
         el.entradaCarregando.hidden = true;
         el.entradaAbas.hidden = false;
         el.inApelido.focus();
+        ajustarMargens();
     }
 
     function mostrarFazenda() {
         el.entrada.classList.remove('aberto');
-        el.hud.hidden = el.cena.hidden = el.barra.hidden = false;
+        el.hud.hidden = el.barra.hidden = el.status.hidden = false;
+        mostrarStatus('Toque num canteiro para cuidar dele. O celeiro guarda sua colheita.');
+        ajustarMargens();
     }
 
     function mostrarErroEntrada(msg) {
@@ -871,7 +853,7 @@
         visita = null;
         document.body.classList.remove('visitando');
         el.faixaVisita.hidden = el.acoesVisita.hidden = true;
-        el.acoesCasa.hidden = false;
+        el.acoesCasa.hidden = el.btnSemente.hidden = false;
         store.del(LS.token);
         if (apagarCodigo) store.del(LS.codigo);
     }
@@ -894,9 +876,9 @@
             const r = await rpc(fn, args);
             token = r.token;
             store.set(LS.token, token);
-            aoEntrar(r);
             aplicarEstado(r.estado);
             mostrarFazenda();
+            aoEntrar(r);
         } catch (e) {
             mostrarErroEntrada(e.message);
         } finally {
@@ -911,7 +893,7 @@
         enviarEntrada(el.formNova, 'fazenda_criar', { p_apelido: apelido }, (r) => {
             store.set(LS.codigo, r.codigo);
             // Mostra o código logo de cara para a pessoa anotar
-            setTimeout(() => abrirPainel('conta', false, true), 50);
+            abrirPainel('conta', false, true);
         });
     });
 
@@ -921,7 +903,7 @@
         if (!codigo) return;
         enviarEntrada(el.formCodigo, 'fazenda_recuperar', { p_codigo: codigo }, () => {
             store.set(LS.codigo, codigo);
-            toast(`Bem-vindo(a) de volta! 🏡`);
+            toast('Bem-vindo(a) de volta!');
         });
     });
 
@@ -929,7 +911,6 @@
     let ultimoPoll = Date.now();
     setInterval(() => {
         if (!S) return;
-        desenharCampo();
         if (document.visibilityState === 'visible' && Date.now() - ultimoPoll > POLL_MS) {
             ultimoPoll = Date.now();
             recarregar();
@@ -944,8 +925,15 @@
     });
 
     /* ---------- Início ---------- */
-    montarCampo();
     (async function iniciar() {
+        try {
+            await A.carregar();
+        } catch (e) {
+            el.entradaCarregando.textContent = e.message;
+            return;
+        }
+        cena.iniciar();
+        ajustarMargens();
         if (!token) return mostrarEntrada();
         try {
             aplicarEstado(await rpc('fazenda_carregar', { p_token: token }));
