@@ -4540,6 +4540,38 @@
             window.addEventListener('load', () => ScrollTrigger.refresh());
         })();
     </script>
+    <script>
+        /* ============================================================
+           EASTER EGG — FAZENDINHA (digite "fazenda" em qualquer lugar)
+           O jogo fica em fazenda.html e só carrega quando é aberto.
+        ============================================================ */
+        (function () {
+            const SEGREDO = 'fazenda';
+            let digitado = '';
+            document.addEventListener('keydown', (e) => {
+                if (e.ctrlKey || e.metaKey || e.altKey || e.key.length !== 1) return;
+                const alvo = e.target;
+                if (alvo.closest && alvo.closest('input, textarea, select, [contenteditable]')) return;
+                if (document.body.classList.contains('game-active')) return; // Pong aberto
+                digitado = (digitado + e.key.toLowerCase()).slice(-SEGREDO.length);
+                if (digitado !== SEGREDO) return;
+                digitado = '';
+                const broto = document.createElement('div');
+                broto.textContent = '🌱';
+                broto.setAttribute('aria-hidden', 'true');
+                broto.style.cssText = 'position:fixed;inset:0;z-index:99999;display:grid;place-items:center;' +
+                    'font-size:40px;background:radial-gradient(circle,#8bc34a 0%,#33691e 100%);opacity:0;' +
+                    'transition:opacity .35s ease,font-size .7s cubic-bezier(.3,1.6,.5,1);pointer-events:none';
+                document.body.appendChild(broto);
+                requestAnimationFrame(() => requestAnimationFrame(() => {
+                    broto.style.opacity = '1';
+                    broto.style.fontSize = '160px';
+                }));
+                setTimeout(() => { broto.textContent = '🌻'; }, 450);
+                setTimeout(() => { window.location.href = 'fazenda.html'; }, 900);
+            });
+        })();
+    </script>
 </body>
 
 </html>
