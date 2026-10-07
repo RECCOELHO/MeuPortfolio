@@ -110,17 +110,24 @@ revoke all on public.fazenda_culturas, public.fazenda_jogadores, public.fazenda_
 insert into public.fazenda_culturas (id, nome, emoji, tempo_seg, custo, venda, rendimento, xp, nivel_min, ordem) values
   ('alface',   'Alface',   '🥬',   120,  10,  4,  5,  2, 1, 1),
   ('cenoura',  'Cenoura',  '🥕',   900,  20,  6,  6,  4, 1, 2),
-  ('batata',   'Batata',   '🥔',  3600,  35,  9,  7,  8, 2, 3),
-  ('milho',    'Milho',    '🌽',  7200,  50, 12,  8, 12, 3, 4),
-  ('tomate',   'Tomate',   '🍅', 14400,  70, 15,  9, 18, 4, 5),
-  ('girassol', 'Girassol', '🌻', 21600,  90, 20,  8, 24, 5, 6),
-  ('abobora',  'Abóbora',  '🎃', 28800, 110, 26,  8, 30, 6, 7),
-  ('morango',  'Morango',  '🍓', 43200, 140, 22, 12, 40, 7, 8),
-  ('melancia', 'Melancia', '🍉', 86400, 200, 50,  8, 60, 8, 9)
+  -- os ids batata/abobora/morango ficaram da primeira versão; o nome segue a arte do jogo
+  ('batata',   'Beterraba', '🟣',  3600,  35,  9,  7,  8, 2, 3),
+  ('milho',    'Milho',     '🌽',  7200,  50, 12,  8, 12, 3, 4),
+  ('tomate',   'Tomate',    '🍅', 14400,  70, 15,  9, 18, 4, 5),
+  ('girassol', 'Girassol',  '🌻', 21600,  90, 20,  8, 24, 5, 6),
+  ('abobora',  'Trigo',     '🌾', 28800, 110, 26,  8, 30, 6, 7),
+  ('morango',  'Amora',     '🫐', 43200, 140, 22, 12, 40, 7, 8)
 on conflict (id) do update set
   nome = excluded.nome, emoji = excluded.emoji, tempo_seg = excluded.tempo_seg,
   custo = excluded.custo, venda = excluded.venda, rendimento = excluded.rendimento,
   xp = excluded.xp, nivel_min = excluded.nivel_min, ordem = excluded.ordem;
+
+-- A melancia saiu do catálogo (não existe na arte). Só apaga se ninguém usou.
+delete from public.fazenda_culturas k
+ where k.id = 'melancia'
+   and not exists (select 1 from public.fazenda_canteiros c where c.cultura = k.id)
+   and not exists (select 1 from public.fazenda_celeiro ce where ce.item = k.id)
+   and not exists (select 1 from public.fazenda_visitas v where v.cultura = k.id);
 
 -- ------------------------------------------------------------
 -- Funções internas (não expostas à API)
