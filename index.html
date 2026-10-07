@@ -788,6 +788,13 @@
             transition: transform 0.7s cubic-bezier(0.16, 1, 0.3, 1); filter: saturate(0.92) brightness(0.96);
         }
         .project-card:hover .project-thumb { transform: scale(1.06); filter: saturate(1.05) brightness(1); }
+        /* height:auto evita que o atributo height="500" estique a imagem */
+        .project-thumb { height: auto; }
+        .project-thumb-wrap picture { display: contents; }
+        /* No celular: print tirado em tela de celular, em quadro vertical */
+        @media (max-width: 900px) {
+            .project-thumb { aspect-ratio: 4 / 5; object-position: top; }
+        }
         .project-thumb-wrap::after {
             content: ''; position: absolute; inset: 0;
             background: linear-gradient(to bottom, transparent 55%, rgba(13, 6, 8, 0.55) 100%);
@@ -1643,7 +1650,7 @@
                     <!-- 001 — RabbitFin (MAIS RECENTE) -->
                     <div class="project-card reveal">
                         <div class="project-thumb-wrap">
-                            <img class="project-thumb" src="assets/img/projeto-rabbitfin.webp" width="800" height="500" loading="lazy" decoding="async" alt="RabbitFin">
+                            <picture><source media="(max-width: 900px)" srcset="assets/img/projeto-rabbitfin-mobile.webp" width="600" height="750"><img class="project-thumb" src="assets/img/projeto-rabbitfin.webp" width="800" height="500" loading="lazy" decoding="async" alt="RabbitFin"></picture>
                         </div>
                         <div class="project-body">
                             <div class="project-num">001</div>
@@ -1659,7 +1666,7 @@
                     <!-- 002 — Rara Moda Íntima -->
                     <div class="project-card reveal">
                         <div class="project-thumb-wrap">
-                            <img class="project-thumb" src="assets/img/projeto-rara.webp" width="800" height="500" loading="lazy" decoding="async" alt="Rara Moda Íntima">
+                            <picture><source media="(max-width: 900px)" srcset="assets/img/projeto-rara-mobile.webp" width="600" height="750"><img class="project-thumb" src="assets/img/projeto-rara.webp" width="800" height="500" loading="lazy" decoding="async" alt="Rara Moda Íntima"></picture>
                         </div>
                         <div class="project-body">
                             <div class="project-num">002</div>
@@ -1675,7 +1682,7 @@
                     <!-- 003 — Fort Car Multimarcas -->
                     <div class="project-card reveal">
                         <div class="project-thumb-wrap">
-                            <img class="project-thumb" src="assets/img/projeto-fortcar.webp" width="800" height="500" loading="lazy" decoding="async" alt="Fort Car Multimarcas">
+                            <picture><source media="(max-width: 900px)" srcset="assets/img/projeto-fortcar-mobile.webp" width="600" height="750"><img class="project-thumb" src="assets/img/projeto-fortcar.webp" width="800" height="500" loading="lazy" decoding="async" alt="Fort Car Multimarcas"></picture>
                         </div>
                         <div class="project-body">
                             <div class="project-num">003</div>
@@ -1691,7 +1698,7 @@
                     <!-- 004 -->
                     <div class="project-card reveal">
                         <div class="project-thumb-wrap">
-                            <img class="project-thumb" src="assets/img/projeto-motomundi.webp" width="800" height="500" loading="lazy" decoding="async" alt="MotoMundi">
+                            <picture><source media="(max-width: 900px)" srcset="assets/img/projeto-motomundi-mobile.webp" width="600" height="750"><img class="project-thumb" src="assets/img/projeto-motomundi.webp" width="800" height="500" loading="lazy" decoding="async" alt="MotoMundi"></picture>
                         </div>
                         <div class="project-body">
                             <div class="project-num">004</div>
@@ -1707,7 +1714,7 @@
                     <!-- 005 -->
                     <div class="project-card reveal">
                         <div class="project-thumb-wrap">
-                            <img class="project-thumb" src="assets/img/projeto-portfolio-v2.webp" width="800" height="500" loading="lazy" decoding="async" alt="Portfólio V2">
+                            <picture><source media="(max-width: 900px)" srcset="assets/img/projeto-portfolio-v2-mobile.webp" width="600" height="750"><img class="project-thumb" src="assets/img/projeto-portfolio-v2.webp" width="800" height="500" loading="lazy" decoding="async" alt="Portfólio V2"></picture>
                         </div>
                         <div class="project-body">
                             <div class="project-num">005</div>
@@ -1723,7 +1730,7 @@
                     <!-- 006 -->
                     <div class="project-card reveal">
                         <div class="project-thumb-wrap">
-                            <img class="project-thumb" src="assets/img/projeto-coelhocast.webp" width="800" height="500" loading="lazy" decoding="async" alt="CoelhoCast">
+                            <picture><source media="(max-width: 900px)" srcset="assets/img/projeto-coelhocast-mobile.webp" width="600" height="750"><img class="project-thumb" src="assets/img/projeto-coelhocast.webp" width="800" height="500" loading="lazy" decoding="async" alt="CoelhoCast"></picture>
                         </div>
                         <div class="project-body">
                             <div class="project-num">006</div>
