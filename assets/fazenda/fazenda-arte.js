@@ -35,6 +35,7 @@
         celeiro: { x: 1, y: 1 },                     // 3 x 6
         casa: { x: 5, y: 1 },                        // 3 x 3
         campo: { x: 9, y: 4 },                       // 6 x 3
+        terrenos: { x: 9, y: 7, w: 6, h: 3 },        // 3 fileiras à venda abaixo do campo
         fazendeiro: { x: 8, y: 4 },
         galinheiro: { x: 0, y: 7, w: 7, h: 2 },
         pasto: { x: 16, y: 0, w: 6, h: 7 },          // cercado, porteira embaixo
@@ -42,7 +43,7 @@
         cochos: [{ i: 110, x: 18, y: 1 }, { i: 111, x: 19, y: 1 }],
         reservas: [
             { x: 1, y: 1, w: 3, h: 6 }, { x: 5, y: 1, w: 3, h: 3 }, { x: 0, y: 7, w: 7, h: 2 },
-            { x: 9, y: 3, w: 6, h: 4 }, { x: 16, y: 0, w: 6, h: 7 }
+            { x: 9, y: 3, w: 6, h: 4 }, { x: 16, y: 0, w: 6, h: 7 }, { x: 9, y: 7, w: 6, h: 3 }
         ]
     };
     const MARGEM = 9;   // quadrados de mata em volta do terreno
@@ -296,6 +297,7 @@
         let animaisFn = () => [];
         let construcoesFn = () => [];
         let construcao = { ativo: false };                 // estado do modo construir
+        let terrenos = { comprados: 0, venda: false };     // fileiras extras do campo
         let hover = null;                                  // canteiro, 'celeiro', 'a:<id>' ou {tx, ty}
         const atores = new Map();
         const fazendeiro = { x: 0, y: 0, tx: 0, ty: 0, flip: false, passo: 0 };
@@ -307,6 +309,8 @@
         function posCanteiro(p) {
             return { x: wx(MAPA.campo.x + (p % 6)), y: wy(MAPA.campo.y + Math.floor(p / 6)) };
         }
+        const fileirasCampo = () => 3 + terrenos.comprados + (terrenos.venda ? 1 : 0);
+        const ehVenda = (p) => terrenos.venda && Math.floor(p / 6) === 3 + terrenos.comprados;
         function retCeleiro() {
             return { x: wx(MAPA.celeiro.x), y: wy(MAPA.celeiro.y), w: 3 * T, h: 6 * T };
         }
@@ -664,6 +668,20 @@
             }
         }
 
+        // fileira à venda: contorno tracejado e uma placa no meio
+        function desenharTerrenoVenda(tempo) {
+            const { x, y } = posCanteiro(18 + 6 * terrenos.comprados);
+            const w = 6 * T;
+            q.fillStyle = 'rgba(63,38,49,.12)';
+            q.fillRect(x, y, w, T);
+            q.fillStyle = 'rgba(63,38,49,.4)';
+            for (let k = 1; k < w - 1; k += 4) { q.fillRect(x + k, y, 2, 1); q.fillRect(x + k, y + T - 1, 2, 1); }
+            for (let k = 1; k < T - 1; k += 4) { q.fillRect(x, y + k, 1, 2); q.fillRect(x + w - 1, y + k, 1, 2); }
+            const bob = Math.floor(tempo / 600) % 2 ? -1 : 0;
+            tile(q, 83, x + 2 * T + 8, y - 3, false, 'town');
+            icone(q, 'moeda', x + 3 * T + 10, y + 4 + bob);
+        }
+
         function desenharSinalAnimal(a, tempo) {
             const v = a.v;
             const x = Math.round(a.x), y = Math.round(a.y);
@@ -765,7 +783,8 @@
                 else pe.push({ ...s, x: wx(c.x), y: wy(c.y), flip: false, bob: 0 });
             }
 
-            for (let p = 0; p < 18; p++) desenharCanteiro(p, tempo);
+            for (let p = 0; p < 18 + 6 * terrenos.comprados; p++) desenharCanteiro(p, tempo);
+            if (terrenos.venda) desenharTerrenoVenda(tempo);
 
             for (const a of atores.values()) {
                 const parado = a.v && a.v.estado !== 'produzindo';
@@ -789,7 +808,8 @@
                 desenharGrade(m, tempo);
             } else if (typeof hover === 'number') {
                 const { x, y } = posCanteiro(hover);
-                moldura(x, y, T, T);
+                if (ehVenda(hover)) moldura(x - (hover % 6) * T, y, 6 * T, T);
+                else moldura(x, y, T, T);
             } else if (hover === 'celeiro') {
                 const c = retCeleiro();
                 moldura(c.x, c.y + T, c.w, c.h - T);
@@ -823,7 +843,7 @@
                 if (px >= a.x - 1 && px < a.x + T + 1 && py >= topo && py < a.y + T) return 'a:' + a.id;
             }
             const cx = wx(MAPA.campo.x), cy = wy(MAPA.campo.y);
-            if (px >= cx && py >= cy && px < cx + 6 * T && py < cy + 3 * T) {
+            if (px >= cx && py >= cy && px < cx + 6 * T && py < cy + fileirasCampo() * T) {
                 return Math.floor((py - cy) / T) * 6 + Math.floor((px - cx) / T);
             }
             const c = retCeleiro();
@@ -964,6 +984,7 @@
             definirVisual(fn) { visual = fn; },
             definirAnimais(fn) { animaisFn = fn; },
             definirConstrucoes(fn) { construcoesFn = fn; },
+            definirTerrenos(t) { terrenos = { comprados: (t && t.comprados) || 0, venda: !!(t && t.venda) }; },
             definirModoConstrucao(estado) { construcao = estado || { ativo: false }; },
             irAte(p) {
                 const { x, y } = posCanteiro(p);

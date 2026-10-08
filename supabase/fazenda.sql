@@ -51,7 +51,7 @@ create index if not exists fazenda_sessoes_jogador_idx on public.fazenda_sessoes
 
 create table if not exists public.fazenda_canteiros (
   jogador_id   uuid not null references public.fazenda_jogadores(id) on delete cascade,
-  posicao      smallint not null check (posicao between 0 and 17),
+  posicao      smallint not null check (posicao between 0 and 35),
   estado       text not null default 'vazio' check (estado in ('vazio', 'arado', 'plantado')),
   cultura      text references public.fazenda_culturas(id),
   plantado_em  timestamptz,
@@ -71,6 +71,13 @@ create table if not exists public.fazenda_celeiro (
 
 -- Fase 2: quanto já foi "pego" por vizinhos do plantio atual
 alter table public.fazenda_canteiros add column if not exists roubado int not null default 0;
+
+-- Terrenos: até 3 fileiras compradas de 6 canteiros (posições 18 a 35)
+alter table public.fazenda_canteiros drop constraint if exists fazenda_canteiros_posicao_check;
+alter table public.fazenda_canteiros add constraint fazenda_canteiros_posicao_check check (posicao between 0 and 35);
+alter table public.fazenda_jogadores add column if not exists terrenos int not null default 0;
+alter table public.fazenda_jogadores drop constraint if exists fazenda_jogadores_terrenos_check;
+alter table public.fazenda_jogadores add constraint fazenda_jogadores_terrenos_check check (terrenos between 0 and 3);
 
 -- Fase 2: visitas de vizinhos (roubos e ajudas) — também é o diário do dono
 create table if not exists public.fazenda_visitas (
@@ -345,6 +352,12 @@ returns int language sql immutable as $$
   select least(6 + (p_nivel - 1) * 2, 18);
 $$;
 
+-- Terrenos à venda (fileiras abaixo do campo): preço e nível mínimo de cada um
+create or replace function public.fazenda_terrenos_venda()
+returns jsonb language sql immutable as $$
+  select '[{"n":1,"custo":400,"nivel":3},{"n":2,"custo":1200,"nivel":5},{"n":3,"custo":3000,"nivel":7}]'::jsonb;
+$$;
+
 create or replace function public.fazenda_auth(p_token text)
 returns uuid
 language plpgsql security definer
@@ -450,6 +463,10 @@ begin
   insert into fazenda_canteiros (jogador_id, posicao)
   select p_jogador, g from generate_series(0, v_max - 1) g
   on conflict do nothing;
+  -- e os dos terrenos comprados
+  insert into fazenda_canteiros (jogador_id, posicao)
+  select p_jogador, g from generate_series(18, 17 + 6 * j.terrenos) g
+  on conflict do nothing;
 
   perform fazenda_gerar_missoes(p_jogador);
 
@@ -463,8 +480,10 @@ begin
       'nivel', v_nivel,
       'xp_nivel', 25 * (v_nivel - 1) * (v_nivel - 1),
       'xp_proximo', 25 * v_nivel * v_nivel,
-      'max_canteiros', v_max
+      'max_canteiros', v_max,
+      'terrenos', j.terrenos
     ),
+    'terrenos_venda', fazenda_terrenos_venda(),
     'canteiros', coalesce((
       select jsonb_agg(jsonb_build_object(
                'posicao', posicao, 'estado', estado, 'cultura', cultura,
@@ -734,7 +753,7 @@ begin
   if p_posicoes is null or array_length(p_posicoes, 1) is null then
     raise exception 'nada_a_fazer';
   end if;
-  if array_length(p_posicoes, 1) > 18 then
+  if array_length(p_posicoes, 1) > 36 then
     raise exception 'acao_invalida';
   end if;
 
@@ -840,6 +859,7 @@ begin
     'apelido', j.apelido,
     'nivel', v_nivel,
     'max_canteiros', fazenda_max_canteiros(v_nivel),
+    'terrenos', j.terrenos,
     'canteiros', coalesce((
       select jsonb_agg(jsonb_build_object(
                'posicao', c.posicao, 'estado', c.estado, 'cultura', c.cultura,
@@ -1058,7 +1078,7 @@ begin
   if p_posicoes is null or array_length(p_posicoes, 1) is null then
     raise exception 'nada_a_fazer';
   end if;
-  if array_length(p_posicoes, 1) > 18 then
+  if array_length(p_posicoes, 1) > 36 then
     raise exception 'acao_invalida';
   end if;
 
@@ -1288,6 +1308,26 @@ begin
     update fazenda_jogadores set moedas = moedas - a.custo where id = v_id;
     insert into fazenda_animais (jogador_id, tipo) values (v_id, a.id);
 
+  elsif p_categoria = 'terreno' then
+    -- sempre o próximo da fila (p_tipo é ignorado)
+    if j.terrenos >= 3 then raise exception 'terreno_max'; end if;
+    select (t->>'custo')::int as custo, (t->>'nivel')::int as nivel into a
+      from jsonb_array_elements(fazenda_terrenos_venda()) t
+     where (t->>'n')::int = j.terrenos + 1;
+    if fazenda_nivel(j.xp) < a.nivel then raise exception 'nivel_insuficiente'; end if;
+    -- construções antigas em cima da fileira precisam sair antes
+    if exists (select 1 from fazenda_construcoes c join fazenda_itens k on k.id = c.tipo
+                where c.jogador_id = v_id
+                  and c.x <= 14 and c.x + k.largura > 9
+                  and c.y <= 7 + j.terrenos and c.y + k.altura > 7 + j.terrenos) then
+      raise exception 'terreno_ocupado';
+    end if;
+    if j.moedas < a.custo then raise exception 'moedas_insuficientes'; end if;
+    update fazenda_jogadores set moedas = moedas - a.custo, terrenos = terrenos + 1 where id = v_id;
+    insert into fazenda_canteiros (jogador_id, posicao)
+    select v_id, g from generate_series(18 + 6 * j.terrenos, 23 + 6 * j.terrenos) g
+    on conflict do nothing;
+
   else
     raise exception 'item_invalido';
   end if;
@@ -1340,7 +1380,8 @@ returns boolean language sql immutable as $$
      and not (p_x between 5 and 7  and p_y between 1 and 3)
      and not (p_x between 0 and 6  and p_y between 7 and 8)
      and not (p_x between 9 and 14 and p_y between 3 and 6)
-     and not (p_x between 16 and 21 and p_y between 0 and 6);
+     and not (p_x between 16 and 21 and p_y between 0 and 6)
+     and not (p_x between 9 and 14 and p_y between 7 and 9);   -- terrenos à venda
 $$;
 
 -- Compra um item e coloca no quadrado (x, y)
@@ -1458,6 +1499,7 @@ $$;
 revoke execute on function
   public.fazenda_nivel(int),
   public.fazenda_max_canteiros(int),
+  public.fazenda_terrenos_venda(),
   public.fazenda_auth(text),
   public.fazenda_nova_sessao(uuid),
   public.fazenda_tick(uuid),
