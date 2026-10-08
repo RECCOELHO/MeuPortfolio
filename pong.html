@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="theme-color" content="#0a0a0f">
+    <title>Pong Secreto</title>
+    <link rel="icon" type="image/png" href="assets/pong/app/icone-192.png">
+    <!-- Pong instalável (PWA): o mesmo jogo do easter egg do portfólio, sozinho na página -->
+    <link rel="manifest" href="assets/pong/app/pong.webmanifest?v=20261008-2">
+    <link rel="apple-touch-icon" href="assets/pong/app/icone-180.png">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Pong">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:ital,wght@0,300;0,400;1,300&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+    <!-- ?v=: o Cloudflare guarda CSS/JS por 4 h; use a mesma VERSAO do carregador do Pong no indexversao2.html -->
+    <link rel="stylesheet" href="assets/pong/pong.css?v=20261008-2">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; background: #0a0a0f; color: #e8e8f0; font-family: 'DM Mono', monospace; overflow: hidden; }
+    </style>
+</head>
+
+<body>
+    <script>window.PONG_APP = true;</script>
+    <script src="assets/app/instalar.js?v=20261008-3" data-escopo="/pong"></script>
+    <script src="assets/pong/pong.js?v=20261008-2"></script>
+    <script>window.PONG.abrir();</script>
+</body>
+
+</html>
