@@ -2748,20 +2748,66 @@
         }
 
         #hack-overlay.toque-deitado .pong-campo .pong-joy {
-            flex: 1;
-            width: auto;
-            min-width: 72px;
+            flex: none;
+            width: var(--joy-largura, 80px);
             align-self: stretch;
-            padding: 8px;
+            padding: 8px 6px;
+        }
+
+        #hack-overlay.toque-deitado .pong-joy-botao {
+            width: 40px;
+            height: 40px;
         }
 
         #hack-overlay.toque-deitado .pong-controls-bar {
             display: none;
         }
 
+        /* deitado durante a partida: barra e placar bem compactos para o campo crescer */
+        #hack-overlay.toque-deitado .hack-terminal:has(#screenGame.active) .hack-bar {
+            padding-top: 2px;
+            padding-bottom: 2px;
+        }
+
+        #hack-overlay.toque-deitado .hack-terminal:has(#screenGame.active) .hack-dot,
+        #hack-overlay.toque-deitado .hack-terminal:has(#screenGame.active) .hack-bar-title,
+        #hack-overlay.toque-deitado .pong-to-win,
+        #hack-overlay.toque-deitado .pong-score-lbl {
+            display: none;
+        }
+
+        #hack-overlay.toque-deitado .hack-terminal:has(#screenGame.active) .hack-bar {
+            justify-content: flex-end;
+            position: absolute;
+            top: 0;
+            right: 0;
+            z-index: 2;
+            background: none;
+            border: 0;
+        }
+
+        #hack-overlay.toque-deitado .pong-scoreboard {
+            padding: 2px 60px 2px 16px;
+        }
+
+        #hack-overlay.toque-deitado .pong-score-num {
+            font-size: 1.1rem;
+        }
+
+        #hack-overlay.toque-deitado .pong-pause {
+            margin-top: 0;
+            height: 22px;
+        }
+
         .pong-campo.retrato .pong-joy {
-            height: 84px;
+            height: 62px;
             flex: none;
+            padding: 8px 14px;
+        }
+
+        .pong-campo.retrato .pong-joy-botao {
+            width: 38px;
+            height: 38px;
         }
 
         .pong-joy-trilho {
@@ -2786,7 +2832,7 @@
         }
 
         #hack-overlay.toque #pongCanvas.vertical {
-            width: min(100%, calc((100dvh - 280px) / 2));
+            width: min(100%, calc((100dvh - 250px) / 2));
         }
 
         @media (max-width: 760px) {
@@ -4300,8 +4346,11 @@
                 // deitado no celular: o campo inteiro cabe na altura que sobra (nada fica fora da tela)
                 if (overlay.classList.contains('toque-deitado')) {
                     const area = campo.getBoundingClientRect();
-                    const lateral = Math.max(72, area.width * 0.13);
-                    const h = Math.floor(Math.min(area.height - 8, (area.width - lateral * 2) / 2));
+                    // trilhas estreitas (64–96 px); o campo fica com todo o resto
+                    const lateral = Math.round(Math.min(96, Math.max(64, area.width * 0.1)));
+                    campo.style.setProperty('--joy-largura', lateral + 'px');
+                    const h = Math.floor(Math.min(area.height - 6, (area.width - lateral * 2 - 12) / 2));
+                    if (h < 60) return;   // tela ainda montando; o observador chama de novo
                     canvas.style.height = h + 'px';
                     canvas.style.width = (h * 2) + 'px';
                 } else {
@@ -4314,12 +4363,14 @@
                 for (const t of trilhas) {
                     const b = t.querySelector('.pong-joy-botao');
                     // a bolinha (46px) fica sempre dentro da trilha
-                    const pos = 'calc(23px + ' + p.toFixed(4) + ' * (100% - 46px))';
+                    const r = (b.offsetWidth || 46) / 2;
+                    const pos = 'calc(' + r + 'px + ' + p.toFixed(4) + ' * (100% - ' + (2 * r) + 'px))';
                     if (vertical) { b.style.left = pos; b.style.top = ''; }
                     else { b.style.top = pos; b.style.left = ''; }
                 }
             }
             const aoGirar = () => { atualizarModoTela(); if (running) requestAnimationFrame(ajustarCanvas); };
+            if (window.ResizeObserver) new ResizeObserver(() => { if (running) ajustarCanvas(); }).observe(campo);
             window.addEventListener('resize', aoGirar);
             window.addEventListener('orientationchange', aoGirar);
 

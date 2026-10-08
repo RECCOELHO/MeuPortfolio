@@ -546,7 +546,8 @@
                 }
                 const passo = Math.min(d, a.vel * dt / 1000);
                 a.x += dx / d * passo; a.y += dy / d * passo;
-                if (Math.abs(dx) > 0.2) a.flip = dx > 0;
+                // os sprites do pacote olham para a direita: espelha quando anda para a esquerda
+                if (Math.abs(dx) > 0.2) a.flip = dx < 0;
             }
             const dx = fazendeiro.tx - fazendeiro.x, dy = fazendeiro.ty - fazendeiro.y, d = Math.hypot(dx, dy);
             if (d > 0.5) {
