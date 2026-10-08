@@ -3231,40 +3231,8 @@
     </script>
     <script>
         /* ============================================================
-           EASTER EGG — FAZENDINHA (digite "fazenda" em qualquer lugar)
-           O jogo fica em fazenda.html e só carrega quando é aberto.
-        ============================================================ */
-        (function () {
-            const SEGREDO = 'fazenda';
-            let digitado = '';
-            document.addEventListener('keydown', (e) => {
-                if (e.ctrlKey || e.metaKey || e.altKey || e.key.length !== 1) return;
-                const alvo = e.target;
-                if (alvo.closest && alvo.closest('input, textarea, select, [contenteditable]')) return;
-                if (document.body.classList.contains('game-active')) return; // Pong aberto
-                digitado = (digitado + e.key.toLowerCase()).slice(-SEGREDO.length);
-                if (digitado !== SEGREDO) return;
-                digitado = '';
-                const broto = document.createElement('div');
-                broto.textContent = '🌱';
-                broto.setAttribute('aria-hidden', 'true');
-                broto.style.cssText = 'position:fixed;inset:0;z-index:99999;display:grid;place-items:center;' +
-                    'font-size:40px;background:radial-gradient(circle,#8bc34a 0%,#33691e 100%);opacity:0;' +
-                    'transition:opacity .35s ease,font-size .7s cubic-bezier(.3,1.6,.5,1);pointer-events:none';
-                document.body.appendChild(broto);
-                requestAnimationFrame(() => requestAnimationFrame(() => {
-                    broto.style.opacity = '1';
-                    broto.style.fontSize = '160px';
-                }));
-                setTimeout(() => { broto.textContent = '🌻'; }, 450);
-                setTimeout(() => { window.location.href = 'fazenda.html'; }, 900);
-            });
-        })();
-
-        /* ============================================================
-           EASTER EGG — TERMINAL SECRETO (celular, carregado sob demanda)
-           No celular não dá para "digitar no site", então o rodapé ganha
-           um >_ discreto (só em telas de toque). O 5º toque baixa
+           EASTER EGG — TERMINAL SECRETO (PC e celular, carregado sob demanda)
+           O rodapé tem um >_ discreto. O 5º clique/toque baixa
            assets/terminal/ (terminal.css + terminal.js) e abre o terminal;
            lá o comando "farm" leva para a Fazendinha e "pong" abre o Pong.
            Troque VERSAO quando mudar esses arquivos (cache do Cloudflare).
@@ -3272,16 +3240,16 @@
         (function () {
             const gatilho = document.getElementById('eggTerminal');
             if (!gatilho) return;
-            const VERSAO = '20261008-1';
+            const VERSAO = '20261008-2';
 
             // só o >_ do rodapé fica na página (precisa aparecer antes de baixar algo)
             const estilo = document.createElement('style');
             estilo.textContent = `
-                .footer-term { display: none; margin-top: 10px; padding: 4px 8px; border: 0; background: none;
+                .footer-term { display: inline-block; margin-top: 10px; padding: 4px 8px; border: 0; background: none;
                     font: 400 12px 'DM Mono', monospace; color: currentColor; opacity: .35; cursor: pointer; }
                 .footer-term::after { content: ''; display: inline-block; width: 6px; height: 11px; margin-left: 2px;
                     background: currentColor; vertical-align: -1px; animation: termPisca 1s steps(1) infinite; }
-                @media (hover: none) and (pointer: coarse) { .footer-term { display: inline-block; } }
+                .footer-term:hover, .footer-term:focus-visible { opacity: .6; }
                 .footer-term.toque { opacity: .9; }
                 @keyframes termPisca { 50% { opacity: 0; } }
             `;
