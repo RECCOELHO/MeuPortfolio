@@ -3262,15 +3262,19 @@
         })();
 
         /* ============================================================
-           EASTER EGG — TERMINAL SECRETO (celular)
+           EASTER EGG — TERMINAL SECRETO (celular, carregado sob demanda)
            No celular não dá para "digitar no site", então o rodapé ganha
-           um >_ discreto: 5 toques abrem um terminal; o comando "farm"
-           (ou "fazenda") leva para a Fazendinha Secreta.
+           um >_ discreto (só em telas de toque). O 5º toque baixa
+           assets/terminal/ (terminal.css + terminal.js) e abre o terminal;
+           lá o comando "farm" leva para a Fazendinha e "pong" abre o Pong.
+           Troque VERSAO quando mudar esses arquivos (cache do Cloudflare).
         ============================================================ */
         (function () {
             const gatilho = document.getElementById('eggTerminal');
             if (!gatilho) return;
+            const VERSAO = '20261008-1';
 
+            // só o >_ do rodapé fica na página (precisa aparecer antes de baixar algo)
             const estilo = document.createElement('style');
             estilo.textContent = `
                 .footer-term { display: none; margin-top: 10px; padding: 4px 8px; border: 0; background: none;
@@ -3280,23 +3284,29 @@
                 @media (hover: none) and (pointer: coarse) { .footer-term { display: inline-block; } }
                 .footer-term.toque { opacity: .9; }
                 @keyframes termPisca { 50% { opacity: 0; } }
-                .term-tela { position: fixed; inset: 0; z-index: 100000; background: #050a06; color: #3dff7a;
-                    font: 400 14px/1.55 'DM Mono', ui-monospace, monospace; padding: 18px 16px; overflow-y: auto;
-                    text-shadow: 0 0 6px rgba(61,255,122,.45); cursor: text; }
-                .term-tela::before { content: ''; position: fixed; inset: 0; pointer-events: none;
-                    background: repeating-linear-gradient(0deg, rgba(0,0,0,.25) 0 1px, transparent 1px 3px); }
-                .term-fechar { position: fixed; top: 10px; right: 12px; background: none; border: 1px solid #1d7a3c;
-                    color: #3dff7a; font: inherit; padding: 2px 10px; cursor: pointer; }
-                .term-linha { white-space: pre-wrap; word-break: break-word; }
-                .term-linha.erro { color: #ff5f56; }
-                .term-linha.ok { color: #fff; text-shadow: 0 0 10px #3dff7a; }
-                .term-prompt { display: flex; gap: 8px; align-items: baseline; }
-                .term-prompt[hidden] { display: none; }
-                .term-prompt span { color: #8bffb0; white-space: nowrap; }
-                .term-prompt input { flex: 1; min-width: 0; background: none; border: 0; outline: none; color: #3dff7a;
-                    font: inherit; caret-color: #3dff7a; text-shadow: inherit; padding: 0; }
             `;
             document.head.appendChild(estilo);
+
+            let carregando = null;
+            function carregar() {
+                if (!carregando) {
+                    const css = new Promise((ok, erro) => {
+                        const l = document.createElement('link');
+                        l.rel = 'stylesheet';
+                        l.href = 'assets/terminal/terminal.css?v=' + VERSAO;
+                        l.onload = ok; l.onerror = erro;
+                        document.head.appendChild(l);
+                    });
+                    const js = new Promise((ok, erro) => {
+                        const sc = document.createElement('script');
+                        sc.src = 'assets/terminal/terminal.js?v=' + VERSAO;
+                        sc.onload = ok; sc.onerror = erro;
+                        document.body.appendChild(sc);
+                    });
+                    carregando = Promise.all([css, js]).catch((e) => { carregando = null; throw e; });
+                }
+                return carregando;
+            }
 
             let toques = 0, timer = null;
             gatilho.addEventListener('click', () => {
@@ -3304,94 +3314,14 @@
                 gatilho.classList.add('toque');
                 setTimeout(() => gatilho.classList.remove('toque'), 150);
                 clearTimeout(timer);
-                if (toques >= 5) { toques = 0; abrir(); }
-                else timer = setTimeout(() => { toques = 0; }, 3000);
-            });
-
-            function abrir() {
-                const tela = document.createElement('div');
-                tela.className = 'term-tela';
-                tela.setAttribute('role', 'dialog');
-                tela.setAttribute('aria-label', 'Terminal secreto');
-                tela.setAttribute('data-lenis-prevent', '');
-                tela.innerHTML = '<button type="button" class="term-fechar">x</button><div class="term-saida"></div>' +
-                    '<label class="term-prompt" hidden><span>visitante@portfolio:~$</span>' +
-                    '<input type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" aria-label="Comando"></label>';
-                document.body.appendChild(tela);
-                document.body.style.overflow = 'hidden';
-                const saida = tela.querySelector('.term-saida');
-                const prompt = tela.querySelector('.term-prompt');
-                const entrada = prompt.querySelector('input');
-
-                const fechar = () => { tela.remove(); document.body.style.overflow = ''; };
-                tela.querySelector('.term-fechar').addEventListener('click', fechar);
-                tela.addEventListener('click', (e) => { if (e.target === tela || e.target === saida) entrada.focus(); });
-
-                const escrever = (texto, classe) => {
-                    const l = document.createElement('div');
-                    l.className = 'term-linha' + (classe ? ' ' + classe : '');
-                    l.textContent = texto;
-                    saida.appendChild(l);
-                    tela.scrollTop = tela.scrollHeight;
-                };
-                const pausa = (ms) => new Promise((ok) => setTimeout(ok, ms));
-                async function digitar(texto, classe, velocidade = 18) {
-                    const l = document.createElement('div');
-                    l.className = 'term-linha' + (classe ? ' ' + classe : '');
-                    saida.appendChild(l);
-                    for (const ch of texto) { l.textContent += ch; await pausa(velocidade); }
-                    tela.scrollTop = tela.scrollHeight;
+                if (toques >= 5) {
+                    toques = 0;
+                    carregar().then(() => window.TERMINAL.abrir())
+                        .catch(() => console.warn('Não deu para carregar o terminal agora.'));
+                } else {
+                    timer = setTimeout(() => { toques = 0; }, 3000);
                 }
-
-                (async () => {
-                    await digitar('> conectando em carlos@portfolio ...');
-                    await pausa(250);
-                    await digitar('> handshake ok. canal criptografado.');
-                    await digitar('> ACESSO RESTRITO. digite o comando secreto.', 'erro');
-                    await digitar('> não sabe? tente "help".');
-                    prompt.hidden = false;
-                    entrada.focus();
-                })();
-
-                const COMANDOS = {
-                    help: () => ['comandos: help, ls, cat <arquivo>, whoami, pong, clear, exit', 'o comando secreto tem a ver com plantar...'],
-                    ls: () => ['projetos/   curriculo.pdf   segredo.txt   fazenda/'],
-                    whoami: () => ['visitante (por enquanto)'],
-                    sudo: () => [['boa tentativa.', 'erro']],
-                    'cat segredo.txt': () => ['"algo cresce escondido no campo deste portfólio."', 'dica: em inglês, 4 letras.'],
-                    'cat curriculo.pdf': () => ['%PDF-1.7 ... binário. melhor abrir pelo menu, rs'],
-                    'cd fazenda': () => ['permissão negada: use o comando secreto.']
-                };
-
-                entrada.addEventListener('keydown', async (e) => {
-                    if (e.key !== 'Enter') return;
-                    const bruto = entrada.value.trim();
-                    const cmd = bruto.toLowerCase();
-                    entrada.value = '';
-                    escrever('visitante@portfolio:~$ ' + bruto);
-                    if (!cmd) return;
-                    if (cmd === 'clear') { saida.innerHTML = ''; return; }
-                    if (cmd === 'exit') { fechar(); return; }
-                    if (cmd === 'pong' && window.abrirPong) {
-                        await digitar('> iniciando PONG.EXE ...', 'ok', 25);
-                        await pausa(300);
-                        fechar();
-                        window.abrirPong();
-                        return;
-                    }
-                    if (cmd === 'farm' || cmd === 'fazenda' || cmd === './farm') {
-                        prompt.hidden = true;
-                        await digitar('> ACESSO CONCEDIDO', 'ok', 40);
-                        await digitar('> carregando fazenda_secreta.exe [##########] 100%', null, 22);
-                        await pausa(350);
-                        window.location.href = 'fazenda.html';
-                        return;
-                    }
-                    const resposta = COMANDOS[cmd] || (cmd.startsWith('sudo') ? COMANDOS.sudo : null);
-                    if (resposta) resposta().forEach((r) => Array.isArray(r) ? escrever(r[0], r[1]) : escrever(r));
-                    else escrever('comando não encontrado: ' + bruto, 'erro');
-                });
-            }
+            });
         })();
     </script>
 </body>
