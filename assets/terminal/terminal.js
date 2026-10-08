@@ -1,6 +1,6 @@
 /* ============================================================
-   TERMINAL SECRETO — easter egg do portfólio (versão 2, celular)
-   Carregado sob demanda pelo indexversao2.html no 5º toque no ">_"
+   TERMINAL SECRETO — easter egg do portfólio (versão 2, PC e celular)
+   Carregado sob demanda pelo indexversao2.html no 5º clique/toque no ">_"
    do rodapé. Expõe window.TERMINAL.abrir().
    Comandos: "farm"/"fazenda" leva para a Fazendinha; "pong" abre o
    Pong (window.abrirPong, do carregador da página).
@@ -33,7 +33,9 @@
         const prompt = tela.querySelector('.term-prompt');
         const entrada = prompt.querySelector('input');
 
-        const fechar = () => { tela.remove(); document.body.style.overflow = ''; };
+        const fechar = () => { tela.remove(); document.body.style.overflow = ''; document.removeEventListener('keydown', esc); };
+        const esc = (e) => { if (e.key === 'Escape') fechar(); };   // no PC, Esc fecha
+        document.addEventListener('keydown', esc);
         tela.querySelector('.term-fechar').addEventListener('click', fechar);
         tela.addEventListener('click', (e) => { if (e.target === tela || e.target === saida) entrada.focus(); });
 
