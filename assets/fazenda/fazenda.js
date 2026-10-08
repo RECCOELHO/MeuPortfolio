@@ -344,6 +344,31 @@
     const meusAnimais = () => (visita ? visita.animais : S && S.animais) || [];
     const naCeleiro = (item) => (S && S.celeiro[item]) || 0;
 
+    /* ---------- Ração reservada no celeiro (o "vender" não leva) ---------- */
+    const reservaDe = (item) => (S && S.reservas && S.reservas[item]) || 0;
+    const MAX_REFEICOES = 10;
+    // quais dos seus animais comem esse item, e quanto vai numa refeição de todos eles
+    function quemCome(item) {
+        const tipos = (S.animais_tipos || []).filter((t) => t.racao === item && S.animais.some((a) => a.tipo === t.id));
+        if (!tipos.length) return null;
+        const qtd = (t) => S.animais.filter((a) => a.tipo === t.id).length;
+        return {
+            nomes: tipos.map((t) => `${qtd(t)} ${t.nome.toLowerCase()}${qtd(t) > 1 ? 's' : ''}`).join(' e '),
+            porRefeicao: tipos.reduce((soma, t) => soma + qtd(t) * t.racao_qtd, 0),
+            sprite: A.ANIMAL[tipos[0].id]
+        };
+    }
+    function htmlReserva(k, come) {
+        const res = reservaDe(k.id);
+        if (!res) {
+            return `<button type="button" class="botao pequeno creme reserva-btn" data-reserva="${esc(k.id)}:2">${spr(come.sprite, 18)} Reservar para ${esc(come.nomes)}</button>`;
+        }
+        const ref = Math.floor(res / come.porRefeicao);
+        return `<span class="reserva">${spr(come.sprite, 18)} Guardando <b>${res}</b> para ${esc(come.nomes)} (${ref} refeiç${ref === 1 ? 'ão' : 'ões'})
+            <button type="button" class="botao mini creme" data-reserva="${esc(k.id)}:${ref - 1}" aria-label="Guardar menos">−</button>
+            <button type="button" class="botao mini creme" data-reserva="${esc(k.id)}:${ref + 1}" aria-label="Guardar mais"${ref >= MAX_REFEICOES ? ' disabled' : ''}>+</button></span>`;
+    }
+
     function infoAnimal(a) {
         const t = tipoAnimal(a.tipo);
         if (!t) return { estado: 'produzindo' };
@@ -1226,24 +1251,29 @@
             corpo.innerHTML = htmlMissoes();
         } else if (nome === 'celeiro') {
             el.painelTitulo.innerHTML = `${spr(11, 32)} Celeiro`;
-            const itens = S.culturas.filter((k) => S.celeiro[k.id] > 0);
-            if (!itens.length) {
+            // o que tem no celeiro + a ração dos seus animais (mesmo zerada, para dar para reservar antes)
+            const itens = S.culturas.filter((k) => S.celeiro[k.id] > 0 || quemCome(k.id));
+            if (!itens.some((k) => S.celeiro[k.id] > 0)) {
                 corpo.innerHTML = `<p class="vazio-msg">${spr(76, 48)}<br>Seu celeiro está vazio.<br>Colha algo e volte aqui para vender!</p>`;
             } else {
                 const bonusVenda = S.jogador.bonus_venda || 0;
-                const total = Math.floor(itens.reduce((a, k) => a + S.celeiro[k.id] * k.venda, 0) * (100 + bonusVenda) / 100);
-                corpo.innerHTML = '<div class="lista">' + itens.map((k) => `
-                    <div class="item">
+                const livreDe = (k) => Math.max(0, naCeleiro(k.id) - reservaDe(k.id));
+                const total = Math.floor(itens.reduce((a, k) => a + livreDe(k) * k.venda, 0) * (100 + bonusVenda) / 100);
+                corpo.innerHTML = '<div class="lista">' + itens.map((k) => {
+                    const livre = livreDe(k), come = quemCome(k.id);
+                    return `<div class="item">
                         <span class="ico">${spr(A.cultura(k.id).item, 44)}</span>
                         <span>
-                            <span class="nome">${esc(k.nome)} × ${S.celeiro[k.id]}</span>
-                            <span class="det"><span>${moeda(k.venda)} cada</span><span>total ${moeda(S.celeiro[k.id] * k.venda)}</span></span>
+                            <span class="nome">${esc(k.nome)} × ${naCeleiro(k.id)}</span>
+                            <span class="det"><span>${moeda(k.venda)} cada</span><span>${!reservaDe(k.id) ? `total ${moeda(livre * k.venda)}` : livre ? `vende ${livre}: ${moeda(livre * k.venda)}` : 'tudo guardado'}</span></span>
+                            ${come ? htmlReserva(k, come) : ''}
                         </span>
-                        <button type="button" class="botao pequeno verde" data-vender="${esc(k.id)}">Vender</button>
-                    </div>`).join('') + `</div>
+                        <button type="button" class="botao pequeno verde" data-vender="${esc(k.id)}"${livre ? '' : ' disabled'}>${livre || !naCeleiro(k.id) ? 'Vender' : 'Guardado'}</button>
+                    </div>`;
+                }).join('') + `</div>
                     <div class="rodape-painel">
                         <span class="preco">Valor total: ${ico('moeda', 16)} ${total}${bonusVenda ? ` <small class="bonus-txt">(+${bonusVenda}% de bônus)</small>` : ''}</span>
-                        <button type="button" class="botao verde" data-vender="*">Vender tudo</button>
+                        <button type="button" class="botao verde" data-vender="*"${total ? '' : ' disabled'}>Vender tudo</button>
                     </div>`;
             }
         } else if (nome === 'conta') {
@@ -1275,7 +1305,7 @@
                     <li>Todo item do Construir faz alguma coisa: evita seca, praga ou erva, adianta o crescimento, dá itens e XP extras, protege dos vizinhos ou aumenta a <b>beleza</b> (bônus nas vendas). Toque num item para ver o que ele faz.</li>
                     <li>A <b>amoreira</b> dá amoras sozinha: quando aparecer o balão, toque nela para colher.</li>
                     <li>Em <b>Construir → Máquinas</b>: irrigador, pulverizador e robô capinador evitam seca, pragas e ervas por perto; o alarme protege dos vizinhos; trator e colheitadeira ajudam na fazenda toda.</li>
-                    <li>Na loja tem <b>animais</b>: dê ração (sai do celeiro) e colete ovos, leite e lã.</li>
+                    <li>Na loja tem <b>animais</b>: dê ração (sai do celeiro) e colete ovos, leite e lã. No celeiro, <b>Reservar</b> guarda a ração deles para não ir junto no "Vender tudo".</li>
                     <li>No botão <b>Construir</b> você coloca cercas, caminhos, árvores, flores e objetos onde quiser. Toque em <b>Pronto</b> para fechar.</li>
                     <li>Cumpra as <b>missões do dia</b> para ganhar moedas e XP extras.</li>
                     <li>Cada nível libera coisas novas e dá um presente de moedas. Toque no seu nome, lá em cima, para ver o <b>caminho dos níveis</b>.</li>
@@ -1550,13 +1580,29 @@
             toast(`Semente escolhida: ${itemDe(k)} ${esc(k.nome)}`);
             return;
         }
+        const resv = e.target.closest('[data-reserva]');
+        if (resv) {
+            const [item, ref] = resv.dataset.reserva.split(':');
+            const come = quemCome(item);
+            const qtd = come ? Math.max(0, Math.min(MAX_REFEICOES, Number(ref))) * come.porRefeicao : 0;
+            // aparece na hora; o servidor confirma
+            S.reservas = { ...(S.reservas || {}), [item]: qtd };
+            if (!qtd) delete S.reservas[item];
+            abrirPainel('celeiro', true);
+            enfileirar([], async () => {
+                const r = await rpc('fazenda_reservar', { p_token: token, p_item: item, p_quantidade: qtd });
+                aplicarEstado(r.estado);
+            });
+            return;
+        }
         const vend = e.target.closest('[data-vender]');
         if (vend) {
             vend.disabled = true;
             const item = vend.dataset.vender === '*' ? null : vend.dataset.vender;
             enfileirar([], async () => {
                 const r = await rpc('fazenda_vender', { p_token: token, p_item: item, p_quantidade: null });
-                if (r.ganho > 0) { toast(`Vendeu por ${ico('moeda', 16)} ${r.ganho}!`); som.tocar('moeda'); tutorialEvento('vender'); }
+                const guardou = Object.keys(S.reservas || {}).length ? ' A ração dos animais ficou guardada.' : '';
+                if (r.ganho > 0) { toast(`Vendeu por ${ico('moeda', 16)} ${r.ganho}!${guardou}`); som.tocar('moeda'); tutorialEvento('vender'); }
                 aplicarEstado(r.estado);
             }).finally(() => { vend.disabled = false; });
             return;

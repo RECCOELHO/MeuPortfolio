@@ -236,6 +236,14 @@ create table if not exists public.fazenda_missoes (
   primary key (jogador_id, dia, slot)
 );
 
+-- Fase 7: ração reservada para os animais (fica no celeiro, o "vender" não leva)
+create table if not exists public.fazenda_reservas (
+  jogador_id  uuid not null references public.fazenda_jogadores(id) on delete cascade,
+  item        text not null references public.fazenda_culturas(id),
+  quantidade  int  not null check (quantidade > 0),
+  primary key (jogador_id, item)
+);
+
 -- RLS ligado e nenhuma policy = acesso direto negado para anon/authenticated
 alter table public.fazenda_culturas       enable row level security;
 alter table public.fazenda_jogadores      enable row level security;
@@ -251,12 +259,14 @@ alter table public.fazenda_missoes        enable row level security;
 alter table public.fazenda_estatisticas   enable row level security;
 alter table public.fazenda_conquistas_tipos enable row level security;
 alter table public.fazenda_conquistas     enable row level security;
+alter table public.fazenda_reservas       enable row level security;
 
 revoke all on public.fazenda_culturas, public.fazenda_jogadores, public.fazenda_sessoes,
               public.fazenda_canteiros, public.fazenda_celeiro, public.fazenda_visitas,
               public.fazenda_animais_tipos, public.fazenda_animais,
               public.fazenda_itens, public.fazenda_construcoes, public.fazenda_missoes,
-              public.fazenda_estatisticas, public.fazenda_conquistas_tipos, public.fazenda_conquistas
+              public.fazenda_estatisticas, public.fazenda_conquistas_tipos, public.fazenda_conquistas,
+              public.fazenda_reservas
   from anon, authenticated;
 
 -- ------------------------------------------------------------
@@ -653,6 +663,9 @@ begin
     'celeiro', coalesce((
       select jsonb_object_agg(item, quantidade)
         from fazenda_celeiro where jogador_id = p_jogador and quantidade > 0), '{}'::jsonb),
+    'reservas', coalesce((
+      select jsonb_object_agg(item, quantidade)
+        from fazenda_reservas where jogador_id = p_jogador), '{}'::jsonb),
     'culturas', (
       select jsonb_agg(jsonb_build_object(
                'id', id, 'nome', nome, 'emoji', emoji, 'tempo_seg', tempo_seg,
@@ -955,16 +968,18 @@ begin
     raise exception 'quantidade_invalida';
   end if;
 
+  -- o que está reservado para os animais fica no celeiro
   for r in
-    select ce.item, ce.quantidade, k.venda
+    select ce.item, ce.quantidade - coalesce(rs.quantidade, 0) as livre, k.venda
       from fazenda_celeiro ce
       join fazenda_culturas k on k.id = ce.item
+      left join fazenda_reservas rs on rs.jogador_id = ce.jogador_id and rs.item = ce.item
      where ce.jogador_id = v_id
-       and ce.quantidade > 0
+       and ce.quantidade > coalesce(rs.quantidade, 0)
        and (p_item is null or ce.item = p_item)
        for update of ce
   loop
-    v_qtd := least(coalesce(p_quantidade, r.quantidade), r.quantidade);
+    v_qtd := least(coalesce(p_quantidade, r.livre), r.livre);
     update fazenda_celeiro set quantidade = quantidade - v_qtd
      where jogador_id = v_id and item = r.item;
     v_ganho := v_ganho + v_qtd * r.venda;
@@ -977,6 +992,31 @@ begin
   end if;
 
   return jsonb_build_object('ganho', v_ganho, 'estado', fazenda_estado(v_id));
+end;
+$$;
+
+-- Quanto de um item fica guardado no celeiro para os animais (0 = sem reserva)
+create or replace function public.fazenda_reservar(p_token text, p_item text, p_quantidade int)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id uuid := fazenda_auth(p_token);
+begin
+  if not exists (select 1 from fazenda_culturas where id = p_item) then
+    raise exception 'item_invalido';
+  end if;
+  if p_quantidade is null or p_quantidade < 0 or p_quantidade > 999 then
+    raise exception 'quantidade_invalida';
+  end if;
+  if p_quantidade = 0 then
+    delete from fazenda_reservas where jogador_id = v_id and item = p_item;
+  else
+    insert into fazenda_reservas (jogador_id, item, quantidade) values (v_id, p_item, p_quantidade)
+    on conflict (jogador_id, item) do update set quantidade = excluded.quantidade;
+  end if;
+  return jsonb_build_object('estado', fazenda_estado(v_id));
 end;
 $$;
 
@@ -1772,6 +1812,7 @@ revoke execute on function
   public.fazenda_mover(text, int, int, int, int),
   public.fazenda_demolir(text, int, int),
   public.fazenda_coletar(text, int, int),
+  public.fazenda_reservar(text, text, int),
   public.fazenda_checar_conquistas(uuid)
 from public, anon, authenticated;
 
@@ -1790,5 +1831,6 @@ grant execute on function
   public.fazenda_construir(text, text, int, int),
   public.fazenda_mover(text, int, int, int, int),
   public.fazenda_demolir(text, int, int),
-  public.fazenda_coletar(text, int, int)
+  public.fazenda_coletar(text, int, int),
+  public.fazenda_reservar(text, text, int)
 to anon, authenticated;

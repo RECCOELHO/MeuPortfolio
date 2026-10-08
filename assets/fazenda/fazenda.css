@@ -212,6 +212,34 @@ button {
     font-size: 14px;
 }
 
+/* botões −/+ (ração reservada no celeiro) */
+.botao.mini {
+    padding: 0;
+    width: 28px;
+    height: 26px;
+    font-size: 18px;
+    line-height: 1;
+}
+
+.reserva,
+.reserva-btn {
+    margin-top: 6px;
+}
+
+.reserva {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--texto-suave);
+}
+
+.reserva-btn {
+    font-size: 13px;
+}
+
 .botao.grande {
     padding: 10px 16px;
     font-size: 18px;
