@@ -1,18 +1,21 @@
 /* ============================================================
    TERMINAL SECRETO — easter egg do portfólio (versão 2, PC e celular)
    Carregado só no 5º clique/toque no ">_" do rodapé (ver o carregador no
-   fim do indexversao2.html).
+   fim do indexversao2.html). A cor vem do tema (comando "tema"):
+   --term-cor e --term-brilho são definidos pelo terminal.js.
 ============================================================ */
 .term-tela {
+    --term-cor: #3dff7a;
+    --term-brilho: #3dff7a73;
     position: fixed;
     inset: 0;
     z-index: 100000;
     background: #050a06;
-    color: #3dff7a;
+    color: var(--term-cor);
     font: 400 14px/1.55 'DM Mono', ui-monospace, monospace;
-    padding: 18px 16px;
+    padding: 18px 16px 28px;
     overflow-y: auto;
-    text-shadow: 0 0 6px rgba(61, 255, 122, .45);
+    text-shadow: 0 0 6px var(--term-brilho);
     cursor: text;
 }
 
@@ -29,9 +32,10 @@
     position: fixed;
     top: 10px;
     right: 12px;
-    background: none;
-    border: 1px solid #1d7a3c;
-    color: #3dff7a;
+    z-index: 2;
+    background: #050a06;
+    border: 1px solid var(--term-cor);
+    color: var(--term-cor);
     font: inherit;
     padding: 2px 10px;
     cursor: pointer;
@@ -48,21 +52,62 @@
 
 .term-linha.ok {
     color: #fff;
-    text-shadow: 0 0 10px #3dff7a;
+    text-shadow: 0 0 10px var(--term-cor);
+}
+
+.term-linha.dim,
+.term-linha .dim {
+    opacity: .6;
+}
+
+/* arte em texto (neofetch, vaca, dado): não quebra, rola de lado se precisar */
+.term-linha.term-pre {
+    white-space: pre;
+    word-break: normal;
+    overflow-x: auto;
+}
+
+.term-p {
+    color: #fff;
+    opacity: .85;
+}
+
+.term-tela a,
+.term-cmd {
+    color: #fff;
+    text-decoration: underline dotted;
+    text-underline-offset: 3px;
+}
+
+.term-cmd {
+    background: none;
+    border: 0;
+    padding: 0;
+    font: inherit;
+    text-shadow: inherit;
+    cursor: pointer;
+}
+
+.term-cmd:hover,
+.term-tela a:hover {
+    color: var(--term-cor);
 }
 
 .term-prompt {
     display: flex;
     gap: 8px;
     align-items: baseline;
+    margin-top: 2px;
 }
 
-.term-prompt[hidden] {
+.term-prompt[hidden],
+.term-chips[hidden] {
     display: none;
 }
 
 .term-prompt span {
-    color: #8bffb0;
+    color: #fff;
+    opacity: .85;
     white-space: nowrap;
 }
 
@@ -72,9 +117,61 @@
     background: none;
     border: 0;
     outline: none;
-    color: #3dff7a;
+    color: var(--term-cor);
     font: inherit;
-    caret-color: #3dff7a;
+    caret-color: var(--term-cor);
     text-shadow: inherit;
     padding: 0;
+}
+
+/* sugestões tocáveis embaixo do prompt */
+.term-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.term-chip {
+    background: none;
+    border: 1px solid var(--term-cor);
+    color: var(--term-cor);
+    font: inherit;
+    font-size: 13px;
+    padding: 4px 10px;
+    cursor: pointer;
+    opacity: .8;
+    text-shadow: inherit;
+}
+
+.term-chip:hover,
+.term-chip:focus-visible {
+    opacity: 1;
+    background: var(--term-brilho);
+    color: #050a06;
+    outline: none;
+}
+
+/* cores do neofetch */
+.term-cor-verde { color: #3dff7a; }
+.term-cor-ambar { color: #ffb641; }
+.term-cor-azul { color: #5ec8ff; }
+.term-cor-rosa { color: #ff6bd6; }
+.term-cor-branco { color: #e8e8f0; }
+
+/* efeito "matrix" por cima de tudo */
+.term-matrix {
+    position: fixed;
+    inset: 0;
+    width: 100%;     /* canvas não estica só com inset */
+    height: 100%;
+    z-index: 3;
+    cursor: pointer;
+}
+
+/* celular: 16px no campo evita o zoom automático do iPhone ao focar */
+@media (hover: none) and (pointer: coarse) {
+    .term-prompt input {
+        font-size: 16px;
+    }
 }

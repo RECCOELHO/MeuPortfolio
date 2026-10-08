@@ -262,23 +262,6 @@
             color: var(--accent);
         }
 
-        .nav-logo.egg-hint {
-            animation: eggPulse 0.3s ease;
-        }
-
-        @keyframes eggPulse {
-
-            0%,
-            100% {
-                transform: scale(1);
-            }
-
-            50% {
-                transform: scale(1.25);
-                color: var(--accent2);
-            }
-        }
-
         .nav-links {
             display: flex;
             gap: 2.5rem;
@@ -2758,8 +2741,8 @@
     <script>
         /* ============================================================
            EASTER EGG — PONG (carregado só quando alguém abre)
-           5 cliques rápidos no logo "CJ." ou o comando "pong" no terminal
-           secreto. O jogo fica em assets/pong/ (pong.css + pong.js).
+           Escondido dentro do terminal secreto (ls -a → .arcade/pong.exe).
+           O jogo fica em assets/pong/ (pong.css + pong.js).
            Troque VERSAO quando mudar esses arquivos (cache do Cloudflare).
         ============================================================ */
         (function () {
@@ -2786,20 +2769,6 @@
             }
             window.abrirPong = () => carregar().then(() => window.PONG.abrir())
                 .catch(() => console.warn('Não deu para carregar o Pong agora.'));
-
-            const logo = document.getElementById('nav-logo');
-            let cliques = 0, timer = null;
-            if (logo) {
-                logo.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    cliques++;
-                    logo.classList.add('egg-hint');
-                    setTimeout(() => logo.classList.remove('egg-hint'), 300);
-                    clearTimeout(timer);
-                    if (cliques >= 5) { cliques = 0; window.abrirPong(); }
-                    else timer = setTimeout(() => { cliques = 0; }, 3000);
-                });
-            }
         })();
 
         /* ============================================================
@@ -3216,7 +3185,7 @@
 
             document.addEventListener('click', function (e) {
                 const link = e.target.closest('a[href^="#"]');
-                if (!link || e.defaultPrevented || link.id === 'nav-logo') return; // logo: easter egg do Pong
+                if (!link || e.defaultPrevented) return;
                 const hash = link.getAttribute('href');
                 if (hash === '#') { e.preventDefault(); transicionar(0, 'inicio'); return; }
                 const alvo = document.querySelector(hash);
@@ -3234,13 +3203,13 @@
            EASTER EGG — TERMINAL SECRETO (PC e celular, carregado sob demanda)
            O rodapé tem um >_ discreto. O 5º clique/toque baixa
            assets/terminal/ (terminal.css + terminal.js) e abre o terminal;
-           lá o comando "farm" leva para a Fazendinha e "pong" abre o Pong.
+           lá o comando "farm" leva para a Fazendinha e o Pong fica escondido.
            Troque VERSAO quando mudar esses arquivos (cache do Cloudflare).
         ============================================================ */
         (function () {
             const gatilho = document.getElementById('eggTerminal');
             if (!gatilho) return;
-            const VERSAO = '20261008-2';
+            const VERSAO = '20261008-3';
 
             // só o >_ do rodapé fica na página (precisa aparecer antes de baixar algo)
             const estilo = document.createElement('style');
