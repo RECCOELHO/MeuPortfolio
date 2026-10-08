@@ -90,6 +90,12 @@ create unique index if not exists fazenda_canteiros_lugar_idx on public.fazenda_
 
 -- Fase 5: terrenos comprados (áreas de mata em volta; ver fazenda_zonas)
 alter table public.fazenda_jogadores add column if not exists zonas int not null default 0;
+
+-- Último nível que já ganhou o presente de moedas. Quem já jogava começa "em dia"
+-- (sem presente retroativo); fazenda nova começa no 1.
+alter table public.fazenda_jogadores add column if not exists nivel_premiado int;
+update public.fazenda_jogadores set nivel_premiado = floor(sqrt(greatest(xp, 0) / 25.0))::int + 1 where nivel_premiado is null;
+alter table public.fazenda_jogadores alter column nivel_premiado set default 1;
 alter table public.fazenda_jogadores drop constraint if exists fazenda_jogadores_zonas_check;
 alter table public.fazenda_jogadores add constraint fazenda_jogadores_zonas_check check (zonas between 0 and 3);
 -- quem comprou fileiras na versão 1 recebe as moedas de volta (e fica com os canteiros)
@@ -256,9 +262,9 @@ insert into public.fazenda_culturas (id, nome, emoji, tempo_seg, custo, venda, r
   ('batata',   'Beterraba', '🟣',  3600,  35,  9,  7,  8, 2, 3),
   ('milho',    'Milho',     '🌽',  7200,  50, 12,  8, 12, 3, 4),
   ('tomate',   'Tomate',    '🍅', 14400,  70, 15,  9, 18, 4, 5),
-  ('girassol', 'Girassol',  '🌻', 21600,  90, 20,  8, 24, 5, 6),
-  ('abobora',  'Trigo',     '🌾', 28800, 110, 26,  8, 30, 6, 7),
-  ('morango',  'Amora',     '🫐', 43200, 140, 22, 12, 40, 7, 8)
+  ('girassol', 'Girassol',  '🌻', 21600,  90, 20,  8, 24, 6, 6),
+  ('abobora',  'Trigo',     '🌾', 28800, 110, 26,  8, 30, 7, 7),
+  ('morango',  'Amora',     '🫐', 43200, 140, 22, 12, 40, 9, 8)
 on conflict (id) do update set
   nome = excluded.nome, emoji = excluded.emoji, tempo_seg = excluded.tempo_seg,
   custo = excluded.custo, venda = excluded.venda, rendimento = excluded.rendimento,
@@ -282,8 +288,8 @@ on conflict (id) do update set
 
 insert into public.fazenda_animais_tipos (id, nome, custo, nivel_min, maximo, produto, tempo_seg, racao, racao_qtd, ordem) values
   ('galinha', 'Galinha', 100, 2, 4, 'ovo',    3600, 'alface', 1, 1),
-  ('vaca',    'Vaca',    350, 4, 2, 'leite', 14400, 'batata', 2, 2),
-  ('ovelha',  'Ovelha',  600, 6, 2, 'la',    28800, 'abobora', 2, 3)
+  ('vaca',    'Vaca',    350, 5, 2, 'leite', 14400, 'batata', 2, 2),
+  ('ovelha',  'Ovelha',  600, 8, 2, 'la',    28800, 'abobora', 2, 3)
 on conflict (id) do update set
   nome = excluded.nome, custo = excluded.custo, nivel_min = excluded.nivel_min, maximo = excluded.maximo,
   produto = excluded.produto, tempo_seg = excluded.tempo_seg, racao = excluded.racao,
@@ -293,34 +299,34 @@ on conflict (id) do update set
 insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem) values
   ('cerca',         'Cerca de madeira',    'caminho',    8, 1,  1),
   ('caminho_terra', 'Caminho de terra',    'caminho',    4, 1,  2),
-  ('caminho_pedra', 'Caminho de pedras',   'caminho',    6, 1,  3),
+  ('caminho_pedra', 'Caminho de pedras',   'caminho',    6, 2,  3),
   ('flores',        'Flores',              'natureza',  15, 1, 10),
-  ('girassol',      'Girassol',            'natureza',  40, 1, 11),
-  ('arbusto',       'Arbusto',             'natureza',  30, 1, 12),
-  ('cogumelos',     'Cogumelos',           'natureza',  25, 1, 13),
-  ('arvore',        'Árvore',              'natureza',  60, 2, 14),
-  ('arvore_outono', 'Árvore de outono',    'natureza',  70, 2, 15),
-  ('pinheiro',      'Pinheiro',            'natureza',  80, 3, 16),
-  ('amoreira',      'Amoreira',            'natureza',  90, 3, 17),
-  ('pedras',        'Pedras',              'objeto',    20, 1, 20),
-  ('tora',          'Tora de madeira',     'objeto',    25, 1, 21),
+  ('girassol',      'Pé de girassol',      'natureza',  40, 4, 11),
+  ('arbusto',       'Arbusto',             'natureza',  30, 2, 12),
+  ('cogumelos',     'Cogumelos',           'natureza',  25, 4, 13),
+  ('arvore',        'Árvore',              'natureza',  60, 3, 14),
+  ('arvore_outono', 'Árvore de outono',    'natureza',  70, 6, 15),
+  ('pinheiro',      'Pinheiro',            'natureza',  80, 7, 16),
+  ('amoreira',      'Amoreira',            'natureza',  90, 9, 17),
+  ('pedras',        'Pedras',              'objeto',    20, 2, 20),
+  ('tora',          'Tora de madeira',     'objeto',    25, 3, 21),
   ('placa',         'Placa',               'objeto',    20, 1, 22),
-  ('balde',         'Balde d''água',       'objeto',    30, 1, 23),
-  ('barril',        'Barril',              'objeto',    50, 2, 24),
-  ('feno',          'Fardo de feno',       'objeto',    60, 2, 25),
-  ('alvo',          'Alvo',                'objeto',    80, 3, 26),
-  ('caixote',       'Caixote de tomate',   'objeto',   100, 4, 27),
-  ('colmeia',       'Colmeia',             'objeto',   120, 4, 28),
-  ('bau',           'Baú',                 'objeto',   150, 5, 29),
-  ('boneco_neve',   'Boneco de neve',      'objeto',   150, 5, 30)
+  ('balde',         'Balde d''água',       'objeto',    30, 3, 23),
+  ('barril',        'Barril',              'objeto',    50, 5, 24),
+  ('feno',          'Fardo de feno',       'objeto',    60, 5, 25),
+  ('alvo',          'Alvo',                'objeto',    80, 6, 26),
+  ('caixote',       'Caixote de tomate',   'objeto',   100, 7, 27),
+  ('colmeia',       'Colmeia',             'objeto',   120, 8, 28),
+  ('bau',           'Baú',                 'objeto',   150, 11, 29),
+  ('boneco_neve',   'Boneco de neve',      'objeto',   150, 11, 30)
 on conflict (id) do update set
   nome = excluded.nome, categoria = excluded.categoria, custo = excluded.custo,
   nivel_min = excluded.nivel_min, ordem = excluded.ordem;
 
 -- Construções grandes (3 x 3) — fase 4
 insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem, largura, altura) values
-  ('casa_vermelha', 'Casinha vermelha', 'construcao',  600,  8, 40, 3, 3),
-  ('casa_azul',     'Casinha azul',     'construcao',  900, 10, 41, 3, 3)
+  ('casa_vermelha', 'Casinha vermelha', 'construcao',  600, 10, 40, 3, 3),
+  ('casa_azul',     'Casinha azul',     'construcao',  900, 13, 41, 3, 3)
 on conflict (id) do update set
   nome = excluded.nome, categoria = excluded.categoria, custo = excluded.custo,
   nivel_min = excluded.nivel_min, ordem = excluded.ordem,
@@ -328,12 +334,12 @@ on conflict (id) do update set
 
 -- Máquinas — fase 5 (arte: Tiny Factory, Kenney)
 insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem, efeito, raio, limite, descricao) values
-  ('irrigador',     'Irrigador',         'maquina',  200, 3, 50, 'seco',     2, null, 'Sem seca nos canteiros em volta (2 quadrados).'),
-  ('pulverizador',  'Pulverizador',      'maquina',  300, 4, 51, 'praga',    2, null, 'Sem pragas nos canteiros em volta (2 quadrados).'),
-  ('alarme',        'Alarme antiladrão', 'maquina',  400, 4, 52, 'alarme',   3, null, 'Vizinhos não pegam nada dos canteiros em volta (3 quadrados).'),
-  ('robo_capina',   'Robô capinador',    'maquina',  450, 5, 53, 'erva',     2, null, 'Sem ervas daninhas nos canteiros em volta (2 quadrados).'),
-  ('trator',        'Trator',            'maquina', 1500, 6, 54, 'arar',     0, 1,    'Depois da colheita o canteiro já fica arado (fazenda toda).'),
-  ('colheitadeira', 'Colheitadeira',     'maquina', 3000, 8, 55, 'colheita', 0, 1,    '+1 item em cada colheita (fazenda toda).')
+  ('irrigador',     'Irrigador',         'maquina',  150, 3, 50, 'seco',     2, null, 'Sem seca nos canteiros em volta (2 quadrados).'),
+  ('pulverizador',  'Pulverizador',      'maquina',  300, 5, 51, 'praga',    2, null, 'Sem pragas nos canteiros em volta (2 quadrados).'),
+  ('alarme',        'Alarme antiladrão', 'maquina',  400, 6, 52, 'alarme',   3, null, 'Vizinhos não pegam nada dos canteiros em volta (3 quadrados).'),
+  ('robo_capina',   'Robô capinador',    'maquina',  500, 8, 53, 'erva',     2, null, 'Sem ervas daninhas nos canteiros em volta (2 quadrados).'),
+  ('trator',        'Trator',            'maquina', 1200, 9, 54, 'arar',     0, 1,    'Depois da colheita o canteiro já fica arado (fazenda toda).'),
+  ('colheitadeira', 'Colheitadeira',     'maquina', 2500, 12, 55, 'colheita', 0, 1,    '+1 item em cada colheita (fazenda toda).')
 on conflict (id) do update set
   nome = excluded.nome, categoria = excluded.categoria, custo = excluded.custo,
   nivel_min = excluded.nivel_min, ordem = excluded.ordem, efeito = excluded.efeito,
@@ -411,8 +417,8 @@ drop function if exists public.fazenda_terrenos_venda();
 create or replace function public.fazenda_zonas()
 returns jsonb language sql immutable as $$
   select '[{"n":1,"nome":"Campo do sul","x":0,"y":13,"w":22,"h":7,"custo":500,"nivel":4},
-           {"n":2,"nome":"Mata do leste","x":22,"y":0,"w":10,"h":13,"custo":1500,"nivel":5},
-           {"n":3,"nome":"Vale do sudeste","x":22,"y":13,"w":10,"h":7,"custo":3500,"nivel":7}]'::jsonb;
+           {"n":2,"nome":"Mata do leste","x":22,"y":0,"w":10,"h":13,"custo":1500,"nivel":7},
+           {"n":3,"nome":"Vale do sudeste","x":22,"y":13,"w":10,"h":7,"custo":3500,"nivel":10}]'::jsonb;
 $$;
 
 -- (x, y) fica dentro do terreno de quem já comprou p_zonas terrenos?
@@ -425,10 +431,17 @@ returns boolean language sql immutable as $$
                     and p_y >= (z->>'y')::int and p_y < (z->>'y')::int + (z->>'h')::int);
 $$;
 
--- Quantos canteiros o jogador pode ter: cresce com o nível e com os terrenos
+-- Quantos canteiros o jogador pode ter: +2 por nível até o 15 e +6 por terreno
+-- (igual a limiteCanteiros em fazenda.js)
 create or replace function public.fazenda_limite_canteiros(p_nivel int, p_zonas int)
 returns int language sql immutable as $$
-  select least(6 + (p_nivel - 1) * 2, 30) + 6 * p_zonas;
+  select least(6 + (p_nivel - 1) * 2, 34) + 6 * p_zonas;
+$$;
+
+-- Presente de moedas ao chegar no nível n (igual a presenteNivel em fazenda.js)
+create or replace function public.fazenda_presente_nivel(p_nivel int)
+returns int language sql immutable as $$
+  select 50 * p_nivel;
 $$;
 
 create or replace function public.fazenda_auth(p_token text)
@@ -531,6 +544,14 @@ begin
   perform fazenda_checar_conquistas(p_jogador);
   select * into j from fazenda_jogadores where id = p_jogador;
   v_nivel := fazenda_nivel(j.xp);
+  -- subiu de nível: presente de moedas por cada nível novo
+  if v_nivel > coalesce(j.nivel_premiado, 1) then
+    update fazenda_jogadores
+       set moedas = moedas + (select sum(fazenda_presente_nivel(n)) from generate_series(coalesce(j.nivel_premiado, 1) + 1, v_nivel) n),
+           nivel_premiado = v_nivel
+     where id = p_jogador;
+    select * into j from fazenda_jogadores where id = p_jogador;
+  end if;
   -- canteiros não aparecem mais sozinhos: o jogador coloca no modo construir até este limite
   v_max := fazenda_limite_canteiros(v_nivel, j.zonas);
 
@@ -1609,6 +1630,7 @@ revoke execute on function
   public.fazenda_zonas(),
   public.fazenda_no_terreno(int, int, int),
   public.fazenda_limite_canteiros(int, int),
+  public.fazenda_presente_nivel(int),
   public.fazenda_tem_efeito(uuid, text),
   public.fazenda_protegido(uuid, text, int, int),
   public.fazenda_checar_lugar(uuid, int, int, int, int, int, int, int, int),

@@ -570,6 +570,13 @@ input:focus {
     align-items: center;
     justify-content: space-between;
     margin-bottom: 16px;
+    /* título e ✕ ficam à vista enquanto a lista rola */
+    position: sticky;
+    top: -20px;
+    z-index: 2;
+    margin: -20px -20px 16px;
+    padding: 20px 20px 10px;
+    background: var(--creme);
 }
 
 .painel h2 {
@@ -1252,4 +1259,128 @@ body.construindo .status {
         top: 124px;
         font-size: 14px;
     }
+}
+
+/* ---------- Níveis: perfil clicável, comemoração e caminho ---------- */
+.hud-perfil {
+    cursor: pointer;
+}
+
+.hud-perfil:focus-visible {
+    outline: 3px solid var(--ouro);
+    outline-offset: 2px;
+}
+
+.nivel-festa {
+    display: grid;
+    justify-items: center;
+    gap: 4px;
+    margin: 4px 0 12px;
+    text-align: center;
+}
+
+.nivel-numero {
+    display: grid;
+    place-items: center;
+    width: 72px;
+    height: 72px;
+    font: 700 40px var(--fonte-pixel);
+    color: var(--o);
+    background: var(--ouro);
+    box-shadow: 0 -3px 0 var(--o), 0 3px 0 var(--o), -3px 0 0 var(--o), 3px 0 0 var(--o), inset 0 -6px 0 var(--laranja);
+    animation: nivelPulo .6s cubic-bezier(.3, 1.6, .5, 1);
+}
+
+@keyframes nivelPulo {
+    0% { transform: scale(.3) rotate(-12deg); }
+    100% { transform: scale(1) rotate(0); }
+}
+
+.nivel-ganhos {
+    display: grid;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.ganho {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    font-weight: 700;
+    background: var(--creme-luz);
+    box-shadow: 0 -2px 0 var(--o), 0 2px 0 var(--o), -2px 0 0 var(--o), 2px 0 0 var(--o);
+}
+
+.chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 8px 3px 4px;
+    font-size: 13px;
+    font-weight: 700;
+    background: var(--creme-luz);
+    box-shadow: 0 -2px 0 var(--o), 0 2px 0 var(--o), -2px 0 0 var(--o), 2px 0 0 var(--o);
+}
+
+.chip.extra {
+    color: var(--texto-suave);
+    background: var(--creme-2);
+}
+
+.chips-futuro .chip {
+    opacity: .75;
+}
+
+.caminho {
+    display: grid;
+    gap: 10px;
+    margin: 12px 0 4px;
+    padding: 0;
+    list-style: none;
+}
+
+.degrau {
+    display: grid;
+    grid-template-columns: 34px 1fr;
+    gap: 10px;
+    align-items: start;
+    padding: 8px;
+}
+
+.degrau-nv {
+    display: grid;
+    place-items: center;
+    height: 30px;
+    font: 700 18px var(--fonte-pixel);
+    color: var(--o);
+    background: var(--creme-2);
+    box-shadow: 0 -2px 0 var(--o), 0 2px 0 var(--o), -2px 0 0 var(--o), 2px 0 0 var(--o);
+}
+
+.degrau.feito {
+    opacity: .6;
+}
+
+.degrau.feito .degrau-nv {
+    background: var(--grama-clara);
+}
+
+.degrau.atual {
+    background: #fff1c9;
+    box-shadow: 0 -3px 0 var(--ouro), 0 3px 0 var(--ouro), -3px 0 0 var(--ouro), 3px 0 0 var(--ouro);
+}
+
+.degrau.atual .degrau-nv {
+    background: var(--ouro);
+}
+
+.degrau.futuro .chip {
+    filter: saturate(.75);
 }
