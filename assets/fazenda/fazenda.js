@@ -382,9 +382,66 @@
         });
     }
 
+    // item que produz sozinho (amoreira): pronto quando passou o tempo desde a última colheita
+    function infoProducao(c) {
+        const it = tipoItem(c.tipo);
+        if (!it || !it.produz) return null;
+        const pronto = !c.colhido_em ? agora() : Date.parse(c.colhido_em) + it.produz_seg * 1000;
+        return { it, falta: pronto - agora(), produto: culturas[it.produz] };
+    }
     function visualConstrucoes() {
         if (!S) return DEMO_CONSTRUCOES;
-        return (visita ? visita.construcoes : S.construcoes) || [];
+        if (visita) return visita.construcoes || [];
+        return (S.construcoes || []).map((c) => {
+            const p = infoProducao(c);
+            return p && p.falta <= 0 ? { ...c, pronto: true, produto: A.cultura(p.it.produz).item } : c;
+        });
+    }
+
+    // o que os itens em volta fazem por um canteiro (aparece ao passar/tocar nele)
+    const NOME_EFEITO = {
+        seco: 'sem seca', praga: 'sem pragas', erva: 'sem ervas', crescer: 'cresce 10% mais rápido',
+        adubo: '+1 item', xp: '+1 XP', sorte: 'sorte (colheita em dobro às vezes)', cerca: 'vizinho pega no máximo 1',
+        alarme: 'protegido do vizinho'
+    };
+    function bonusDoCanteiro(c, fonte) {
+        const vistos = new Set();
+        for (const m of (fonte.construcoes || [])) {
+            const it = tipoItem(m.tipo);
+            if (!it || !it.efeito || !NOME_EFEITO[it.efeito] || !it.raio) continue;
+            if (Math.abs(m.x - c.x) <= it.raio && Math.abs(m.y - c.y) <= it.raio) vistos.add(it.efeito);
+        }
+        return [...vistos].map((e) => NOME_EFEITO[e]);
+    }
+
+    function coletarItem(x, y) {
+        const c = (S.construcoes || []).find((k) => k.x === x && k.y === y);
+        const p = c && infoProducao(c);
+        if (!p) return;
+        if (p.falta > 0) return mostrarStatus(`${A.htmlItem(c.tipo, 22)} ${esc(p.it.nome)}: as próximas ${esc(p.produto.nome.toLowerCase())}s ficam prontas em ${fmtTempo(p.falta)}.`);
+        c.colhido_em = new Date(agora()).toISOString();   // some o balão na hora
+        som.tocar('colher');
+        enfileirar([], async () => {
+            const r = await rpc('fazenda_coletar', { p_token: token, p_x: x, p_y: y });
+            flutuarTile(x, y, `+${r.qtd} ${itemDe(p.produto, 20)}`);
+            aplicarEstado(r.estado);
+            descreverConstrucao(x, y);   // agora mostra quando fica pronta de novo
+        });   // erro (ex.: ainda não está pronta) vai para tratarErro, que recarrega
+    }
+
+    function descreverConstrucao(x, y) {
+        const c = ((visita ? visita.construcoes : S.construcoes) || []).find((k) => k.x === x && k.y === y);
+        const it = c && tipoItem(c.tipo);
+        if (!it) return;
+        if (!visita) {
+            const p = infoProducao(c);
+            if (p) {
+                return mostrarStatus(p.falta <= 0
+                    ? `${A.htmlItem(c.tipo, 22)} ${esc(it.nome)}: ${esc(p.produto.nome.toLowerCase())}s prontas! Toque para colher.`
+                    : `${A.htmlItem(c.tipo, 22)} ${esc(it.nome)}: próximas ${esc(p.produto.nome.toLowerCase())}s em ${fmtTempo(p.falta)}.`);
+            }
+        }
+        mostrarStatus(`${A.htmlItem(c.tipo, 22)} <b>${esc(it.nome)}</b>${it.descricao ? ': ' + esc(it.descricao) : ''}`);
     }
 
     const cena = A.criarCena(el.canvas, {
@@ -393,10 +450,16 @@
         aoTile: (x, y) => tocarTile(x, y),
         aoCeleiro: () => { if (S && !painelAtual) abrirPainel('celeiro'); },
         aoVenda: () => { if (S && !painelAtual) { abaLoja = 'terrenos'; abrirPainel('loja'); } },
+        aoConstrucao: (x, y) => {
+            if (!S || painelAtual) return;
+            descreverConstrucao(x, y);
+            if (!visita) coletarItem(x, y);
+        },
         aoPassar: (alvo) => {
             if (!S || alvo == null) return;
             if (alvo === 'celeiro') mostrarStatus(`${spr(11, 22)} Celeiro: toque para ver e vender a colheita.`);
             else if (alvo === 'venda') descreverVenda();
+            else if (typeof alvo === 'object' && alvo.construcao) descreverConstrucao(alvo.construcao.x, alvo.construcao.y);
             else if (typeof alvo === 'object' && 'tx' in alvo) descreverTile(alvo.tx, alvo.ty);
             else if (typeof alvo === 'object') descreverAnimal(alvo.animal);
             else descrever(alvo);
@@ -707,6 +770,8 @@
         if (i.probs && i.probs.length && i.fase !== 'murcho') {
             txt += ` Cuide de ${probsHtml(i.probs)} (−1 cada na colheita).`;
         }
+        const bonus = bonusDoCanteiro(c, S);
+        if (bonus.length) txt += ` <span class="bonus-txt">✦ ${bonus.join(' · ')}</span>`;
         mostrarStatus(txt);
     }
 
@@ -1165,7 +1230,8 @@
             if (!itens.length) {
                 corpo.innerHTML = `<p class="vazio-msg">${spr(76, 48)}<br>Seu celeiro está vazio.<br>Colha algo e volte aqui para vender!</p>`;
             } else {
-                const total = itens.reduce((a, k) => a + S.celeiro[k.id] * k.venda, 0);
+                const bonusVenda = S.jogador.bonus_venda || 0;
+                const total = Math.floor(itens.reduce((a, k) => a + S.celeiro[k.id] * k.venda, 0) * (100 + bonusVenda) / 100);
                 corpo.innerHTML = '<div class="lista">' + itens.map((k) => `
                     <div class="item">
                         <span class="ico">${spr(A.cultura(k.id).item, 44)}</span>
@@ -1176,7 +1242,7 @@
                         <button type="button" class="botao pequeno verde" data-vender="${esc(k.id)}">Vender</button>
                     </div>`).join('') + `</div>
                     <div class="rodape-painel">
-                        <span class="preco">Valor total: ${ico('moeda', 16)} ${total}</span>
+                        <span class="preco">Valor total: ${ico('moeda', 16)} ${total}${bonusVenda ? ` <small class="bonus-txt">(+${bonusVenda}% de bônus)</small>` : ''}</span>
                         <button type="button" class="botao verde" data-vender="*">Vender tudo</button>
                     </div>`;
             }
@@ -1186,7 +1252,8 @@
             const minhas = (S.conquistas || []).map((c) => c.id);
             corpo.innerHTML = `
                 <p>Fazendeiro(a): <b>${esc(S.jogador.apelido)}</b> · Nível ${S.jogador.nivel}${S.criado_em ? ` · desde ${desde(S.criado_em)}` : ''}</p>
-                ${boasVindas ? '' : `<p><button type="button" class="botao pequeno creme" data-painel-ir="niveis">${ico('xp', 14)} Ver o caminho dos níveis</button></p>`}
+                ${boasVindas ? '' : `<p><button type="button" class="botao pequeno creme" data-painel-ir="niveis">${ico('xp', 14)} Ver o caminho dos níveis</button></p>
+                <p>${spr(83, 18)} Beleza da fazenda: <b>${S.jogador.beleza || 0}</b> · bônus nas vendas: <b>+${S.jogador.bonus_venda || 0}%</b></p>`}
                 ${boasVindas ? '' : `
                 <h3 class="secao-titulo">Conquistas (${minhas.length}/${(S.conquistas_tipos || []).length})</h3>
                 ${htmlConquistas(minhas)}
@@ -1205,6 +1272,8 @@
                     <li>Toque no <b>celeiro</b> para vender a colheita, compre sementes melhores e suba de nível para ganhar canteiros.</li>
                     <li>Os canteiros ficam onde você quiser: <b>Construir → Plantação</b> para colocar, <b>Mover</b> para mudar de lugar. Lado a lado eles viram fileiras.</li>
                     <li>Na loja, aba <b>Terrenos</b>, compre pedaços da mata em volta para a fazenda crescer (e ganhar +6 canteiros).</li>
+                    <li>Todo item do Construir faz alguma coisa: evita seca, praga ou erva, adianta o crescimento, dá itens e XP extras, protege dos vizinhos ou aumenta a <b>beleza</b> (bônus nas vendas). Toque num item para ver o que ele faz.</li>
+                    <li>A <b>amoreira</b> dá amoras sozinha: quando aparecer o balão, toque nela para colher.</li>
                     <li>Em <b>Construir → Máquinas</b>: irrigador, pulverizador e robô capinador evitam seca, pragas e ervas por perto; o alarme protege dos vizinhos; trator e colheitadeira ajudam na fazenda toda.</li>
                     <li>Na loja tem <b>animais</b>: dê ração (sai do celeiro) e colete ovos, leite e lã.</li>
                     <li>No botão <b>Construir</b> você coloca cercas, caminhos, árvores, flores e objetos onde quiser. Toque em <b>Pronto</b> para fechar.</li>
