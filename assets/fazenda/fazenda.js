@@ -61,9 +61,11 @@
         animal_invalido: 'Esse animal não está mais aqui.',
         limite_animais: 'Você já tem o máximo desse animal.',
         terreno_max: 'Você já comprou todos os terrenos.',
-        terreno_ocupado: 'Tem construção em cima desse terreno. Mova ou guarde antes de comprar (botão Construir).',
+        limite_canteiros: 'Você já usou todos os seus canteiros. Suba de nível ou compre terrenos para ter mais.',
+        limite_maquina: 'Você já tem essa máquina (uma basta para a fazenda toda).',
+        alarme: 'O alarme disparou! Esse canteiro está protegido.',
         item_invalido: 'Item inválido.',
-        lugar_reservado: 'Esse lugar é reservado (celeiro, casa, campo, terrenos, pasto ou galinheiro).',
+        lugar_reservado: 'Esse lugar é reservado (celeiro, casa, pasto, galinheiro) ou fica na mata fora do seu terreno.',
         lugar_ocupado: 'Já tem algo nesse lugar.',
         limite_construcoes: 'Sua fazenda já está cheia de construções. Guarde algumas antes.',
         missao_invalida: 'Missão não encontrada.',
@@ -110,7 +112,7 @@
         btnVoltarCasa: $('btnVoltarCasa'), acoesVisita: $('acoesVisita'), acoesCasa: $('acoesCasa'),
         diarioCont: $('hudDiario'), missoesCont: $('hudMissoes'),
         barraConstr: $('barraConstr'), constrAbas: $('constrAbas'), constrItens: $('constrItens'),
-        constrFerramentas: $('constrFerramentas'), btnConstruir: $('btnConstruir')
+        constrFerramentas: $('constrFerramentas'), btnConstruir: $('btnConstruir'), construirCont: $('hudConstruir')
     };
 
     /* ---------- Ícones (pixel art) ---------- */
@@ -200,18 +202,17 @@
         return `${Math.round(seg / 86400)} dia`;
     }
 
-    const nivelParaCanteiro = (pos) => Math.floor((pos - 6) / 2) + 2;
-
-    /* ---------- Terrenos (fileiras extras abaixo do campo) ---------- */
-    const TERRENOS_MAX = 3;
-    const terrenosComprados = () => (visita ? visita.terrenos : S && S.jogador.terrenos) || 0;
-    const terrenosVenda = () => (S && S.terrenos_venda) || [];
-    // próximo terreno da fila (null quando acabou ou o banco ainda não tem o SQL)
-    const proximoTerreno = () => (S && !visita ? terrenosVenda().find((t) => t.n === terrenosComprados() + 1) || null : null);
-    const ehTerrenoVenda = (p) => !!proximoTerreno() && Math.floor(p / 6) === 3 + terrenosComprados();
-    function atualizarTerrenos() {
-        cena.definirTerrenos({ comprados: terrenosComprados(), venda: !!proximoTerreno() });
+    /* ---------- Terrenos: áreas da mata compradas para a fazenda crescer ---------- */
+    const zonasDaTela = () => (visita ? visita.zonas : S && S.jogador.zonas) || 0;
+    const zonasVenda = () => (S && S.zonas_venda) || [];
+    // próximo terreno à venda (só na sua fazenda; null quando acabou ou o banco ainda não tem o SQL)
+    const proximaZona = () => (S && !visita ? zonasVenda().find((z) => z.n === (S.jogador.zonas || 0) + 1) || null : null);
+    function atualizarTerreno() {
+        const z = proximaZona();
+        cena.definirTerreno({ zonas: zonasDaTela(), venda: z ? z.n : null });
     }
+    // canteiros que ainda dá para colocar (o limite cresce com o nível e os terrenos)
+    const canteirosLivres = () => (S ? Math.max(0, S.jogador.max_canteiros - S.canteiros.length) : 0);
 
     /* ---------- Leitura de um canteiro ---------- */
     function canteiro(p) {
@@ -251,8 +252,16 @@
 
     // Visitando: o que dá pra fazer no canteiro do vizinho
     const limitePegar = (k) => Math.floor(k.rendimento * 0.4);
+    // canteiro do vizinho no alcance de um alarme antiladrão?
+    function protegidoAlarme(c) {
+        if (!visita) return false;
+        return (visita.construcoes || []).some((m) => {
+            const it = tipoItem(m.tipo);
+            return it && it.efeito === 'alarme' && Math.abs(m.x - c.x) <= it.raio && Math.abs(m.y - c.y) <= it.raio;
+        });
+    }
     function podePegar(c, i) {
-        return i.fase === 'maduro' && !c.ja_peguei && c.roubado < limitePegar(i.k);
+        return i.fase === 'maduro' && !c.ja_peguei && c.roubado < limitePegar(i.k) && !protegidoAlarme(c);
     }
     function acaoVisita(c) {
         const i = info(c);
@@ -273,12 +282,14 @@
         { solo: 'arado', planta: 17, progresso: 0.5 }, { solo: 'vazio' }
     ];
 
+    const DEMO_CANTEIROS = Array.from({ length: 18 }, (_, p) => ({ posicao: p, x: 9 + (p % 6), y: 4 + Math.floor(p / 6) }));
+
     function visualCanteiro(p) {
-        if (!S) return DEMO[p] || { solo: 'bloqueado' };
+        if (!S) return DEMO[p] || { solo: 'vazio' };
         const c = canteiro(p);
         const i = info(c);
         const pendente = pendentesPos.has(p);
-        if (i.fase === 'bloqueado') return { solo: 'bloqueado' };
+        if (i.fase === 'bloqueado') return null;
         if (i.fase === 'vazio' || i.fase === 'arado') return { solo: i.fase, pendente };
         const arte = A.cultura(i.k.id);
         const v = { solo: 'arado', seco: c.seco && i.fase !== 'murcho', pendente };
@@ -291,14 +302,15 @@
         }
         if (visita && i.fase === 'maduro') {
             if (podePegar(c, i)) v.pegar = true;
-            else { v.cinza = true; v.check = !!c.ja_peguei; }
+            else { v.cinza = true; v.check = !!c.ja_peguei; v.alarme = !c.ja_peguei && protegidoAlarme(c); }
         }
         return v;
     }
 
     /* ---------- Animais e construções ---------- */
     const tipoAnimal = (id) => S && S.animais_tipos && S.animais_tipos.find((t) => t.id === id);
-    const tipoItem = (id) => S && S.itens && S.itens.find((t) => t.id === id);
+    const ITEM_CANTEIRO = { id: 'canteiro', nome: 'Canteiro', categoria: 'plantacao', custo: 0, nivel_min: 1, largura: 1, altura: 1 };
+    const tipoItem = (id) => (id === 'canteiro' ? ITEM_CANTEIRO : S && S.itens && S.itens.find((t) => t.id === id));
     const meusAnimais = () => (visita ? visita.animais : S && S.animais) || [];
     const naCeleiro = (item) => (S && S.celeiro[item]) || 0;
 
@@ -350,9 +362,11 @@
         aoAnimal: (id) => clicarAnimal(id),
         aoTile: (x, y) => tocarTile(x, y),
         aoCeleiro: () => { if (S && !painelAtual) abrirPainel('celeiro'); },
+        aoVenda: () => { if (S && !painelAtual) { abaLoja = 'terrenos'; abrirPainel('loja'); } },
         aoPassar: (alvo) => {
             if (!S || alvo == null) return;
             if (alvo === 'celeiro') mostrarStatus(`${spr(11, 22)} Celeiro: toque para ver e vender a colheita.`);
+            else if (alvo === 'venda') descreverVenda();
             else if (typeof alvo === 'object' && 'tx' in alvo) descreverTile(alvo.tx, alvo.ty);
             else if (typeof alvo === 'object') descreverAnimal(alvo.animal);
             else descrever(alvo);
@@ -361,21 +375,31 @@
     cena.definirVisual(visualCanteiro);
     cena.definirAnimais(visualAnimais);
     cena.definirConstrucoes(visualConstrucoes);
+    cena.definirCanteiros(() => ((visita || S) ? (visita || S).canteiros : DEMO_CANTEIROS));
+
+    function descreverVenda() {
+        const z = proximaZona();
+        if (!z) return;
+        mostrarStatus(S.jogador.nivel < z.nivel
+            ? `${ico('cadeado', 12)} ${esc(z.nome)}: terreno à venda a partir do nível ${z.nivel}.`
+            : `${ico('moeda', 14)} ${esc(z.nome)} à venda por ${moeda(z.custo)}: mais espaço e +6 canteiros. Toque para ver.`);
+    }
 
     /* ---------- Modo construir (abre e fecha pelo botão) ---------- */
-    const constr = { ativo: false, modo: 'colocar', tipo: null, movendo: null, aba: 'caminho' };
-    const atualizarModo = () => cena.definirModoConstrucao({ ...constr });
+    const constr = { ativo: false, modo: 'colocar', tipo: null, movendo: null, aba: 'plantacao' };
+    // a cena desenha o alcance da máquina escolhida (irrigador, alarme...)
+    const atualizarModo = () => cena.definirModoConstrucao({ ...constr, raio: (tipoItem(constr.tipo) || {}).raio || 0 });
     const NOME_AREA = (x, y) => {
         const dentro = (r) => x >= r.x && y >= r.y && x < r.x + r.w && y < r.y + r.h;
-        const [cel, casa, gal, campo, pasto, terr] = A.MAPA.reservas;
+        const [cel, casa, gal, pasto] = A.MAPA.reservas;
+        if (!A.noTerreno(x, y)) return 'a mata (compre o terreno na loja)';
         if (dentro(cel)) return 'o celeiro';
         if (dentro(casa)) return 'a casa';
         if (dentro(gal)) return 'o galinheiro';
-        if (dentro(campo)) return 'o campo';
         if (dentro(pasto)) return 'o pasto';
-        if (dentro(terr)) return 'a área dos terrenos';
         return 'fora do terreno';
     };
+    const canteiroEm = (x, y) => (S.canteiros || []).find((c) => c.x === x && c.y === y);
     const tamanhoItem = (tipo) => {
         const it = tipoItem(tipo);
         return { w: (it && it.largura) || 1, h: (it && it.altura) || 1 };
@@ -389,15 +413,25 @@
         for (let dy = 0; dy < h; dy++) {
             for (let dx = 0; dx < w; dx++) {
                 if (!A.livre(x + dx, y + dy)) return false;
-                const o = construcaoEm(x + dx, y + dy);
+                const o = construcaoEm(x + dx, y + dy) || canteiroEm(x + dx, y + dy);
                 if (o && o !== ignorar) return false;
             }
         }
         return true;
     }
+    const descricaoItem = (it) => (it.id === 'canteiro'
+        ? `Lugar de plantar. Você tem ${S.canteiros.length} de ${S.jogador.max_canteiros}.`
+        : it.descricao || '');
 
     function descreverTile(x, y) {
         if (!A.livre(x, y)) return mostrarStatus(`${ico('cadeado', 12)} Aqui fica ${NOME_AREA(x, y)}: não dá para construir.`);
+        const ct = canteiroEm(x, y);
+        if (ct) {
+            if (constr.modo === 'guardar') {
+                return mostrarStatus(ct.estado === 'plantado' ? 'Tem planta nesse canteiro: colha ou limpe antes de guardar.' : `${A.htmlItem('canteiro', 22)} Toque para guardar o canteiro (ele volta para o seu limite).`);
+            }
+            return mostrarStatus(`${A.htmlItem('canteiro', 22)} Canteiro. ${constr.modo === 'mover' ? 'Toque para escolher e depois no lugar novo (a planta vai junto).' : 'Use Mover para mudar de lugar.'}`);
+        }
         const c = construcaoEm(x, y);
         const it = c && tipoItem(c.tipo);
         if (constr.modo === 'guardar') {
@@ -408,7 +442,8 @@
             return mostrarStatus(it ? `${A.htmlItem(c.tipo, 22)} Toque para escolher ${esc(it.nome.toLowerCase())} e depois o novo lugar.` : 'Toque num item para mover.');
         }
         const sel = tipoItem(constr.tipo);
-        if (c) return mostrarStatus(`${A.htmlItem(c.tipo, 22)} ${esc(it ? it.nome : c.tipo)}. Use Mover ou Guardar para mudar.`);
+        if (c) return mostrarStatus(`${A.htmlItem(c.tipo, 22)} ${esc(it ? it.nome : c.tipo)}. ${it && it.descricao ? esc(it.descricao) + ' ' : ''}Use Mover ou Guardar para mudar.`);
+        if (sel && sel.id === 'canteiro') return mostrarStatus(`${A.htmlItem('canteiro', 22)} Toque para colocar um canteiro (sobram ${canteirosLivres()}).`);
         mostrarStatus(sel ? `${A.htmlItem(sel.id, 22)} Toque para colocar ${esc(sel.nome.toLowerCase())} (${moeda(sel.custo)}).` : 'Escolha um item na barra de baixo.');
     }
 
@@ -439,15 +474,19 @@
 
     function desenharPaleta() {
         if (!S || !S.itens) return;
-        const abas = [['caminho', 'Cercas e caminhos'], ['natureza', 'Natureza'], ['objeto', 'Objetos'], ['construcao', 'Casas']];
+        const abas = [['plantacao', 'Plantação'], ['maquina', 'Máquinas'], ['caminho', 'Cercas e caminhos'], ['natureza', 'Natureza'], ['objeto', 'Objetos'], ['construcao', 'Casas']];
         el.constrAbas.innerHTML = abas.map(([id, txt]) =>
             `<button type="button" data-constr-aba="${id}" class="${constr.aba === id ? 'ativa' : ''}">${txt}</button>`).join('');
-        el.constrItens.innerHTML = S.itens.filter((i) => i.categoria === constr.aba).map((i) => {
+        const lista = constr.aba === 'plantacao' ? [ITEM_CANTEIRO] : S.itens.filter((i) => i.categoria === constr.aba);
+        el.constrItens.innerHTML = lista.map((i) => {
             const travado = i.nivel_min > S.jogador.nivel;
             const sel = constr.modo === 'colocar' && constr.tipo === i.id;
-            return `<button type="button" class="paleta-item${sel ? ' selecionado' : ''}${travado ? ' travado' : ''}" data-item="${esc(i.id)}" title="${esc(i.nome)}">
+            const tem = i.limite ? S.construcoes.filter((c) => c.tipo === i.id).length : 0;
+            const preco = i.id === 'canteiro' ? `${S.canteiros.length}/${S.jogador.max_canteiros}`
+                : i.limite && tem >= i.limite ? 'Já tem' : `${ico('moeda', 11)}${i.custo}`;
+            return `<button type="button" class="paleta-item${sel ? ' selecionado' : ''}${travado ? ' travado' : ''}" data-item="${esc(i.id)}" title="${esc(i.nome)}${i.descricao ? ': ' + esc(i.descricao) : ''}">
                 ${travado ? ico('cadeado', 18) : A.htmlItem(i.id, 32)}
-                <small>${travado ? `Nv ${i.nivel_min}` : `${ico('moeda', 11)}${i.custo}`}</small>
+                <small>${travado ? `Nv ${i.nivel_min}` : preco}</small>
             </button>`;
         }).join('');
         el.constrFerramentas.querySelectorAll('[data-ferramenta]').forEach((b) => b.classList.toggle('ativa', b.dataset.ferramenta === constr.modo));
@@ -469,10 +508,26 @@
         descreverTile(x, y);
         if (!A.livre(x, y)) return toast(`Aqui fica ${NOME_AREA(x, y)}.`, 'erro');
         const ocupado = construcaoEm(x, y);
+        const cant = canteiroEm(x, y);
+
+        if (constr.modo === 'colocar' && constr.tipo === 'canteiro') {
+            if (ocupado || cant) return toast(ERROS.lugar_ocupado, 'erro');
+            if (!canteirosLivres()) return toast(ERROS.limite_canteiros, 'erro');
+            // aparece na hora (com um número provisório); o servidor confirma em seguida
+            S.canteiros.push({ posicao: 1000 + S.canteiros.length, x, y, estado: 'vazio' });
+            desenharHud();
+            som.tocar('construir');
+            enfileirar([], async () => {
+                const r = await rpc('fazenda_construir', { p_token: token, p_tipo: 'canteiro', p_x: x, p_y: y });
+                aplicarEstado(r.estado);
+            }).then(() => { desenharPaleta(); if (!S.canteiros.some((c) => c.x === x && c.y === y)) recarregar(); });
+            return;
+        }
 
         if (constr.modo === 'colocar') {
             const it = tipoItem(constr.tipo);
             if (!it) return toast('Escolha um item na barra de baixo.');
+            if (it.limite && S.construcoes.filter((c) => c.tipo === it.id).length >= it.limite) return toast(ERROS.limite_maquina, 'erro');
             const tam = tamanhoItem(it.id);
             if (!cabeAqui(x, y, tam.w, tam.h)) {
                 return toast(tam.w > 1 ? `Não cabe aqui: ${esc(it.nome.toLowerCase())} precisa de ${tam.w}×${tam.h} quadrados livres.` : ERROS.lugar_ocupado, 'erro');
@@ -491,7 +546,12 @@
             }).then(() => { if (!S.construcoes.some((c) => c.x === x && c.y === y)) recarregar(); });
         } else if (constr.modo === 'mover') {
             if (!constr.movendo) {
-                if (!ocupado) return toast('Toque num item para mover.');
+                if (cant) {
+                    constr.movendo = { x, y, tipo: 'canteiro', w: 1, h: 1 };
+                    atualizarModo();
+                    return mostrarStatus('Agora toque no lugar novo do canteiro.');
+                }
+                if (!ocupado) return toast('Toque num item ou canteiro para mover.');
                 constr.movendo = { x: ocupado.x, y: ocupado.y, tipo: ocupado.tipo, ...tamanhoItem(ocupado.tipo) };
                 atualizarModo();
                 return mostrarStatus('Agora toque no lugar novo.');
@@ -500,7 +560,7 @@
             constr.movendo = null;
             atualizarModo();
             if (de.x === x && de.y === y) return;
-            const c = construcaoEm(de.x, de.y);
+            const c = de.tipo === 'canteiro' ? canteiroEm(de.x, de.y) : construcaoEm(de.x, de.y);
             if (!cabeAqui(x, y, de.w, de.h, c)) return toast(ERROS.lugar_ocupado, 'erro');
             if (c) { c.x = x; c.y = y; }
             som.tocar('construir');
@@ -508,6 +568,14 @@
                 const r = await rpc('fazenda_mover', { p_token: token, p_x: de.x, p_y: de.y, p_nx: x, p_ny: y });
                 aplicarEstado(r.estado);
             });
+        } else if (constr.modo === 'guardar' && cant) {
+            if (cant.estado === 'plantado') return toast('Tem planta nesse canteiro: colha (ou limpe) antes de guardar.', 'erro');
+            S.canteiros = S.canteiros.filter((c) => c !== cant);
+            som.tocar('construir');
+            enfileirar([], async () => {
+                const r = await rpc('fazenda_demolir', { p_token: token, p_x: x, p_y: y });
+                aplicarEstado(r.estado);
+            }).then(() => desenharPaleta());
         } else if (constr.modo === 'guardar') {
             if (!ocupado) return;
             const ax = ocupado.x, ay = ocupado.y;
@@ -532,6 +600,11 @@
     /* ---------- HUD e status ---------- */
     function desenharHud() {
         const j = S.jogador;
+        if (el.construirCont) {
+            el.construirCont.textContent = canteirosLivres();
+            el.construirCont.hidden = !canteirosLivres();
+            el.construirCont.title = 'Canteiros para colocar';
+        }
         el.apelido.textContent = j.apelido;
         el.nivel.textContent = j.nivel;
         const faixa = j.xp_proximo - j.xp_nivel;
@@ -568,6 +641,7 @@
         let txt;
         if (i.fase === 'maduro') {
             if (c.ja_peguei) txt = `${item} Você já pegou desse ${esc(i.k.nome.toLowerCase())}.`;
+            else if (protegidoAlarme(c)) txt = `${item} ${esc(i.k.nome)} protegido pelo alarme antiladrão do vizinho.`;
             else if (c.roubado >= limitePegar(i.k)) txt = `${item} Já pegaram bastante desse ${esc(i.k.nome.toLowerCase())}.`;
             else txt = `${item} ${esc(i.k.nome)} maduro! Toque para pegar 1 ou 2 ${ico('mao', 16)}`;
         } else {
@@ -579,17 +653,11 @@
 
     function descrever(p) {
         const c = canteiro(p);
+        if (!c) return;
         const i = info(c);
         if (visita) return mostrarStatus(descreverVisita(c, i));
-        if (ehTerrenoVenda(p)) {
-            const t = proximoTerreno();
-            return mostrarStatus(S.jogador.nivel < t.nivel
-                ? `${ico('cadeado', 12)} Terreno à venda: +6 canteiros. Libera no nível ${t.nivel}.`
-                : `${ico('moeda', 14)} Terreno à venda: +6 canteiros por ${moeda(t.custo)}. Toque para ver.`);
-        }
         let txt;
         switch (i.fase) {
-            case 'bloqueado': txt = `${ico('cadeado', 12)} Libera no nível ${nivelParaCanteiro(p)}.`; break;
             case 'vazio': txt = `${spr(86, 22)} Terra batida. Toque para arar (+1 ${ico('xp', 14)}).`; break;
             case 'arado': {
                 const k = culturas[semente];
@@ -701,12 +769,13 @@
         if (antes && estado.jogador.nivel > antes.jogador.nivel) {
             const novas = estado.culturas.filter((k) => k.nivel_min > antes.jogador.nivel && k.nivel_min <= estado.jogador.nivel);
             let msg = `${ico('xp', 20)} Nível ${estado.jogador.nivel}!`;
-            if (estado.jogador.max_canteiros > antes.jogador.max_canteiros) msg += ' +2 canteiros';
+            const mais = estado.jogador.max_canteiros - antes.jogador.max_canteiros;
+            if (mais > 0) msg += ` · +${mais} canteiros para colocar (Construir → Plantação)`;
             if (novas.length) msg += ` · Nova semente: ${novas.map((k) => itemDe(k) + esc(k.nome)).join(', ')}`;
             toast(msg, 'festa');
         }
         avisarDiario();
-        atualizarTerrenos();
+        atualizarTerreno();
         desenharHud();
         if (constr.ativo) desenharPaleta();
         if (['loja', 'celeiro', 'missoes'].includes(painelAtual)) abrirPainel(painelAtual, true);
@@ -733,7 +802,7 @@
         if (!ineditos.length) return;
         ultimoAvisoDiario = Math.max(...ineditos.map(quando));
         const d = ineditos[0];
-        toast((d.tipo === 'roubo' ? ico('mao', 18) : ico('coracao', 16)) + ' ' + textoDiario(d) + (ineditos.length > 1 ? ` (+${ineditos.length - 1} no diário)` : ''));
+        toast((d.tipo === 'roubo' ? ico('guaxinim', 20) : ico('coracao', 16)) + ' ' + textoDiario(d) + (ineditos.length > 1 ? ` (+${ineditos.length - 1} no diário)` : ''));
     }
 
     function marcarDiarioVisto() {
@@ -815,11 +884,6 @@
         if (visita) {
             const av = acaoVisita(canteiro(p));
             if (av) { cena.irAte(p); executarVisita(av, [p]); }
-            return;
-        }
-        if (ehTerrenoVenda(p)) {
-            abaLoja = 'terrenos';
-            abrirPainel('loja');
             return;
         }
         const acao = acaoPara(canteiro(p));
@@ -942,7 +1006,7 @@
     function mostrarVisita(v) {
         if (constr.ativo) fecharConstrucao();
         visita = v;
-        atualizarTerrenos();
+        atualizarTerreno();
         offset = Date.parse(v.agora) - Date.now();
         document.body.classList.add('visitando');
         el.faixaVisita.hidden = false;
@@ -970,7 +1034,7 @@
 
     function voltarCasa() {
         visita = null;
-        atualizarTerrenos();
+        atualizarTerreno();
         document.body.classList.remove('visitando');
         el.faixaVisita.hidden = true;
         el.acoesVisita.hidden = true;
@@ -1104,7 +1168,9 @@
                     <li>Aparecem ${ico('erva', 14)} ervas, ${ico('praga', 14)} pragas e ${ico('seco', 12)} seca: cada problema deixado custa 1 item na colheita.</li>
                     <li>Depois de madura, a planta <b>murcha</b> se ficar tempo demais sem colher.</li>
                     <li>Toque no <b>celeiro</b> para vender a colheita, compre sementes melhores e suba de nível para ganhar canteiros.</li>
-                    <li>Quer plantar mais? Na loja, aba <b>Terrenos</b>, compre fileiras novas de canteiros abaixo da plantação.</li>
+                    <li>Os canteiros ficam onde você quiser: <b>Construir → Plantação</b> para colocar, <b>Mover</b> para mudar de lugar. Lado a lado eles viram fileiras.</li>
+                    <li>Na loja, aba <b>Terrenos</b>, compre pedaços da mata em volta para a fazenda crescer (e ganhar +6 canteiros).</li>
+                    <li>Em <b>Construir → Máquinas</b>: irrigador, pulverizador e robô capinador evitam seca, pragas e ervas por perto; o alarme protege dos vizinhos; trator e colheitadeira ajudam na fazenda toda.</li>
                     <li>Na loja tem <b>animais</b>: dê ração (sai do celeiro) e colete ovos, leite e lã.</li>
                     <li>No botão <b>Construir</b> você coloca cercas, caminhos, árvores, flores e objetos onde quiser. Toque em <b>Pronto</b> para fechar.</li>
                     <li>Cumpra as <b>missões do dia</b> para ganhar moedas e XP extras.</li>
@@ -1222,25 +1288,25 @@
     }
 
     function htmlLojaTerrenos() {
-        const lista = terrenosVenda();
+        const lista = zonasVenda();
         if (!lista.length) return '<p class="vazio-msg">Os terrenos chegam em breve.</p>';
-        const comprados = terrenosComprados();
-        return '<div class="lista">' + lista.map((t) => {
-            const comprado = t.n <= comprados;
-            const proximo = t.n === comprados + 1;
-            const travado = !comprado && (!proximo || S.jogador.nivel < t.nivel);
+        const tem = S.jogador.zonas || 0;
+        return '<div class="lista">' + lista.map((z) => {
+            const comprado = z.n <= tem;
+            const proximo = z.n === tem + 1;
+            const travado = !comprado && (!proximo || S.jogador.nivel < z.nivel);
             return `<div class="item${travado ? ' travada' : ''}">
-                <span class="ico">${travado ? ico('cadeado', 28) : spr(comprado ? 1 : 0, 44)}</span>
+                <span class="ico">${travado ? ico('cadeado', 28) : spr(comprado ? 1 : 39, 44)}</span>
                 <span>
-                    <span class="nome">Terreno ${t.n}</span>
-                    <span class="det"><span>+6 canteiros</span></span>
+                    <span class="nome">${esc(z.nome)}</span>
+                    <span class="det"><span>${z.w}×${z.h} quadrados</span><span>+6 canteiros</span></span>
                 </span>
                 ${comprado ? '<span class="preco">Comprado</span>'
-                    : !proximo ? `<span class="preco">Depois do ${t.n - 1}</span>`
-                    : S.jogador.nivel < t.nivel ? `<span class="preco">Nível ${t.nivel}</span>`
-                    : `<button type="button" class="botao pequeno verde" data-comprar="terreno:${t.n}">${ico('moeda', 14)} ${t.custo}</button>`}
+                    : !proximo ? `<span class="preco">Depois do ${z.n - 1}</span>`
+                    : S.jogador.nivel < z.nivel ? `<span class="preco">Nível ${z.nivel}</span>`
+                    : `<button type="button" class="botao pequeno verde" data-comprar="terreno:${z.n}">${ico('moeda', 14)} ${z.custo}</button>`}
             </div>`;
-        }).join('') + `</div><p class="aviso">Cada terreno é uma fileira de 6 canteiros logo abaixo da plantação (até ${TERRENOS_MAX}). Também dá para tocar na placa no mapa.</p>`;
+        }).join('') + '</div><p class="aviso">Cada terreno abre um pedaço da mata em volta: mais espaço para canteiros, máquinas e enfeites, e +6 canteiros no seu limite. Também dá para tocar na placa no mapa.</p>';
     }
 
     const TEXTO_MISSAO = {
@@ -1288,7 +1354,7 @@
             alvo.innerHTML = S.diario.length
                 ? '<div class="lista">' + S.diario.map((d) => `
                     <div class="diario-item${quando(d) > vistoAntes ? ' novo' : ''}">
-                        <span>${d.tipo === 'roubo' ? ico('mao', 22) : ico('coracao', 20)}</span>
+                        <span>${d.tipo === 'roubo' ? ico('guaxinim', 24) : ico('coracao', 20)}</span>
                         <span>${textoDiario(d)}<small>${tempoAtras(d.em)}</small></span>
                         ${S.jogador.id !== d.id ? `<button type="button" class="botao pequeno creme" data-visitar="${esc(d.id)}">Visitar</button>` : '<span></span>'}
                     </div>`).join('') + '</div>'
@@ -1358,9 +1424,14 @@
                 const r = await rpc('fazenda_comprar', { p_token: token, p_categoria: categoria, p_tipo: tipo });
                 aplicarEstado(r.estado);
                 if (categoria === 'terreno') {
-                    toast(`${spr(1, 22)} Terreno novo! +6 canteiros para plantar.`, 'festa');
-                    mostrarStatus(`${spr(0, 22)} Os canteiros novos estão logo abaixo da plantação. Toque neles para arar e plantar.`);
+                    const z = A.ZONAS.find((k) => k.n === Number(tipo));
+                    const nome = (zonasVenda().find((k) => k.n === Number(tipo)) || {}).nome || 'Terreno novo';
+                    toast(`${spr(39, 22)} ${esc(nome)} é seu! A fazenda cresceu e ganhou +6 canteiros.`, 'festa');
                     som.tocar('festa');
+                    fecharPainel();
+                    if (z) cena.focarTile(z.x + Math.floor(z.w / 2), z.y + Math.floor(z.h / 2));
+                    mostrarStatus(`${A.htmlItem('canteiro', 22)} Use o botão Construir para pôr canteiros, máquinas e enfeites no terreno novo.`);
+                    return;
                 } else {
                     const nome = (tipoAnimal(tipo) || {}).nome;
                     toast(`${esc(nome || 'Item')} chegou na fazenda!`);
@@ -1512,7 +1583,9 @@
             constr.movendo = null;
             desenharPaleta();
             atualizarModo();
-            mostrarStatus(`${A.htmlItem(it.id, 22)} ${esc(it.nome)} (${moeda(it.custo)}): toque nos quadrados livres.`);
+            mostrarStatus(it.id === 'canteiro'
+                ? `${A.htmlItem('canteiro', 22)} Canteiro: toque nos quadrados livres (sobram ${canteirosLivres()}). Lado a lado eles viram fileiras.`
+                : `${A.htmlItem(it.id, 22)} ${esc(it.nome)} (${moeda(it.custo)})${it.descricao ? ': ' + esc(it.descricao) : ''} Toque nos quadrados livres.`);
             return;
         }
         const ferr = e.target.closest('[data-ferramenta]');
@@ -1522,7 +1595,7 @@
             constr.movendo = null;
             desenharPaleta();
             atualizarModo();
-            mostrarStatus(constr.modo === 'mover' ? 'Mover: toque num item e depois no lugar novo.' : 'Guardar: toque num item para tirar (volta metade do valor).');
+            mostrarStatus(constr.modo === 'mover' ? 'Mover: toque num item ou canteiro e depois no lugar novo.' : 'Guardar: toque num item para tirar (volta metade do valor) ou num canteiro vazio.');
         }
     });
 
@@ -1553,7 +1626,7 @@
         token = null;
         S = null;
         visita = null;
-        atualizarTerrenos();
+        atualizarTerreno();
         document.body.classList.remove('visitando');
         el.faixaVisita.hidden = el.acoesVisita.hidden = true;
         el.acoesCasa.hidden = el.btnSemente.hidden = false;

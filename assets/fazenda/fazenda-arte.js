@@ -4,8 +4,10 @@
    Kenney (CC0, kenney.nl), desenhada num <canvas>. Os ícones pequenos
    (moeda, XP, praga...) são desenhados aqui, na mesma paleta.
 
-   A fazenda é um mapa fixo de 22 x 13 quadrados cercado de mata.
-   No PC a câmera mostra tudo; no celular dá para arrastar com o dedo.
+   A fazenda começa com 22 x 13 quadrados cercados de mata e cresce
+   até 32 x 20 com os terrenos comprados (ZONAS). Os canteiros têm
+   lugar livre (x, y) e se emendam em fileiras quando ficam lado a lado.
+   Máquinas: pacote "Tiny Factory" do Kenney (CC0).
 
    Expõe window.FazendaArte com:
      carregar()                → Promise quando a arte estiver pronta
@@ -15,6 +17,7 @@
      htmlItem(id, px)          → <span> com a arte de um item construível
      cultura(id), ANIMAL       → sprites de culturas e animais
      estacao(), livre(x, y)    → estação do ano e se um quadrado aceita construção
+     ZONAS                     → terrenos à venda (iguais a fazenda_zonas no SQL)
 ============================================================ */
 (function () {
     'use strict';
@@ -29,28 +32,42 @@
         P: '#9b4ca3', s: '#c0cbdc', S: '#8b9bb4', k: '#fec99c', t: '#eaa56c', d: '#cf8254', n: '#763b36'
     };
 
-    /* ---------- Mapa fixo da fazenda (precisa bater com fazenda_livre no SQL) ---------- */
+    /* ---------- Mapa da fazenda (precisa bater com fazenda_livre no SQL) ---------- */
     const MAPA = {
-        w: 22, h: 13,
+        w: 32, h: 20,                                // tamanho máximo, com todos os terrenos
         celeiro: { x: 1, y: 1 },                     // 3 x 6
         casa: { x: 5, y: 1 },                        // 3 x 3
-        campo: { x: 9, y: 4 },                       // 6 x 3
-        terrenos: { x: 9, y: 7, w: 6, h: 3 },        // 3 fileiras à venda abaixo do campo
+        campo: { x: 9, y: 4 },                       // onde os 6 primeiros canteiros nascem
         fazendeiro: { x: 8, y: 4 },
         galinheiro: { x: 0, y: 7, w: 7, h: 2 },
         pasto: { x: 16, y: 0, w: 6, h: 7 },          // cercado, porteira embaixo
         porteira: [18, 19],
         cochos: [{ i: 110, x: 18, y: 1 }, { i: 111, x: 19, y: 1 }],
+        // celeiro, casa, galinheiro e pasto: o resto do terreno é livre (até para canteiros)
         reservas: [
             { x: 1, y: 1, w: 3, h: 6 }, { x: 5, y: 1, w: 3, h: 3 }, { x: 0, y: 7, w: 7, h: 2 },
-            { x: 9, y: 3, w: 6, h: 4 }, { x: 16, y: 0, w: 6, h: 7 }, { x: 9, y: 7, w: 6, h: 3 }
+            { x: 16, y: 0, w: 6, h: 7 }
         ]
     };
     const MARGEM = 9;   // quadrados de mata em volta do terreno
 
+    /* ---------- Terrenos: começa com BASE e compra as ZONAS em ordem ----------
+       (precisa bater com fazenda_zonas no SQL; placa = onde fica a placa de "à venda") */
+    const BASE = { x: 0, y: 0, w: 22, h: 13 };
+    const ZONAS = [
+        { n: 1, x: 0, y: 13, w: 22, h: 7, placa: { x: 10, y: 13 } },
+        { n: 2, x: 22, y: 0, w: 10, h: 13, placa: { x: 22, y: 9 } },
+        { n: 3, x: 22, y: 13, w: 10, h: 7, placa: { x: 23, y: 14 } }
+    ];
+    let zonasAtuais = 0;   // terrenos da fazenda que está na tela (a sua ou a do vizinho)
+    const dentroRet = (r, x, y) => x >= r.x && y >= r.y && x < r.x + r.w && y < r.y + r.h;
+    const areasDoTerreno = (zonas = zonasAtuais) => [BASE, ...ZONAS.filter((z) => z.n <= zonas)];
+    function noTerreno(x, y, zonas = zonasAtuais) {
+        return areasDoTerreno(zonas).some((r) => dentroRet(r, x, y));
+    }
+    // dá para construir/pôr canteiro em (x, y)? (dentro do terreno e fora das áreas fixas)
     function livre(x, y) {
-        if (x < 0 || y < 0 || x >= MAPA.w || y >= MAPA.h) return false;
-        return !MAPA.reservas.some((r) => x >= r.x && y >= r.y && x < r.x + r.w && y < r.y + r.h);
+        return noTerreno(x, y) && !MAPA.reservas.some((r) => dentroRet(r, x, y));
     }
 
     /* ---------- Estação do ano (hemisfério sul) ---------- */
@@ -117,6 +134,14 @@
             case 'boneco_neve': return { p: 'ski', i: 64 };
             case 'casa_vermelha': return { p: 'town', w: 3, h: 3, grade: [[52, 53, 55], [64, 65, 67], [84, 85, 75]] };
             case 'casa_azul': return { p: 'town', w: 3, h: 3, grade: [[48, 49, 51], [60, 61, 63], [88, 89, 79]] };
+            case 'canteiro': return { p: 'farm', i: 1 };
+            // máquinas (Tiny Factory)
+            case 'irrigador': return { p: 'factory', i: 91 };
+            case 'pulverizador': return { p: 'factory', i: 126 };
+            case 'alarme': return { p: 'factory', i: 129 };
+            case 'robo_capina': return { p: 'factory', i: 110 };
+            case 'trator': return { p: 'factory', i: 98 };
+            case 'colheitadeira': return { p: 'factory', i: 100 };
             default: return { p: 'farm', i: 89 };
         }
     }
@@ -153,6 +178,8 @@
         check: ['......oo', '.....oGo', 'oo..oGo.', 'oGooGo..', '.oGGo...', '..oo....'],
         brilho: ['..w..', '..w..', 'ww.ww', '..w..', '..w..'],
         mao: ['..o.o.o..', '.oko.oko.', '.okokoko.', 'ooko.okoo', 'okkkkkkko', 'okkkkkkko', '.okkkkko.', '..ooooo..'],
+        // guaxinim mascarado: quem pegou da sua plantação (diário)
+        guaxinim: ['.oo.......oo.', 'oSso.....osSo', 'oSSSoooooSSSo', 'oSSSSSSSSSSSo', 'oooooSSSooooo', 'oowwooSoowwoo', 'oSoooSSSoooSo', 'oSSwwwwwwwSSo', '.oSwwwowwwSo.', '..oSwwwwwSo..', '...ooooooo...'],
         coracao: ['.oo.oo.', 'orrorRo', 'orwrrRo', 'orrrrRo', '.orrRo.', '..oRo..', '...o...'],
         missao: ['ooooooo.', 'okkkkkko', 'okoooko.', 'okkkkkko', 'okoooko.', 'okkkkkko', 'okooko..', 'okkkkko.', 'oooooo..'],
         mover: ['....o....', '...oko...', '..okkko..', '....o....', 'oko.o.oko', 'okkoooko.', 'oko.o.oko', '....o....', '..okkko..', '...oko...', '....o....'],
@@ -193,8 +220,8 @@
         return `<img class="px-ico" src="${iconeURL(nome)}" width="${px}" height="${h}" alt="">`;
     }
 
-    const ARQUIVOS = { farm: 'tiny-farm.png', town: 'tiny-town.png', ski: 'tiny-ski.png' };
-    const VERSAO_ARTE = '1';   // troque se as imagens dos pacotes mudarem (cache de 4 h do Cloudflare)
+    const ARQUIVOS = { farm: 'tiny-farm.png', town: 'tiny-town.png', ski: 'tiny-ski.png', factory: 'tiny-factory.png' };
+    const VERSAO_ARTE = '2';   // troque se as imagens dos pacotes mudarem (cache de 4 h do Cloudflare)
     function htmlTile(i, px = 32, pacote = 'farm') {
         const c = i % COLS, l = Math.floor(i / COLS);
         const img = pacote === 'farm' ? '' : `background-image:url('assets/fazenda/${ARQUIVOS[pacote]}');`;
@@ -215,7 +242,7 @@
     }
 
     /* ---------- Atlas ---------- */
-    const atlas = { farm: new Image(), town: new Image(), ski: new Image() };
+    const atlas = { farm: new Image(), town: new Image(), ski: new Image(), factory: new Image() };
     let atlasPronto = null;
     function carregar() {
         if (!atlasPronto) {
@@ -296,8 +323,9 @@
         let visual = () => null;
         let animaisFn = () => [];
         let construcoesFn = () => [];
+        let canteirosFn = () => [];                        // [{ posicao, x, y }]
         let construcao = { ativo: false };                 // estado do modo construir
-        let terrenos = { comprados: 0, venda: false };     // fileiras extras do campo
+        let zonaVenda = null;                              // próximo terreno à venda (ZONAS) ou null
         let hover = null;                                  // canteiro, 'celeiro', 'a:<id>' ou {tx, ty}
         const atores = new Map();
         const fazendeiro = { x: 0, y: 0, tx: 0, ty: 0, flip: false, passo: 0 };
@@ -306,11 +334,28 @@
         /* ---- geometria (coordenadas do mundo, em pixels do jogo) ---- */
         const wx = (tx) => (MARGEM + tx) * T;
         const wy = (ty) => (MARGEM + ty) * T;
-        function posCanteiro(p) {
-            return { x: wx(MAPA.campo.x + (p % 6)), y: wy(MAPA.campo.y + Math.floor(p / 6)) };
+        const listaCanteiros = () => canteirosFn() || [];
+        function mapaCanteiros(lista) {
+            const m = new Map();
+            for (const c of lista) m.set(c.x + ',' + c.y, c);
+            return m;
         }
-        const fileirasCampo = () => 3 + terrenos.comprados + (terrenos.venda ? 1 : 0);
-        const ehVenda = (p) => terrenos.venda && Math.floor(p / 6) === 3 + terrenos.comprados;
+        function posCanteiro(p) {
+            const c = listaCanteiros().find((k) => k.posicao === p);
+            return c ? { x: wx(c.x), y: wy(c.y) } : { x: wx(MAPA.campo.x), y: wy(MAPA.campo.y) };
+        }
+        // retângulo que contém todo o terreno da fazenda (em quadrados)
+        function caixaTerreno() {
+            const a = areasDoTerreno();
+            return {
+                x0: Math.min(...a.map((r) => r.x)), y0: Math.min(...a.map((r) => r.y)),
+                x1: Math.max(...a.map((r) => r.x + r.w)), y1: Math.max(...a.map((r) => r.y + r.h))
+            };
+        }
+        // distância (em quadrados) de (tx, ty) até o terreno: 0 dentro
+        function distTerreno(tx, ty) {
+            return Math.min(...areasDoTerreno().map((r) => Math.max(r.x - tx, tx - (r.x + r.w - 1), r.y - ty, ty - (r.y + r.h - 1), 0)));
+        }
         function retCeleiro() {
             return { x: wx(MAPA.celeiro.x), y: wy(MAPA.celeiro.y), w: 3 * T, h: 6 * T };
         }
@@ -324,10 +369,11 @@
         /* ---- câmera ---- */
         // a câmera só passeia pelo terreno (mais uma bordinha de mata), nunca se perde no mato
         function faixaCamera() {
-            const borda = T * 1.5;
+            const borda = T * 2;   // um pouco de mata (e a placa do terreno à venda)
             const topo = margem.topo / escala, base = margem.base / escala;
-            let minX = wx(0) - borda, maxX = wx(MAPA.w) + borda - vw;
-            let minY = wy(0) - borda - topo, maxY = wy(MAPA.h) + borda + base - vh;
+            const cx = caixaTerreno();
+            let minX = wx(cx.x0) - borda, maxX = wx(cx.x1) + borda - vw;
+            let minY = wy(cx.y0) - borda - topo, maxY = wy(cx.y1) + borda + base - vh;
             if (maxX < minX) minX = maxX = (minX + maxX) / 2;
             if (maxY < minY) minY = maxY = (minY + maxY) / 2;
             return { minX, maxX, minY, maxY };
@@ -379,6 +425,23 @@
             requestAnimationFrame(() => { ajustandoRolagem = false; });
         }
 
+        // escala para o terreno caber na tela (usada no início e quando a fazenda cresce)
+        function ajustarEscala() {
+            const W = window.innerWidth, H = window.innerHeight;
+            const cx = caixaTerreno(), tw = (cx.x1 - cx.x0) * T, th = (cx.y1 - cx.y0) * T;
+            const areaW = W - 24;
+            const areaH = Math.max(200, H - margem.topo - margem.base - 12);
+            let s = Math.min(areaW / tw, areaH / th);
+            // celular em pé (ou fazenda grande): não cabe, então usa a altura e deixa arrastar
+            if (s < 2.5) s = Math.min(Math.max(areaH / th, 2.5), 3.4);
+            s = Math.min(s, 6);
+            if (s >= 3) s = Math.floor(s);
+            escalaBase = s;
+            escala = s * zoomFator;
+            vw = W / escala;
+            vh = H / escala;
+        }
+
         function redimensionar() {
             const W = window.innerWidth, H = window.innerHeight;
             dpr = Math.min(window.devicePixelRatio || 1, 3);
@@ -386,30 +449,23 @@
             canvas.height = Math.round(H * dpr);
             canvas.style.width = W + 'px';
             canvas.style.height = H + 'px';
-
-            const areaW = W - 24;
-            const areaH = Math.max(200, H - margem.topo - margem.base - 12);
-            let s = Math.min(areaW / (MAPA.w * T), areaH / (MAPA.h * T));
-            // celular em pé: o terreno não cabe na largura, então usa a altura e deixa arrastar
-            if (s < 2.5) s = Math.min(Math.max(areaH / (MAPA.h * T), 2.5), 3.4);
-            s = Math.min(s, 6);
-            if (s >= 3) s = Math.floor(s);
-            escalaBase = s;
-            escala = s * zoomFator;
-            vw = W / escala;
-            vh = H / escala;
+            ajustarEscala();
             atores.clear();
             const c = MAPA.fazendeiro;
             fazendeiro.x = fazendeiro.tx = wx(c.x);
             fazendeiro.y = fazendeiro.ty = wy(c.y);
-            // começa olhando para o campo
-            focar(wx(MAPA.campo.x + 3), wy(MAPA.campo.y + 1));
+            // começa olhando para o meio da plantação
+            const lista = listaCanteiros();
+            if (lista.length) {
+                focar(wx(lista.reduce((a, k) => a + k.x, 0) / lista.length) + T / 2,
+                      wy(lista.reduce((a, k) => a + k.y, 0) / lista.length) + T / 2);
+            } else {
+                focar(wx(MAPA.campo.x + 3), wy(MAPA.campo.y + 1));
+            }
         }
 
         /* ---- fundo estático: grama, mata, celeiro, casa, pasto ---- */
-        function dentroTerreno(tx, ty) {
-            return tx >= 0 && ty >= 0 && tx < MAPA.w && ty < MAPA.h;
-        }
+        const dentroTerreno = (tx, ty) => noTerreno(tx, ty);
 
         function montarFundo() {
             const r = rng(20261007);
@@ -420,11 +476,11 @@
             // neve fora do terreno no inverno, com borda irregular
             if (EST === 'inverno') {
                 const img = f.getImageData(0, 0, MW, MH);
-                const x0 = wx(0), y0 = wy(0), x1 = wx(MAPA.w), y1 = wy(MAPA.h);
+                const rets = areasDoTerreno().map((a) => ({ x0: wx(a.x), y0: wy(a.y), x1: wx(a.x + a.w), y1: wy(a.y + a.h) }));
                 for (let y = 0; y < MH; y++) {
                     for (let x = 0; x < MW; x++) {
-                        const dx = Math.max(x0 - x, x - x1, 0), dy = Math.max(y0 - y, y - y1, 0);
-                        const dist = Math.max(dx, dy);
+                        let dist = Infinity;
+                        for (const a of rets) dist = Math.min(dist, Math.max(a.x0 - x, x - a.x1, a.y0 - y, y - a.y1, 0));
                         const ruido = (Math.sin(x * 0.37) + Math.sin(y * 0.29) + Math.sin((x + y) * 0.11)) * 2 + 6;
                         if (dist > ruido) {
                             const k = (y * MW + x) * 4;
@@ -471,7 +527,9 @@
             for (let ty = -MARGEM; ty < MAPA.h + MARGEM; ty++) {
                 for (let tx = -MARGEM; tx < MAPA.w + MARGEM; tx++) {
                     if (dentroTerreno(tx, ty)) continue;
-                    const longe = Math.max(-tx, tx - MAPA.w + 1, -ty, ty - MAPA.h + 1);
+                    // perto da placa do terreno à venda fica uma clareira
+                    if (zonaVenda && Math.abs(tx - zonaVenda.placa.x) <= 1 && ty >= zonaVenda.placa.y - 1 && ty <= zonaVenda.placa.y + 1) continue;
+                    const longe = distTerreno(tx, ty);
                     const chance = longe >= 3 ? 0.9 : longe === 2 ? 0.6 : 0.3;
                     if (r() >= chance) continue;
                     const v = r();
@@ -592,16 +650,22 @@
         }
 
         /* ---- construções do jogador ---- */
+        // tipo de cada quadrado + quadrados ocupados (construções e canteiros, menos o "ignorar")
         function mapaConstrucoes(lista, ignorar) {
             const m = new Map();
             m.ocupado = new Set();
+            const mesmo = (o) => ignorar && o.x === ignorar.x && o.y === ignorar.y;
             for (const c of lista) {
                 m.set(c.x + ',' + c.y, c.tipo);
-                if (ignorar && c.x === ignorar.x && c.y === ignorar.y) continue;
+                if (mesmo(c) && ignorar.tipo !== 'canteiro') continue;
                 const a = arteItem(c.tipo, EST);
                 for (let dy = 0; dy < (a.h || 1); dy++) {
                     for (let dx = 0; dx < (a.w || 1); dx++) m.ocupado.add((c.x + dx) + ',' + (c.y + dy));
                 }
+            }
+            for (const c of listaCanteiros()) {
+                if (mesmo(c) && ignorar.tipo === 'canteiro') continue;
+                m.ocupado.add(c.x + ',' + c.y);
             }
             return m;
         }
@@ -625,22 +689,29 @@
             return a;
         }
 
-        /* ---- canteiros ---- */
-        function desenharCanteiro(p, tempo) {
-            const v = visual(p);
-            const { x, y } = posCanteiro(p);
-            if (!v || v.solo === 'bloqueado') {
-                q.fillStyle = 'rgba(63,38,49,.28)';
-                for (let k = 2; k < T - 2; k += 3) {
-                    q.fillRect(x + k, y + 1, 2, 1); q.fillRect(x + k, y + T - 2, 2, 1);
-                    q.fillRect(x + 1, y + k, 1, 2); q.fillRect(x + T - 2, y + k, 1, 2);
-                }
-                q.globalAlpha = 0.75;
-                icone(q, 'cadeado', x + 5, y + 4);
-                q.globalAlpha = 1;
-                return;
+        /* ---- canteiros ----
+           Lado a lado viram uma fileira só (peças do Tiny Farm): na horizontal
+           60-62 (terra clara) / 48-50 (arada); na vertical 12/24/36 e 13/25/37. */
+        function soloDe(c, escuro, mc) {
+            const viz = (dx, dy) => mc.has((c.x + dx) + ',' + (c.y + dy));
+            const e = viz(-1, 0), d = viz(1, 0);
+            if (e || d) {
+                const b = escuro ? 48 : 60;
+                return !e ? b : !d ? b + 2 : b + 1;   // ponta esquerda, meio, ponta direita
             }
-            tile(q, v.solo === 'arado' ? 1 : 0, x, y);
+            const cima = viz(0, -1), baixo = viz(0, 1);
+            if (cima || baixo) {
+                const b = escuro ? 13 : 12;
+                return !cima ? b : !baixo ? b + 24 : b + 12;
+            }
+            return escuro ? 1 : 0;
+        }
+
+        function desenharCanteiro(c, tempo, mc) {
+            const v = visual(c.posicao);
+            if (!v) return;
+            const x = wx(c.x), y = wy(c.y);
+            tile(q, soloDe(c, v.solo === 'arado', mc), x, y);
             if (v.seco) {
                 q.fillStyle = PAL.k;
                 q.fillRect(x + 4, y + 5, 3, 1); q.fillRect(x + 6, y + 6, 1, 2);
@@ -662,24 +733,19 @@
                 v.probs.forEach((pr, n) => icone(q, pr, bx + 2 + n * 10, by + 2));
             }
             if (v.pegar) icone(q, 'mao', x + 4, y - 12 + (Math.floor(tempo / 400) % 2));
+            if (v.alarme) icone(q, 'cadeado', x + 5, y + 4);
             if (v.pendente && Math.floor(tempo / 150) % 2) {
                 q.fillStyle = 'rgba(255,255,255,.35)';
                 q.fillRect(x + 1, y + 1, T - 2, T - 2);
             }
         }
 
-        // fileira à venda: contorno tracejado e uma placa no meio
-        function desenharTerrenoVenda(tempo) {
-            const { x, y } = posCanteiro(18 + 6 * terrenos.comprados);
-            const w = 6 * T;
-            q.fillStyle = 'rgba(63,38,49,.12)';
-            q.fillRect(x, y, w, T);
-            q.fillStyle = 'rgba(63,38,49,.4)';
-            for (let k = 1; k < w - 1; k += 4) { q.fillRect(x + k, y, 2, 1); q.fillRect(x + k, y + T - 1, 2, 1); }
-            for (let k = 1; k < T - 1; k += 4) { q.fillRect(x, y + k, 1, 2); q.fillRect(x + w - 1, y + k, 1, 2); }
+        // terreno à venda: placa na clareira da mata, com uma moeda pulando
+        function desenharPlacaVenda(tempo) {
+            const x = wx(zonaVenda.placa.x), y = wy(zonaVenda.placa.y);
             const bob = Math.floor(tempo / 600) % 2 ? -1 : 0;
-            tile(q, 83, x + 2 * T + 8, y - 3, false, 'town');
-            icone(q, 'moeda', x + 3 * T + 10, y + 4 + bob);
+            tile(q, 83, x, y, false, 'town');
+            icone(q, 'moeda', x + 4, y - 10 + bob);
         }
 
         function desenharSinalAnimal(a, tempo) {
@@ -703,6 +769,7 @@
         function desenharGrade(m, tempo) {
             for (let ty = 0; ty < MAPA.h; ty++) {
                 for (let tx = 0; tx < MAPA.w; tx++) {
+                    if (!noTerreno(tx, ty)) continue;
                     const x = wx(tx), y = wy(ty);
                     if (!livre(tx, ty)) {
                         q.fillStyle = 'rgba(195,75,53,.16)';
@@ -728,6 +795,14 @@
                     pode = cabe(tx, ty, w, h, ocup);
                 } else {
                     pode = m.ocupado.has(tx + ',' + ty);
+                }
+                // alcance da máquina (irrigador, alarme...) em volta do quadrado
+                const raio = construcao.modo === 'colocar' ? construcao.raio : 0;
+                if (raio > 0 && pode) {
+                    const rx = wx(tx - raio), ry = wy(ty - raio), lado = (raio * 2 + 1) * T;
+                    q.fillStyle = 'rgba(153,216,248,.22)';
+                    q.fillRect(rx, ry, lado, lado);
+                    moldura(rx, ry, lado, lado, PAL.b);
                 }
                 if (pode && tipo && (construcao.modo === 'colocar' || sel)) {
                     q.globalAlpha = 0.65;
@@ -783,8 +858,9 @@
                 else pe.push({ ...s, x: wx(c.x), y: wy(c.y), flip: false, bob: 0 });
             }
 
-            for (let p = 0; p < 18 + 6 * terrenos.comprados; p++) desenharCanteiro(p, tempo);
-            if (terrenos.venda) desenharTerrenoVenda(tempo);
+            const canteiros = listaCanteiros(), mc = mapaCanteiros(canteiros);
+            for (const c of canteiros) desenharCanteiro(c, tempo, mc);
+            if (zonaVenda) desenharPlacaVenda(tempo);
 
             for (const a of atores.values()) {
                 const parado = a.v && a.v.estado !== 'produzindo';
@@ -808,8 +884,9 @@
                 desenharGrade(m, tempo);
             } else if (typeof hover === 'number') {
                 const { x, y } = posCanteiro(hover);
-                if (ehVenda(hover)) moldura(x - (hover % 6) * T, y, 6 * T, T);
-                else moldura(x, y, T, T);
+                moldura(x, y, T, T);
+            } else if (hover === 'venda' && zonaVenda) {
+                moldura(wx(zonaVenda.placa.x), wy(zonaVenda.placa.y), T, T);
             } else if (hover === 'celeiro') {
                 const c = retCeleiro();
                 moldura(c.x, c.y + T, c.w, c.h - T);
@@ -842,12 +919,12 @@
                 const topo = a.v && a.v.estado !== 'produzindo' ? a.y - 22 : a.y;
                 if (px >= a.x - 1 && px < a.x + T + 1 && py >= topo && py < a.y + T) return 'a:' + a.id;
             }
-            const cx = wx(MAPA.campo.x), cy = wy(MAPA.campo.y);
-            if (px >= cx && py >= cy && px < cx + 6 * T && py < cy + fileirasCampo() * T) {
-                return Math.floor((py - cy) / T) * 6 + Math.floor((px - cx) / T);
-            }
+            const cant = listaCanteiros().find((k) => k.x === tx && k.y === ty);
+            if (cant) return cant.posicao;
             const c = retCeleiro();
             if (px >= c.x && py >= c.y && px < c.x + c.w && py < c.y + c.h) return 'celeiro';
+            // terreno à venda: a placa ou qualquer pedaço de mata dele
+            if (zonaVenda && dentroRet(zonaVenda, tx, ty)) return 'venda';
             return null;
         }
 
@@ -914,6 +991,7 @@
             if (cb.aoPassar) cb.aoPassar(alvo);
             if (typeof alvo === 'object' && 'tx' in alvo) { if (cb.aoTile) cb.aoTile(alvo.tx, alvo.ty); }
             else if (alvo === 'celeiro') { if (cb.aoCeleiro) cb.aoCeleiro(); }
+            else if (alvo === 'venda') { if (cb.aoVenda) cb.aoVenda(); }
             else if (typeof alvo === 'object') { if (cb.aoAnimal) cb.aoAnimal(alvo.animal); }
             else if (cb.aoCanteiro) cb.aoCanteiro(alvo);
         }
@@ -984,7 +1062,21 @@
             definirVisual(fn) { visual = fn; },
             definirAnimais(fn) { animaisFn = fn; },
             definirConstrucoes(fn) { construcoesFn = fn; },
-            definirTerrenos(t) { terrenos = { comprados: (t && t.comprados) || 0, venda: !!(t && t.venda) }; },
+            definirCanteiros(fn) { canteirosFn = fn; },
+            // terrenos da fazenda na tela e o próximo à venda (número da zona ou null)
+            definirTerreno(t) {
+                const zonas = (t && t.zonas) || 0;
+                const venda = (t && ZONAS.find((z) => z.n === t.venda)) || null;
+                if (zonas === zonasAtuais && venda === zonaVenda) return;
+                zonasAtuais = zonas;
+                zonaVenda = venda;
+                montarFundo();
+                ajustarEscala();
+                limitarCamera();
+                sincronizarRolagem();
+                precisaDesenhar = true;
+            },
+            focarTile(tx, ty) { focar(wx(tx) + T / 2, wy(ty) + T / 2); },
             definirModoConstrucao(estado) { construcao = estado || { ativo: false }; },
             irAte(p) {
                 const { x, y } = posCanteiro(p);
@@ -1023,6 +1115,8 @@
         htmlItem,
         ANIMAL,
         MAPA,
+        ZONAS,
+        noTerreno,
         livre,
         estacao,
         cultura: (id) => CULTURAS[id] || CULTURA_PADRAO

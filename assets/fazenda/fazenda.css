@@ -1027,10 +1027,20 @@ button.item:hover {
 .constr-abas {
     display: flex;
     gap: 8px;
-    flex-wrap: wrap;
+    /* 6 abas: no celular rolam de lado em vez de quebrar em duas linhas */
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding: 2px 2px 4px;
+    scrollbar-width: none;
+}
+
+.constr-abas::-webkit-scrollbar {
+    display: none;
 }
 
 .constr-abas button {
+    flex: none;
+    white-space: nowrap;
     border: 0;
     padding: 5px 10px;
     font-weight: 800;
