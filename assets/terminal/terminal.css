@@ -1,0 +1,80 @@
+/* ============================================================
+   TERMINAL SECRETO — easter egg do portfólio (versão 2, celular)
+   Carregado só no 5º toque no ">_" do rodapé (ver o carregador no
+   fim do indexversao2.html).
+============================================================ */
+.term-tela {
+    position: fixed;
+    inset: 0;
+    z-index: 100000;
+    background: #050a06;
+    color: #3dff7a;
+    font: 400 14px/1.55 'DM Mono', ui-monospace, monospace;
+    padding: 18px 16px;
+    overflow-y: auto;
+    text-shadow: 0 0 6px rgba(61, 255, 122, .45);
+    cursor: text;
+}
+
+/* linhas de "tubo de TV" */
+.term-tela::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(0deg, rgba(0, 0, 0, .25) 0 1px, transparent 1px 3px);
+}
+
+.term-fechar {
+    position: fixed;
+    top: 10px;
+    right: 12px;
+    background: none;
+    border: 1px solid #1d7a3c;
+    color: #3dff7a;
+    font: inherit;
+    padding: 2px 10px;
+    cursor: pointer;
+}
+
+.term-linha {
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.term-linha.erro {
+    color: #ff5f56;
+}
+
+.term-linha.ok {
+    color: #fff;
+    text-shadow: 0 0 10px #3dff7a;
+}
+
+.term-prompt {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+}
+
+.term-prompt[hidden] {
+    display: none;
+}
+
+.term-prompt span {
+    color: #8bffb0;
+    white-space: nowrap;
+}
+
+.term-prompt input {
+    flex: 1;
+    min-width: 0;
+    background: none;
+    border: 0;
+    outline: none;
+    color: #3dff7a;
+    font: inherit;
+    caret-color: #3dff7a;
+    text-shadow: inherit;
+    padding: 0;
+}
