@@ -18,7 +18,6 @@
         if (alt && /^(localhost|127\.0\.0\.1)$/.test(location.hostname)) API = alt;
     } catch { /* ignora */ }
 
-    const TOTAL_CANTEIROS = 18;
     const POLL_MS = 30000;
 
     /* ---------- Armazenamento local (protegido) ---------- */
@@ -61,8 +60,10 @@
         nao_pronto: 'Ainda não tem nada pra coletar.',
         animal_invalido: 'Esse animal não está mais aqui.',
         limite_animais: 'Você já tem o máximo desse animal.',
+        terreno_max: 'Você já comprou todos os terrenos.',
+        terreno_ocupado: 'Tem construção em cima desse terreno. Mova ou guarde antes de comprar (botão Construir).',
         item_invalido: 'Item inválido.',
-        lugar_reservado: 'Esse lugar é reservado (celeiro, casa, campo, pasto ou galinheiro).',
+        lugar_reservado: 'Esse lugar é reservado (celeiro, casa, campo, terrenos, pasto ou galinheiro).',
         lugar_ocupado: 'Já tem algo nesse lugar.',
         limite_construcoes: 'Sua fazenda já está cheia de construções. Guarde algumas antes.',
         missao_invalida: 'Missão não encontrada.',
@@ -200,6 +201,17 @@
     }
 
     const nivelParaCanteiro = (pos) => Math.floor((pos - 6) / 2) + 2;
+
+    /* ---------- Terrenos (fileiras extras abaixo do campo) ---------- */
+    const TERRENOS_MAX = 3;
+    const terrenosComprados = () => (visita ? visita.terrenos : S && S.jogador.terrenos) || 0;
+    const terrenosVenda = () => (S && S.terrenos_venda) || [];
+    // próximo terreno da fila (null quando acabou ou o banco ainda não tem o SQL)
+    const proximoTerreno = () => (S && !visita ? terrenosVenda().find((t) => t.n === terrenosComprados() + 1) || null : null);
+    const ehTerrenoVenda = (p) => !!proximoTerreno() && Math.floor(p / 6) === 3 + terrenosComprados();
+    function atualizarTerrenos() {
+        cena.definirTerrenos({ comprados: terrenosComprados(), venda: !!proximoTerreno() });
+    }
 
     /* ---------- Leitura de um canteiro ---------- */
     function canteiro(p) {
@@ -355,12 +367,13 @@
     const atualizarModo = () => cena.definirModoConstrucao({ ...constr });
     const NOME_AREA = (x, y) => {
         const dentro = (r) => x >= r.x && y >= r.y && x < r.x + r.w && y < r.y + r.h;
-        const [cel, casa, gal, campo, pasto] = A.MAPA.reservas;
+        const [cel, casa, gal, campo, pasto, terr] = A.MAPA.reservas;
         if (dentro(cel)) return 'o celeiro';
         if (dentro(casa)) return 'a casa';
         if (dentro(gal)) return 'o galinheiro';
         if (dentro(campo)) return 'o campo';
         if (dentro(pasto)) return 'o pasto';
+        if (dentro(terr)) return 'a área dos terrenos';
         return 'fora do terreno';
     };
     const tamanhoItem = (tipo) => {
@@ -568,6 +581,12 @@
         const c = canteiro(p);
         const i = info(c);
         if (visita) return mostrarStatus(descreverVisita(c, i));
+        if (ehTerrenoVenda(p)) {
+            const t = proximoTerreno();
+            return mostrarStatus(S.jogador.nivel < t.nivel
+                ? `${ico('cadeado', 12)} Terreno à venda: +6 canteiros. Libera no nível ${t.nivel}.`
+                : `${ico('moeda', 14)} Terreno à venda: +6 canteiros por ${moeda(t.custo)}. Toque para ver.`);
+        }
         let txt;
         switch (i.fase) {
             case 'bloqueado': txt = `${ico('cadeado', 12)} Libera no nível ${nivelParaCanteiro(p)}.`; break;
@@ -687,6 +706,7 @@
             toast(msg, 'festa');
         }
         avisarDiario();
+        atualizarTerrenos();
         desenharHud();
         if (constr.ativo) desenharPaleta();
         if (['loja', 'celeiro', 'missoes'].includes(painelAtual)) abrirPainel(painelAtual, true);
@@ -795,6 +815,11 @@
         if (visita) {
             const av = acaoVisita(canteiro(p));
             if (av) { cena.irAte(p); executarVisita(av, [p]); }
+            return;
+        }
+        if (ehTerrenoVenda(p)) {
+            abaLoja = 'terrenos';
+            abrirPainel('loja');
             return;
         }
         const acao = acaoPara(canteiro(p));
@@ -917,6 +942,7 @@
     function mostrarVisita(v) {
         if (constr.ativo) fecharConstrucao();
         visita = v;
+        atualizarTerrenos();
         offset = Date.parse(v.agora) - Date.now();
         document.body.classList.add('visitando');
         el.faixaVisita.hidden = false;
@@ -944,6 +970,7 @@
 
     function voltarCasa() {
         visita = null;
+        atualizarTerrenos();
         document.body.classList.remove('visitando');
         el.faixaVisita.hidden = true;
         el.acoesVisita.hidden = true;
@@ -1014,10 +1041,11 @@
             if (!soAtualizar) tutorialEvento('loja');
             el.painelTitulo.innerHTML = `${spr(9, 32)} Loja`;
             const abas = `<div class="painel-abas" role="tablist">
-                ${[['sementes', 'Sementes'], ['animais', 'Animais']].map(([id, txt]) =>
+                ${[['sementes', 'Sementes'], ['animais', 'Animais'], ['terrenos', 'Terrenos']].map(([id, txt]) =>
                     `<button type="button" role="tab" data-aba-loja="${id}" class="${abaLoja === id ? 'ativa' : ''}">${txt}</button>`).join('')}
             </div>`;
             if (abaLoja === 'animais') corpo.innerHTML = abas + htmlLojaAnimais();
+            else if (abaLoja === 'terrenos') corpo.innerHTML = abas + htmlLojaTerrenos();
             else corpo.innerHTML = abas + htmlLojaSementes();
         } else if (nome === 'missoes') {
             el.painelTitulo.innerHTML = `${ico('missao', 26)} Missões do dia`;
@@ -1064,6 +1092,7 @@
                     <li>Aparecem ${ico('erva', 14)} ervas, ${ico('praga', 14)} pragas e ${ico('seco', 12)} seca: cada problema deixado custa 1 item na colheita.</li>
                     <li>Depois de madura, a planta <b>murcha</b> se ficar tempo demais sem colher.</li>
                     <li>Toque no <b>celeiro</b> para vender a colheita, compre sementes melhores e suba de nível para ganhar canteiros.</li>
+                    <li>Quer plantar mais? Na loja, aba <b>Terrenos</b>, compre fileiras novas de canteiros abaixo da plantação.</li>
                     <li>Na loja tem <b>animais</b>: dê ração (sai do celeiro) e colete ovos, leite e lã.</li>
                     <li>No botão <b>Construir</b> você coloca cercas, caminhos, árvores, flores e objetos onde quiser. Toque em <b>Pronto</b> para fechar.</li>
                     <li>Cumpra as <b>missões do dia</b> para ganhar moedas e XP extras.</li>
@@ -1180,6 +1209,28 @@
         }).join('') + '</div><p class="aviso">Toque no animal com fome para dar a ração (sai do seu celeiro) e volte para coletar o produto.</p>';
     }
 
+    function htmlLojaTerrenos() {
+        const lista = terrenosVenda();
+        if (!lista.length) return '<p class="vazio-msg">Os terrenos chegam em breve.</p>';
+        const comprados = terrenosComprados();
+        return '<div class="lista">' + lista.map((t) => {
+            const comprado = t.n <= comprados;
+            const proximo = t.n === comprados + 1;
+            const travado = !comprado && (!proximo || S.jogador.nivel < t.nivel);
+            return `<div class="item${travado ? ' travada' : ''}">
+                <span class="ico">${travado ? ico('cadeado', 28) : spr(comprado ? 1 : 0, 44)}</span>
+                <span>
+                    <span class="nome">Terreno ${t.n}</span>
+                    <span class="det"><span>+6 canteiros</span></span>
+                </span>
+                ${comprado ? '<span class="preco">Comprado</span>'
+                    : !proximo ? `<span class="preco">Depois do ${t.n - 1}</span>`
+                    : S.jogador.nivel < t.nivel ? `<span class="preco">Nível ${t.nivel}</span>`
+                    : `<button type="button" class="botao pequeno verde" data-comprar="terreno:${t.n}">${ico('moeda', 14)} ${t.custo}</button>`}
+            </div>`;
+        }).join('') + `</div><p class="aviso">Cada terreno é uma fileira de 6 canteiros logo abaixo da plantação (até ${TERRENOS_MAX}). Também dá para tocar na placa no mapa.</p>`;
+    }
+
     const TEXTO_MISSAO = {
         colher: (n) => `Colha ${n} itens`,
         plantar: (n) => `Plante ${n} sementes`,
@@ -1294,8 +1345,14 @@
             enfileirar([], async () => {
                 const r = await rpc('fazenda_comprar', { p_token: token, p_categoria: categoria, p_tipo: tipo });
                 aplicarEstado(r.estado);
-                const nome = (tipoAnimal(tipo) || {}).nome;
-                toast(`${esc(nome || 'Item')} chegou na fazenda!`);
+                if (categoria === 'terreno') {
+                    toast(`${spr(1, 22)} Terreno novo! +6 canteiros para plantar.`, 'festa');
+                    mostrarStatus(`${spr(0, 22)} Os canteiros novos estão logo abaixo da plantação. Toque neles para arar e plantar.`);
+                    som.tocar('festa');
+                } else {
+                    const nome = (tipoAnimal(tipo) || {}).nome;
+                    toast(`${esc(nome || 'Item')} chegou na fazenda!`);
+                }
                 if (painelAtual === 'loja') abrirPainel('loja', true);
             }).finally(() => { comp.disabled = false; });
             return;
@@ -1474,6 +1531,7 @@
         token = null;
         S = null;
         visita = null;
+        atualizarTerrenos();
         document.body.classList.remove('visitando');
         el.faixaVisita.hidden = el.acoesVisita.hidden = true;
         el.acoesCasa.hidden = el.btnSemente.hidden = false;
