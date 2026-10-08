@@ -1,0 +1,18 @@
+{
+    "id": "/fazenda.html",
+    "name": "Fazendinha Secreta",
+    "short_name": "Fazendinha",
+    "description": "Plante, colha, crie animais e visite os vizinhos.",
+    "lang": "pt-BR",
+    "start_url": "/fazenda.html",
+    "scope": "/fazenda",
+    "display": "standalone",
+    "orientation": "any",
+    "background_color": "#84c669",
+    "theme_color": "#4e974c",
+    "icons": [
+        { "src": "/assets/fazenda/app/icone-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+        { "src": "/assets/fazenda/app/icone-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+        { "src": "/assets/fazenda/app/icone-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    ]
+}

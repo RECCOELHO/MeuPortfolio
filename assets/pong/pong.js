@@ -2,9 +2,13 @@
    PONG SECRETO — easter egg do portfólio (versão 2)
    Carregado sob demanda pelo indexversao2.html (5 cliques no logo
    "CJ." ou o comando "pong" no terminal secreto). Expõe window.PONG.
+   Também roda sozinho em pong.html (versão instalável, PWA): lá a
+   página define window.PONG_APP e o ✕ volta ao menu em vez de fechar.
 ============================================================ */
 (function () {
     'use strict';
+
+    const APP = !!window.PONG_APP;
 
     // HTML do jogo (antes ficava escondido dentro da página)
     document.body.insertAdjacentHTML('beforeend', `
@@ -37,7 +41,11 @@
                     <button class="hack-result-btn" id="hackRankingBtnIntro"
                         style="margin:0;padding:0.75rem 1.4rem;border-color:rgba(200,240,68,0.25);color:#c8f044;font-size:0.72rem;">🏆
                         VER RANKING</button>
+                    <button class="hack-result-btn" id="hackInstalarBtn"
+                        style="margin:0;padding:0.75rem 1.4rem;border-color:rgba(68,240,200,0.25);color:#44f0c8;font-size:0.72rem;">📲
+                        INSTALAR APP</button>
                 </div>
+                <div class="hack-intro-line" id="hackInstalarDica" style="margin-top:0.9rem;" hidden></div>
             </div>
 
             <!-- GAME -->
@@ -244,6 +252,7 @@
         }
         window.PONG = { abrir: openGame };   // o carregador da página chama isto
         function closeGame() {
+            if (APP) { stopLoop(); showScreen(screenIntro); return; }   // no app não tem "fora" para onde fechar
             overlay.classList.remove('open');
             document.body.classList.remove('game-active');
             document.body.style.overflow = '';
@@ -251,7 +260,25 @@
         }
 
         closeBtn.addEventListener('click', closeGame);
-        overlay.addEventListener('click', (e) => { if (e.target === overlay) closeGame(); });
+        overlay.addEventListener('click', (e) => { if (e.target === overlay && !APP) closeGame(); });
+
+        /* --- Instalar como app (PWA) ---
+           No portfólio o botão leva para pong.html, a página instalável;
+           lá ele abre o pedido de instalação (ou explica como fazer). */
+        const instalarBtn = document.getElementById('hackInstalarBtn');
+        const instalarDica = document.getElementById('hackInstalarDica');
+        const instalador = window.INSTALAR;
+        function atualizarInstalar() {
+            instalarBtn.hidden = APP && (!instalador || instalador.estado() === 'instalado');
+        }
+        atualizarInstalar();
+        if (instalador) instalador.aoMudar(atualizarInstalar);
+        instalarBtn.addEventListener('click', () => {
+            if (!APP) { stopLoop(); window.location.href = 'pong.html'; return; }
+            if (instalador.estado() === 'pronto') { instalador.instalar(); return; }
+            instalarDica.textContent = '> ' + instalador.dica();
+            instalarDica.hidden = false;
+        });
 
         document.addEventListener('keydown', (e) => {
             if (!overlay.classList.contains('open')) return;

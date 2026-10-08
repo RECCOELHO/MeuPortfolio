@@ -1033,6 +1033,17 @@
     }
 
     /* ---------- Painéis ---------- */
+    /* ---------- Instalar como app (assets/app/instalar.js) ---------- */
+    const instalador = window.INSTALAR;
+    function htmlInstalar() {
+        if (!instalador || instalador.estado() === 'instalado') return '';
+        return `<h3 class="secao-titulo">Jogar como app</h3>
+                <p>Instale a fazenda: ela ganha um ícone na tela inicial e abre em tela cheia, sem a barra do navegador.</p>
+                <p><button type="button" class="botao verde" data-instalar>${spr(109, 22)} Instalar a fazenda</button></p>
+                <p class="aviso" data-instalar-dica hidden></p>`;
+    }
+    if (instalador) instalador.aoMudar(() => { if (painelAtual === 'conta') abrirPainel('conta', true); });
+
     function abrirPainel(nome, soAtualizar, boasVindas) {
         if (!soAtualizar) ultimoFoco = document.activeElement;
         painelAtual = nome;
@@ -1085,6 +1096,7 @@
                 <h3 class="secao-titulo">Código de recuperação</h3>
                 ${codigo ? `<div class="codigo-box"><code>${esc(codigo)}</code><button type="button" class="botao pequeno creme" data-copiar>Copiar</button></div>` : '<p class="aviso">O código não está salvo neste aparelho. Se você anotou, ele continua valendo.</p>'}
                 <p class="aviso">Guarde esse código: é o único jeito de abrir sua fazenda em outro aparelho ou se o navegador for limpo.</p>
+                ${htmlInstalar()}
                 <h3 class="secao-titulo">Como jogar</h3>
                 <ul class="ajuda">
                     <li>Toque num canteiro e ele faz a ação certa: <b>arar</b>, <b>plantar</b>, <b>cuidar</b> ou <b>colher</b>.</li>
@@ -1395,6 +1407,16 @@
             som.alternar();
             bSom.textContent = som.mudo ? 'Ligar sons' : 'Desligar sons';
             atualizarBotaoSom();
+            return;
+        }
+        if (e.target.closest('[data-instalar]')) {
+            if (instalador.estado() === 'pronto') {
+                instalador.instalar().then((st) => { if (st === 'instalado') toast(`${spr(83, 22)} Fazenda instalada! Procure o ícone na tela inicial.`, 'festa'); });
+            } else {
+                const dica = el.painelCorpo.querySelector('[data-instalar-dica]');
+                dica.textContent = instalador.dica();
+                dica.hidden = false;
+            }
             return;
         }
         if (e.target.closest('[data-copiar]')) {
