@@ -112,7 +112,8 @@
         btnVoltarCasa: $('btnVoltarCasa'), acoesVisita: $('acoesVisita'), acoesCasa: $('acoesCasa'),
         diarioCont: $('hudDiario'), missoesCont: $('hudMissoes'),
         barraConstr: $('barraConstr'), constrAbas: $('constrAbas'), constrItens: $('constrItens'),
-        constrFerramentas: $('constrFerramentas'), btnConstruir: $('btnConstruir'), construirCont: $('hudConstruir')
+        constrFerramentas: $('constrFerramentas'), btnConstruir: $('btnConstruir'), construirCont: $('hudConstruir'),
+        hudPerfil: $('hudPerfil')
     };
 
     /* ---------- Ícones (pixel art) ---------- */
@@ -211,6 +212,35 @@
         const z = proximaZona();
         cena.definirTerreno({ zonas: zonasDaTela(), venda: z ? z.n : null });
     }
+    /* ---------- Caminho dos níveis: o que cada nível libera ----------
+       Os níveis de cada coisa vêm do servidor (nivel_min / nivel); as duas
+       contas abaixo precisam bater com fazenda_presente_nivel e
+       fazenda_limite_canteiros no SQL. */
+    const NIVEL_MAX = 15;
+    const presenteNivel = (n) => 50 * n;
+    const limiteCanteirosNivel = (n) => Math.min(6 + (n - 1) * 2, 34);
+    const ORDEM_TIPO = { Terreno: 0, 'Máquina': 1, Animal: 2, Semente: 3, Casa: 4, Enfeite: 5 };
+    function liberaNoNivel(n) {
+        if (!S) return [];
+        const r = [];
+        for (const z of zonasVenda()) if (z.nivel === n) r.push({ html: spr(39, 24), nome: z.nome, tipo: 'Terreno' });
+        for (const a of S.animais_tipos || []) if (a.nivel_min === n) r.push({ html: spr(A.ANIMAL[a.id], 24), nome: a.nome, tipo: 'Animal' });
+        for (const k of S.culturas) if (k.tipo === 'cultura' && k.nivel_min === n) r.push({ html: itemDe(k, 24), nome: k.nome, tipo: 'Semente' });
+        for (const i of S.itens || []) {
+            if (i.nivel_min !== n) continue;
+            const tipo = i.categoria === 'maquina' ? 'Máquina' : i.categoria === 'construcao' ? 'Casa' : 'Enfeite';
+            r.push({ html: A.htmlItem(i.id, 24), nome: i.nome, tipo });
+        }
+        return r.sort((a, b) => ORDEM_TIPO[a.tipo] - ORDEM_TIPO[b.tipo]);
+    }
+    // extras de todo nível: canteiros a mais e o presente de moedas
+    function extrasDoNivel(n) {
+        const mais = n > 1 ? limiteCanteirosNivel(n) - limiteCanteirosNivel(n - 1) : limiteCanteirosNivel(1);
+        return { canteiros: mais, moedas: n > 1 ? presenteNivel(n) : 0 };
+    }
+    const chipsHtml = (lista) => lista.map((x) => `<span class="chip" title="${esc(x.tipo)}">${x.html}<span>${esc(x.nome)}</span></span>`).join('');
+    let nivelComemorar = null;   // { de, ate } da última subida de nível
+
     // canteiros que ainda dá para colocar (o limite cresce com o nível e os terrenos)
     const canteirosLivres = () => (S ? Math.max(0, S.jogador.max_canteiros - S.canteiros.length) : 0);
 
@@ -610,6 +640,12 @@
         const faixa = j.xp_proximo - j.xp_nivel;
         el.xpBar.style.width = `${Math.min(100, ((j.xp - j.xp_nivel) / faixa) * 100)}%`;
         el.xp.textContent = `${j.xp}/${j.xp_proximo}`;
+        if (el.hudPerfil) {
+            const prox = j.nivel < NIVEL_MAX ? liberaNoNivel(j.nivel + 1).slice(0, 3).map((x) => x.nome).join(', ') : '';
+            el.hudPerfil.title = j.nivel < NIVEL_MAX
+                ? `Faltam ${j.xp_proximo - j.xp} XP para o nível ${j.nivel + 1}${prox ? ': ' + prox : ''}. Toque para ver o caminho dos níveis.`
+                : 'Nível máximo! Toque para ver o caminho dos níveis.';
+        }
         if (el.moedas.textContent !== String(j.moedas)) {
             el.moedas.textContent = j.moedas;
             const box = el.moedas.parentElement;
@@ -767,12 +803,10 @@
         }
         if (antes && estado.jogador.nivel > antes.jogador.nivel) som.tocar('festa');
         if (antes && estado.jogador.nivel > antes.jogador.nivel) {
-            const novas = estado.culturas.filter((k) => k.nivel_min > antes.jogador.nivel && k.nivel_min <= estado.jogador.nivel);
-            let msg = `${ico('xp', 20)} Nível ${estado.jogador.nivel}!`;
-            const mais = estado.jogador.max_canteiros - antes.jogador.max_canteiros;
-            if (mais > 0) msg += ` · +${mais} canteiros para colocar (Construir → Plantação)`;
-            if (novas.length) msg += ` · Nova semente: ${novas.map((k) => itemDe(k) + esc(k.nome)).join(', ')}`;
-            toast(msg, 'festa');
+            nivelComemorar = { de: antes.jogador.nivel, ate: estado.jogador.nivel };
+            // abre depois da animação da colheita; com outro painel aberto, só avisa
+            if (!painelAtual) setTimeout(() => { if (!painelAtual) abrirPainel('nivel'); }, 700);
+            else toast(`${ico('xp', 20)} Nível ${estado.jogador.nivel}! Toque no seu perfil (lá em cima) para ver o que liberou.`, 'festa');
         }
         avisarDiario();
         atualizarTerreno();
@@ -1152,6 +1186,7 @@
             const minhas = (S.conquistas || []).map((c) => c.id);
             corpo.innerHTML = `
                 <p>Fazendeiro(a): <b>${esc(S.jogador.apelido)}</b> · Nível ${S.jogador.nivel}${S.criado_em ? ` · desde ${desde(S.criado_em)}` : ''}</p>
+                ${boasVindas ? '' : `<p><button type="button" class="botao pequeno creme" data-painel-ir="niveis">${ico('xp', 14)} Ver o caminho dos níveis</button></p>`}
                 ${boasVindas ? '' : `
                 <h3 class="secao-titulo">Conquistas (${minhas.length}/${(S.conquistas_tipos || []).length})</h3>
                 ${htmlConquistas(minhas)}
@@ -1174,6 +1209,7 @@
                     <li>Na loja tem <b>animais</b>: dê ração (sai do celeiro) e colete ovos, leite e lã.</li>
                     <li>No botão <b>Construir</b> você coloca cercas, caminhos, árvores, flores e objetos onde quiser. Toque em <b>Pronto</b> para fechar.</li>
                     <li>Cumpra as <b>missões do dia</b> para ganhar moedas e XP extras.</li>
+                    <li>Cada nível libera coisas novas e dá um presente de moedas. Toque no seu nome, lá em cima, para ver o <b>caminho dos níveis</b>.</li>
                     <li>Em <b>Vizinhos</b> você visita outras fazendas: <b>pega</b> um pouco da colheita madura ou <b>ajuda</b> com os problemas e ganha XP.</li>
                 </ul>
                 <div class="rodape-painel">
@@ -1184,6 +1220,52 @@
                     <a class="botao creme" href="indexversao2.html">Voltar ao portfólio</a>
                     <button type="button" class="botao vermelho" data-sair>Sair desta fazenda</button>`}
                 </div>`;
+        } else if (nome === 'nivel' && nivelComemorar) {
+            const { de, ate } = nivelComemorar;
+            el.painelTitulo.innerHTML = `${ico('xp', 26)} Nível ${ate}!`;
+            let novos = [], canteiros = 0, moedas = 0;
+            for (let n = de + 1; n <= ate; n++) {
+                novos = novos.concat(liberaNoNivel(n));
+                const x = extrasDoNivel(n);
+                canteiros += x.canteiros; moedas += x.moedas;
+            }
+            const proximo = ate < NIVEL_MAX ? liberaNoNivel(ate + 1) : [];
+            corpo.innerHTML = `
+                <div class="nivel-festa"><span class="nivel-numero">${ate}</span><p>Sua fazenda subiu de nível!</p></div>
+                <div class="nivel-ganhos">
+                    ${moedas ? `<span class="ganho">${ico('moeda', 18)} Presente: <b>+${moedas}</b> moedas</span>` : ''}
+                    ${canteiros ? `<span class="ganho">${A.htmlItem('canteiro', 20)} <b>+${canteiros}</b> canteiros para colocar (Construir → Plantação)</span>` : ''}
+                </div>
+                ${novos.length ? `<h3 class="secao-titulo">Liberado agora</h3><div class="chips">${chipsHtml(novos)}</div>` : ''}
+                ${proximo.length ? `<h3 class="secao-titulo">No nível ${ate + 1}</h3><div class="chips chips-futuro">${chipsHtml(proximo)}</div>` : ''}
+                <div class="rodape-painel">
+                    <button type="button" class="botao creme" data-painel-ir="niveis">Ver todos os níveis</button>
+                    <button type="button" class="botao verde" data-fechar>Bora jogar!</button>
+                </div>`;
+        } else if (nome === 'niveis') {
+            const j = S.jogador;
+            el.painelTitulo.innerHTML = `${ico('xp', 26)} Caminho dos níveis`;
+            const falta = j.xp_proximo - j.xp;
+            corpo.innerHTML = `
+                <p>Você está no nível <b>${j.nivel}</b>${j.nivel < NIVEL_MAX ? `: faltam <b>${falta}</b> ${ico('xp', 14)} para o próximo.` : '. Fazenda completa!'}</p>
+                <p class="aviso">Colher, cuidar dos canteiros, os animais e as missões dão XP. Cada nível traz um presente de moedas.</p>
+                <ol class="caminho">${Array.from({ length: NIVEL_MAX }, (_, i) => i + 1).map((n) => {
+                    const x = extrasDoNivel(n);
+                    const lista = liberaNoNivel(n);
+                    const estado = n < j.nivel ? 'feito' : n === j.nivel ? 'atual' : 'futuro';
+                    return `<li class="degrau ${estado}">
+                        <span class="degrau-nv">${n < j.nivel ? ico('check', 14) : n}</span>
+                        <div class="chips">${chipsHtml(lista)}
+                            ${x.canteiros ? `<span class="chip extra">${A.htmlItem('canteiro', 18)}<span>+${x.canteiros} canteiros</span></span>` : ''}
+                            ${x.moedas ? `<span class="chip extra">${ico('moeda', 14)}<span>+${x.moedas}</span></span>` : ''}
+                        </div>
+                    </li>`;
+                }).join('')}</ol>`;
+            // começa mostrando o nível atual
+            requestAnimationFrame(() => {
+                const a = corpo.querySelector('.degrau.atual'), cartao = corpo.closest('.cartao');
+                if (a && cartao) cartao.scrollTop += a.getBoundingClientRect().top - cartao.getBoundingClientRect().top - cartao.clientHeight / 3;
+            });
         } else if (nome === 'perfilVizinho' && visita) {
             const p = visita.perfil || {};
             el.painelTitulo.innerHTML = `${spr(108, 32)} ${esc(visita.apelido)}`;
@@ -1463,6 +1545,8 @@
             visitar(vis.dataset.visitar || null);
             return;
         }
+        const ir = e.target.closest('[data-painel-ir]');
+        if (ir) { abrirPainel(ir.dataset.painelIr); return; }
         if (e.target.closest('[data-fechar]')) {
             fecharPainel();
             if (store.get(LS.tutorial) === null) iniciarTutorial();
@@ -1570,6 +1654,11 @@
     $('tutPular').addEventListener('click', encerrarTutorial);
 
     el.btnConstruir.addEventListener('click', abrirConstrucao);
+    if (el.hudPerfil) {
+        const abrirCaminho = () => { if (S && !painelAtual) abrirPainel('niveis'); };
+        el.hudPerfil.addEventListener('click', abrirCaminho);
+        el.hudPerfil.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrirCaminho(); } });
+    }
     el.barraConstr.addEventListener('click', (e) => {
         const aba = e.target.closest('[data-constr-aba]');
         if (aba) { constr.aba = aba.dataset.constrAba; desenharPaleta(); return; }
