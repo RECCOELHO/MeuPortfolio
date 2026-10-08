@@ -51,7 +51,7 @@ create index if not exists fazenda_sessoes_jogador_idx on public.fazenda_sessoes
 
 create table if not exists public.fazenda_canteiros (
   jogador_id   uuid not null references public.fazenda_jogadores(id) on delete cascade,
-  posicao      smallint not null check (posicao between 0 and 35),
+  posicao      smallint not null check (posicao between 0 and 99),
   estado       text not null default 'vazio' check (estado in ('vazio', 'arado', 'plantado')),
   cultura      text references public.fazenda_culturas(id),
   plantado_em  timestamptz,
@@ -72,12 +72,30 @@ create table if not exists public.fazenda_celeiro (
 -- Fase 2: quanto já foi "pego" por vizinhos do plantio atual
 alter table public.fazenda_canteiros add column if not exists roubado int not null default 0;
 
--- Terrenos: até 3 fileiras compradas de 6 canteiros (posições 18 a 35)
-alter table public.fazenda_canteiros drop constraint if exists fazenda_canteiros_posicao_check;
-alter table public.fazenda_canteiros add constraint fazenda_canteiros_posicao_check check (posicao between 0 and 35);
+-- Terrenos, versão 1 (fileiras de canteiros compradas): trocados na fase 5 pela
+-- plantação livre + terrenos que aumentam o mapa. A coluna fica só para a devolução abaixo.
 alter table public.fazenda_jogadores add column if not exists terrenos int not null default 0;
-alter table public.fazenda_jogadores drop constraint if exists fazenda_jogadores_terrenos_check;
-alter table public.fazenda_jogadores add constraint fazenda_jogadores_terrenos_check check (terrenos between 0 and 3);
+
+-- Fase 5: cada canteiro tem seu lugar no mapa (x, y) e pode ser colocado,
+-- movido e guardado no modo construir. posicao continua sendo o "nome" dele.
+alter table public.fazenda_canteiros drop constraint if exists fazenda_canteiros_posicao_check;
+alter table public.fazenda_canteiros add constraint fazenda_canteiros_posicao_check check (posicao between 0 and 99);
+alter table public.fazenda_canteiros add column if not exists x smallint;
+alter table public.fazenda_canteiros add column if not exists y smallint;
+-- os canteiros que já existiam ficam onde estavam (campo de 6 colunas a partir de (9, 4))
+update public.fazenda_canteiros set x = 9 + posicao % 6, y = 4 + posicao / 6 where x is null or y is null;
+alter table public.fazenda_canteiros alter column x set not null;
+alter table public.fazenda_canteiros alter column y set not null;
+create unique index if not exists fazenda_canteiros_lugar_idx on public.fazenda_canteiros (jogador_id, x, y);
+
+-- Fase 5: terrenos comprados (áreas de mata em volta; ver fazenda_zonas)
+alter table public.fazenda_jogadores add column if not exists zonas int not null default 0;
+alter table public.fazenda_jogadores drop constraint if exists fazenda_jogadores_zonas_check;
+alter table public.fazenda_jogadores add constraint fazenda_jogadores_zonas_check check (zonas between 0 and 3);
+-- quem comprou fileiras na versão 1 recebe as moedas de volta (e fica com os canteiros)
+update public.fazenda_jogadores
+   set moedas = moedas + case terrenos when 1 then 400 when 2 then 1600 else 4600 end, terrenos = 0
+ where terrenos > 0;
 
 -- Fase 2: visitas de vizinhos (roubos e ajudas) — também é o diário do dono
 create table if not exists public.fazenda_visitas (
@@ -153,7 +171,13 @@ alter table public.fazenda_itens add column if not exists largura smallint not n
 alter table public.fazenda_itens add column if not exists altura smallint not null default 1;
 alter table public.fazenda_itens drop constraint if exists fazenda_itens_categoria_check;
 alter table public.fazenda_itens add constraint fazenda_itens_categoria_check
-  check (categoria in ('caminho', 'natureza', 'objeto', 'construcao'));
+  check (categoria in ('caminho', 'natureza', 'objeto', 'construcao', 'maquina'));
+-- Fase 5: máquinas. efeito = o que fazem; raio = alcance em quadrados (0 = fazenda toda);
+-- limite = quantas cada jogador pode ter (null = à vontade)
+alter table public.fazenda_itens add column if not exists efeito text;
+alter table public.fazenda_itens add column if not exists raio smallint not null default 0;
+alter table public.fazenda_itens add column if not exists limite smallint;
+alter table public.fazenda_itens add column if not exists descricao text;
 
 -- Fase 4: números de cada jogador (para conquistas e perfil)
 create table if not exists public.fazenda_estatisticas (
@@ -302,6 +326,34 @@ on conflict (id) do update set
   nivel_min = excluded.nivel_min, ordem = excluded.ordem,
   largura = excluded.largura, altura = excluded.altura;
 
+-- Máquinas — fase 5 (arte: Tiny Factory, Kenney)
+insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem, efeito, raio, limite, descricao) values
+  ('irrigador',     'Irrigador',         'maquina',  200, 3, 50, 'seco',     2, null, 'Sem seca nos canteiros em volta (2 quadrados).'),
+  ('pulverizador',  'Pulverizador',      'maquina',  300, 4, 51, 'praga',    2, null, 'Sem pragas nos canteiros em volta (2 quadrados).'),
+  ('alarme',        'Alarme antiladrão', 'maquina',  400, 4, 52, 'alarme',   3, null, 'Vizinhos não pegam nada dos canteiros em volta (3 quadrados).'),
+  ('robo_capina',   'Robô capinador',    'maquina',  450, 5, 53, 'erva',     2, null, 'Sem ervas daninhas nos canteiros em volta (2 quadrados).'),
+  ('trator',        'Trator',            'maquina', 1500, 6, 54, 'arar',     0, 1,    'Depois da colheita o canteiro já fica arado (fazenda toda).'),
+  ('colheitadeira', 'Colheitadeira',     'maquina', 3000, 8, 55, 'colheita', 0, 1,    '+1 item em cada colheita (fazenda toda).')
+on conflict (id) do update set
+  nome = excluded.nome, categoria = excluded.categoria, custo = excluded.custo,
+  nivel_min = excluded.nivel_min, ordem = excluded.ordem, efeito = excluded.efeito,
+  raio = excluded.raio, limite = excluded.limite, descricao = excluded.descricao;
+
+-- O jogador tem alguma máquina com esse efeito? (trator, colheitadeira)
+create or replace function public.fazenda_tem_efeito(p_jogador uuid, p_efeito text)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from fazenda_construcoes c join fazenda_itens i on i.id = c.tipo
+                  where c.jogador_id = p_jogador and i.efeito = p_efeito);
+$$;
+
+-- O quadrado (x, y) está no alcance de uma máquina com esse efeito? (irrigador, alarme...)
+create or replace function public.fazenda_protegido(p_jogador uuid, p_efeito text, p_x int, p_y int)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from fazenda_construcoes c join fazenda_itens i on i.id = c.tipo
+                  where c.jogador_id = p_jogador and i.efeito = p_efeito
+                    and abs(c.x - p_x) <= i.raio and abs(c.y - p_y) <= i.raio);
+$$;
+
 insert into public.fazenda_conquistas_tipos (id, nome, descricao, medida, meta, recompensa, ordem) values
   ('primeira_colheita', 'Primeira colheita',   'Colha pela primeira vez',         'colher',        1,   20,  1),
   ('colhedor',          'Colhedor',            'Colha 100 itens',                 'colher',      100,  100,  2),
@@ -352,10 +404,31 @@ returns int language sql immutable as $$
   select least(6 + (p_nivel - 1) * 2, 18);
 $$;
 
--- Terrenos à venda (fileiras abaixo do campo): preço e nível mínimo de cada um
-create or replace function public.fazenda_terrenos_venda()
+drop function if exists public.fazenda_terrenos_venda();
+
+-- Terrenos à venda: áreas de mata em volta da fazenda (22 x 13), compradas em ordem.
+-- Precisa bater com ZONAS em assets/fazenda/fazenda-arte.js.
+create or replace function public.fazenda_zonas()
 returns jsonb language sql immutable as $$
-  select '[{"n":1,"custo":400,"nivel":3},{"n":2,"custo":1200,"nivel":5},{"n":3,"custo":3000,"nivel":7}]'::jsonb;
+  select '[{"n":1,"nome":"Campo do sul","x":0,"y":13,"w":22,"h":7,"custo":500,"nivel":4},
+           {"n":2,"nome":"Mata do leste","x":22,"y":0,"w":10,"h":13,"custo":1500,"nivel":5},
+           {"n":3,"nome":"Vale do sudeste","x":22,"y":13,"w":10,"h":7,"custo":3500,"nivel":7}]'::jsonb;
+$$;
+
+-- (x, y) fica dentro do terreno de quem já comprou p_zonas terrenos?
+create or replace function public.fazenda_no_terreno(p_zonas int, p_x int, p_y int)
+returns boolean language sql immutable as $$
+  select (p_x between 0 and 21 and p_y between 0 and 12)
+      or exists (select 1 from jsonb_array_elements(fazenda_zonas()) z
+                  where (z->>'n')::int <= p_zonas
+                    and p_x >= (z->>'x')::int and p_x < (z->>'x')::int + (z->>'w')::int
+                    and p_y >= (z->>'y')::int and p_y < (z->>'y')::int + (z->>'h')::int);
+$$;
+
+-- Quantos canteiros o jogador pode ter: cresce com o nível e com os terrenos
+create or replace function public.fazenda_limite_canteiros(p_nivel int, p_zonas int)
+returns int language sql immutable as $$
+  select least(6 + (p_nivel - 1) * 2, 30) + 6 * p_zonas;
 $$;
 
 create or replace function public.fazenda_auth(p_token text)
@@ -412,7 +485,7 @@ declare
   i        int;
 begin
   for r in
-    select c.posicao, c.plantado_em, c.prox_evento, c.erva, c.praga, c.seco, k.tempo_seg
+    select c.posicao, c.x, c.y, c.plantado_em, c.prox_evento, c.erva, c.praga, c.seco, k.tempo_seg
       from fazenda_canteiros c
       join fazenda_culturas k on k.id = c.cultura
      where c.jogador_id = p_jogador
@@ -427,9 +500,10 @@ begin
     i := 0;
     while v_evt <= now() and v_evt < v_maduro and i < 3 loop
       v_tipo := floor(random() * 3)::int;
-      if v_tipo = 0 then v_erva := true;
-      elsif v_tipo = 1 then v_praga := true;
-      else v_seco := true;
+      -- máquina por perto evita o problema (robô capinador, pulverizador, irrigador)
+      if v_tipo = 0 then v_erva := v_erva or not fazenda_protegido(p_jogador, 'erva', r.x, r.y);
+      elsif v_tipo = 1 then v_praga := v_praga or not fazenda_protegido(p_jogador, 'praga', r.x, r.y);
+      else v_seco := v_seco or not fazenda_protegido(p_jogador, 'seco', r.x, r.y);
       end if;
       v_evt := v_evt + make_interval(secs => r.tempo_seg * (0.25 + random() * 0.35));
       i := i + 1;
@@ -457,16 +531,8 @@ begin
   perform fazenda_checar_conquistas(p_jogador);
   select * into j from fazenda_jogadores where id = p_jogador;
   v_nivel := fazenda_nivel(j.xp);
-  v_max := fazenda_max_canteiros(v_nivel);
-
-  -- Libera canteiros novos conforme o nível
-  insert into fazenda_canteiros (jogador_id, posicao)
-  select p_jogador, g from generate_series(0, v_max - 1) g
-  on conflict do nothing;
-  -- e os dos terrenos comprados
-  insert into fazenda_canteiros (jogador_id, posicao)
-  select p_jogador, g from generate_series(18, 17 + 6 * j.terrenos) g
-  on conflict do nothing;
+  -- canteiros não aparecem mais sozinhos: o jogador coloca no modo construir até este limite
+  v_max := fazenda_limite_canteiros(v_nivel, j.zonas);
 
   perform fazenda_gerar_missoes(p_jogador);
 
@@ -481,12 +547,12 @@ begin
       'xp_nivel', 25 * (v_nivel - 1) * (v_nivel - 1),
       'xp_proximo', 25 * v_nivel * v_nivel,
       'max_canteiros', v_max,
-      'terrenos', j.terrenos
+      'zonas', j.zonas
     ),
-    'terrenos_venda', fazenda_terrenos_venda(),
+    'zonas_venda', fazenda_zonas(),
     'canteiros', coalesce((
       select jsonb_agg(jsonb_build_object(
-               'posicao', posicao, 'estado', estado, 'cultura', cultura,
+               'posicao', posicao, 'x', x, 'y', y, 'estado', estado, 'cultura', cultura,
                'plantado_em', plantado_em, 'erva', erva, 'praga', praga, 'seco', seco,
                'roubado', roubado)
              order by posicao)
@@ -627,14 +693,16 @@ begin
       raise exception 'murchou';
     end if;
     -- cada problema não resolvido custa 1 unidade; o que os vizinhos pegaram também sai
-    v_qtd := greatest(k.rendimento - (c.erva::int + c.praga::int + c.seco::int) - c.roubado, 1);
+    v_qtd := greatest(k.rendimento - (c.erva::int + c.praga::int + c.seco::int) - c.roubado, 1)
+             + fazenda_tem_efeito(p_jogador, 'colheita')::int;   -- colheitadeira
     insert into fazenda_celeiro (jogador_id, item, quantidade)
     values (p_jogador, k.id, v_qtd)
     on conflict (jogador_id, item)
     do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
     update fazenda_jogadores set xp = xp + k.xp where id = p_jogador;
-    update fazenda_canteiros
-       set estado = 'vazio', cultura = null, plantado_em = null,
+    update fazenda_canteiros   -- com trator, o canteiro já fica arado
+       set estado = case when fazenda_tem_efeito(p_jogador, 'arar') then 'arado' else 'vazio' end,
+           cultura = null, plantado_em = null,
            erva = false, praga = false, seco = false, roubado = 0, prox_evento = null
      where jogador_id = p_jogador and posicao = p_posicao;
     perform fazenda_missao(p_jogador, 'colher', v_qtd);
@@ -689,8 +757,8 @@ begin
   returning id into v_id;
 
   -- Começa com 6 canteiros já arados
-  insert into fazenda_canteiros (jogador_id, posicao, estado)
-  select v_id, g, 'arado' from generate_series(0, 5) g;
+  insert into fazenda_canteiros (jogador_id, posicao, estado, x, y)
+  select v_id, g, 'arado', 9 + g, 4 from generate_series(0, 5) g;
 
   return jsonb_build_object(
     'token', fazenda_nova_sessao(v_id),
@@ -753,7 +821,7 @@ begin
   if p_posicoes is null or array_length(p_posicoes, 1) is null then
     raise exception 'nada_a_fazer';
   end if;
-  if array_length(p_posicoes, 1) > 36 then
+  if array_length(p_posicoes, 1) > 100 then
     raise exception 'acao_invalida';
   end if;
 
@@ -859,10 +927,10 @@ begin
     'apelido', j.apelido,
     'nivel', v_nivel,
     'max_canteiros', fazenda_max_canteiros(v_nivel),
-    'terrenos', j.terrenos,
+    'zonas', j.zonas,
     'canteiros', coalesce((
       select jsonb_agg(jsonb_build_object(
-               'posicao', c.posicao, 'estado', c.estado, 'cultura', c.cultura,
+               'posicao', c.posicao, 'x', c.x, 'y', c.y, 'estado', c.estado, 'cultura', c.cultura,
                'plantado_em', c.plantado_em, 'erva', c.erva, 'praga', c.praga, 'seco', c.seco,
                'roubado', c.roubado,
                'ja_peguei', exists (
@@ -911,6 +979,9 @@ begin
   end if;
   if now() >= v_maduro + make_interval(secs => greatest(k.tempo_seg * 2, 3600)) then
     raise exception 'murchou';
+  end if;
+  if fazenda_protegido(p_dono, 'alarme', c.x, c.y) then
+    raise exception 'alarme';
   end if;
   if exists (select 1 from fazenda_visitas
               where tipo = 'roubo' and ator_id = p_ator and dono_id = p_dono
@@ -1078,7 +1149,7 @@ begin
   if p_posicoes is null or array_length(p_posicoes, 1) is null then
     raise exception 'nada_a_fazer';
   end if;
-  if array_length(p_posicoes, 1) > 36 then
+  if array_length(p_posicoes, 1) > 100 then
     raise exception 'acao_invalida';
   end if;
 
@@ -1309,24 +1380,14 @@ begin
     insert into fazenda_animais (jogador_id, tipo) values (v_id, a.id);
 
   elsif p_categoria = 'terreno' then
-    -- sempre o próximo da fila (p_tipo é ignorado)
-    if j.terrenos >= 3 then raise exception 'terreno_max'; end if;
-    select (t->>'custo')::int as custo, (t->>'nivel')::int as nivel into a
-      from jsonb_array_elements(fazenda_terrenos_venda()) t
-     where (t->>'n')::int = j.terrenos + 1;
+    -- sempre o próximo terreno da fila (p_tipo é ignorado)
+    if j.zonas >= 3 then raise exception 'terreno_max'; end if;
+    select (z->>'custo')::int as custo, (z->>'nivel')::int as nivel into a
+      from jsonb_array_elements(fazenda_zonas()) z
+     where (z->>'n')::int = j.zonas + 1;
     if fazenda_nivel(j.xp) < a.nivel then raise exception 'nivel_insuficiente'; end if;
-    -- construções antigas em cima da fileira precisam sair antes
-    if exists (select 1 from fazenda_construcoes c join fazenda_itens k on k.id = c.tipo
-                where c.jogador_id = v_id
-                  and c.x <= 14 and c.x + k.largura > 9
-                  and c.y <= 7 + j.terrenos and c.y + k.altura > 7 + j.terrenos) then
-      raise exception 'terreno_ocupado';
-    end if;
     if j.moedas < a.custo then raise exception 'moedas_insuficientes'; end if;
-    update fazenda_jogadores set moedas = moedas - a.custo, terrenos = terrenos + 1 where id = v_id;
-    insert into fazenda_canteiros (jogador_id, posicao)
-    select v_id, g from generate_series(18 + 6 * j.terrenos, 23 + 6 * j.terrenos) g
-    on conflict do nothing;
+    update fazenda_jogadores set moedas = moedas - a.custo, zonas = zonas + 1 where id = v_id;
 
   else
     raise exception 'item_invalido';
@@ -1375,13 +1436,38 @@ $$;
      campo x9..14 y3..6 · pasto x16..21 y0..6 */
 create or replace function public.fazenda_livre(p_x int, p_y int)
 returns boolean language sql immutable as $$
-  select p_x between 0 and 21 and p_y between 0 and 12
-     and not (p_x between 1 and 3  and p_y between 1 and 6)
-     and not (p_x between 5 and 7  and p_y between 1 and 3)
-     and not (p_x between 0 and 6  and p_y between 7 and 8)
-     and not (p_x between 9 and 14 and p_y between 3 and 6)
-     and not (p_x between 16 and 21 and p_y between 0 and 6)
-     and not (p_x between 9 and 14 and p_y between 7 and 9);   -- terrenos à venda
+  select p_x between 0 and 31 and p_y between 0 and 19
+     and not (p_x between 1 and 3  and p_y between 1 and 6)     -- celeiro
+     and not (p_x between 5 and 7  and p_y between 1 and 3)     -- casa
+     and not (p_x between 0 and 6  and p_y between 7 and 8)     -- galinheiro
+     and not (p_x between 16 and 21 and p_y between 0 and 6);   -- pasto
+$$;
+
+-- Confere se dá para pôr algo de p_w x p_h em (p_x, p_y): dentro do terreno, fora
+-- das áreas fixas e sem bater em construções ou canteiros (menos o que está sendo movido)
+create or replace function public.fazenda_checar_lugar(p_jogador uuid, p_zonas int, p_x int, p_y int, p_w int, p_h int,
+                                                       p_ign_x int default null, p_ign_y int default null,
+                                                       p_ign_canteiro int default null)
+returns void
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+begin
+  if exists (select 1 from generate_series(p_x, p_x + p_w - 1) gx, generate_series(p_y, p_y + p_h - 1) gy
+              where not fazenda_livre(gx, gy) or not fazenda_no_terreno(p_zonas, gx, gy)) then
+    raise exception 'lugar_reservado';
+  end if;
+  if exists (select 1 from fazenda_construcoes c join fazenda_itens k on k.id = c.tipo
+              where c.jogador_id = p_jogador
+                and not (c.x is not distinct from p_ign_x and c.y is not distinct from p_ign_y)
+                and c.x < p_x + p_w and p_x < c.x + k.largura
+                and c.y < p_y + p_h and p_y < c.y + k.altura)
+     or exists (select 1 from fazenda_canteiros c
+                 where c.jogador_id = p_jogador and c.posicao is distinct from p_ign_canteiro
+                   and c.x between p_x and p_x + p_w - 1 and c.y between p_y and p_y + p_h - 1) then
+    raise exception 'lugar_ocupado';
+  end if;
+end;
 $$;
 
 -- Compra um item e coloca no quadrado (x, y)
@@ -1391,24 +1477,34 @@ language plpgsql security definer
 set search_path = public, extensions
 as $$
 declare
-  v_id uuid := fazenda_auth(p_token);
-  j    record;
-  i    record;
+  v_id  uuid := fazenda_auth(p_token);
+  j     record;
+  i     record;
+  v_pos int;
 begin
   select * into j from fazenda_jogadores where id = v_id for update;
+
+  -- canteiro: não é item da loja, é um lugar de plantar (limite pelo nível e terrenos)
+  if p_tipo = 'canteiro' then
+    if (select count(*) from fazenda_canteiros where jogador_id = v_id)
+       >= fazenda_limite_canteiros(fazenda_nivel(j.xp), j.zonas) then
+      raise exception 'limite_canteiros';
+    end if;
+    perform fazenda_checar_lugar(v_id, j.zonas, p_x, p_y, 1, 1);
+    select min(g) into v_pos from generate_series(0, 99) g
+     where not exists (select 1 from fazenda_canteiros where jogador_id = v_id and posicao = g);
+    if v_pos is null then raise exception 'limite_canteiros'; end if;
+    insert into fazenda_canteiros (jogador_id, posicao, estado, x, y) values (v_id, v_pos, 'vazio', p_x, p_y);
+    return jsonb_build_object('estado', fazenda_estado(v_id), 'posicao', v_pos);
+  end if;
+
   select * into i from fazenda_itens where id = p_tipo;
   if not found then raise exception 'item_invalido'; end if;
   if fazenda_nivel(j.xp) < i.nivel_min then raise exception 'nivel_insuficiente'; end if;
-  -- todos os quadrados da área precisam estar livres
-  if exists (select 1 from generate_series(p_x, p_x + i.largura - 1) gx, generate_series(p_y, p_y + i.altura - 1) gy
-              where not fazenda_livre(gx, gy)) then
-    raise exception 'lugar_reservado';
-  end if;
-  if exists (select 1 from fazenda_construcoes c join fazenda_itens k on k.id = c.tipo
-              where c.jogador_id = v_id
-                and c.x < p_x + i.largura and p_x < c.x + k.largura
-                and c.y < p_y + i.altura  and p_y < c.y + k.altura) then
-    raise exception 'lugar_ocupado';
+  perform fazenda_checar_lugar(v_id, j.zonas, p_x, p_y, i.largura, i.altura);
+  if i.limite is not null
+     and (select count(*) from fazenda_construcoes where jogador_id = v_id and tipo = i.id) >= i.limite then
+    raise exception 'limite_maquina';
   end if;
   if (select count(*) from fazenda_construcoes where jogador_id = v_id) >= 200 then
     raise exception 'limite_construcoes';
@@ -1427,22 +1523,24 @@ language plpgsql security definer
 set search_path = public, extensions
 as $$
 declare
-  v_id uuid := fazenda_auth(p_token);
-  i    record;
+  v_id  uuid := fazenda_auth(p_token);
+  j     record;
+  i     record;
+  v_pos int;
 begin
+  select * into j from fazenda_jogadores where id = v_id for update;
+  -- canteiro (mesmo plantado: a planta vai junto)
+  select posicao into v_pos from fazenda_canteiros where jogador_id = v_id and x = p_x and y = p_y;
+  if v_pos is not null then
+    perform fazenda_checar_lugar(v_id, j.zonas, p_nx, p_ny, 1, 1, null, null, v_pos);
+    update fazenda_canteiros set x = p_nx, y = p_ny where jogador_id = v_id and posicao = v_pos;
+    return jsonb_build_object('estado', fazenda_estado(v_id));
+  end if;
+
   select k.* into i from fazenda_construcoes c join fazenda_itens k on k.id = c.tipo
    where c.jogador_id = v_id and c.x = p_x and c.y = p_y;
   if not found then raise exception 'item_invalido'; end if;
-  if exists (select 1 from generate_series(p_nx, p_nx + i.largura - 1) gx, generate_series(p_ny, p_ny + i.altura - 1) gy
-              where not fazenda_livre(gx, gy)) then
-    raise exception 'lugar_reservado';
-  end if;
-  if exists (select 1 from fazenda_construcoes c join fazenda_itens k on k.id = c.tipo
-              where c.jogador_id = v_id and not (c.x = p_x and c.y = p_y)
-                and c.x < p_nx + i.largura and p_nx < c.x + k.largura
-                and c.y < p_ny + i.altura  and p_ny < c.y + k.altura) then
-    raise exception 'lugar_ocupado';
-  end if;
+  perform fazenda_checar_lugar(v_id, j.zonas, p_nx, p_ny, i.largura, i.altura, p_x, p_y);
   update fazenda_construcoes set x = p_nx, y = p_ny
    where jogador_id = v_id and x = p_x and y = p_y;
   if not found then raise exception 'item_invalido'; end if;
@@ -1459,7 +1557,16 @@ as $$
 declare
   v_id   uuid := fazenda_auth(p_token);
   v_tipo text;
+  c      record;
 begin
+  -- canteiro: só sai vazio ou arado (planta crescendo, colha ou limpe antes)
+  select * into c from fazenda_canteiros where jogador_id = v_id and x = p_x and y = p_y for update;
+  if found then
+    if c.estado = 'plantado' then raise exception 'canteiro_ocupado'; end if;
+    delete from fazenda_canteiros where jogador_id = v_id and posicao = c.posicao;
+    return jsonb_build_object('devolvido', 0, 'estado', fazenda_estado(v_id));
+  end if;
+
   delete from fazenda_construcoes where jogador_id = v_id and x = p_x and y = p_y
   returning tipo into v_tipo;
   if v_tipo is null then raise exception 'item_invalido'; end if;
@@ -1499,7 +1606,12 @@ $$;
 revoke execute on function
   public.fazenda_nivel(int),
   public.fazenda_max_canteiros(int),
-  public.fazenda_terrenos_venda(),
+  public.fazenda_zonas(),
+  public.fazenda_no_terreno(int, int, int),
+  public.fazenda_limite_canteiros(int, int),
+  public.fazenda_tem_efeito(uuid, text),
+  public.fazenda_protegido(uuid, text, int, int),
+  public.fazenda_checar_lugar(uuid, int, int, int, int, int, int, int, int),
   public.fazenda_auth(text),
   public.fazenda_nova_sessao(uuid),
   public.fazenda_tick(uuid),
