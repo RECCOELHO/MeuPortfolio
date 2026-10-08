@@ -879,6 +879,13 @@
             });
 
             for (const a of atores.values()) if (a.v) desenharSinalAnimal(a, tempo);
+            for (const c of lista) {
+                if (!c.pronto || c.produto == null) continue;
+                const x = wx(c.x), by = wy(c.y) - 21 + (Math.floor(tempo / 350) % 2);
+                balao(x - 2, by, 20, 18);
+                tile(q, c.produto, x, by + 1);
+                if (Math.floor(tempo / 300) % 3) icone(q, 'brilho', x + 15, by - 3);
+            }
 
             if (construcao.ativo) {
                 desenharGrade(m, tempo);
@@ -887,6 +894,10 @@
                 moldura(x, y, T, T);
             } else if (hover === 'venda' && zonaVenda) {
                 moldura(wx(zonaVenda.placa.x), wy(zonaVenda.placa.y), T, T);
+            } else if (typeof hover === 'string' && hover.startsWith('c:')) {
+                const [hx, hy] = hover.slice(2).split(',').map(Number);
+                const c = lista.find((k) => k.x === hx && k.y === hy);
+                if (c) { const a = arteItem(c.tipo, EST); moldura(wx(hx), wy(hy), T * (a.w || 1), T * (a.h || 1)); }
             } else if (hover === 'celeiro') {
                 const c = retCeleiro();
                 moldura(c.x, c.y + T, c.w, c.h - T);
@@ -921,6 +932,11 @@
             }
             const cant = listaCanteiros().find((k) => k.x === tx && k.y === ty);
             if (cant) return cant.posicao;
+            const cons = (construcoesFn() || []).find((c) => {
+                const a = arteItem(c.tipo, EST);
+                return tx >= c.x && ty >= c.y && tx < c.x + (a.w || 1) && ty < c.y + (a.h || 1);
+            });
+            if (cons) return 'c:' + cons.x + ',' + cons.y;
             const c = retCeleiro();
             if (px >= c.x && py >= c.y && px < c.x + c.w && py < c.y + c.h) return 'celeiro';
             // terreno à venda: a placa ou qualquer pedaço de mata dele
@@ -930,6 +946,10 @@
 
         function traduzir(alvo) {
             if (typeof alvo === 'string' && alvo.startsWith('a:')) return { animal: idDoHover(alvo) };
+            if (typeof alvo === 'string' && alvo.startsWith('c:')) {
+                const [x, y] = alvo.slice(2).split(',').map(Number);
+                return { construcao: { x, y } };
+            }
             return alvo;
         }
 
@@ -992,6 +1012,7 @@
             if (typeof alvo === 'object' && 'tx' in alvo) { if (cb.aoTile) cb.aoTile(alvo.tx, alvo.ty); }
             else if (alvo === 'celeiro') { if (cb.aoCeleiro) cb.aoCeleiro(); }
             else if (alvo === 'venda') { if (cb.aoVenda) cb.aoVenda(); }
+            else if (typeof alvo === 'object' && alvo.construcao) { if (cb.aoConstrucao) cb.aoConstrucao(alvo.construcao.x, alvo.construcao.y); }
             else if (typeof alvo === 'object') { if (cb.aoAnimal) cb.aoAnimal(alvo.animal); }
             else if (cb.aoCanteiro) cb.aoCanteiro(alvo);
         }

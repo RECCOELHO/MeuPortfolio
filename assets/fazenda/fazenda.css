@@ -1261,6 +1261,12 @@ body.construindo .status {
     }
 }
 
+/* ---------- Bônus dos itens (no status dos canteiros e no celeiro) ---------- */
+.bonus-txt {
+    color: var(--grama-esc);
+    font-weight: 800;
+}
+
 /* ---------- Níveis: perfil clicável, comemoração e caminho ---------- */
 .hud-perfil {
     cursor: pointer;

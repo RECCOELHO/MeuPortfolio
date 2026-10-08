@@ -184,6 +184,13 @@ alter table public.fazenda_itens add column if not exists efeito text;
 alter table public.fazenda_itens add column if not exists raio smallint not null default 0;
 alter table public.fazenda_itens add column if not exists limite smallint;
 alter table public.fazenda_itens add column if not exists descricao text;
+-- Fase 6: todo item faz alguma coisa. beleza = pontos que viram bônus nas vendas;
+-- produz/produz_seg/produz_qtd = itens que dão colheita sozinhos (amoreira)
+alter table public.fazenda_itens add column if not exists beleza smallint not null default 0;
+alter table public.fazenda_itens add column if not exists produz text references public.fazenda_culturas(id);
+alter table public.fazenda_itens add column if not exists produz_seg int;
+alter table public.fazenda_itens add column if not exists produz_qtd int;
+alter table public.fazenda_construcoes add column if not exists colhido_em timestamptz;
 
 -- Fase 4: números de cada jogador (para conquistas e perfil)
 create table if not exists public.fazenda_estatisticas (
@@ -358,6 +365,56 @@ returns boolean language sql stable security definer set search_path = public as
   select exists (select 1 from fazenda_construcoes c join fazenda_itens i on i.id = c.tipo
                   where c.jogador_id = p_jogador and i.efeito = p_efeito
                     and abs(c.x - p_x) <= i.raio and abs(c.y - p_y) <= i.raio);
+$$;
+
+-- Fase 6: o que cada enfeite faz. Efeitos em volta (raio): seco/praga/erva (evitam o
+-- problema), crescer (planta 10% mais rápida), adubo (+1 item), xp (+1 XP), sorte (15%
+-- de colheita em dobro), cerca (vizinho pega no máximo 1). Na fazenda toda (raio 0):
+-- feno (animais 20% mais rápidos), venda (+10% nas vendas), missao (+25% nas missões).
+-- Beleza: a soma de tudo vira bônus nas vendas (+1% a cada 10 pontos, até +20%).
+-- As descrições aparecem no jogo; os efeitos valem no servidor (funções abaixo).
+update public.fazenda_itens i
+   set efeito = v.efeito, raio = v.raio, beleza = v.beleza, descricao = v.descricao,
+       produz = v.produz, produz_seg = v.produz_seg, produz_qtd = v.produz_qtd
+  from (values
+    ('cerca',         'cerca'::text,  1::smallint,  1::smallint, 'Vizinhos pegam no máximo 1 item dos canteiros encostados.'::text, null::text, null::int, null::int),
+    ('caminho_terra', null,           0,  1, 'Deixa a fazenda mais bonita: +1 de beleza (beleza dá bônus nas vendas).', null, null, null),
+    ('caminho_pedra', null,           0,  2, 'Deixa a fazenda mais bonita: +2 de beleza (beleza dá bônus nas vendas).', null, null, null),
+    ('flores',        'xp',           1,  2, '+1 XP ao colher os canteiros encostados.', null, null, null),
+    ('girassol',      'crescer',      1,  3, 'Plantas encostadas crescem 10% mais rápido.', null, null, null),
+    ('arbusto',       'praga',        1,  2, 'Joaninhas: sem pragas nos canteiros encostados.', null, null, null),
+    ('cogumelos',     'adubo',        1,  2, 'Adubo natural: +1 item na colheita dos canteiros encostados.', null, null, null),
+    ('arvore',        'seco',         1,  4, 'Sombra: sem seca nos canteiros encostados.', null, null, null),
+    ('arvore_outono', 'crescer',      1,  4, 'Folhas viram adubo: plantas encostadas crescem 10% mais rápido.', null, null, null),
+    ('pinheiro',      'praga',        2,  4, 'Passarinhos: sem pragas em volta (2 quadrados).', null, null, null),
+    ('amoreira',      null,           0,  3, 'Dá 2 amoras a cada 6 horas: toque nela para colher.', 'morango', 21600, 2),
+    ('pedras',        'erva',         1,  1, 'Cobertura de pedras: sem erva daninha nos canteiros encostados.', null, null, null),
+    ('tora',          'crescer',      1,  2, 'Minhocas: plantas encostadas crescem 10% mais rápido.', null, null, null),
+    ('placa',         'cerca',        2,  1, '"Proibido pegar": vizinhos pegam no máximo 1 item em volta (2 quadrados).', null, null, null),
+    ('balde',         'seco',         1,  1, 'Sem seca nos canteiros encostados.', null, null, null),
+    ('barril',        'adubo',        1,  2, 'Barril de adubo: +1 item na colheita dos canteiros encostados.', null, null, null),
+    ('feno',          'feno',         0,  2, 'Animais produzem 20% mais rápido (fazenda toda, não acumula).', null, null, null),
+    ('alvo',          'sorte',        2,  2, 'Sorte: 15% de chance de colheita em dobro em volta (2 quadrados).', null, null, null),
+    ('caixote',       'venda',        0,  2, '+10% no preço de venda (fazenda toda, não acumula).', null, null, null),
+    ('colmeia',       'adubo',        2,  3, 'Abelhas: +1 item na colheita em volta (2 quadrados).', null, null, null),
+    ('bau',           'missao',       0,  3, '+25% de moedas nas missões (fazenda toda, não acumula).', null, null, null),
+    ('boneco_neve',   'xp',           2,  5, 'Mascote: +1 XP ao colher em volta (2 quadrados).', null, null, null),
+    ('casa_vermelha', null,           0, 20, 'Casinha: +20 de beleza (beleza dá bônus nas vendas).', null, null, null),
+    ('casa_azul',     null,           0, 30, 'Casinha: +30 de beleza (beleza dá bônus nas vendas).', null, null, null)
+  ) v(id, efeito, raio, beleza, descricao, produz, produz_seg, produz_qtd)
+ where i.id = v.id;
+
+-- Beleza da fazenda (soma dos itens construídos)
+create or replace function public.fazenda_beleza(p_jogador uuid)
+returns int language sql stable security definer set search_path = public as $$
+  select coalesce(sum(i.beleza), 0)::int from fazenda_construcoes c join fazenda_itens i on i.id = c.tipo
+   where c.jogador_id = p_jogador;
+$$;
+
+-- Bônus nas vendas, em %: beleza (+1% a cada 10, até 20) + caixote (+10)
+create or replace function public.fazenda_bonus_venda(p_jogador uuid)
+returns int language sql stable security definer set search_path = public as $$
+  select least(fazenda_beleza(p_jogador) / 10, 20) + 10 * fazenda_tem_efeito(p_jogador, 'venda')::int;
 $$;
 
 insert into public.fazenda_conquistas_tipos (id, nome, descricao, medida, meta, recompensa, ordem) values
@@ -568,7 +625,9 @@ begin
       'xp_nivel', 25 * (v_nivel - 1) * (v_nivel - 1),
       'xp_proximo', 25 * v_nivel * v_nivel,
       'max_canteiros', v_max,
-      'zonas', j.zonas
+      'zonas', j.zonas,
+      'beleza', fazenda_beleza(p_jogador),
+      'bonus_venda', fazenda_bonus_venda(p_jogador)
     ),
     'zonas_venda', fazenda_zonas(),
     'canteiros', coalesce((
@@ -607,7 +666,7 @@ begin
     'animais_tipos', (
       select jsonb_agg(to_jsonb(t) order by t.ordem) from fazenda_animais_tipos t),
     'construcoes', coalesce((
-      select jsonb_agg(jsonb_build_object('x', x, 'y', y, 'tipo', tipo))
+      select jsonb_agg(jsonb_build_object('x', x, 'y', y, 'tipo', tipo, 'colhido_em', colhido_em))
         from fazenda_construcoes where jogador_id = p_jogador), '[]'::jsonb),
     'itens', (
       select jsonb_agg(to_jsonb(t) order by t.ordem) from fazenda_itens t),
@@ -685,7 +744,10 @@ begin
     end if;
     update fazenda_jogadores set moedas = moedas - k.custo where id = p_jogador;
     update fazenda_canteiros
-       set estado = 'plantado', cultura = k.id, plantado_em = now(),
+       -- pé de girassol, tora, árvore de outono por perto: começa 10% adiantada
+       set estado = 'plantado', cultura = k.id,
+           plantado_em = now() - case when fazenda_protegido(p_jogador, 'crescer', c.x, c.y)
+                                      then make_interval(secs => k.tempo_seg * 0.1) else interval '0' end,
            erva = false, praga = false, seco = false, roubado = 0,
            prox_evento = now() + make_interval(secs => k.tempo_seg * (0.15 + random() * 0.35))
      where jogador_id = p_jogador and posicao = p_posicao;
@@ -715,12 +777,16 @@ begin
     end if;
     -- cada problema não resolvido custa 1 unidade; o que os vizinhos pegaram também sai
     v_qtd := greatest(k.rendimento - (c.erva::int + c.praga::int + c.seco::int) - c.roubado, 1)
-             + fazenda_tem_efeito(p_jogador, 'colheita')::int;   -- colheitadeira
+             + fazenda_tem_efeito(p_jogador, 'colheita')::int          -- colheitadeira
+             + fazenda_protegido(p_jogador, 'adubo', c.x, c.y)::int;    -- cogumelos, barril, colmeia
+    if fazenda_protegido(p_jogador, 'sorte', c.x, c.y) and random() < 0.15 then
+      v_qtd := v_qtd * 2;                                               -- alvo
+    end if;
     insert into fazenda_celeiro (jogador_id, item, quantidade)
     values (p_jogador, k.id, v_qtd)
     on conflict (jogador_id, item)
     do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
-    update fazenda_jogadores set xp = xp + k.xp where id = p_jogador;
+    update fazenda_jogadores set xp = xp + k.xp + fazenda_protegido(p_jogador, 'xp', c.x, c.y)::int where id = p_jogador;
     update fazenda_canteiros   -- com trator, o canteiro já fica arado
        set estado = case when fazenda_tem_efeito(p_jogador, 'arar') then 'arado' else 'vazio' end,
            cultura = null, plantado_em = null,
@@ -904,6 +970,7 @@ begin
     v_ganho := v_ganho + v_qtd * r.venda;
   end loop;
 
+  v_ganho := (v_ganho * (100 + fazenda_bonus_venda(v_id))) / 100;   -- beleza e caixote
   update fazenda_jogadores set moedas = moedas + v_ganho where id = v_id;
   if v_ganho > 0 then
     perform fazenda_missao(v_id, 'vender', v_ganho);
@@ -1018,6 +1085,9 @@ begin
   end if;
 
   v_qtd := least(1 + (random() < 0.4)::int, fazenda_limite_roubo(k.rendimento) - c.roubado);
+  if fazenda_protegido(p_dono, 'cerca', c.x, c.y) then
+    v_qtd := least(v_qtd, 1);   -- cerca ou placa por perto
+  end if;
 
   update fazenda_canteiros set roubado = roubado + v_qtd
    where jogador_id = p_dono and posicao = p_posicao;
@@ -1355,7 +1425,11 @@ begin
     end if;
     update fazenda_celeiro set quantidade = quantidade - r.racao_qtd
      where jogador_id = p_jogador and item = r.racao;
-    update fazenda_animais set alimentado_em = now() where id = p_animal;
+    -- com fardo de feno na fazenda, o animal produz 20% mais rápido
+    update fazenda_animais
+       set alimentado_em = now() - case when fazenda_tem_efeito(p_jogador, 'feno')
+                                        then make_interval(secs => r.tempo_seg * 0.2) else interval '0' end
+     where id = p_animal;
     return 0;
 
   elsif p_acao = 'coletar' then
@@ -1532,7 +1606,7 @@ begin
   end if;
   if j.moedas < i.custo then raise exception 'moedas_insuficientes'; end if;
   update fazenda_jogadores set moedas = moedas - i.custo where id = v_id;
-  insert into fazenda_construcoes (jogador_id, x, y, tipo) values (v_id, p_x, p_y, i.id);
+  insert into fazenda_construcoes (jogador_id, x, y, tipo, colhido_em) values (v_id, p_x, p_y, i.id, now());
   return jsonb_build_object('estado', fazenda_estado(v_id));
 end;
 $$;
@@ -1599,6 +1673,37 @@ begin
 end;
 $$;
 
+-- Colhe o que um item produz sozinho (amoreira). Toque nele fora do modo construir.
+create or replace function public.fazenda_coletar(p_token text, p_x int, p_y int)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id uuid := fazenda_auth(p_token);
+  r    record;
+  k    record;
+begin
+  select c.colhido_em, i.produz, i.produz_seg, i.produz_qtd into r
+    from fazenda_construcoes c join fazenda_itens i on i.id = c.tipo
+   where c.jogador_id = v_id and c.x = p_x and c.y = p_y
+     for update of c;
+  if not found or r.produz is null then raise exception 'item_invalido'; end if;
+  if r.colhido_em is not null and now() < r.colhido_em + make_interval(secs => r.produz_seg) then
+    raise exception 'nao_pronto';
+  end if;
+  select * into k from fazenda_culturas where id = r.produz;
+  insert into fazenda_celeiro (jogador_id, item, quantidade)
+  values (v_id, r.produz, r.produz_qtd)
+  on conflict (jogador_id, item)
+  do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
+  update fazenda_construcoes set colhido_em = now() where jogador_id = v_id and x = p_x and y = p_y;
+  update fazenda_jogadores set xp = xp + greatest(k.xp / 8, 1) where id = v_id;
+  perform fazenda_missao(v_id, 'colher', r.produz_qtd);
+  return jsonb_build_object('qtd', r.produz_qtd, 'item', r.produz, 'estado', fazenda_estado(v_id));
+end;
+$$;
+
 create or replace function public.fazenda_resgatar_missao(p_token text, p_slot int)
 returns jsonb
 language plpgsql security definer
@@ -1616,6 +1721,8 @@ begin
   if m.progresso < m.alvo then raise exception 'missao_incompleta'; end if;
   update fazenda_missoes set resgatada = true
    where jogador_id = v_id and dia = m.dia and slot = m.slot;
+  -- baú na fazenda: +25% de moedas
+  if fazenda_tem_efeito(v_id, 'missao') then m.moedas := (m.moedas * 125) / 100; end if;
   update fazenda_jogadores set moedas = moedas + m.moedas, xp = xp + m.xp where id = v_id;
   return jsonb_build_object('moedas', m.moedas, 'xp', m.xp, 'estado', fazenda_estado(v_id));
 end;
@@ -1633,6 +1740,8 @@ revoke execute on function
   public.fazenda_presente_nivel(int),
   public.fazenda_tem_efeito(uuid, text),
   public.fazenda_protegido(uuid, text, int, int),
+  public.fazenda_beleza(uuid),
+  public.fazenda_bonus_venda(uuid),
   public.fazenda_checar_lugar(uuid, int, int, int, int, int, int, int, int),
   public.fazenda_auth(text),
   public.fazenda_nova_sessao(uuid),
@@ -1662,6 +1771,7 @@ revoke execute on function
   public.fazenda_construir(text, text, int, int),
   public.fazenda_mover(text, int, int, int, int),
   public.fazenda_demolir(text, int, int),
+  public.fazenda_coletar(text, int, int),
   public.fazenda_checar_conquistas(uuid)
 from public, anon, authenticated;
 
@@ -1679,5 +1789,6 @@ grant execute on function
   public.fazenda_resgatar_missao(text, int),
   public.fazenda_construir(text, text, int, int),
   public.fazenda_mover(text, int, int, int, int),
-  public.fazenda_demolir(text, int, int)
+  public.fazenda_demolir(text, int, int),
+  public.fazenda_coletar(text, int, int)
 to anon, authenticated;
