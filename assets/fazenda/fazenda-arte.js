@@ -336,7 +336,8 @@
         calor: ['....Y....', '.Y.ooo.Y.', '..oYYYo..', '.oYwYYYo.', 'YoYYYYYoY', '.oYYYrYo.', '..oYrro..', '.Y.ooo.Y.', '....Y....'],
         nuvem: ['....ooo....', '...owwwo...', '.oowwwwwoo.', 'owwwwwwwwso', 'owwwwwwwsso', '.ossssssso.', '..ooooooo..'],
         chuva: ['....ooo....', '...owwwo...', '.oowwwwwoo.', 'owwwwwwwsso', '.ossssssso.', '..ooooooo..', '..b..b..b..', '.b..b..b...'],
-        vento: ['.....SSS...', 'SSSSSS..S..', '........S..', '.SSSSSSSS..', '...........', 'SSSSSSS....', '.......S...', '......S....'],
+        // ventania: duas rajadas (branco com a parte de baixo azul), a ponta de uma sobe e a da outra desce
+        vento: ['..........o...', '.........owo..', '.oooooooowbo..', 'owwwwwwwwbo...', 'obbbbbbbbo....', '.oooooooooo...', '..owwwwwwwwo..', '..obbbbbbbbwo.', '...oooooooobwo', '...........obo'],
         play: ['oo.....', 'owoo...', 'owwwoo.', 'owwwwwo', 'owwwoo.', 'owoo...', 'oo.....'],
         raio: ['...oooo', '..oyyyo', '..oyyo.', '.oyyo..', '.oyyyyo', 'oyyyyo.', 'ooyyo..', '..oyo..', '.oyo...', '.oo....'],
         coracao: ['.oo.oo.', 'orrorRo', 'orwrrRo', 'orrrrRo', '.orrRo.', '..oRo..', '...o...'],
