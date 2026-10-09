@@ -1621,3 +1621,55 @@ body.construindo .status {
         top: calc(max(10px, env(safe-area-inset-top)) + 64px);
     }
 }
+
+/* ---------- Clima no topo e sementes da estação ---------- */
+.hud-clima {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    font-weight: 800;
+    font-size: 14px;
+    color: var(--texto);
+    cursor: pointer;
+    border: 0;
+}
+
+.hud-clima[hidden] {
+    display: none;
+}
+
+.tag-estacao {
+    margin-left: 4px;
+    padding: 0 5px;
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--texto-suave);
+    background: var(--creme-2);
+}
+
+.tag-estacao.agora {
+    color: #fff;
+    background: var(--grama-esc);
+}
+
+@media (max-width: 760px) {
+    .hud-clima {
+        flex: none;
+        padding: 6px 7px;
+    }
+
+    .hud-clima span {
+        display: none;
+    }
+
+    .xp-txt {
+        display: none;
+    }
+}
+
+/* semente fora de época: aparece apagadinha (para o jogador saber o que vem aí) */
+.item .ico.fora {
+    filter: grayscale(.8);
+    opacity: .55;
+}

@@ -23,7 +23,7 @@
     /* ---------- Armazenamento local (protegido) ---------- */
     const LS = {
         token: 'fazenda_token', codigo: 'fazenda_codigo', semente: 'fazenda_semente',
-        diarioVisto: 'fazenda_diario_visto', mudo: 'fazenda_mudo', tutorial: 'fazenda_tutorial'
+        diarioVisto: 'fazenda_diario_visto', mudo: 'fazenda_mudo', tutorial: 'fazenda_tutorial', avisos: 'fazenda_avisos'
     };
     const store = {
         get(k) { try { return localStorage.getItem(k); } catch { return null; } },
@@ -63,6 +63,7 @@
         terreno_max: 'Você já comprou todos os terrenos.',
         nivel_maximo: 'Esse ajudante já está no nível máximo.',
         sem_ingredientes: 'Faltam ingredientes no celeiro (a ração reservada não entra na receita).',
+        fora_de_estacao: 'Essa semente é de outra estação. Espere a época dela!',
         limite_canteiros: 'Você já usou todos os seus canteiros. Suba de nível ou compre terrenos para ter mais.',
         limite_maquina: 'Você já tem essa máquina (uma basta para a fazenda toda).',
         alarme: 'O alarme disparou! Esse canteiro está protegido.',
@@ -116,7 +117,7 @@
         barraConstr: $('barraConstr'), constrAbas: $('constrAbas'), constrItens: $('constrItens'),
         constrFerramentas: $('constrFerramentas'), btnConstruir: $('btnConstruir'), construirCont: $('hudConstruir'),
         hudPerfil: $('hudPerfil'), btnMenu: $('btnMenu'), menuCont: $('hudMenu'), celeiroContDock: $('hudCeleiroDock'),
-        acoesGrupo: $('acoesGrupo'), btnAcoes: $('btnAcoes')
+        acoesGrupo: $('acoesGrupo'), btnAcoes: $('btnAcoes'), clima: $('hudClima')
     };
 
     /* ---------- Ícones (pixel art) ---------- */
@@ -215,6 +216,93 @@
         const z = proximaZona();
         cena.definirTerreno({ zonas: zonasDaTela(), venda: z ? z.n : null });
     }
+    /* ---------- Estação e clima (vêm do servidor: o mesmo dia para todo mundo) ---------- */
+    const NOME_ESTACAO = { primavera: 'primavera', verao: 'verão', outono: 'outono', inverno: 'inverno' };
+    const CLIMA = {
+        sol: { nome: 'Sol', efeito: 'dia bom de roça.' },
+        nublado: { nome: 'Nublado', efeito: 'dia tranquilo.' },
+        chuva: { nome: 'Chuva', efeito: 'ela rega tudo e nenhum canteiro seca hoje.' },
+        calor: { nome: 'Onda de calor', efeito: 'a terra seca mais rápido, fique de olho nos canteiros.' },
+        vento: { nome: 'Ventania', efeito: 'muito vento, mas as plantas aguentam.' }
+    };
+    const iconeClima = (c) => (c === 'nublado' ? 'nuvem' : CLIMA[c] ? c : 'sol');
+    const daEstacao = (k) => !k.estacao || !S || k.estacao === S.estacao;
+    function desenharClima() {
+        if (!el.clima) return;
+        const c = S && S.clima && S.clima.hoje;
+        el.clima.hidden = !c;
+        if (!c) return;
+        el.clima.innerHTML = ico(iconeClima(c), 22) + `<span>${CLIMA[c].nome}</span>`;
+        el.clima.title = `Hoje: ${CLIMA[c].nome}. Amanhã: ${(CLIMA[S.clima.amanha] || {}).nome || '?'}.`;
+        cena.definirClima(visita ? null : c);
+    }
+    function descreverClima() {
+        if (!S || !S.clima) return;
+        const hoje = CLIMA[S.clima.hoje], amanha = CLIMA[S.clima.amanha];
+        mostrarStatus(`${ico(iconeClima(S.clima.hoje), 18)} <b>${hoje.nome}</b> na ${NOME_ESTACAO[S.estacao] || 'roça'}: ${hoje.efeito}` +
+            (amanha ? ` Amanhã: ${ico(iconeClima(S.clima.amanha), 16)} ${amanha.nome.toLowerCase()}.` : ''));
+    }
+
+    /* ---------- Avisos no celular ----------
+       Com a fazenda aberta ou minimizada, avisa quando algo fica pronto
+       (plantação, animais, oficinas, amoreira). Liga e desliga no Perfil. */
+    const podeAvisar = () => 'Notification' in window;
+    const avisosLigados = () => podeAvisar() && store.get(LS.avisos) === '1' && Notification.permission === 'granted';
+    let timerAvisos = null;
+    const jaAvisado = new Set();
+    // tudo que fica (ou já ficou) pronto, com a hora exata; a chave muda a cada novo ciclo
+    function proximosEventos() {
+        const ev = [];
+        for (const c of S.canteiros || []) {
+            const i = info(c);
+            if (i.fase === 'crescendo' || i.fase === 'maduro') ev.push({ quando: i.maduro, chave: 'c' + c.posicao + c.plantado_em, texto: `${i.k.nome} pronto para colher` });
+        }
+        for (const a of S.animais || []) {
+            const t = tipoAnimal(a.tipo);
+            if (t && a.alimentado_em) ev.push({ quando: Date.parse(a.alimentado_em) + t.tempo_seg * 1000, chave: 'a' + a.id + a.alimentado_em, texto: `${t.nome} com ${((culturas[t.produto] || {}).nome || 'produto').toLowerCase()} pronto` });
+        }
+        for (const c of S.construcoes || []) {
+            const it = tipoItem(c.tipo);
+            if (!it || !it.produz) continue;
+            if (it.entradas && c.iniciado_em) ev.push({ quando: Date.parse(c.iniciado_em) + it.produz_seg * 1000, chave: 'o' + c.x + ',' + c.y + c.iniciado_em, texto: `${it.nome}: ${((culturas[it.produz] || {}).nome || 'produto').toLowerCase()} pronto` });
+            if (!it.entradas && c.colhido_em) ev.push({ quando: Date.parse(c.colhido_em) + it.produz_seg * 1000, chave: 'p' + c.x + ',' + c.y + c.colhido_em, texto: `${it.nome} com frutas prontas` });
+        }
+        return ev.filter((e) => !jaAvisado.has(e.chave)).sort((a, b) => a.quando - b.quando);
+    }
+    function agendarAvisos() {
+        clearTimeout(timerAvisos);
+        if (!S || visita || !avisosLigados()) return;
+        const lista = proximosEventos();
+        // com a tela à vista, o que já está pronto você está vendo: não vira aviso
+        if (!document.hidden) lista.filter((e) => e.quando <= agora()).forEach((e) => jaAvisado.add(e.chave));
+        const prox = lista.find((e) => !jaAvisado.has(e.chave));
+        if (!prox) return;
+        const espera = Math.min(Math.max(1000, prox.quando - agora() + 1500), 2147483000);
+        timerAvisos = setTimeout(() => {
+            const prontos = proximosEventos().filter((e) => e.quando <= agora() + 1000);
+            prontos.forEach((e) => jaAvisado.add(e.chave));
+            if (prontos.length && document.hidden) notificar(prontos);
+            agendarAvisos();
+        }, espera);
+    }
+    async function notificar(lista, titulo) {
+        titulo = titulo || (lista.length === 1 ? 'Fazendinha: tem coisa pronta!' : `Fazendinha: ${lista.length} coisas prontas!`);
+        const opcoes = { body: lista.slice(0, 3).map((e) => e.texto).join(' · '), icon: 'assets/fazenda/app/icone-192.png', tag: 'fazenda', renotify: true };
+        try {
+            const reg = 'serviceWorker' in navigator && await Promise.race([navigator.serviceWorker.ready, new Promise((ok) => setTimeout(() => ok(null), 1500))]);
+            if (reg) await reg.showNotification(titulo, opcoes);
+            else new Notification(titulo, opcoes);
+        } catch { /* sem aviso, sem problema */ }
+    }
+    function htmlAvisos() {
+        if (!podeAvisar()) return '<h3 class="secao-titulo">Avisos</h3><p class="aviso">Este navegador não mostra avisos.</p>';
+        const negado = Notification.permission === 'denied';
+        return `<h3 class="secao-titulo">Avisos no celular</h3>
+            <p>Avisa quando a plantação, os animais ou as oficinas ficam prontos, mesmo com a fazenda minimizada.</p>
+            <p>${negado ? '<span class="aviso">Os avisos estão bloqueados nas configurações do navegador.</span>'
+                : `<button type="button" class="botao ${avisosLigados() ? 'creme' : 'verde'}" data-avisos>${avisosLigados() ? 'Desligar avisos' : 'Ligar avisos'}</button>`}</p>`;
+    }
+
     /* ---------- Caminho dos níveis: o que cada nível libera ----------
        Os níveis de cada coisa vêm do servidor (nivel_min / nivel); as duas
        contas abaixo precisam bater com fazenda_presente_nivel e
@@ -229,7 +317,7 @@
         for (const z of zonasVenda()) if (z.nivel === n) r.push({ html: spr(39, 24), nome: z.nome, tipo: 'Terreno' });
         for (const a of S.animais_tipos || []) if (a.nivel_min === n) r.push({ html: spr(A.ANIMAL[a.id], 24), nome: a.nome, tipo: 'Animal' });
         for (const t of S.ajudantes_tipos || []) if (t.nivel_min === n) r.push({ html: retratoAjudante(t.id, 24), nome: `${t.nome} (${t.papel.toLowerCase()})`, tipo: 'Ajudante' });
-        for (const k of S.culturas) if (k.tipo === 'cultura' && k.nivel_min === n) r.push({ html: itemDe(k, 24), nome: k.nome, tipo: 'Semente' });
+        for (const k of S.culturas) if (k.tipo === 'cultura' && k.nivel_min === n) r.push({ html: itemDe(k, 24), nome: k.estacao ? `${k.nome} (${NOME_ESTACAO[k.estacao]})` : k.nome, tipo: 'Semente' });
         for (const i of S.itens || []) {
             if (i.nivel_min !== n) continue;
             const tipo = i.categoria === 'maquina' ? 'Máquina' : i.categoria === 'oficina' ? 'Oficina' : i.categoria === 'construcao' ? 'Casa' : 'Enfeite';
@@ -1011,6 +1099,8 @@
         }
         avisarDiario();
         avisarAjudantes(estado);
+        desenharClima();
+        agendarAvisos();
         atualizarTerreno();
         desenharHud();
         if (constr.ativo) desenharPaleta();
@@ -1115,6 +1205,11 @@
 
     function validarPlantio() {
         const k = culturas[semente];
+        if (k && !daEstacao(k)) {
+            abrirPainel('loja');
+            toast(`${esc(k.nome)} saiu de época. Escolha outra semente.`);
+            return null;
+        }
         if (!k || k.nivel_min > S.jogador.nivel) {
             abrirPainel('loja');
             toast('Escolha uma semente na loja.');
@@ -1415,6 +1510,7 @@
                 ${codigo ? `<div class="codigo-box"><code>${esc(codigo)}</code><button type="button" class="botao pequeno creme" data-copiar>Copiar</button></div>` : '<p class="aviso">O código não está salvo neste aparelho. Se você anotou, ele continua valendo.</p>'}
                 <p class="aviso">Guarde esse código: é o único jeito de abrir sua fazenda em outro aparelho ou se o navegador for limpo.</p>
                 ${htmlInstalar()}
+                ${boasVindas ? '' : htmlAvisos()}
                 <h3 class="secao-titulo">Como jogar</h3>
                 <ul class="ajuda">
                     <li>Toque num canteiro e ele faz a ação certa: <b>arar</b>, <b>plantar</b>, <b>cuidar</b> ou <b>colher</b>.</li>
@@ -1431,6 +1527,7 @@
                     <li>Em <b>Construir → Máquinas</b>: irrigador, pulverizador e robô capinador evitam seca, pragas e ervas por perto; o alarme protege dos vizinhos; trator e colheitadeira ajudam na fazenda toda.</li>
                     <li>Na loja tem <b>animais</b>: dê ração (sai do celeiro) e colete ovos, leite e lã. No celeiro, <b>Reservar</b> guarda a ração deles para não ir junto no "Vender tudo".</li>
                     <li>No botão <b>Construir</b> você coloca cercas, caminhos, árvores, flores e objetos onde quiser. Toque em <b>Pronto</b> para fechar.</li>
+                    <li>Cada <b>estação</b> tem sementes só dela (morango, melancia, abóbora, repolho) e o <b>clima</b> muda todo dia: chuva rega tudo, onda de calor seca mais. Toque no clima, lá em cima, para ver a previsão.</li>
                     <li>Cumpra as <b>missões do dia</b> para ganhar moedas e XP extras.</li>
                     <li>Cada nível libera coisas novas e dá um presente de moedas. Toque no seu nome, lá em cima, para ver o <b>caminho dos níveis</b>.</li>
                     <li>Em <b>Vizinhos</b> você visita outras fazendas: <b>pega</b> um pouco da colheita madura ou <b>ajuda</b> com os problemas e ganha XP.</li>
@@ -1549,12 +1646,12 @@
     /* ---- conteúdo da loja e das missões ---- */
     function htmlLojaSementes() {
         return '<div class="lista">' + S.culturas.filter((k) => k.tipo !== 'produto').map((k) => {
-            const travada = k.nivel_min > S.jogador.nivel;
+            const travada = k.nivel_min > S.jogador.nivel || !daEstacao(k);
             const lucro = k.venda * k.rendimento - k.custo;
             return `<button type="button" class="item${k.id === semente ? ' selecionada' : ''}${travada ? ' travada' : ''}" data-semente="${esc(k.id)}" ${travada ? 'aria-disabled="true"' : ''}>
-                <span class="ico">${travada ? ico('cadeado', 28) : spr(A.cultura(k.id).item, 44)}</span>
+                <span class="ico${k.nivel_min <= S.jogador.nivel && travada ? ' fora' : ''}">${k.nivel_min > S.jogador.nivel ? ico('cadeado', 28) : spr(A.cultura(k.id).item, 44)}</span>
                 <span>
-                    <span class="nome">${esc(k.nome)}</span>
+                    <span class="nome">${esc(k.nome)}${k.estacao ? ` <small class="tag-estacao${daEstacao(k) ? ' agora' : ''}">${daEstacao(k) ? 'da estação!' : 'só no ' + NOME_ESTACAO[k.estacao]}</small>` : ''}</span>
                     <span class="det">
                         <span>${fmtDuracao(k.tempo_seg)}</span>
                         <span>colhe ${k.rendimento} × ${moeda(k.venda)}</span>
@@ -1562,7 +1659,7 @@
                         <span>lucro ${moeda(lucro)}</span>
                     </span>
                 </span>
-                <span class="preco">${travada ? `Nível ${k.nivel_min}` : `${ico('moeda', 16)} ${k.custo}`}</span>
+                <span class="preco">${k.nivel_min > S.jogador.nivel ? `Nível ${k.nivel_min}` : !daEstacao(k) ? 'Fora de época' : `${ico('moeda', 16)} ${k.custo}`}</span>
             </button>`;
         }).join('') + '</div><p class="aviso">Escolha uma semente e depois toque nos canteiros arados (ou em “Plantar tudo”).</p>';
     }
@@ -1720,6 +1817,7 @@
         if (sem) {
             const k = culturas[sem.dataset.semente];
             if (k.nivel_min > S.jogador.nivel) return toast(`${ico('cadeado', 12)} ${esc(k.nome)} libera no nível ${k.nivel_min}.`);
+            if (!daEstacao(k)) return toast(`${itemDe(k, 18)} ${esc(k.nome)} só dá no ${NOME_ESTACAO[k.estacao]}. Agora é ${NOME_ESTACAO[S.estacao]}.`);
             semente = k.id;
             store.set(LS.semente, semente);
             desenharHud();
@@ -1840,6 +1938,24 @@
             som.alternar();
             bSom.textContent = som.mudo ? 'Ligar sons' : 'Desligar sons';
             atualizarBotaoSom();
+            return;
+        }
+        if (e.target.closest('[data-avisos]')) {
+            if (avisosLigados()) {
+                store.set(LS.avisos, '0');
+                clearTimeout(timerAvisos);
+                toast('Avisos desligados.');
+                abrirPainel('conta', true);
+                return;
+            }
+            Notification.requestPermission().then((p) => {
+                if (p !== 'granted') return toast('Sem permissão, sem avisos. Dá para liberar nas configurações do navegador.', 'erro');
+                store.set(LS.avisos, '1');
+                toast('Avisos ligados! Vou te chamar quando algo ficar pronto.', 'festa');
+                notificar([{ texto: 'Vou te chamar quando algo ficar pronto. Bom plantio!' }], 'Fazendinha: avisos ligados!');
+                agendarAvisos();
+                if (painelAtual === 'conta') abrirPainel('conta', true);
+            });
             return;
         }
         if (e.target.closest('[data-instalar]')) {
@@ -1963,6 +2079,7 @@
     $('tutPular').addEventListener('click', encerrarTutorial);
 
     el.btnConstruir.addEventListener('click', abrirConstrucao);
+    if (el.clima) el.clima.addEventListener('click', descreverClima);
     if (el.hudPerfil) {
         const abrirCaminho = () => { if (S && !painelAtual) abrirPainel('niveis'); };
         el.hudPerfil.addEventListener('click', abrirCaminho);

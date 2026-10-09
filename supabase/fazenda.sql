@@ -129,6 +129,8 @@ alter table public.fazenda_culturas add column if not exists tipo text not null 
 do $$ begin
   alter table public.fazenda_culturas add constraint fazenda_culturas_tipo_chk check (tipo in ('cultura', 'produto'));
 exception when duplicate_object then null; end $$;
+-- Fase 10: sementes da estação (só dá para plantar nela); null = o ano todo
+alter table public.fazenda_culturas add column if not exists estacao text;
 
 -- Fase 3: animais
 create table if not exists public.fazenda_animais_tipos (
@@ -319,12 +321,16 @@ on conflict (id) do update set
   custo = excluded.custo, venda = excluded.venda, rendimento = excluded.rendimento,
   xp = excluded.xp, nivel_min = excluded.nivel_min, ordem = excluded.ordem;
 
--- A melancia saiu do catálogo (não existe na arte). Só apaga se ninguém usou.
-delete from public.fazenda_culturas k
- where k.id = 'melancia'
-   and not exists (select 1 from public.fazenda_canteiros c where c.cultura = k.id)
-   and not exists (select 1 from public.fazenda_celeiro ce where ce.item = k.id)
-   and not exists (select 1 from public.fazenda_visitas v where v.cultura = k.id);
+-- Sementes da estação (fase 10): só dá para plantar na estação delas, e rendem bem
+insert into public.fazenda_culturas (id, nome, emoji, tempo_seg, custo, venda, rendimento, xp, nivel_min, ordem, estacao) values
+  ('moranguinho', 'Morango',  '🍓', 10800, 40, 14, 8, 14, 3,  9, 'primavera'),
+  ('melancia',    'Melancia', '🍉', 21600, 60, 40, 5, 22, 4, 10, 'verao'),
+  ('jerimum',     'Abóbora',  '🎃', 28800, 70, 45, 6, 26, 5, 11, 'outono'),
+  ('repolho',     'Repolho',  '🥬', 14400, 45, 18, 7, 16, 3, 12, 'inverno')
+on conflict (id) do update set
+  nome = excluded.nome, emoji = excluded.emoji, tempo_seg = excluded.tempo_seg,
+  custo = excluded.custo, venda = excluded.venda, rendimento = excluded.rendimento,
+  xp = excluded.xp, nivel_min = excluded.nivel_min, ordem = excluded.ordem, estacao = excluded.estacao;
 
 -- Produtos dos animais (tempo_seg/custo não se aplicam: ficam no tipo de animal)
 insert into public.fazenda_culturas (id, nome, emoji, tempo_seg, custo, venda, rendimento, xp, nivel_min, ordem, tipo) values
@@ -545,6 +551,30 @@ end $$;
 -- Funções internas (não expostas à API)
 -- ------------------------------------------------------------
 
+-- Estação do ano no Brasil (hemisfério sul); igual a estacao() em fazenda-arte.js
+create or replace function public.fazenda_estacao(p_dia date)
+returns text language sql stable as $$
+  select coalesce(nullif(current_setting('fazenda.estacao_teste', true), ''),
+    case when to_char(p_dia, 'MMDD')::int >= 1221 or to_char(p_dia, 'MMDD')::int < 320 then 'verao'
+         when to_char(p_dia, 'MMDD')::int < 621 then 'outono'
+         when to_char(p_dia, 'MMDD')::int < 923 then 'inverno'
+         else 'primavera' end);
+$$;
+
+-- Clima do dia: sorteado pela data (igual para todo mundo), com cara de cada estação.
+-- sol | nublado | chuva (rega tudo: sem seca) | calor (mais seca) | vento
+create or replace function public.fazenda_clima(p_dia date)
+returns text language sql stable as $$
+  select coalesce(nullif(current_setting('fazenda.clima_teste', true), ''), (
+    select case fazenda_estacao(p_dia)
+      when 'verao'   then case when r < 40 then 'sol' when r < 65 then 'chuva' when r < 85 then 'calor' when r < 95 then 'nublado' else 'vento' end
+      when 'outono'  then case when r < 40 then 'sol' when r < 65 then 'nublado' when r < 85 then 'chuva' when r < 95 then 'vento' else 'calor' end
+      when 'inverno' then case when r < 45 then 'sol' when r < 75 then 'nublado' when r < 85 then 'vento' when r < 95 then 'chuva' else 'calor' end
+      else                case when r < 35 then 'sol' when r < 60 then 'chuva' when r < 80 then 'nublado' when r < 95 then 'vento' else 'calor' end
+    end
+    from (select abs(hashtext('clima-' || p_dia::text)) % 100 as r) x));
+$$;
+
 -- Nível a partir do XP: nível n começa em 25·(n-1)² XP (25, 100, 225, 400...)
 create or replace function public.fazenda_nivel(p_xp int)
 returns int language sql immutable as $$
@@ -642,7 +672,12 @@ declare
   v_seco   boolean;
   v_tipo   int;
   i        int;
+  v_clima  text := fazenda_clima(fazenda_hoje());
 begin
+  -- dia de chuva: ela rega tudo (some a seca dos canteiros)
+  if v_clima = 'chuva' then
+    update fazenda_canteiros set seco = false where jogador_id = p_jogador and estado = 'plantado' and seco;
+  end if;
   for r in
     select c.posicao, c.x, c.y, c.plantado_em, c.prox_evento, c.erva, c.praga, c.seco, k.tempo_seg
       from fazenda_canteiros c
@@ -659,10 +694,12 @@ begin
     i := 0;
     while v_evt <= now() and v_evt < v_maduro and i < 3 loop
       v_tipo := floor(random() * 3)::int;
+      if v_clima = 'calor' and random() < 0.5 then v_tipo := 2; end if;   -- onda de calor: mais seca
+      if v_clima = 'chuva' and v_tipo = 2 then v_tipo := -1; end if;      -- com chuva não seca
       -- máquina por perto evita o problema (robô capinador, pulverizador, irrigador)
       if v_tipo = 0 then v_erva := v_erva or not fazenda_protegido(p_jogador, 'erva', r.x, r.y);
       elsif v_tipo = 1 then v_praga := v_praga or not fazenda_protegido(p_jogador, 'praga', r.x, r.y);
-      else v_seco := v_seco or not fazenda_protegido(p_jogador, 'seco', r.x, r.y);
+      elsif v_tipo = 2 then v_seco := v_seco or not fazenda_protegido(p_jogador, 'seco', r.x, r.y);
       end if;
       v_evt := v_evt + make_interval(secs => r.tempo_seg * (0.25 + random() * 0.35));
       i := i + 1;
@@ -720,6 +757,8 @@ begin
       'bonus_venda', fazenda_bonus_venda(p_jogador)
     ),
     'zonas_venda', fazenda_zonas(),
+    'estacao', fazenda_estacao(fazenda_hoje()),
+    'clima', jsonb_build_object('hoje', fazenda_clima(fazenda_hoje()), 'amanha', fazenda_clima(fazenda_hoje() + 1)),
     'canteiros', coalesce((
       select jsonb_agg(jsonb_build_object(
                'posicao', posicao, 'x', x, 'y', y, 'estado', estado, 'cultura', cultura,
@@ -750,7 +789,7 @@ begin
       select jsonb_agg(jsonb_build_object(
                'id', id, 'nome', nome, 'emoji', emoji, 'tempo_seg', tempo_seg,
                'custo', custo, 'venda', venda, 'rendimento', rendimento,
-               'xp', xp, 'nivel_min', nivel_min, 'tipo', tipo)
+               'xp', xp, 'nivel_min', nivel_min, 'tipo', tipo, 'estacao', estacao)
              order by ordem)
         from fazenda_culturas),
     'animais', coalesce((
@@ -838,6 +877,9 @@ begin
     select * into k from fazenda_culturas where id = p_cultura;
     if not found or k.tipo <> 'cultura' then
       raise exception 'cultura_invalida';
+    end if;
+    if k.estacao is not null and k.estacao <> fazenda_estacao(fazenda_hoje()) then
+      raise exception 'fora_de_estacao';
     end if;
     if fazenda_nivel(j.xp) < k.nivel_min then
       raise exception 'nivel_insuficiente';
@@ -2061,6 +2103,8 @@ $$;
 -- ------------------------------------------------------------
 revoke execute on function
   public.fazenda_nivel(int),
+  public.fazenda_estacao(date),
+  public.fazenda_clima(date),
   public.fazenda_max_canteiros(int),
   public.fazenda_zonas(),
   public.fazenda_no_terreno(int, int, int),

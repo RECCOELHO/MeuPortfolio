@@ -9,7 +9,7 @@
     <title>Fazendinha Secreta</title>
     <link rel="icon" type="image/png" href="assets/fazenda/app/icone-192.png">
     <!-- instalar como app (PWA): manifesto, ícones e o service worker em assets/app/instalar.js -->
-    <link rel="manifest" href="assets/fazenda/app/fazenda.webmanifest?v=20261008-10">
+    <link rel="manifest" href="assets/fazenda/app/fazenda.webmanifest?v=20261008-11">
     <link rel="apple-touch-icon" href="assets/fazenda/app/icone-180.png">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -19,7 +19,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&family=Jersey+10&display=swap" rel="stylesheet">
     <!-- ?v=: o Cloudflare guarda CSS/JS por 4 h no navegador; troque a versão a cada deploy da fazenda -->
-    <link rel="stylesheet" href="assets/fazenda/fazenda.css?v=20261008-10">
+    <link rel="stylesheet" href="assets/fazenda/fazenda.css?v=20261008-11">
 </head>
 
 <body>
@@ -40,6 +40,7 @@
             </div>
         </div>
         <div class="hud-moedas caixa" title="Moedas"><span data-ico="moeda" data-px="20"></span><b id="hudMoedas">0</b></div>
+        <button type="button" class="hud-clima caixa" id="hudClima" aria-label="Clima de hoje" hidden></button>
         <!-- celular: os botões do topo ficam dentro deste menu -->
         <button type="button" class="botao so-celular menu-btn" id="btnMenu" aria-label="Menu" aria-expanded="false" aria-controls="hudBotoes"><span class="menu-ico" aria-hidden="true"></span><b class="contador" id="hudMenu" hidden>0</b></button>
         <nav class="hud-botoes" id="hudBotoes">
@@ -156,9 +157,9 @@
         </div>
     </section>
 
-    <script src="assets/app/instalar.js?v=20261008-10" data-escopo="/fazenda" defer></script>
-    <script src="assets/fazenda/fazenda-arte.js?v=20261008-10" defer></script>
-    <script src="assets/fazenda/fazenda.js?v=20261008-10" defer></script>
+    <script src="assets/app/instalar.js?v=20261008-11" data-escopo="/fazenda" defer></script>
+    <script src="assets/fazenda/fazenda-arte.js?v=20261008-11" defer></script>
+    <script src="assets/fazenda/fazenda.js?v=20261008-11" defer></script>
 </body>
 
 </html>
