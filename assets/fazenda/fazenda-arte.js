@@ -102,6 +102,11 @@
         pelo:     { fases: [1004, 1004, 1004], murcho: 1004, item: 1004, semente: 1004 },
         pena:     { fases: [1003, 1003, 1003], murcho: 1003, item: 1003, semente: 1003 },
         trufa:    { fases: [79, 79, 79], murcho: 79, item: 79, semente: 79 },
+        // sementes da estação (broto e meio do pacote; madura e fruta próprias)
+        moranguinho: { fases: [52, 53, 1013], murcho: 55, item: 1014, semente: 1014 },
+        melancia: { fases: [52, 53, 1015], murcho: 55, item: 1016, semente: 1016 },
+        jerimum:  { fases: [52, 53, 1017], murcho: 55, item: 1018, semente: 1018 },
+        repolho:  { fases: [52, 53, 1019], murcho: 55, item: 1020, semente: 1020 },
         // produtos das oficinas (arte própria 1005..1012)
         pao:      { fases: [1005, 1005, 1005], murcho: 1005, item: 1005, semente: 1005 },
         queijo:   { fases: [1006, 1006, 1006], murcho: 1006, item: 1006, semente: 1006 },
@@ -126,7 +131,11 @@
         // produtos das oficinas
         w: '#e8a053', x: '#f8d08f', y: '#b8692f', G: '#ffe08a', g: '#fdbe53', H: '#d99a2b',
         X: '#d9452f', Z: '#9e2a1f', U: '#9b4ca3', V: '#6b2f74', B: '#79a7e8', c: '#f28462',
-        b: '#c34b35', v: '#4e974c', h: '#84c669', n: '#b4673a'
+        b: '#c34b35', v: '#4e974c', h: '#84c669', n: '#b4673a',
+        // plantas da estação
+        O: '#f0a04b', N: '#c96b28', L: '#3e8948', M: '#9fd06c', r: '#e8434a', s: '#fbe7a1', C: '#b9e08a', D: '#6aa84f',
+        // máquinas elétricas
+        E: '#3b5dc9', F: '#29366f', K: '#566c86', W: '#a7f070'
     };
     const PROPRIA = [
         // 0 porco
@@ -164,7 +173,41 @@
         // 11 bolo
         ['................', '................', '................', '................', '..........aa....', '........aamma...', '......aammmma...', '....aammmmmma...', '..aammmmmmmma...', '.amjjjjjjjjjja..', '.addddddddddda..', '.ajjjjjjjjjjja..', '.aaaaaaaaaaaaa..', '................', '................', '................'],
         // 12 salada
-        ['................', '................', '................', '....ava.ava.....', '...avhvavhva....', '..avhbbvhvhva...', '.avhvhvbbvhvha..', '.aaaaaaaaaaaaa..', '.annnnnnnnnnna..', '..annnnnnnnna...', '...annnnnnna....', '....aaaaaaa.....', '................', '................', '................', '................']
+        ['................', '................', '................', '....ava.ava.....', '...avhvavhva....', '..avhbbvhvhva...', '.avhvhvbbvhvha..', '.aaaaaaaaaaaaa..', '.annnnnnnnnnna..', '..annnnnnnnna...', '...annnnnnna....', '....aaaaaaa.....', '................', '................', '................', '................'],
+        // 13 morango (planta)
+        ['................', '................', '................', '.....aaaaaa.....', '...aavhvvhvaa...', '..avhvvhvvhvva..', '..avvhvrrvhvva..', '.avhvvarrrahvva.', '.avvhvvarravhva.', '.avrrvhvaavhvva.', '.arrravvhvvvva..', '..arrahvvvhva...', '...aaavvvvaa....', '......aaaa......', '................', '................'],
+        // 14 morango
+        ['................', '................', '......vv.v......', '.....vhvvhv.....', '....aavvvvaa....', '...arrrrrrrra...', '..arrsrrrsrrra..', '..arrrrrrrrrra..', '..arsrrrsrrsra..', '...arrrrrrrra...', '...arrsrrrsra...', '....arrrrrra....', '.....arrrra.....', '......aaaa......', '................', '................'],
+        // 15 melancia (planta)
+        ['................', '................', '.......ava......', '......avhva.....', '.....aaavaaa....', '...aaMMLMMLaa...', '..aMLMMLMMLMMa..', '.aMMLMMLMMLMMLa.', '.aMMLMMLMMLMMLa.', '.aMMLMMLMMLMMLa.', '..aMLMMLMMLMMa..', '...aaMMLMMLaa...', '.....aaaaaa.....', '................', '................', '................'],
+        // 16 melancia
+        ['................', '................', '................', '................', '.....aaaaaa.....', '...aaMMLMMLaa...', '..aMLMMLMMLMMa..', '.aMMLMMLMMLMMLa.', '.aMMLMMLMMLMMLa.', '.aMMLMMLMMLMMLa.', '..aMLMMLMMLMMa..', '...aaMMLMMLaa...', '.....aaaaaa.....', '................', '................', '................'],
+        // 17 abóbora (planta)
+        ['................', '................', '....avhva.ava...', '....avvvaavhva..', '.....aavvvaa....', '....aaaaaaaa....', '...aONOONOONa...', '..aONOONOONOOa..', '.aONOONOONOONOa.', '.aONOONOONOONOa.', '.aNNONNONNONNNa.', '..aNNNNNNNNNNa..', '...aaaaaaaaaa...', '................', '................', '................'],
+        // 18 abóbora
+        ['................', '................', '................', '.......aa.......', '......avva......', '....aaaaaaaa....', '...aONOONOONa...', '..aONOONOONOOa..', '.aONOONOONOONOa.', '.aONOONOONOONOa.', '.aNNONNONNONNNa.', '..aNNNNNNNNNNa..', '...aaaaaaaaaa...', '................', '................', '................'],
+        // 19 repolho (planta)
+        ['................', '................', '................', '................', '.....aaaaaa.....', '...aaCCDCCCaa...', '..aCCDCCCDCCCa..', '.aCDCCCDDCCCDCa.', '.aCDCCDCCDCCDCa.', '.aDCCDCCCCDCCDa.', '..aDCDCCCCDCDa..', '..avvaaaaaavva..', '..avva....avva..', '...aa......aa...', '................', '................'],
+        // 20 repolho
+        ['................', '................', '................', '................', '.....aaaaaa.....', '...aaCCDCCCaa...', '..aCCDCCCDCCCa..', '.aCDCCCDDCCCDCa.', '.aCDCCDCCDCCDCa.', '.aDCCDCCCCDCCDa.', '..aDCDCCCCDCDa..', '...aaDDDDDDaa...', '.....aaaaaa.....', '................', '................', '................'],
+        // 21 painel solar
+        ['................', '................', '................', '.aaaaaaaaaaaaa..', '.aBBEFBBEFBBEa..', '.aBEEFBEEFBEEa..', '.aFFFFFFFFFFFa..', '.aBEEFBEEFBEEa..', '.aEEEFEEEFEEEa..', '.aaaaaaaaaaaaa..', '......aKa.......', '......aKa.......', '......aKa.......', '....aaaKaaa.....', '....aKKKKKa.....', '....aaaaaaa.....'],
+        // 22 turbina (torre)
+        ['......adfa......', '......adfa......', '......adfa......', '......adfa......', '......adfa......', '.....addfla.....', '.....addfla.....', '.....addfla.....', '.....addfla.....', '.....addfla.....', '.....addfla.....', '.....adeela.....', '.....adeela.....', '....aadddlaa....', '...alllllllla...', '...aaaaaaaaaa...'],
+        // 23 turbina (hélice 1)
+        ['......adda......', '......adda......', '......adda......', '......adda......', '......adda......', '......adda......', '......aKKa......', '....aadKKdaa....', '...adddddddda...', '.aadddadfadddaa.', 'adddaaadfaadddda', 'adaa..adfa.aadda', '.a....adfa...aa.', '......adfa......', '......adfa......', '......adfa......'],
+        // 24 turbina (hélice 2)
+        ['................', '................', '.aa..........aa.', 'addaa......aadda', 'adddda....adddda', '.aadddaaaadddaa.', '...adddKKddaa...', '....aadKKaa.....', '......adda......', '......adda......', '......adda......', '......adda......', '......adfa......', '......adfa......', '......adfa......', '......adfa......'],
+        // 25 estufa elétrica
+        ['................', '................', '................', '.....aaaaaa.....', '....adBGGBfa....', '...adfBBBBfBa...', '..aBdfBBBBfBBa..', '..adfffffffffa..', '.aBBBfBBBBfBBBa.', '.aBBvfBBvBfBvBa.', '.aBvhvBvhvfvhBa.', '.aBBBfhBBBhBBBa.', 'alllllllllllllla', 'aKKKKKKKKKKKKKKa', 'aKKKKKKKKKKKKKKa', '.aaaaaaaaaaaaaa.'],
+        // 26 reator (cima, esq.)
+        ['........dddddd..', '.......dffffddd.', '......ddddddddd.', '.....dddddfffff.', '......ffff.fff..', '..aaaaaffaaaaaaa', '.allllllllllllll', '..adddffffffflll', '..adddffffffflll', '...addffffffflll', '...allllllllllll', '...adddfffffllll', '....addfffffllla', '....addfffffllla', '.....adffffflla.', '.....adffffflla.'],
+        // 27 reator (cima, dir.)
+        ['................', '................', '................', '................', '................', 'aa..............', 'lla.............', 'la..............', 'la..............', 'a...............', 'a...............', 'a...............', '................', '.........a......', '......aaafaaa...', '.....adfffffla..'],
+        // 28 reator (baixo, esq.)
+        ['.....addfffflla.', '.....addfffflla.', '.....addfffflla.', '.....addfffflla.', '.....addfffflla.', '.....addfffflla.', '.....addfffflla.', '.....addfffflla.', '.....addfffflla.', '.....adffffflla.', '....addfffffllla', '...adddfffffflll', '...addffffffflll', '..adddffffffflll', '.adddfffffffffll', '..aaaaaaaaaaaaaa'],
+        // 29 reator (baixo, dir.)
+        ['....addffffflla.', '....affffffflla.', '...affffffffllla', '...affffffffllla', '...allllllllKKKa', '...allllllllKKKa', '...alWllggglKWKa', '...alWlgegegKWKa', '...alllggeggKKKa', '...alllgggggKKKa', '...allllgeglKKKa', 'a..allllllllKKKa', 'a..allllllllKKKa', 'la.aKKKKKKKKKKKa', 'llaaKKKKKKKKKKKa', 'aa..aaaaaaaaaaa.']
     ];
     const atlasProprio = document.createElement('canvas');
     atlasProprio.width = 12 * 16;
@@ -186,6 +229,8 @@
         semeadora: { ...MOCA, ferramenta: 10 }, patinheiro: { ...MOCO, ferramenta: 1003 },
         pastora: { ...MOCA, ferramenta: 74 }, porqueiro: { ...MOCO, ferramenta: 79 }
     };
+
+    let quadroHelice = 0;   // a turbina eólica gira (troca a cada poucos quadros)
 
     /* ---------- Arte dos itens construíveis ----------
        p = pacote, i = tile, topo = tile de cima (árvores altas), auto = encaixe automático */
@@ -236,6 +281,18 @@
             case 'robo_capina': return { p: 'factory', i: 110 };
             case 'trator': return { p: 'factory', i: 98 };
             case 'colheitadeira': return { p: 'factory', i: 100 };
+            // energia (nível 16+): arte própria e Tiny Factory
+            case 'painel_solar': return { p: 'farm', i: 1021 };
+            case 'bateria': return { p: 'factory', i: 84 };
+            case 'turbina': return { p: 'farm', i: 1022, topo: quadroHelice ? 1024 : 1023 };
+            case 'estufa': return { p: 'farm', i: 1025 };
+            case 'gerador_bio': return { p: 'factory', i: 75 };
+            case 'triturador': return { p: 'factory', i: 101 };
+            case 'supercap': return { p: 'factory', i: 86 };
+            case 'fabrica_auto': return { p: 'factory', w: 2, h: 2, grade: [[76, 77], [88, 89]] };
+            case 'robo_colheita': return { p: 'factory', i: 108 };
+            case 'aspersor': return { p: 'factory', i: 94 };
+            case 'reator': return { p: 'farm', w: 2, h: 2, grade: [[1026, 1027], [1028, 1029]] };
             default: return { p: 'farm', i: 89 };
         }
     }
@@ -275,6 +332,12 @@
         mao: ['......oo.....', '...oooktooo..', '..oktoktokto.', '..oktoktokto.', '..oktoktokto.', 'oooktoktokto.', 'okkkkkkkkkto.', 'okkkkkkkkkto.', '.okkkkkkkkto.', '..okkkkkkkto.', '..otkkkkkkto.', '...otttttto..', '....oooooo...'],
         // guaxinim mascarado: quem pegou da sua plantação (diário)
         guaxinim: ['.oo.......oo.', 'oSso.....osSo', 'oSSSoooooSSSo', 'oSSSSSSSSSSSo', 'oooooSSSooooo', 'oowwooSoowwoo', 'oSoooSSSoooSo', 'oSSwwwwwwwSSo', '.oSwwwowwwSo.', '..oSwwwwwSo..', '...ooooooo...'],
+        sol: ['....y....', '.y.ooo.y.', '..oyyyo..', '.oywyyyo.', 'yoyyyyyoy', '.oyyyYyo.', '..oyYYo..', '.y.ooo.y.', '....y....'],
+        calor: ['....Y....', '.Y.ooo.Y.', '..oYYYo..', '.oYwYYYo.', 'YoYYYYYoY', '.oYYYrYo.', '..oYrro..', '.Y.ooo.Y.', '....Y....'],
+        nuvem: ['....ooo....', '...owwwo...', '.oowwwwwoo.', 'owwwwwwwwso', 'owwwwwwwsso', '.ossssssso.', '..ooooooo..'],
+        chuva: ['....ooo....', '...owwwo...', '.oowwwwwoo.', 'owwwwwwwsso', '.ossssssso.', '..ooooooo..', '..b..b..b..', '.b..b..b...'],
+        vento: ['.....SSS...', 'SSSSSS..S..', '........S..', '.SSSSSSSS..', '...........', 'SSSSSSS....', '.......S...', '......S....'],
+        raio: ['...oooo', '..oyyyo', '..oyyo.', '.oyyo..', '.oyyyyo', 'oyyyyo.', 'ooyyo..', '..oyo..', '.oyo...', '.oo....'],
         coracao: ['.oo.oo.', 'orrorRo', 'orwrrRo', 'orrrrRo', '.orrRo.', '..oRo..', '...o...'],
         missao: ['ooooooo.', 'okkkkkko', 'okoooko.', 'okkkkkko', 'okoooko.', 'okkkkkko', 'okooko..', 'okkkkko.', 'oooooo..'],
         mover: ['....o....', '...oko...', '..okkko..', '....o....', 'oko.o.oko', 'okkoooko.', 'oko.o.oko', '....o....', '..okkko..', '...oko...', '....o....'],
@@ -426,6 +489,7 @@
         let canteirosFn = () => [];                        // [{ posicao, x, y }]
         let construcao = { ativo: false };                 // estado do modo construir
         let zonaVenda = null;                              // próximo terreno à venda (ZONAS) ou null
+        let clima = null;                                  // sol | nublado | chuva | calor | vento
         let hover = null;                                  // canteiro, 'celeiro', 'a:<id>' ou {tx, ty}
         const atores = new Map();
         const fazendeiro = { x: 0, y: 0, tx: 0, ty: 0, flip: false, passo: 0 };
@@ -967,6 +1031,7 @@
 
         function desenhar(tempo) {
             sincronizarAnimais();
+            quadroHelice = Math.floor(tempo / (clima === 'vento' ? 90 : 200)) % 2;   // venta mais, gira mais
             q.drawImage(fundo, 0, 0);
 
             const lista = construcoesFn() || [];
@@ -1019,6 +1084,17 @@
                 if (pronta && Math.floor(tempo / 300) % 3) icone(q, 'brilho', bx + 17, by - 3);
             }
             for (const c of lista) {
+                if (!c.ligado) continue;   // gerador a biomassa queimando milho: fumacinha
+                for (let k = 0; k < 3; k++) {
+                    const f = ((tempo / 900) + k / 3) % 1;
+                    q.globalAlpha = 0.85 * (1 - f);
+                    q.fillStyle = k === 1 ? '#8b9bb4' : '#c0cbdc';   // uma das bolinhas mais escura
+                    const tam = 3 + Math.round(f * 3);
+                    q.fillRect(Math.round(wx(c.x) + 9 + Math.sin(f * 6 + k) * 2), Math.round(wy(c.y) + 1 - f * 14), tam, tam);
+                }
+                q.globalAlpha = 1;
+            }
+            for (const c of lista) {
                 if (!c.pronto || c.produto == null) continue;
                 const x = wx(c.x), by = wy(c.y) - 21 + (Math.floor(tempo / 350) % 2);
                 balao(x - 2, by, 20, 18);
@@ -1051,6 +1127,36 @@
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             const k = escala * dpr;
             ctx.drawImage(mundo, 0, 0, MW, MH, -Math.round(cam.x * k), -Math.round(cam.y * k), MW * k, MH * k);
+            desenharClima(tempo, k);
+        }
+
+        /* ---- clima por cima de tudo (na tela, não no mundo) ---- */
+        function desenharClima(tempo, k) {
+            const W = canvas.width, H = canvas.height;
+            if (clima === 'nublado') {
+                ctx.fillStyle = 'rgba(70, 80, 100, .12)';
+                ctx.fillRect(0, 0, W, H);
+            } else if (clima === 'calor') {
+                ctx.fillStyle = 'rgba(255, 140, 40, .08)';
+                ctx.fillRect(0, 0, W, H);
+            } else if (clima === 'chuva') {
+                ctx.fillStyle = 'rgba(40, 60, 100, .14)';
+                ctx.fillRect(0, 0, W, H);
+                ctx.fillStyle = 'rgba(190, 225, 255, .55)';
+                const passo = Math.max(2, Math.round(k)), alto = passo * 5, n = Math.round((W * H) / (90 * 90 * dpr * dpr));
+                for (let i = 0; i < n; i++) {
+                    const x = ((i * 97) % W + (tempo * 0.05 * passo)) % W;
+                    const y = ((i * 211) % H + tempo * 0.6 * passo) % H;
+                    ctx.fillRect(Math.round(x), Math.round(y), passo, alto);
+                }
+            } else if (clima === 'vento') {
+                ctx.fillStyle = 'rgba(255, 255, 255, .45)';
+                const passo = Math.max(2, Math.round(k));
+                for (let i = 0; i < 14; i++) {
+                    const y = (i * 131) % H, x = ((i * 389) + tempo * 0.4 * passo) % (W + 200) - 100;
+                    ctx.fillRect(Math.round(x), Math.round(y), passo * 14, passo);
+                }
+            }
         }
 
         /* ---- entrada: toque/mouse, arrastar para mover a câmera ---- */
@@ -1238,6 +1344,7 @@
                 precisaDesenhar = true;
             },
             focarTile(tx, ty) { focar(wx(tx) + T / 2, wy(ty) + T / 2); },
+            definirClima(c) { clima = c || null; precisaDesenhar = true; },
             definirModoConstrucao(estado) { construcao = estado || { ativo: false }; },
             irAte(p) {
                 const { x, y } = posCanteiro(p);

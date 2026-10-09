@@ -1621,3 +1621,90 @@ body.construindo .status {
         top: calc(max(10px, env(safe-area-inset-top)) + 64px);
     }
 }
+
+/* ---------- Clima no topo e sementes da estação ---------- */
+.hud-clima {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    font-weight: 800;
+    font-size: 14px;
+    color: var(--texto);
+    cursor: pointer;
+    border: 0;
+}
+
+.hud-clima[hidden] {
+    display: none;
+}
+
+/* energia (nível 16+) */
+.hud-energia {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    padding: 6px 9px;
+    font-size: 15px;
+    color: var(--texto);
+    cursor: pointer;
+    border: 0;
+}
+
+.hud-energia small {
+    opacity: .6;
+}
+
+.hud-energia.vazia b {
+    color: #b13e53;
+}
+
+.hud-energia[hidden] {
+    display: none;
+}
+
+.tag-estacao.estufa {
+    color: #fff;
+    background: #6b2f74;
+}
+
+.tag-estacao {
+    margin-left: 4px;
+    padding: 0 5px;
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--texto-suave);
+    background: var(--creme-2);
+}
+
+.tag-estacao.agora {
+    color: #fff;
+    background: var(--grama-esc);
+}
+
+@media (max-width: 760px) {
+    .hud-clima {
+        flex: none;
+        padding: 6px 7px;
+    }
+
+    .hud-clima span,
+    .hud-energia small {
+        display: none;
+    }
+
+    .hud-energia {
+        flex: none;
+        padding: 6px 7px;
+    }
+
+    .xp-txt {
+        display: none;
+    }
+}
+
+/* semente fora de época: aparece apagadinha (para o jogador saber o que vem aí) */
+.item .ico.fora {
+    filter: grayscale(.8);
+    opacity: .55;
+}

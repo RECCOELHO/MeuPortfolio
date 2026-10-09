@@ -129,6 +129,8 @@ alter table public.fazenda_culturas add column if not exists tipo text not null 
 do $$ begin
   alter table public.fazenda_culturas add constraint fazenda_culturas_tipo_chk check (tipo in ('cultura', 'produto'));
 exception when duplicate_object then null; end $$;
+-- Fase 10: sementes da estação (só dá para plantar nela); null = o ano todo
+alter table public.fazenda_culturas add column if not exists estacao text;
 
 -- Fase 3: animais
 create table if not exists public.fazenda_animais_tipos (
@@ -177,7 +179,7 @@ alter table public.fazenda_itens add column if not exists largura smallint not n
 alter table public.fazenda_itens add column if not exists altura smallint not null default 1;
 alter table public.fazenda_itens drop constraint if exists fazenda_itens_categoria_check;
 alter table public.fazenda_itens add constraint fazenda_itens_categoria_check
-  check (categoria in ('caminho', 'natureza', 'objeto', 'construcao', 'maquina', 'oficina'));
+  check (categoria in ('caminho', 'natureza', 'objeto', 'construcao', 'maquina', 'oficina', 'energia'));
 -- Fase 5: máquinas. efeito = o que fazem; raio = alcance em quadrados (0 = fazenda toda);
 -- limite = quantas cada jogador pode ter (null = à vontade)
 alter table public.fazenda_itens add column if not exists efeito text;
@@ -266,6 +268,12 @@ create table if not exists public.fazenda_ajudantes (
 -- última semente que o jogador plantou (a semeadora usa a mesma)
 alter table public.fazenda_jogadores add column if not exists semente text references public.fazenda_culturas(id);
 
+-- Fase 11: energia (⚡) guardada nas baterias e quando foi a última conta.
+-- O gerador a biomassa usa construcoes.iniciado_em: null = desligado.
+alter table public.fazenda_jogadores add column if not exists energia real not null default 0;
+alter table public.fazenda_jogadores add column if not exists energia_em timestamptz;
+alter table public.fazenda_estatisticas add column if not exists energia int not null default 0;
+
 -- Fase 7: ração reservada para os animais (fica no celeiro, o "vender" não leva)
 create table if not exists public.fazenda_reservas (
   jogador_id  uuid not null references public.fazenda_jogadores(id) on delete cascade,
@@ -319,12 +327,16 @@ on conflict (id) do update set
   custo = excluded.custo, venda = excluded.venda, rendimento = excluded.rendimento,
   xp = excluded.xp, nivel_min = excluded.nivel_min, ordem = excluded.ordem;
 
--- A melancia saiu do catálogo (não existe na arte). Só apaga se ninguém usou.
-delete from public.fazenda_culturas k
- where k.id = 'melancia'
-   and not exists (select 1 from public.fazenda_canteiros c where c.cultura = k.id)
-   and not exists (select 1 from public.fazenda_celeiro ce where ce.item = k.id)
-   and not exists (select 1 from public.fazenda_visitas v where v.cultura = k.id);
+-- Sementes da estação (fase 10): só dá para plantar na estação delas, e rendem bem
+insert into public.fazenda_culturas (id, nome, emoji, tempo_seg, custo, venda, rendimento, xp, nivel_min, ordem, estacao) values
+  ('moranguinho', 'Morango',  '🍓', 10800, 40, 14, 8, 14, 3,  9, 'primavera'),
+  ('melancia',    'Melancia', '🍉', 21600, 60, 40, 5, 22, 4, 10, 'verao'),
+  ('jerimum',     'Abóbora',  '🎃', 28800, 70, 45, 6, 26, 5, 11, 'outono'),
+  ('repolho',     'Repolho',  '🥬', 14400, 45, 18, 7, 16, 3, 12, 'inverno')
+on conflict (id) do update set
+  nome = excluded.nome, emoji = excluded.emoji, tempo_seg = excluded.tempo_seg,
+  custo = excluded.custo, venda = excluded.venda, rendimento = excluded.rendimento,
+  xp = excluded.xp, nivel_min = excluded.nivel_min, ordem = excluded.ordem, estacao = excluded.estacao;
 
 -- Produtos dos animais (tempo_seg/custo não se aplicam: ficam no tipo de animal)
 insert into public.fazenda_culturas (id, nome, emoji, tempo_seg, custo, venda, rendimento, xp, nivel_min, ordem, tipo) values
@@ -441,6 +453,28 @@ on conflict (id) do update set
   nivel_min = excluded.nivel_min, ordem = excluded.ordem, efeito = excluded.efeito,
   raio = excluded.raio, limite = excluded.limite, descricao = excluded.descricao;
 
+-- Energia — fase 11, níveis 16 a 25 (no espírito do IndustrialCraft): geradores enchem as
+-- baterias e as máquinas elétricas gastam. Os números ficam nas funções fazenda_capacidade,
+-- fazenda_energia_taxa e nos gastos de cada máquina; as descrições aparecem no jogo.
+insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem, efeito, raio, limite, descricao) values
+  ('painel_solar',  'Painel solar',       'energia',  2500, 16, 80, 'solar',      0, 6, 'Gera até 12 ⚡/h de dia (sol forte: 14; nublado: 5; chuva: 3). À noite, nada.'),
+  ('bateria',       'Banco de baterias',  'energia',  2000, 16, 81, 'bateria',    0, 4, 'Guarda mais 100 ⚡ (sem bateria, a caixa de luz guarda só 50).'),
+  ('turbina',       'Turbina eólica',     'energia',  4000, 17, 82, 'eolica',     0, 4, 'Gera 8 ⚡/h de dia e de noite; 30 ⚡/h na ventania e 14 na chuva.'),
+  ('estufa',        'Estufa elétrica',    'energia',  5000, 18, 83, 'estufa',     2, 3, 'Canteiros em volta (2) aceitam sementes de qualquer estação e crescem 25% mais rápido. Gasta 5 ⚡ por plantio.'),
+  ('gerador_bio',   'Gerador a biomassa', 'energia',  6000, 19, 84, 'biomassa',   0, 2, 'Ligado, queima 1 milho a cada 30 min: 50 ⚡/h. Toque nele para ligar ou desligar.'),
+  ('triturador',    'Triturador',         'energia',  8000, 20, 85, 'triturar',   0, 1, 'As oficinas rendem 2 produtos por receita. Gasta 10 ⚡ por receita.'),
+  ('supercap',      'Supercapacitor',     'energia',  9000, 21, 86, 'bateria',    0, 2, 'Guarda mais 500 ⚡.'),
+  ('fabrica_auto',  'Fábrica automática', 'energia', 12000, 22, 87, 'automatico', 0, 1, 'As oficinas recolhem o produto e começam de novo sozinhas, se tiver ingredientes. Gasta 8 ⚡ por receita.'),
+  ('robo_colheita', 'Robô colheitador',   'energia', 14000, 23, 88, 'robo',       3, 2, 'Colhe, ara e replanta sozinho os canteiros em volta (3). Gasta 3 ⚡ por colheita e 1 por plantio.'),
+  ('aspersor',      'Aspersor elétrico',  'energia', 10000, 24, 89, 'aspersor',   3, 4, 'Nenhuma erva, praga ou seca nos canteiros em volta (3). Gasta 1 ⚡ por problema evitado.'),
+  ('reator',        'Reator nuclear',     'energia', 30000, 25, 90, 'reator',     0, 1, 'Gera 120 ⚡/h sem parar, de dia e de noite (80 na onda de calor, para não esquentar).')
+on conflict (id) do update set
+  nome = excluded.nome, categoria = excluded.categoria, custo = excluded.custo,
+  nivel_min = excluded.nivel_min, ordem = excluded.ordem, efeito = excluded.efeito,
+  raio = excluded.raio, limite = excluded.limite, descricao = excluded.descricao;
+-- as duas grandes ocupam 2 x 2
+update public.fazenda_itens set largura = 2, altura = 2 where id in ('fabrica_auto', 'reator');
+
 -- O jogador tem alguma máquina com esse efeito? (trator, colheitadeira)
 create or replace function public.fazenda_tem_efeito(p_jogador uuid, p_efeito text)
 returns boolean language sql stable security definer set search_path = public as $$
@@ -520,7 +554,10 @@ insert into public.fazenda_conquistas_tipos (id, nome, descricao, medida, meta, 
   ('construtor',        'Construtor',          'Tenha 25 construções',            'construcoes',  25,  100, 11),
   ('arquiteto',         'Arquiteto',           'Tenha 75 construções',            'construcoes',  75,  300, 12),
   ('nivel_5',           'Fazendeiro nível 5',  'Chegue ao nível 5',               'nivel',         5,  100, 13),
-  ('nivel_10',          'Fazendeiro nível 10', 'Chegue ao nível 10',              'nivel',        10,  400, 14)
+  ('nivel_10',          'Fazendeiro nível 10', 'Chegue ao nível 10',              'nivel',        10,  400, 14),
+  ('eletricista',       'Eletricista',         'Gaste 500 ⚡ com máquinas elétricas', 'energia',   500,  800, 15),
+  ('nivel_20',          'Fazendeiro nível 20', 'Chegue ao nível 20',              'nivel',        20, 1500, 16),
+  ('nivel_25',          'Fazenda industrial',  'Chegue ao nível 25',              'nivel',        25, 5000, 17)
 on conflict (id) do update set
   nome = excluded.nome, descricao = excluded.descricao, medida = excluded.medida,
   meta = excluded.meta, recompensa = excluded.recompensa, ordem = excluded.ordem;
@@ -544,6 +581,30 @@ end $$;
 -- ------------------------------------------------------------
 -- Funções internas (não expostas à API)
 -- ------------------------------------------------------------
+
+-- Estação do ano no Brasil (hemisfério sul); igual a estacao() em fazenda-arte.js
+create or replace function public.fazenda_estacao(p_dia date)
+returns text language sql stable as $$
+  select coalesce(nullif(current_setting('fazenda.estacao_teste', true), ''),
+    case when to_char(p_dia, 'MMDD')::int >= 1221 or to_char(p_dia, 'MMDD')::int < 320 then 'verao'
+         when to_char(p_dia, 'MMDD')::int < 621 then 'outono'
+         when to_char(p_dia, 'MMDD')::int < 923 then 'inverno'
+         else 'primavera' end);
+$$;
+
+-- Clima do dia: sorteado pela data (igual para todo mundo), com cara de cada estação.
+-- sol | nublado | chuva (rega tudo: sem seca) | calor (mais seca) | vento
+create or replace function public.fazenda_clima(p_dia date)
+returns text language sql stable as $$
+  select coalesce(nullif(current_setting('fazenda.clima_teste', true), ''), (
+    select case fazenda_estacao(p_dia)
+      when 'verao'   then case when r < 40 then 'sol' when r < 65 then 'chuva' when r < 85 then 'calor' when r < 95 then 'nublado' else 'vento' end
+      when 'outono'  then case when r < 40 then 'sol' when r < 65 then 'nublado' when r < 85 then 'chuva' when r < 95 then 'vento' else 'calor' end
+      when 'inverno' then case when r < 45 then 'sol' when r < 75 then 'nublado' when r < 85 then 'vento' when r < 95 then 'chuva' else 'calor' end
+      else                case when r < 35 then 'sol' when r < 60 then 'chuva' when r < 80 then 'nublado' when r < 95 then 'vento' else 'calor' end
+    end
+    from (select abs(hashtext('clima-' || p_dia::text)) % 100 as r) x));
+$$;
 
 -- Nível a partir do XP: nível n começa em 25·(n-1)² XP (25, 100, 225, 400...)
 create or replace function public.fazenda_nivel(p_xp int)
@@ -577,17 +638,40 @@ returns boolean language sql immutable as $$
                     and p_y >= (z->>'y')::int and p_y < (z->>'y')::int + (z->>'h')::int);
 $$;
 
--- Quantos canteiros o jogador pode ter: +2 por nível até o 15 e +6 por terreno
--- (igual a limiteCanteiros em fazenda.js)
+-- Quantos canteiros o jogador pode ter: +2 por nível até o 25 e +6 por terreno
+-- (igual a limiteCanteirosNivel em fazenda.js)
 create or replace function public.fazenda_limite_canteiros(p_nivel int, p_zonas int)
 returns int language sql immutable as $$
-  select least(6 + (p_nivel - 1) * 2, 34) + 6 * p_zonas;
+  select least(6 + (p_nivel - 1) * 2, 54) + 6 * p_zonas;
 $$;
 
 -- Presente de moedas ao chegar no nível n (igual a presenteNivel em fazenda.js)
 create or replace function public.fazenda_presente_nivel(p_nivel int)
 returns int language sql immutable as $$
   select 50 * p_nivel;
+$$;
+
+-- ⚡ que cabe nas baterias: 50 da caixa de luz + 100 por banco de baterias + 500 por supercapacitor
+create or replace function public.fazenda_capacidade(p_jogador uuid)
+returns int language sql stable security definer set search_path = public as $$
+  select 50 + coalesce(sum(case c.tipo when 'bateria' then 100 when 'supercap' then 500 else 0 end), 0)::int
+    from fazenda_construcoes c where c.jogador_id = p_jogador;
+$$;
+
+-- ⚡ por hora que sol, vento e reator geram num momento (o painel solar só de dia, 6h às 18h)
+create or replace function public.fazenda_energia_taxa(p_jogador uuid, p_t timestamptz)
+returns real language sql stable security definer set search_path = public as $$
+  select coalesce(sum(case i.efeito
+           when 'solar' then case when extract(hour from p_t at time zone 'America/Sao_Paulo') between 6 and 17
+                                  then case x.clima when 'sol' then 12 when 'calor' then 14 when 'vento' then 10 when 'nublado' then 5 else 3 end
+                                  else 0 end
+           when 'eolica' then case x.clima when 'vento' then 30 when 'chuva' then 14 when 'nublado' then 10 when 'sol' then 8 else 5 end
+           when 'reator' then case x.clima when 'calor' then 80 else 120 end
+           else 0 end), 0)::real
+    from fazenda_construcoes c
+    join fazenda_itens i on i.id = c.tipo
+    cross join (select fazenda_clima((p_t at time zone 'America/Sao_Paulo')::date) as clima) x
+   where c.jogador_id = p_jogador and i.efeito in ('solar', 'eolica', 'reator');
 $$;
 
 create or replace function public.fazenda_auth(p_token text)
@@ -642,7 +726,12 @@ declare
   v_seco   boolean;
   v_tipo   int;
   i        int;
+  v_clima  text := fazenda_clima(fazenda_hoje());
 begin
+  -- dia de chuva: ela rega tudo (some a seca dos canteiros)
+  if v_clima = 'chuva' then
+    update fazenda_canteiros set seco = false where jogador_id = p_jogador and estado = 'plantado' and seco;
+  end if;
   for r in
     select c.posicao, c.x, c.y, c.plantado_em, c.prox_evento, c.erva, c.praga, c.seco, k.tempo_seg
       from fazenda_canteiros c
@@ -659,10 +748,16 @@ begin
     i := 0;
     while v_evt <= now() and v_evt < v_maduro and i < 3 loop
       v_tipo := floor(random() * 3)::int;
-      -- máquina por perto evita o problema (robô capinador, pulverizador, irrigador)
-      if v_tipo = 0 then v_erva := v_erva or not fazenda_protegido(p_jogador, 'erva', r.x, r.y);
-      elsif v_tipo = 1 then v_praga := v_praga or not fazenda_protegido(p_jogador, 'praga', r.x, r.y);
-      else v_seco := v_seco or not fazenda_protegido(p_jogador, 'seco', r.x, r.y);
+      if v_clima = 'calor' and random() < 0.5 then v_tipo := 2; end if;   -- onda de calor: mais seca
+      if v_clima = 'chuva' and v_tipo = 2 then v_tipo := -1; end if;      -- com chuva não seca
+      -- máquina por perto evita o problema (robô capinador, pulverizador, irrigador);
+      -- o aspersor elétrico evita qualquer um, gastando 1 ⚡
+      if v_tipo = 0 and not v_erva and not fazenda_protegido(p_jogador, 'erva', r.x, r.y) then
+        if not fazenda_aspersor(p_jogador, r.x, r.y) then v_erva := true; end if;
+      elsif v_tipo = 1 and not v_praga and not fazenda_protegido(p_jogador, 'praga', r.x, r.y) then
+        if not fazenda_aspersor(p_jogador, r.x, r.y) then v_praga := true; end if;
+      elsif v_tipo = 2 and not v_seco and not fazenda_protegido(p_jogador, 'seco', r.x, r.y) then
+        if not fazenda_aspersor(p_jogador, r.x, r.y) then v_seco := true; end if;
       end if;
       v_evt := v_evt + make_interval(secs => r.tempo_seg * (0.25 + random() * 0.35));
       i := i + 1;
@@ -687,6 +782,7 @@ declare
   v_nivel int;
   v_max   int;
   v_json  jsonb;
+  v_ener  real;
 begin
   perform fazenda_checar_conquistas(p_jogador);
   select * into j from fazenda_jogadores where id = p_jogador;
@@ -701,6 +797,7 @@ begin
   end if;
   -- canteiros não aparecem mais sozinhos: o jogador coloca no modo construir até este limite
   v_max := fazenda_limite_canteiros(v_nivel, j.zonas);
+  v_ener := fazenda_energia_atualizar(p_jogador);
 
   perform fazenda_gerar_missoes(p_jogador);
 
@@ -720,6 +817,15 @@ begin
       'bonus_venda', fazenda_bonus_venda(p_jogador)
     ),
     'zonas_venda', fazenda_zonas(),
+    -- energia agora, quanto cabe e quanto entra por hora (sol/vento/reator + biomassa ligada)
+    'energia', jsonb_build_object(
+      'carga', round(v_ener::numeric, 1),
+      'capacidade', fazenda_capacidade(p_jogador),
+      'por_hora', fazenda_energia_taxa(p_jogador, now()) + 50 * (
+        select count(*) from fazenda_construcoes c join fazenda_itens i on i.id = c.tipo
+         where c.jogador_id = p_jogador and i.efeito = 'biomassa' and c.iniciado_em is not null)),
+    'estacao', fazenda_estacao(fazenda_hoje()),
+    'clima', jsonb_build_object('hoje', fazenda_clima(fazenda_hoje()), 'amanha', fazenda_clima(fazenda_hoje() + 1)),
     'canteiros', coalesce((
       select jsonb_agg(jsonb_build_object(
                'posicao', posicao, 'x', x, 'y', y, 'estado', estado, 'cultura', cultura,
@@ -750,7 +856,7 @@ begin
       select jsonb_agg(jsonb_build_object(
                'id', id, 'nome', nome, 'emoji', emoji, 'tempo_seg', tempo_seg,
                'custo', custo, 'venda', venda, 'rendimento', rendimento,
-               'xp', xp, 'nivel_min', nivel_min, 'tipo', tipo)
+               'xp', xp, 'nivel_min', nivel_min, 'tipo', tipo, 'estacao', estacao)
              order by ordem)
         from fazenda_culturas),
     'animais', coalesce((
@@ -802,6 +908,8 @@ declare
   v_maduro timestamptz;
   v_murcho timestamptz;
   v_qtd    int := 0;
+  v_fora   boolean;
+  v_estufa boolean;
 begin
   select * into j from fazenda_jogadores where id = p_jogador for update;
 
@@ -839,18 +947,30 @@ begin
     if not found or k.tipo <> 'cultura' then
       raise exception 'cultura_invalida';
     end if;
+    -- semente de outra estação só cresce no alcance de uma estufa elétrica
+    v_fora := k.estacao is not null and k.estacao <> fazenda_estacao(fazenda_hoje());
+    v_estufa := fazenda_protegido(p_jogador, 'estufa', c.x, c.y);
+    if v_fora and not v_estufa then
+      raise exception 'fora_de_estacao';
+    end if;
     if fazenda_nivel(j.xp) < k.nivel_min then
       raise exception 'nivel_insuficiente';
     end if;
     if j.moedas < k.custo then
       raise exception 'moedas_insuficientes';
     end if;
+    if v_estufa then
+      v_estufa := fazenda_gastar_energia(p_jogador, 5);   -- sem energia, a estufa não ajuda
+    end if;
+    if v_fora and not v_estufa then
+      raise exception 'sem_energia';
+    end if;
     update fazenda_jogadores set moedas = moedas - k.custo where id = p_jogador;
     update fazenda_canteiros
-       -- pé de girassol, tora, árvore de outono por perto: começa 10% adiantada
+       -- pé de girassol, tora, árvore de outono por perto: começa 10% adiantada; estufa: 25%
        set estado = 'plantado', cultura = k.id,
-           plantado_em = now() - case when fazenda_protegido(p_jogador, 'crescer', c.x, c.y)
-                                      then make_interval(secs => k.tempo_seg * 0.1) else interval '0' end,
+           plantado_em = now() - make_interval(secs => k.tempo_seg *
+                           (0.1 * fazenda_protegido(p_jogador, 'crescer', c.x, c.y)::int + 0.25 * v_estufa::int)),
            erva = false, praga = false, seco = false, roubado = 0,
            prox_evento = now() + make_interval(secs => k.tempo_seg * (0.15 + random() * 0.35))
      where jogador_id = p_jogador and posicao = p_posicao;
@@ -985,6 +1105,207 @@ begin
 end;
 $$;
 
+-- Traz a energia até agora: soma o que os geradores fizeram desde a última conta (até
+-- 12 horas, hora a hora: o sol se põe e o clima muda de um dia para o outro), queima o
+-- milho do gerador a biomassa e corta no que cabe nas baterias.
+create or replace function public.fazenda_energia_atualizar(p_jogador uuid)
+returns real
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  j        record;
+  g        record;
+  v_e      real;
+  v_cap    int;
+  v_t      timestamptz;
+  v_prox   timestamptz;
+  v_tempo  int;
+  v_milho  int;
+  v_queima int;
+begin
+  select energia, energia_em into j from fazenda_jogadores where id = p_jogador for update;
+  if j.energia_em is not null and j.energia_em >= now() then
+    return j.energia;                                   -- já fez a conta nesta chamada
+  end if;
+  if not exists (select 1 from fazenda_construcoes c join fazenda_itens i on i.id = c.tipo
+                  where c.jogador_id = p_jogador and i.categoria = 'energia') then
+    update fazenda_jogadores set energia_em = now() where id = p_jogador;
+    return j.energia;
+  end if;
+  v_cap := fazenda_capacidade(p_jogador);
+  v_e := j.energia;
+  v_t := greatest(coalesce(j.energia_em, now()), now() - interval '12 hours');
+  while v_t < now() loop
+    v_prox := least(date_trunc('hour', v_t) + interval '1 hour', now());
+    v_e := v_e + fazenda_energia_taxa(p_jogador, v_t) * extract(epoch from v_prox - v_t)::real / 3600;
+    v_t := v_prox;
+  end loop;
+  -- gerador a biomassa ligado: 1 milho a cada 30 min vira 25 ⚡ (acabou o milho, desliga)
+  for g in
+    select c.x, c.y, c.iniciado_em from fazenda_construcoes c join fazenda_itens i on i.id = c.tipo
+     where c.jogador_id = p_jogador and i.efeito = 'biomassa' and c.iniciado_em is not null
+       for update of c
+  loop
+    g.iniciado_em := greatest(g.iniciado_em, now() - interval '12 hours');
+    v_tempo := floor(extract(epoch from now() - g.iniciado_em) / 1800);
+    continue when v_tempo <= 0;
+    v_milho := greatest(coalesce((select quantidade from fazenda_celeiro where jogador_id = p_jogador and item = 'milho'), 0)
+                      - coalesce((select quantidade from fazenda_reservas where jogador_id = p_jogador and item = 'milho'), 0), 0);
+    -- bateria cheia: não queima milho à toa
+    v_queima := least(v_tempo, v_milho, ceil(greatest(v_cap - v_e, 0) / 25.0)::int);
+    if v_queima > 0 then
+      update fazenda_celeiro set quantidade = quantidade - v_queima where jogador_id = p_jogador and item = 'milho';
+      v_e := v_e + 25 * v_queima;
+    end if;
+    update fazenda_construcoes
+       set iniciado_em = case when v_milho - v_queima <= 0 then null
+                              else g.iniciado_em + make_interval(secs => v_tempo * 1800) end
+     where jogador_id = p_jogador and x = g.x and y = g.y;
+  end loop;
+  v_e := least(greatest(v_e, 0), v_cap);
+  update fazenda_jogadores set energia = v_e, energia_em = now() where id = p_jogador;
+  return v_e;
+end;
+$$;
+
+-- Gasta energia se tiver o bastante (senão não gasta nada e devolve false)
+create or replace function public.fazenda_gastar_energia(p_jogador uuid, p_qtd real)
+returns boolean
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+begin
+  if fazenda_energia_atualizar(p_jogador) < p_qtd then
+    return false;
+  end if;
+  update fazenda_jogadores set energia = energia - p_qtd where id = p_jogador;
+  update fazenda_estatisticas set energia = energia + ceil(p_qtd)::int where jogador_id = p_jogador;
+  return true;
+end;
+$$;
+
+-- Tem aspersor elétrico com energia cobrindo (x, y)? Gasta 1 ⚡ por problema evitado.
+create or replace function public.fazenda_aspersor(p_jogador uuid, p_x int, p_y int)
+returns boolean
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+begin
+  if not fazenda_protegido(p_jogador, 'aspersor', p_x, p_y) then
+    return false;
+  end if;
+  return fazenda_gastar_energia(p_jogador, 1);
+end;
+$$;
+
+-- As máquinas elétricas trabalham sozinhas (roda ao carregar a fazenda, como os ajudantes):
+-- a fábrica automática recolhe e recomeça as oficinas; os robôs colhem e replantam.
+create or replace function public.fazenda_industria(p_jogador uuid)
+returns void
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  o     record;
+  e     record;
+  r     record;
+  cc    record;
+  v_t   timestamptz;
+  v_fim timestamptz;
+  v_qtd int;
+  v_n   int;
+  v_ok  boolean;
+  v_sem text;
+begin
+  perform fazenda_energia_atualizar(p_jogador);
+
+  if fazenda_tem_efeito(p_jogador, 'automatico') then
+    for o in
+      select c.x, c.y, c.iniciado_em, i.produz, i.produz_seg, i.produz_qtd, i.entradas
+        from fazenda_construcoes c join fazenda_itens i on i.id = c.tipo
+       where c.jogador_id = p_jogador and i.entradas is not null
+         for update of c
+    loop
+      v_t := o.iniciado_em;
+      v_fim := null;
+      v_n := 0;
+      loop
+        exit when v_n >= 24;
+        if v_t is not null then
+          exit when now() < v_t + make_interval(secs => o.produz_seg);   -- ainda trabalhando
+          v_qtd := o.produz_qtd;
+          if fazenda_tem_efeito(p_jogador, 'triturar') then
+            if fazenda_gastar_energia(p_jogador, 10) then v_qtd := v_qtd * 2; end if;
+          end if;
+          insert into fazenda_celeiro (jogador_id, item, quantidade) values (p_jogador, o.produz, v_qtd)
+          on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
+          v_fim := v_t + make_interval(secs => o.produz_seg);
+          v_t := null;
+        end if;
+        -- recomeça se tiver os ingredientes (a ração reservada não entra) e energia
+        v_ok := true;
+        for e in select key as item, value::int as qtd from jsonb_each_text(o.entradas) loop
+          if coalesce((select quantidade from fazenda_celeiro where jogador_id = p_jogador and item = e.item), 0)
+             - coalesce((select quantidade from fazenda_reservas where jogador_id = p_jogador and item = e.item), 0) < e.qtd then
+            v_ok := false;
+          end if;
+        end loop;
+        exit when not v_ok;
+        exit when not fazenda_gastar_energia(p_jogador, 8);
+        for e in select key as item, value::int as qtd from jsonb_each_text(o.entradas) loop
+          update fazenda_celeiro set quantidade = quantidade - e.qtd where jogador_id = p_jogador and item = e.item;
+        end loop;
+        -- emenda na receita anterior (vale o tempo fora, até 12 horas)
+        v_t := greatest(coalesce(v_fim, now()), now() - interval '12 hours');
+        v_n := v_n + 1;
+      end loop;
+      update fazenda_construcoes set iniciado_em = v_t where jogador_id = p_jogador and x = o.x and y = o.y;
+    end loop;
+  end if;
+
+  select semente into v_sem from fazenda_jogadores where id = p_jogador;
+  for r in
+    select c.x, c.y, i.raio from fazenda_construcoes c join fazenda_itens i on i.id = c.tipo
+     where c.jogador_id = p_jogador and i.efeito = 'robo'
+  loop
+    for cc in
+      select x.posicao, x.estado, x.cultura,
+             coalesce(x.estado = 'plantado'
+               and now() >= x.plantado_em + make_interval(secs => k.tempo_seg)
+               and now() < x.plantado_em + make_interval(secs => k.tempo_seg + greatest(k.tempo_seg * 2, 3600)), false) as maduro
+        from fazenda_canteiros x left join fazenda_culturas k on k.id = x.cultura
+       where x.jogador_id = p_jogador and abs(x.x - r.x) <= r.raio and abs(x.y - r.y) <= r.raio
+       order by x.posicao
+    loop
+      if cc.maduro then
+        begin   -- colhe (e ara, se não tiver trator): 3 ⚡
+          if not fazenda_gastar_energia(p_jogador, 3) then exit; end if;
+          perform fazenda_aplicar(p_jogador, 'colher', cc.posicao, null, true);
+          if (select estado from fazenda_canteiros where jogador_id = p_jogador and posicao = cc.posicao) = 'vazio' then
+            perform fazenda_aplicar(p_jogador, 'arar', cc.posicao, null, true);
+          end if;
+        exception when others then null;
+        end;
+        begin   -- replanta a mesma semente (paga com suas moedas): 1 ⚡
+          if fazenda_gastar_energia(p_jogador, 1) then
+            perform fazenda_aplicar(p_jogador, 'plantar', cc.posicao, cc.cultura, true);
+          end if;
+        exception when others then null;
+        end;
+      elsif cc.estado = 'arado' and v_sem is not null then
+        begin   -- canteiro arado vazio: planta a última semente que você usou
+          if fazenda_gastar_energia(p_jogador, 1) then
+            perform fazenda_aplicar(p_jogador, 'plantar', cc.posicao, v_sem, true);
+          end if;
+        exception when others then null;
+        end;
+      end if;
+    end loop;
+  end loop;
+end;
+$$;
+
 -- Tarefas por hora de um ajudante em cada nível
 create or replace function public.fazenda_ritmo(p_nivel int)
 returns real language sql immutable as $$
@@ -1112,6 +1433,7 @@ declare
 begin
   perform fazenda_tick(v_id);
   perform fazenda_trabalhar(v_id);
+  perform fazenda_industria(v_id);
   return fazenda_estado(v_id);
 end;
 $$;
@@ -1664,6 +1986,7 @@ begin
       when 'animal' then s.animal
       when 'ajudar' then s.ajudar
       when 'pegar' then s.pegar
+      when 'energia' then s.energia
       else 0
     end;
     if v_valor >= r.meta then
@@ -1888,6 +2211,8 @@ begin
     raise exception 'limite_construcoes';
   end if;
   if j.moedas < i.custo then raise exception 'moedas_insuficientes'; end if;
+  -- máquina elétrica nova: fecha a conta da energia antes (ela não gera pelo tempo de antes)
+  if i.categoria = 'energia' then perform fazenda_energia_atualizar(v_id); end if;
   update fazenda_jogadores set moedas = moedas - i.custo where id = v_id;
   insert into fazenda_construcoes (jogador_id, x, y, tipo, colhido_em) values (v_id, p_x, p_y, i.id, now());
   return jsonb_build_object('estado', fazenda_estado(v_id));
@@ -2000,6 +2325,7 @@ declare
   e     record;
   k     record;
   v_tem int;
+  v_qtd int;
 begin
   select c.iniciado_em, i.produz, i.produz_seg, i.produz_qtd, i.entradas into r
     from fazenda_construcoes c join fazenda_itens i on i.id = c.tipo
@@ -2022,13 +2348,48 @@ begin
 
   if now() < r.iniciado_em + make_interval(secs => r.produz_seg) then raise exception 'nao_pronto'; end if;
   select * into k from fazenda_culturas where id = r.produz;
+  v_qtd := r.produz_qtd;
+  if fazenda_tem_efeito(v_id, 'triturar') then          -- triturador: rende em dobro (10 ⚡)
+    if fazenda_gastar_energia(v_id, 10) then v_qtd := v_qtd * 2; end if;
+  end if;
   insert into fazenda_celeiro (jogador_id, item, quantidade)
-  values (v_id, r.produz, r.produz_qtd)
+  values (v_id, r.produz, v_qtd)
   on conflict (jogador_id, item)
   do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
   update fazenda_jogadores set xp = xp + k.xp where id = v_id;
   update fazenda_construcoes set iniciado_em = null where jogador_id = v_id and x = p_x and y = p_y;
-  return jsonb_build_object('acao', 'coletou', 'qtd', r.produz_qtd, 'item', r.produz, 'estado', fazenda_estado(v_id));
+  return jsonb_build_object('acao', 'coletou', 'qtd', v_qtd, 'item', r.produz, 'estado', fazenda_estado(v_id));
+end;
+$$;
+
+-- Liga ou desliga o gerador a biomassa (toque nele). Ao ligar já queima o primeiro milho.
+create or replace function public.fazenda_gerador(p_token text, p_x int, p_y int)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id uuid := fazenda_auth(p_token);
+  r    record;
+begin
+  select c.iniciado_em, i.efeito into r
+    from fazenda_construcoes c join fazenda_itens i on i.id = c.tipo
+   where c.jogador_id = v_id and c.x = p_x and c.y = p_y
+     for update of c;
+  if not found or r.efeito is distinct from 'biomassa' then raise exception 'item_invalido'; end if;
+  perform fazenda_energia_atualizar(v_id);   -- fecha a conta do que já passou
+  if r.iniciado_em is not null then
+    update fazenda_construcoes set iniciado_em = null where jogador_id = v_id and x = p_x and y = p_y;
+    return jsonb_build_object('ligado', false, 'estado', fazenda_estado(v_id));
+  end if;
+  if coalesce((select quantidade from fazenda_celeiro where jogador_id = v_id and item = 'milho'), 0)
+     - coalesce((select quantidade from fazenda_reservas where jogador_id = v_id and item = 'milho'), 0) < 1 then
+    raise exception 'sem_milho';
+  end if;
+  update fazenda_celeiro set quantidade = quantidade - 1 where jogador_id = v_id and item = 'milho';
+  update fazenda_jogadores set energia = least(energia + 25, fazenda_capacidade(v_id)) where id = v_id;
+  update fazenda_construcoes set iniciado_em = now() where jogador_id = v_id and x = p_x and y = p_y;
+  return jsonb_build_object('ligado', true, 'estado', fazenda_estado(v_id));
 end;
 $$;
 
@@ -2061,6 +2422,8 @@ $$;
 -- ------------------------------------------------------------
 revoke execute on function
   public.fazenda_nivel(int),
+  public.fazenda_estacao(date),
+  public.fazenda_clima(date),
   public.fazenda_max_canteiros(int),
   public.fazenda_zonas(),
   public.fazenda_no_terreno(int, int, int),
@@ -2070,6 +2433,13 @@ revoke execute on function
   public.fazenda_protegido(uuid, text, int, int),
   public.fazenda_beleza(uuid),
   public.fazenda_bonus_venda(uuid),
+  public.fazenda_capacidade(uuid),
+  public.fazenda_energia_taxa(uuid, timestamptz),
+  public.fazenda_energia_atualizar(uuid),
+  public.fazenda_gastar_energia(uuid, real),
+  public.fazenda_aspersor(uuid, int, int),
+  public.fazenda_industria(uuid),
+  public.fazenda_gerador(text, int, int),
   public.fazenda_checar_lugar(uuid, int, int, int, int, int, int, int, int),
   public.fazenda_auth(text),
   public.fazenda_nova_sessao(uuid),
@@ -2126,5 +2496,6 @@ grant execute on function
   public.fazenda_coletar(text, int, int),
   public.fazenda_reservar(text, text, int),
   public.fazenda_contratar(text, text),
-  public.fazenda_oficina(text, int, int)
+  public.fazenda_oficina(text, int, int),
+  public.fazenda_gerador(text, int, int)
 to anon, authenticated;

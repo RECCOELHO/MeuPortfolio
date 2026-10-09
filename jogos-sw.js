@@ -23,6 +23,15 @@ async function guardar(pedido, resposta) {
     await c.put(pedido, resposta);
 }
 
+// tocar no aviso (fazenda) abre o jogo, ou traz para a frente se já estiver aberto
+self.addEventListener('notificationclick', (e) => {
+    e.notification.close();
+    e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((lista) => {
+        const aberta = lista.find((c) => c.url.includes('/fazenda'));
+        return aberta ? aberta.focus() : self.clients.openWindow('/fazenda.html');
+    }));
+});
+
 self.addEventListener('fetch', (e) => {
     const pedido = e.request;
     // só arquivos do próprio site; o banco (Supabase) e as fontes passam direto
