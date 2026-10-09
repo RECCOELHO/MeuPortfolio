@@ -1708,3 +1708,40 @@ body.construindo .status {
     filter: grayscale(.8);
     opacity: .55;
 }
+
+/* ---------- A isca do próximo nível ---------- */
+.xp-premio {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    flex: none;
+}
+
+.xp-premio[hidden] {
+    display: none;
+}
+
+.xp-premio > * {
+    flex: none;
+    transform: scale(.8);
+}
+
+/* falta pouco para subir: a barra pisca dourada */
+.xpbar.quase {
+    animation: quase 1.2s steps(2) infinite;
+}
+
+@keyframes quase {
+    50% {
+        box-shadow: 0 -2px 0 var(--ouro), 0 2px 0 var(--ouro), -2px 0 0 var(--ouro), 2px 0 0 var(--ouro);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .xpbar.quase {
+        animation: none;
+        box-shadow: 0 -2px 0 var(--ouro), 0 2px 0 var(--ouro), -2px 0 0 var(--ouro), 2px 0 0 var(--ouro);
+    }
+}
