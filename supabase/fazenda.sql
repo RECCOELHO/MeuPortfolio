@@ -177,7 +177,7 @@ alter table public.fazenda_itens add column if not exists largura smallint not n
 alter table public.fazenda_itens add column if not exists altura smallint not null default 1;
 alter table public.fazenda_itens drop constraint if exists fazenda_itens_categoria_check;
 alter table public.fazenda_itens add constraint fazenda_itens_categoria_check
-  check (categoria in ('caminho', 'natureza', 'objeto', 'construcao', 'maquina'));
+  check (categoria in ('caminho', 'natureza', 'objeto', 'construcao', 'maquina', 'oficina'));
 -- Fase 5: máquinas. efeito = o que fazem; raio = alcance em quadrados (0 = fazenda toda);
 -- limite = quantas cada jogador pode ter (null = à vontade)
 alter table public.fazenda_itens add column if not exists efeito text;
@@ -191,6 +191,10 @@ alter table public.fazenda_itens add column if not exists produz text references
 alter table public.fazenda_itens add column if not exists produz_seg int;
 alter table public.fazenda_itens add column if not exists produz_qtd int;
 alter table public.fazenda_construcoes add column if not exists colhido_em timestamptz;
+-- Fase 9: oficinas. entradas = ingredientes de uma receita ({"trigo": 3, "ovo": 1});
+-- a receita leva produz_seg e rende produz_qtd de produz. iniciado_em null = parada.
+alter table public.fazenda_itens add column if not exists entradas jsonb;
+alter table public.fazenda_construcoes add column if not exists iniciado_em timestamptz;
 
 -- Fase 4: números de cada jogador (para conquistas e perfil)
 create table if not exists public.fazenda_estatisticas (
@@ -329,7 +333,15 @@ insert into public.fazenda_culturas (id, nome, emoji, tempo_seg, custo, venda, r
   ('la',    'Lã',    '🧶', 1, 0, 150, 1, 32, 6, 22, 'produto'),
   ('pelo',  'Pelo de coelho', '🐇', 1, 0, 45, 1, 10, 6, 23, 'produto'),
   ('pena',  'Pena',  '🪶', 1, 0, 60, 1, 14, 11, 24, 'produto'),
-  ('trufa', 'Trufa', '🍄', 1, 0, 180, 1, 36, 14, 25, 'produto')
+  ('trufa', 'Trufa', '🍄', 1, 0, 180, 1, 36, 14, 25, 'produto'),
+  ('salada',  'Salada',          '🥗', 1, 0,  30, 1,  4,  3, 30, 'produto'),
+  ('pipoca',  'Pipoca',          '🍿', 1, 0,  70, 1,  8,  4, 31, 'produto'),
+  ('molho',   'Molho de tomate', '🥫', 1, 0, 110, 1, 12,  5, 32, 'produto'),
+  ('queijo',  'Queijo',          '🧀', 1, 0, 240, 1, 25,  6, 33, 'produto'),
+  ('pao',     'Pão',             '🍞', 1, 0, 180, 1, 20,  7, 34, 'produto'),
+  ('bolo',    'Bolo de cenoura', '🍰', 1, 0, 170, 1, 18,  9, 35, 'produto'),
+  ('tecido',  'Tecido',          '🧵', 1, 0, 500, 1, 45, 10, 36, 'produto'),
+  ('geleia',  'Geleia de amora', '🫙', 1, 0, 120, 1, 14, 11, 37, 'produto')
 on conflict (id) do update set
   nome = excluded.nome, emoji = excluded.emoji, venda = excluded.venda,
   xp = excluded.xp, nivel_min = excluded.nivel_min, ordem = excluded.ordem, tipo = excluded.tipo;
@@ -398,6 +410,23 @@ on conflict (id) do update set
   nome = excluded.nome, categoria = excluded.categoria, custo = excluded.custo,
   nivel_min = excluded.nivel_min, ordem = excluded.ordem,
   largura = excluded.largura, altura = excluded.altura;
+
+-- Oficinas — fase 9: casinhas que fazem produtos com o que você planta e cria
+insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem, largura, altura,
+                                  produz, produz_seg, produz_qtd, entradas, limite, beleza, descricao) values
+  ('saladeira',   'Barraca de saladas', 'oficina',  300,  3, 60, 2, 3, 'salada', 1200,  1, '{"alface": 2, "cenoura": 1}', 2, 5, '2 alfaces + 1 cenoura → salada (20 min).'),
+  ('pipocaria',   'Pipocaria',          'oficina',  500,  4, 61, 2, 3, 'pipoca', 1800,  1, '{"milho": 3}', 2, 5, '3 milhos → pipoca (30 min).'),
+  ('fabrica_molho','Fábrica de molho',  'oficina',  700,  5, 62, 2, 3, 'molho',  3600,  1, '{"tomate": 4}', 2, 5, '4 tomates → molho de tomate (1 h).'),
+  ('queijaria',   'Queijaria',          'oficina', 1200,  6, 63, 2, 3, 'queijo', 10800, 1, '{"leite": 2}', 2, 5, '2 leites → queijo (3 h).'),
+  ('padaria',     'Padaria',            'oficina', 1200,  7, 64, 2, 3, 'pao',    7200,  1, '{"abobora": 3, "ovo": 1}', 2, 5, '3 trigos + 1 ovo → pão (2 h).'),
+  ('confeitaria', 'Confeitaria',        'oficina', 1500,  9, 65, 2, 3, 'bolo',   7200,  1, '{"cenoura": 3, "ovo": 2, "abobora": 1}', 2, 5, '3 cenouras + 2 ovos + 1 trigo → bolo de cenoura (2 h).'),
+  ('tecelagem',   'Tecelagem',          'oficina', 2500, 10, 66, 2, 3, 'tecido', 14400, 1, '{"la": 2}', 2, 5, '2 lãs → tecido (4 h).'),
+  ('casa_geleia', 'Casa de geleias',    'oficina', 1800, 11, 67, 2, 3, 'geleia', 7200,  1, '{"morango": 3}', 2, 5, '3 amoras → geleia de amora (2 h).')
+on conflict (id) do update set
+  nome = excluded.nome, categoria = excluded.categoria, custo = excluded.custo, nivel_min = excluded.nivel_min,
+  ordem = excluded.ordem, largura = excluded.largura, altura = excluded.altura, produz = excluded.produz,
+  produz_seg = excluded.produz_seg, produz_qtd = excluded.produz_qtd, entradas = excluded.entradas,
+  limite = excluded.limite, beleza = excluded.beleza, descricao = excluded.descricao;
 
 -- Máquinas — fase 5 (arte: Tiny Factory, Kenney)
 insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem, efeito, raio, limite, descricao) values
@@ -730,7 +759,7 @@ begin
     'animais_tipos', (
       select jsonb_agg(to_jsonb(t) order by t.ordem) from fazenda_animais_tipos t),
     'construcoes', coalesce((
-      select jsonb_agg(jsonb_build_object('x', x, 'y', y, 'tipo', tipo, 'colhido_em', colhido_em))
+      select jsonb_agg(jsonb_build_object('x', x, 'y', y, 'tipo', tipo, 'colhido_em', colhido_em, 'iniciado_em', iniciado_em))
         from fazenda_construcoes where jogador_id = p_jogador), '[]'::jsonb),
     'itens', (
       select jsonb_agg(to_jsonb(t) order by t.ordem) from fazenda_itens t),
@@ -1938,11 +1967,11 @@ declare
   r    record;
   k    record;
 begin
-  select c.colhido_em, i.produz, i.produz_seg, i.produz_qtd into r
+  select c.colhido_em, i.produz, i.produz_seg, i.produz_qtd, i.entradas into r
     from fazenda_construcoes c join fazenda_itens i on i.id = c.tipo
    where c.jogador_id = v_id and c.x = p_x and c.y = p_y
      for update of c;
-  if not found or r.produz is null then raise exception 'item_invalido'; end if;
+  if not found or r.produz is null or r.entradas is not null then raise exception 'item_invalido'; end if;
   if r.colhido_em is not null and now() < r.colhido_em + make_interval(secs => r.produz_seg) then
     raise exception 'nao_pronto';
   end if;
@@ -1955,6 +1984,51 @@ begin
   update fazenda_jogadores set xp = xp + greatest(k.xp / 8, 1) where id = v_id;
   perform fazenda_missao(v_id, 'colher', r.produz_qtd);
   return jsonb_build_object('qtd', r.produz_qtd, 'item', r.produz, 'estado', fazenda_estado(v_id));
+end;
+$$;
+
+-- Oficina: parada → começa (gasta os ingredientes do celeiro, sem mexer na ração
+-- reservada); pronta → o produto vai para o celeiro e ela fica parada de novo.
+create or replace function public.fazenda_oficina(p_token text, p_x int, p_y int)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id  uuid := fazenda_auth(p_token);
+  r     record;
+  e     record;
+  k     record;
+  v_tem int;
+begin
+  select c.iniciado_em, i.produz, i.produz_seg, i.produz_qtd, i.entradas into r
+    from fazenda_construcoes c join fazenda_itens i on i.id = c.tipo
+   where c.jogador_id = v_id and c.x = p_x and c.y = p_y
+     for update of c;
+  if not found or r.entradas is null then raise exception 'item_invalido'; end if;
+
+  if r.iniciado_em is null then
+    for e in select key as item, value::int as qtd from jsonb_each_text(r.entradas) loop
+      v_tem := coalesce((select quantidade from fazenda_celeiro where jogador_id = v_id and item = e.item), 0)
+             - coalesce((select quantidade from fazenda_reservas where jogador_id = v_id and item = e.item), 0);
+      if v_tem < e.qtd then raise exception 'sem_ingredientes'; end if;
+    end loop;
+    for e in select key as item, value::int as qtd from jsonb_each_text(r.entradas) loop
+      update fazenda_celeiro set quantidade = quantidade - e.qtd where jogador_id = v_id and item = e.item;
+    end loop;
+    update fazenda_construcoes set iniciado_em = now() where jogador_id = v_id and x = p_x and y = p_y;
+    return jsonb_build_object('acao', 'iniciou', 'estado', fazenda_estado(v_id));
+  end if;
+
+  if now() < r.iniciado_em + make_interval(secs => r.produz_seg) then raise exception 'nao_pronto'; end if;
+  select * into k from fazenda_culturas where id = r.produz;
+  insert into fazenda_celeiro (jogador_id, item, quantidade)
+  values (v_id, r.produz, r.produz_qtd)
+  on conflict (jogador_id, item)
+  do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
+  update fazenda_jogadores set xp = xp + k.xp where id = v_id;
+  update fazenda_construcoes set iniciado_em = null where jogador_id = v_id and x = p_x and y = p_y;
+  return jsonb_build_object('acao', 'coletou', 'qtd', r.produz_qtd, 'item', r.produz, 'estado', fazenda_estado(v_id));
 end;
 $$;
 
@@ -2030,6 +2104,7 @@ revoke execute on function
   public.fazenda_coletar(text, int, int),
   public.fazenda_reservar(text, text, int),
   public.fazenda_contratar(text, text),
+  public.fazenda_oficina(text, int, int),
   public.fazenda_checar_conquistas(uuid)
 from public, anon, authenticated;
 
@@ -2050,5 +2125,6 @@ grant execute on function
   public.fazenda_demolir(text, int, int),
   public.fazenda_coletar(text, int, int),
   public.fazenda_reservar(text, text, int),
-  public.fazenda_contratar(text, text)
+  public.fazenda_contratar(text, text),
+  public.fazenda_oficina(text, int, int)
 to anon, authenticated;

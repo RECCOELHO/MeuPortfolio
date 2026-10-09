@@ -101,7 +101,16 @@
         // produtos dos animais novos (1000+ = arte própria, ver PROPRIA abaixo)
         pelo:     { fases: [1004, 1004, 1004], murcho: 1004, item: 1004, semente: 1004 },
         pena:     { fases: [1003, 1003, 1003], murcho: 1003, item: 1003, semente: 1003 },
-        trufa:    { fases: [79, 79, 79], murcho: 79, item: 79, semente: 79 }
+        trufa:    { fases: [79, 79, 79], murcho: 79, item: 79, semente: 79 },
+        // produtos das oficinas (arte própria 1005..1012)
+        pao:      { fases: [1005, 1005, 1005], murcho: 1005, item: 1005, semente: 1005 },
+        queijo:   { fases: [1006, 1006, 1006], murcho: 1006, item: 1006, semente: 1006 },
+        molho:    { fases: [1007, 1007, 1007], murcho: 1007, item: 1007, semente: 1007 },
+        geleia:   { fases: [1008, 1008, 1008], murcho: 1008, item: 1008, semente: 1008 },
+        tecido:   { fases: [1009, 1009, 1009], murcho: 1009, item: 1009, semente: 1009 },
+        pipoca:   { fases: [1010, 1010, 1010], murcho: 1010, item: 1010, semente: 1010 },
+        bolo:     { fases: [1011, 1011, 1011], murcho: 1011, item: 1011, semente: 1011 },
+        salada:   { fases: [1012, 1012, 1012], murcho: 1012, item: 1012, semente: 1012 }
     };
     const CULTURA_PADRAO = CULTURAS.alface;
     const ANIMAL = { galinha: 122, vaca: 121, ovelha: 120, porco: 1000, pato: 1001, coelho: 1002 };
@@ -113,7 +122,11 @@
        texto (uma letra por cor, "." = transparente). Índices 1000+ em tile(). */
     const PAL_PROPRIA = {
         a: '#3f2631', e: '#262b44', d: '#ffffff', f: '#c0cbdc', l: '#8b9bb4', i: '#e38628',
-        j: '#f7c282', k: '#e19a65', m: '#ff9aa8', P: '#f5a3b0', Q: '#d27688', R: '#e98b9b'
+        j: '#f7c282', k: '#e19a65', m: '#ff9aa8', P: '#f5a3b0', Q: '#d27688', R: '#e98b9b',
+        // produtos das oficinas
+        w: '#e8a053', x: '#f8d08f', y: '#b8692f', G: '#ffe08a', g: '#fdbe53', H: '#d99a2b',
+        X: '#d9452f', Z: '#9e2a1f', U: '#9b4ca3', V: '#6b2f74', B: '#79a7e8', c: '#f28462',
+        b: '#c34b35', v: '#4e974c', h: '#84c669', n: '#b4673a'
     };
     const PROPRIA = [
         // 0 porco
@@ -135,7 +148,23 @@
         // 4 pelo de coelho
         ['................', '................', '................', '.....aaaaaa.....', '....ajjdjjja....', '...ajdjjjjjja...',
          '..ajjjjjjdjjja..', '..ajdjjjjjjjja..', '..ajjjjjdjjjka..', '..ajjjjjjjjkka..', '...ajjjjjjkka...', '....akkkkkka....',
-         '.....aaaaaa.....', '................', '................', '................']
+         '.....aaaaaa.....', '................', '................', '................'],
+        // 5 pao
+        ['................', '................', '................', '................', '.....aaaaaa.....', '...aawwwwwwaa...', '..awwxwwxwwxwa..', '.awwxxwwxxwwxwa.', '.awwwwwwwwwwwwa.', '.aywwwwwwwwwwya.', '.ayyyyyyyyyyyya.', '..aayyyyyyyyaa..', '....aaaaaaaa....', '................', '................', '................'],
+        // 6 queijo
+        ['................', '................', '................', '...........aa...', '.........aaGGa..', '.......aaGGGGa..', '.....aaGGGGGGa..', '...aaGGGGGGGGa..', '.aaGGGGGGGGGGa..', '.aggHgggggHgga..', '.agggggHggggga..', '.agHgggggggHga..', '.aaaaaaaaaaaaa..', '................', '................', '................'],
+        // 7 molho
+        ['................', '................', '.....aaaaaa.....', '....allllllla...', '....aaaaaaaaa...', '...adXXXXXXXXa..', '...adXXXXXXXXa..', '...aXjjjjjjXXa..', '...aXjjjjjjXZa..', '...aXXXXXXXXZa..', '...aZXXXXXXZZa..', '....aaaaaaaaa...', '................', '................', '................', '................'],
+        // 8 geleia
+        ['................', '................', '.....aaaaaa.....', '....allllllla...', '....aaaaaaaaa...', '...adUUUUUUUUa..', '...adUUUUUUUUa..', '...aUjjjjjjUUa..', '...aUjjjjjjUVa..', '...aUUUUUUUUVa..', '...aVUUUUUUVVa..', '....aaaaaaaaa...', '................', '................', '................', '................'],
+        // 9 tecido
+        ['................', '................', '................', '................', '..aaaaaaaaaaaa..', '..aBBBBBBBBBBa..', '..aBdBBBBBBdBa..', '..aBBBBBBBBBBa..', '..aaaaaaaaaaaa..', '..acccccccccca..', '..acdccccccdca..', '..acccccccccca..', '..aaaaaaaaaaaa..', '................', '................', '................'],
+        // 10 pipoca
+        ['................', '................', '....aaa.aaa.....', '...adddadddda...', '..adddddgddda...', '..adgdddddddda..', '..aaaaaaaaaaaa..', '..abdbdbdbdbda..', '..abdbdbdbdbda..', '...abdbdbdbda...', '...abdbdbdbda...', '....aaaaaaaa....', '................', '................', '................', '................'],
+        // 11 bolo
+        ['................', '................', '................', '................', '..........aa....', '........aamma...', '......aammmma...', '....aammmmmma...', '..aammmmmmmma...', '.amjjjjjjjjjja..', '.addddddddddda..', '.ajjjjjjjjjjja..', '.aaaaaaaaaaaaa..', '................', '................', '................'],
+        // 12 salada
+        ['................', '................', '................', '....ava.ava.....', '...avhvavhva....', '..avhbbvhvhva...', '.avhvhvbbvhvha..', '.aaaaaaaaaaaaa..', '.annnnnnnnnnna..', '..annnnnnnnna...', '...annnnnnna....', '....aaaaaaa.....', '................', '................', '................', '................']
     ];
     const atlasProprio = document.createElement('canvas');
     atlasProprio.width = 12 * 16;
@@ -143,7 +172,7 @@
     {
         const g = atlasProprio.getContext('2d');
         PROPRIA.forEach((linhas, n) => linhas.forEach((linha, y) => [...linha].forEach((ch, x) => {
-            if (PAL_PROPRIA[ch]) { g.fillStyle = PAL_PROPRIA[ch]; g.fillRect(n * 16 + x, y, 1, 1); }
+            if (PAL_PROPRIA[ch]) { g.fillStyle = PAL_PROPRIA[ch]; g.fillRect((n % COLS) * 16 + x, Math.floor(n / COLS) * 16 + y, 1, 1); }   // em grade, como os pacotes
         })));
     }
     let urlPropria = null;
@@ -191,6 +220,15 @@
             case 'casa_vermelha': return { p: 'town', w: 3, h: 3, grade: [[52, 53, 55], [64, 65, 67], [84, 85, 75]] };
             case 'casa_azul': return { p: 'town', w: 3, h: 3, grade: [[48, 49, 51], [60, 61, 63], [88, 89, 79]] };
             case 'canteiro': return { p: 'farm', i: 1 };
+            // oficinas (2 x 3)
+            case 'saladeira': return { p: 'town', w: 2, h: 3, grade: [[48, 51], [60, 63], [86, 87]] };
+            case 'pipocaria': return { p: 'town', w: 2, h: 3, grade: [[52, 55], [64, 67], [86, 87]] };
+            case 'fabrica_molho': return { p: 'town', w: 2, h: 3, grade: [[52, 55], [64, 67], [88, 91]] };
+            case 'queijaria': return { p: 'town', w: 2, h: 3, grade: [[48, 51], [60, 63], [88, 91]] };
+            case 'padaria': return { p: 'town', w: 2, h: 3, grade: [[52, 55], [64, 67], [84, 87]] };
+            case 'confeitaria': return { p: 'town', w: 2, h: 3, grade: [[48, 51], [60, 63], [90, 91]] };
+            case 'tecelagem': return { p: 'town', w: 2, h: 3, grade: [[52, 55], [64, 67], [85, 75]] };
+            case 'casa_geleia': return { p: 'town', w: 2, h: 3, grade: [[48, 51], [60, 63], [89, 79]] };
             // máquinas (Tiny Factory)
             case 'irrigador': return { p: 'factory', i: 91 };
             case 'pulverizador': return { p: 'factory', i: 126 };
@@ -965,6 +1003,20 @@
             });
 
             for (const a of atores.values()) if (a.v) desenharSinalAnimal(a, tempo);
+            for (const c of lista) {
+                const of = c.oficina;
+                if (!of) continue;
+                const a = arteItem(c.tipo, EST);
+                const bx = wx(c.x) + Math.round(((a.w || 1) * T) / 2) - 10;
+                const pronta = of.estado === 'pronta';
+                const by = wy(c.y) - 14 + (pronta ? Math.floor(tempo / 350) % 2 : 0);
+                balao(bx, by, 20, 18);
+                q.globalAlpha = of.estado === 'parada' ? 0.4 : pronta ? 1 : 0.7;
+                tile(q, of.produto, bx + 2, by + 1);
+                q.globalAlpha = 1;
+                if (of.estado === 'trabalhando') barraProgresso(bx + 4, by + 19, of.progresso || 0);
+                if (pronta && Math.floor(tempo / 300) % 3) icone(q, 'brilho', bx + 17, by - 3);
+            }
             for (const c of lista) {
                 if (!c.pronto || c.produto == null) continue;
                 const x = wx(c.x), by = wy(c.y) - 21 + (Math.floor(tempo / 350) % 2);
