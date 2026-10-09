@@ -271,7 +271,8 @@
         cadeado: ['..ooo..', '.o...o.', '.o...o.', 'ooooooo', 'oyyyyyo', 'oyyoyyo', 'oyyoyyo', 'oYYYYYo', 'ooooooo'],
         check: ['......oo', '.....oGo', 'oo..oGo.', 'oGooGo..', '.oGGo...', '..oo....'],
         brilho: ['..w..', '..w..', 'ww.ww', '..w..', '..w..'],
-        mao: ['..o.o.o..', '.oko.oko.', '.okokoko.', 'ooko.okoo', 'okkkkkkko', 'okkkkkkko', '.okkkkko.', '..ooooo..'],
+        // mão aberta (pegar do vizinho): 3 dedos + polegar, estilo luva de desenho
+        mao: ['......oo.....', '...oooktooo..', '..oktoktokto.', '..oktoktokto.', '..oktoktokto.', 'oooktoktokto.', 'okkkkkkkkkto.', 'okkkkkkkkkto.', '.okkkkkkkkto.', '..okkkkkkkto.', '..otkkkkkkto.', '...otttttto..', '....oooooo...'],
         // guaxinim mascarado: quem pegou da sua plantação (diário)
         guaxinim: ['.oo.......oo.', 'oSso.....osSo', 'oSSSoooooSSSo', 'oSSSSSSSSSSSo', 'oooooSSSooooo', 'oowwooSoowwoo', 'oSoooSSSoooSo', 'oSSwwwwwwwSSo', '.oSwwwowwwSo.', '..oSwwwwwSo..', '...ooooooo...'],
         coracao: ['.oo.oo.', 'orrorRo', 'orwrrRo', 'orrrrRo', '.orrRo.', '..oRo..', '...o...'],

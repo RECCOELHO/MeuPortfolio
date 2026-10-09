@@ -115,7 +115,8 @@
         diarioCont: $('hudDiario'), missoesCont: $('hudMissoes'),
         barraConstr: $('barraConstr'), constrAbas: $('constrAbas'), constrItens: $('constrItens'),
         constrFerramentas: $('constrFerramentas'), btnConstruir: $('btnConstruir'), construirCont: $('hudConstruir'),
-        hudPerfil: $('hudPerfil')
+        hudPerfil: $('hudPerfil'), btnMenu: $('btnMenu'), menuCont: $('hudMenu'), celeiroContDock: $('hudCeleiroDock'),
+        acoesGrupo: $('acoesGrupo'), btnAcoes: $('btnAcoes')
     };
 
     /* ---------- Ícones (pixel art) ---------- */
@@ -843,17 +844,26 @@
         const totalCeleiro = Object.values(S.celeiro).reduce((a, b) => a + b, 0);
         el.celeiroCont.textContent = totalCeleiro;
         el.celeiroCont.hidden = !totalCeleiro;
+        if (el.celeiroContDock) {
+            el.celeiroContDock.textContent = totalCeleiro;
+            el.celeiroContDock.hidden = !totalCeleiro;
+        }
         const prontas = (S.missoes || []).filter((m) => !m.resgatada && m.progresso >= m.alvo).length;
         el.missoesCont.textContent = prontas;
         el.missoesCont.hidden = !prontas;
+        atualizarAlertaMenu();
 
         const k = culturas[semente];
         el.semIcone.innerHTML = k ? spr(A.cultura(k.id).item, 32) : '';
         el.semNome.innerHTML = k ? `${esc(k.nome)} · ${moeda(k.custo)}` : 'Escolher';
     }
 
+    let statusTimer = null;
     function mostrarStatus(html) {
         el.status.innerHTML = html;
+        el.status.classList.remove('apagado');
+        clearTimeout(statusTimer);
+        statusTimer = setTimeout(() => el.status.classList.add('apagado'), 6000);   // não fica tampando a fazenda
     }
 
     function descreverVisita(c, i) {
@@ -1019,10 +1029,19 @@
             : `<b>${esc(d.apelido)}</b> cuidou do seu ${item} (${d.qtd} problema${d.qtd > 1 ? 's' : ''}).`;
     }
 
+    // celular: o ☰ mostra a soma dos avisos que ficaram dentro dele (missões e diário)
+    function atualizarAlertaMenu() {
+        if (!el.menuCont) return;
+        const n = [el.missoesCont, el.diarioCont].reduce((soma, b) => soma + (b && !b.hidden ? Number(b.textContent) || 0 : 0), 0);
+        el.menuCont.textContent = n;
+        el.menuCont.hidden = !n;
+    }
+
     function avisarDiario() {
         const novos = diarioNovos();
         el.diarioCont.textContent = novos.length;
         el.diarioCont.hidden = !novos.length;
+        atualizarAlertaMenu();
         // Só avisa por toast o que ainda não foi avisado nesta visita à página
         const ineditos = novos.filter((d) => quando(d) > ultimoAvisoDiario);
         if (!ineditos.length) return;
@@ -1045,7 +1064,7 @@
         t.className = 'toast' + (tipo === 'erro' ? ' erro-t' : tipo === 'festa' ? ' festa' : '');
         t.innerHTML = html;
         el.toasts.appendChild(t);
-        while (el.toasts.children.length > 3) el.toasts.firstChild.remove();
+        while (el.toasts.children.length > (window.innerWidth <= 760 ? 2 : 3)) el.toasts.firstChild.remove();
         setTimeout(() => t.remove(), tipo === 'festa' ? 4600 : 3100);
     }
 
@@ -1860,7 +1879,38 @@
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && painelAtual) fecharPainel(); });
     document.querySelectorAll('[data-painel]').forEach((b) => b.addEventListener('click', () => S && abrirPainel(b.dataset.painel)));
     el.btnSemente.addEventListener('click', () => S && abrirPainel('loja'));
-    document.querySelectorAll('[data-massa]').forEach((b) => b.addEventListener('click', () => acaoEmMassa(b.dataset.massa)));
+    document.querySelectorAll('[data-massa]').forEach((b) => b.addEventListener('click', () => { fecharMenus(); acaoEmMassa(b.dataset.massa); }));
+
+    /* ---------- celular: menu ☰ (topo) e menuzinho de ações (barra) ---------- */
+    function fecharMenus() {
+        el.hud.classList.remove('menu-aberto');
+        if (el.btnMenu) el.btnMenu.setAttribute('aria-expanded', 'false');
+        if (el.acoesGrupo) el.acoesGrupo.classList.remove('aberto');
+        if (el.btnAcoes) el.btnAcoes.setAttribute('aria-expanded', 'false');
+    }
+    if (el.btnMenu) {
+        el.btnMenu.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const abrir = !el.hud.classList.contains('menu-aberto');
+            fecharMenus();
+            el.hud.classList.toggle('menu-aberto', abrir);
+            el.btnMenu.setAttribute('aria-expanded', String(abrir));
+        });
+    }
+    if (el.btnAcoes) {
+        el.btnAcoes.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const abrir = !el.acoesGrupo.classList.contains('aberto');
+            fecharMenus();
+            el.acoesGrupo.classList.toggle('aberto', abrir);
+            el.btnAcoes.setAttribute('aria-expanded', String(abrir));
+        });
+    }
+    // escolher algo no menu ou tocar fora fecha
+    document.addEventListener('click', (e) => {
+        if (e.target.closest('#hudBotoes .botao') || !e.target.closest('#hudBotoes, #acoesLista')) fecharMenus();
+    });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') fecharMenus(); });
     document.querySelectorAll('[data-visita]').forEach((b) => b.addEventListener('click', () => acaoVisitaEmMassa(b.dataset.visita)));
     el.btnVoltarCasa.addEventListener('click', voltarCasa);
     $('btnPerfilVizinho').addEventListener('click', () => { if (visita) abrirPainel('perfilVizinho'); });
@@ -1868,7 +1918,7 @@
     /* ---------- botão de som no topo ---------- */
     const btnSom = $('btnSom');
     function atualizarBotaoSom() {
-        btnSom.innerHTML = ico(som.mudo ? 'mudo' : 'som', 22);
+        btnSom.innerHTML = ico(som.mudo ? 'mudo' : 'som', 22) + `<em>${som.mudo ? 'Sem som' : 'Som'}</em>`;
         btnSom.setAttribute('aria-label', som.mudo ? 'Ligar sons' : 'Desligar sons');
     }
     btnSom.addEventListener('click', () => { som.alternar(); atualizarBotaoSom(); som.tocar('moeda'); });

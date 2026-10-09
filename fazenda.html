@@ -9,7 +9,7 @@
     <title>Fazendinha Secreta</title>
     <link rel="icon" type="image/png" href="assets/fazenda/app/icone-192.png">
     <!-- instalar como app (PWA): manifesto, ícones e o service worker em assets/app/instalar.js -->
-    <link rel="manifest" href="assets/fazenda/app/fazenda.webmanifest?v=20261008-9">
+    <link rel="manifest" href="assets/fazenda/app/fazenda.webmanifest?v=20261008-10">
     <link rel="apple-touch-icon" href="assets/fazenda/app/icone-180.png">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -17,9 +17,9 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&family=Pixelify+Sans:wght@500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&family=Jersey+10&display=swap" rel="stylesheet">
     <!-- ?v=: o Cloudflare guarda CSS/JS por 4 h no navegador; troque a versão a cada deploy da fazenda -->
-    <link rel="stylesheet" href="assets/fazenda/fazenda.css?v=20261008-9">
+    <link rel="stylesheet" href="assets/fazenda/fazenda.css?v=20261008-10">
 </head>
 
 <body>
@@ -40,7 +40,9 @@
             </div>
         </div>
         <div class="hud-moedas caixa" title="Moedas"><span data-ico="moeda" data-px="20"></span><b id="hudMoedas">0</b></div>
-        <nav class="hud-botoes">
+        <!-- celular: os botões do topo ficam dentro deste menu -->
+        <button type="button" class="botao so-celular menu-btn" id="btnMenu" aria-label="Menu" aria-expanded="false" aria-controls="hudBotoes"><span class="menu-ico" aria-hidden="true"></span><b class="contador" id="hudMenu" hidden>0</b></button>
+        <nav class="hud-botoes" id="hudBotoes">
             <button type="button" class="botao" data-painel="loja"><span data-spr="9" data-px="28"></span><em>Loja</em></button>
             <button type="button" class="botao" data-painel="celeiro"><span data-spr="11" data-px="28"></span><em>Celeiro</em><b class="contador" id="hudCeleiro" hidden>0</b></button>
             <button type="button" class="botao" data-painel="missoes"><span data-ico="missao" data-px="22"></span><em>Missões</em><b class="contador" id="hudMissoes" hidden>0</b></button>
@@ -73,7 +75,7 @@
     <footer class="barra" id="barra" hidden>
         <button type="button" class="botao semente-atual" id="btnSemente" aria-label="Escolher semente">
             <span id="semIcone"></span>
-            <span class="sem-info"><small>Semente</small><b id="semNome">Alface</b></span>
+            <span class="sem-info"><small>Semente</small><b id="semNome">Alface</b></span><em class="so-celular">Semente</em>
         </button>
         <div class="acoes-massa" id="acoesVisita" hidden>
             <button type="button" class="botao" data-visita="pegar"><span data-ico="mao" data-px="26"></span><em>Pegar tudo</em></button>
@@ -82,10 +84,18 @@
             <button type="button" class="botao" data-visita="casa"><span data-spr="126" data-px="28"></span><em>Voltar</em></button>
         </div>
         <div class="acoes-massa" id="acoesCasa">
-            <button type="button" class="botao" data-massa="colher"><span data-spr="35" data-px="28"></span><em>Colher tudo</em></button>
-            <button type="button" class="botao" data-massa="cuidar"><span data-spr="84" data-px="28"></span><em>Cuidar</em></button>
-            <button type="button" class="botao" data-massa="arar"><span data-spr="86" data-px="28"></span><em>Arar tudo</em></button>
-            <button type="button" class="botao" data-massa="plantar"><span data-spr="81" data-px="28"></span><em>Plantar tudo</em></button>
+            <!-- celular: loja e celeiro na barra de baixo; as 4 ações num menuzinho -->
+            <button type="button" class="botao so-celular" data-painel="loja"><span data-spr="9" data-px="28"></span><em>Loja</em></button>
+            <button type="button" class="botao so-celular" data-painel="celeiro"><span data-spr="11" data-px="28"></span><em>Celeiro</em><b class="contador" id="hudCeleiroDock" hidden>0</b></button>
+            <div class="acoes-grupo" id="acoesGrupo">
+                <button type="button" class="botao so-celular" id="btnAcoes" aria-expanded="false" aria-controls="acoesLista"><span data-spr="35" data-px="28"></span><em>Ações</em></button>
+                <div class="acoes-lista" id="acoesLista">
+                    <button type="button" class="botao" data-massa="colher"><span data-spr="35" data-px="28"></span><em>Colher tudo</em></button>
+                    <button type="button" class="botao" data-massa="cuidar"><span data-spr="84" data-px="28"></span><em>Cuidar</em></button>
+                    <button type="button" class="botao" data-massa="arar"><span data-spr="86" data-px="28"></span><em>Arar tudo</em></button>
+                    <button type="button" class="botao" data-massa="plantar"><span data-spr="81" data-px="28"></span><em>Plantar tudo</em></button>
+                </div>
+            </div>
             <button type="button" class="botao amarelo" id="btnConstruir"><span data-spr="127" data-pack="town" data-px="28"></span><em>Construir</em><b class="contador" id="hudConstruir" hidden>0</b></button>
         </div>
     </footer>
@@ -146,9 +156,9 @@
         </div>
     </section>
 
-    <script src="assets/app/instalar.js?v=20261008-9" data-escopo="/fazenda" defer></script>
-    <script src="assets/fazenda/fazenda-arte.js?v=20261008-9" defer></script>
-    <script src="assets/fazenda/fazenda.js?v=20261008-9" defer></script>
+    <script src="assets/app/instalar.js?v=20261008-10" data-escopo="/fazenda" defer></script>
+    <script src="assets/fazenda/fazenda-arte.js?v=20261008-10" defer></script>
+    <script src="assets/fazenda/fazenda.js?v=20261008-10" defer></script>
 </body>
 
 </html>
