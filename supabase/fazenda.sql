@@ -607,28 +607,81 @@ end $$;
 -- Funções internas (não expostas à API)
 -- ------------------------------------------------------------
 
--- Estação do ano no Brasil (hemisfério sul); igual a estacao() em fazenda-arte.js
-create or replace function public.fazenda_estacao(p_dia date)
-returns text language sql stable as $$
-  select coalesce(nullif(current_setting('fazenda.estacao_teste', true), ''),
-    case when to_char(p_dia, 'MMDD')::int >= 1221 or to_char(p_dia, 'MMDD')::int < 320 then 'verao'
-         when to_char(p_dia, 'MMDD')::int < 621 then 'outono'
-         when to_char(p_dia, 'MMDD')::int < 923 then 'inverno'
-         else 'primavera' end);
+-- Tempo rápido (fase 15). A semana tem as 4 estações, 42 h cada, a partir de segunda 0h
+-- (horário de Brasília): primavera → verão (ter 18h) → outono (qui 12h) → inverno (sáb 6h).
+-- Cada dia (24 h) tem todos os climas, cada um pelo tempo da porcentagem da estação
+-- (fazenda_clima_tabela), em 2 pedaços por clima embaralhados pela data. Tudo muda em
+-- fatias de 36 min alinhadas à meia-noite. Igual a estacao() em fazenda-arte.js.
+-- Testes: set fazenda.estacao_teste / fazenda.clima_teste forçam a estação / o clima.
+drop function if exists public.fazenda_estacao(date);
+drop function if exists public.fazenda_clima(date);
+
+-- Minutos desde segunda 0h, no horário de Brasília
+create or replace function public.fazenda_minuto_semana(p_t timestamptz)
+returns int language sql stable as $$
+  select (extract(isodow from l)::int - 1) * 1440 + extract(hour from l)::int * 60 + extract(minute from l)::int
+    from (select p_t at time zone 'America/Sao_Paulo' as l) x;
 $$;
 
--- Clima do dia: sorteado pela data (igual para todo mundo), com cara de cada estação.
--- sol | nublado | chuva (rega tudo: sem seca) | calor (mais seca) | vento
-create or replace function public.fazenda_clima(p_dia date)
+create or replace function public.fazenda_estacao_em(p_t timestamptz)
+returns text language sql stable as $$
+  select coalesce(nullif(current_setting('fazenda.estacao_teste', true), ''),
+                  (array['primavera', 'verao', 'outono', 'inverno'])[fazenda_minuto_semana(p_t) / 2520 + 1]);
+$$;
+
+-- Quando acaba a estação em que p_t está
+create or replace function public.fazenda_estacao_fim(p_t timestamptz)
+returns timestamptz language sql stable as $$
+  select date_trunc('minute', p_t) + make_interval(mins => 2520 - fazenda_minuto_semana(p_t) % 2520);
+$$;
+
+-- Quanto do dia (em %) cada clima ocupa em cada estação
+create or replace function public.fazenda_clima_tabela(p_estacao text)
+returns table (clima text, pct int) language sql immutable as $$
+  select t.c, t.p from (values
+    ('verao', 'sol', 40), ('verao', 'chuva', 25), ('verao', 'calor', 20), ('verao', 'nublado', 10), ('verao', 'vento', 5),
+    ('outono', 'sol', 40), ('outono', 'nublado', 25), ('outono', 'chuva', 20), ('outono', 'vento', 10), ('outono', 'calor', 5),
+    ('inverno', 'sol', 45), ('inverno', 'nublado', 30), ('inverno', 'vento', 10), ('inverno', 'chuva', 10), ('inverno', 'calor', 5),
+    ('primavera', 'sol', 35), ('primavera', 'chuva', 25), ('primavera', 'nublado', 20), ('primavera', 'vento', 15), ('primavera', 'calor', 5)
+  ) t(e, c, p) where t.e = p_estacao;
+$$;
+
+-- Clima num momento: sol (+1 na colheita) | chuva (rega: sem seca) | calor (mais seca) |
+-- nublado (nenhum problema novo) | vento (mais pragas). Igual para todo mundo.
+create or replace function public.fazenda_clima_em(p_t timestamptz)
 returns text language sql stable as $$
   select coalesce(nullif(current_setting('fazenda.clima_teste', true), ''), (
-    select case fazenda_estacao(p_dia)
-      when 'verao'   then case when r < 40 then 'sol' when r < 65 then 'chuva' when r < 85 then 'calor' when r < 95 then 'nublado' else 'vento' end
-      when 'outono'  then case when r < 40 then 'sol' when r < 65 then 'nublado' when r < 85 then 'chuva' when r < 95 then 'vento' else 'calor' end
-      when 'inverno' then case when r < 45 then 'sol' when r < 75 then 'nublado' when r < 85 then 'vento' when r < 95 then 'chuva' else 'calor' end
-      else                case when r < 35 then 'sol' when r < 60 then 'chuva' when r < 80 then 'nublado' when r < 95 then 'vento' else 'calor' end
-    end
-    from (select abs(hashtext('clima-' || p_dia::text)) % 100 as r) x));
+    select b.clima
+      from (select t.clima, x.minuto,
+                   sum(t.pct * 36 / 5) over (order by md5(x.dia || x.est || t.clima || pt.parte)) as fim   -- pct% de 24 h em 2 pedaços
+              from (select l::date::text as dia, fazenda_estacao_em(p_t) as est,
+                           extract(hour from l)::int * 60 + extract(minute from l)::int as minuto
+                      from (select p_t at time zone 'America/Sao_Paulo' as l) z) x
+             cross join lateral fazenda_clima_tabela(x.est) t
+             cross join (values (1), (2)) pt(parte)) b
+     where b.fim > b.minuto
+     order by b.fim
+     limit 1));
+$$;
+
+-- Previsão: o clima de agora, até quando vai e qual vem depois
+create or replace function public.fazenda_clima_previsao(p_t timestamptz)
+returns jsonb language plpgsql stable as $$
+declare
+  v_agora text := fazenda_clima_em(p_t);
+  v_t     timestamptz := date_trunc('minute', p_t) + make_interval(mins => 36 - fazenda_minuto_semana(p_t) % 36);
+  v_prox  text;
+  k       int;
+begin
+  for k in 1..80 loop
+    v_prox := fazenda_clima_em(v_t);
+    if v_prox <> v_agora then
+      return jsonb_build_object('agora', v_agora, 'ate', v_t, 'proximo', v_prox);
+    end if;
+    v_t := v_t + interval '36 minutes';
+  end loop;
+  return jsonb_build_object('agora', v_agora, 'ate', null, 'proximo', null);
+end;
 $$;
 
 -- XP onde começa o nível n. Até o 10: 25·(n-1)² (25, 100, 225... 2025). Do 10 em diante
@@ -725,7 +778,7 @@ returns real language sql stable security definer set search_path = public as $$
            else 0 end), 0)::real
     from fazenda_construcoes c
     join fazenda_itens i on i.id = c.tipo
-    cross join (select fazenda_clima((p_t at time zone 'America/Sao_Paulo')::date) as clima) x
+    cross join (select fazenda_clima_em(p_t) as clima) x
    where c.jogador_id = p_jogador and i.efeito in ('solar', 'eolica', 'reator');
 $$;
 
@@ -822,10 +875,10 @@ declare
   v_seco   boolean;
   v_tipo   int;
   i        int;
-  v_clima  text := fazenda_clima(fazenda_hoje());
+  v_ce     text;
 begin
-  -- dia de chuva: ela rega tudo (some a seca dos canteiros)
-  if v_clima = 'chuva' then
+  -- chovendo agora: a chuva rega tudo (some a seca dos canteiros)
+  if fazenda_clima_em(now()) = 'chuva' then
     update fazenda_canteiros set seco = false where jogador_id = p_jogador and estado = 'plantado' and seco;
   end if;
   for r in
@@ -844,8 +897,11 @@ begin
     i := 0;
     while v_evt <= now() and v_evt < v_maduro and i < 3 loop
       v_tipo := floor(random() * 3)::int;
-      if v_clima = 'calor' and random() < 0.5 then v_tipo := 2; end if;   -- onda de calor: mais seca
-      if v_clima = 'chuva' and v_tipo = 2 then v_tipo := -1; end if;      -- com chuva não seca
+      v_ce := fazenda_clima_em(v_evt);                                     -- o clima na hora do problema
+      if v_ce = 'calor' and random() < 0.5 then v_tipo := 2; end if;       -- onda de calor: mais seca
+      if v_ce = 'vento' and random() < 0.5 then v_tipo := 1; end if;       -- ventania espalha pragas
+      if v_ce = 'chuva' and v_tipo = 2 then v_tipo := -1; end if;          -- com chuva não seca
+      if v_ce = 'nublado' then v_tipo := -1; end if;                       -- nublado: nada de novo
       -- máquina por perto evita o problema (robô capinador, pulverizador, irrigador);
       -- o aspersor elétrico evita qualquer um, gastando 1 ⚡
       if v_tipo = 0 and not v_erva and not fazenda_protegido(p_jogador, 'erva', r.x, r.y) then
@@ -879,6 +935,7 @@ declare
   v_max   int;
   v_json  jsonb;
   v_ener  real;
+  v_clima jsonb := fazenda_clima_previsao(now());
 begin
   perform fazenda_checar_conquistas(p_jogador);
   select * into j from fazenda_jogadores where id = p_jogador;
@@ -932,8 +989,11 @@ begin
       'por_hora', fazenda_energia_taxa(p_jogador, now()) + 50 * (
         select count(*) from fazenda_construcoes c join fazenda_itens i on i.id = c.tipo
          where c.jogador_id = p_jogador and i.efeito = 'biomassa' and c.iniciado_em is not null)),
-    'estacao', fazenda_estacao(fazenda_hoje()),
-    'clima', jsonb_build_object('hoje', fazenda_clima(fazenda_hoje()), 'amanha', fazenda_clima(fazenda_hoje() + 1)),
+    'estacao', fazenda_estacao_em(now()),
+    'estacao_fim', fazenda_estacao_fim(now()),
+    'estacao_proxima', fazenda_estacao_em(fazenda_estacao_fim(now())),
+    -- agora / até quando / o próximo (hoje e amanha: nomes da versão anterior do jogo)
+    'clima', v_clima || jsonb_build_object('hoje', v_clima->>'agora', 'amanha', v_clima->>'proximo'),
     'canteiros', coalesce((
       select jsonb_agg(jsonb_build_object(
                'posicao', posicao, 'x', x, 'y', y, 'estado', estado, 'cultura', cultura,
@@ -1057,7 +1117,7 @@ begin
       raise exception 'cultura_invalida';
     end if;
     -- semente de outra estação só cresce no alcance de uma estufa elétrica
-    v_fora := k.estacao is not null and k.estacao <> fazenda_estacao(fazenda_hoje());
+    v_fora := k.estacao is not null and k.estacao <> fazenda_estacao_em(now());
     v_estufa := fazenda_protegido(p_jogador, 'estufa', c.x, c.y);
     if v_fora and not v_estufa then
       raise exception 'fora_de_estacao';
@@ -1115,6 +1175,7 @@ begin
     -- cada problema não resolvido custa 1 unidade; o que os vizinhos pegaram também sai
     v_qtd := greatest(k.rendimento - (c.erva::int + c.praga::int + c.seco::int) - c.roubado, 1)
              + fazenda_tem_efeito(p_jogador, 'colheita')::int          -- colheitadeira
+             + (fazenda_clima_em(now()) = 'sol')::int                    -- colheita no sol
              + fazenda_protegido(p_jogador, 'adubo', c.x, c.y)::int;    -- cogumelos, barril, colmeia
     if fazenda_protegido(p_jogador, 'sorte', c.x, c.y) and random() < 0.15 then
       v_qtd := v_qtd * 2;                                               -- alvo
@@ -1248,7 +1309,7 @@ end;
 $$;
 
 -- Traz a energia até agora: soma o que os geradores fizeram desde a última conta (até
--- 12 horas, hora a hora: o sol se põe e o clima muda de um dia para o outro), queima o
+-- 12 horas, em fatias de 36 min: o sol se põe e o clima muda várias vezes por dia), queima o
 -- milho do gerador a biomassa e corta no que cabe nas baterias.
 create or replace function public.fazenda_energia_atualizar(p_jogador uuid)
 returns real
@@ -1279,7 +1340,7 @@ begin
   v_e := j.energia;
   v_t := greatest(coalesce(j.energia_em, now()), now() - interval '12 hours');
   while v_t < now() loop
-    v_prox := least(date_trunc('hour', v_t) + interval '1 hour', now());
+    v_prox := least(date_trunc('minute', v_t) + make_interval(mins => 36 - fazenda_minuto_semana(v_t) % 36), now());
     v_e := v_e + fazenda_energia_taxa(p_jogador, v_t) * extract(epoch from v_prox - v_t)::real / 3600;
     v_t := v_prox;
   end loop;
@@ -2644,8 +2705,12 @@ $$;
 revoke execute on function
   public.fazenda_nivel(int),
   public.fazenda_xp_nivel(int),
-  public.fazenda_estacao(date),
-  public.fazenda_clima(date),
+  public.fazenda_minuto_semana(timestamptz),
+  public.fazenda_estacao_em(timestamptz),
+  public.fazenda_estacao_fim(timestamptz),
+  public.fazenda_clima_tabela(text),
+  public.fazenda_clima_em(timestamptz),
+  public.fazenda_clima_previsao(timestamptz),
   public.fazenda_max_canteiros(int),
   public.fazenda_zonas(),
   public.fazenda_no_terreno(int, int, int),

@@ -227,29 +227,45 @@
     }
     /* ---------- Estação e clima (vêm do servidor: o mesmo dia para todo mundo) ---------- */
     const NOME_ESTACAO = { primavera: 'primavera', verao: 'verão', outono: 'outono', inverno: 'inverno' };
+    // o que cada clima faz (vale no servidor: fazenda_clima_em, tick e colheita)
     const CLIMA = {
-        sol: { nome: 'Sol', efeito: 'dia bom de roça.' },
-        nublado: { nome: 'Nublado', efeito: 'dia tranquilo.' },
-        chuva: { nome: 'Chuva', efeito: 'ela rega tudo e nenhum canteiro seca hoje.' },
+        sol: { nome: 'Sol', efeito: 'a colheita rende +1 item.' },
+        nublado: { nome: 'Nublado', efeito: 'nenhum problema novo aparece nos canteiros.' },
+        chuva: { nome: 'Chuva', efeito: 'rega tudo, nenhum canteiro seca.' },
         calor: { nome: 'Onda de calor', efeito: 'a terra seca mais rápido, fique de olho nos canteiros.' },
-        vento: { nome: 'Ventania', efeito: 'muito vento, mas as plantas aguentam.' }
+        vento: { nome: 'Ventania', efeito: 'espalha pragas pelos canteiros (e a turbina gira forte).' }
     };
+    const ORDEM_ESTACOES = ['primavera', 'verao', 'outono', 'inverno'];
+    const naEstacao = (e) => (e === 'primavera' ? 'na ' : 'no ') + NOME_ESTACAO[e];   // "na primavera", "no verão"
+    const hora = (iso) => new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    const climaAgora = () => S && S.clima && (S.clima.agora || S.clima.hoje);
+    // quanto falta para a estação e começar (0 = já é ela); 42 h cada, sempre na mesma ordem
+    function faltaParaEstacao(e) {
+        if (!S || !S.estacao_fim || e === S.estacao) return 0;
+        const passos = (ORDEM_ESTACOES.indexOf(e) - ORDEM_ESTACOES.indexOf(S.estacao) + 4) % 4;
+        return Date.parse(S.estacao_fim) - agora() + (passos - 1) * 42 * 3600e3;
+    }
     const iconeClima = (c) => (c === 'nublado' ? 'nuvem' : CLIMA[c] ? c : 'sol');
     const daEstacao = (k) => !k.estacao || !S || k.estacao === S.estacao;
     function desenharClima() {
         if (!el.clima) return;
-        const c = S && S.clima && S.clima.hoje;
-        el.clima.hidden = !c;
-        if (!c) return;
+        if (S && S.estacao) cena.definirEstacao(S.estacao);
+        const c = climaAgora();
+        el.clima.hidden = !CLIMA[c];
+        if (!CLIMA[c]) return;
         el.clima.innerHTML = ico(iconeClima(c), 22) + `<span>${CLIMA[c].nome}</span>`;
-        el.clima.title = `Hoje: ${CLIMA[c].nome}. Amanhã: ${(CLIMA[S.clima.amanha] || {}).nome || '?'}.`;
+        const prox = CLIMA[S.clima.proximo || S.clima.amanha];
+        el.clima.title = `${CLIMA[c].nome}${S.clima.ate ? ' até ' + hora(S.clima.ate) : ''}: ${CLIMA[c].efeito}${prox ? ' Depois: ' + prox.nome.toLowerCase() + '.' : ''}`;
         cena.definirClima(visita ? null : c);
     }
     function descreverClima() {
-        if (!S || !S.clima) return;
-        const hoje = CLIMA[S.clima.hoje], amanha = CLIMA[S.clima.amanha];
-        mostrarStatus(`${ico(iconeClima(S.clima.hoje), 18)} <b>${hoje.nome}</b> na ${NOME_ESTACAO[S.estacao] || 'roça'}: ${hoje.efeito}` +
-            (amanha ? ` Amanhã: ${ico(iconeClima(S.clima.amanha), 16)} ${amanha.nome.toLowerCase()}.` : ''));
+        const c = climaAgora();
+        if (!CLIMA[c]) return;
+        const prox = S.clima.proximo || S.clima.amanha;
+        const fimEst = S.estacao_fim ? Date.parse(S.estacao_fim) - agora() : 0;
+        mostrarStatus(`${ico(iconeClima(c), 18)} <b>${CLIMA[c].nome}</b>${S.clima.ate ? ' até ' + hora(S.clima.ate) : ''}: ${CLIMA[c].efeito}` +
+            (CLIMA[prox] ? ` Depois: ${ico(iconeClima(prox), 16)} ${CLIMA[prox].nome.toLowerCase()}.` : '') +
+            (S.estacao ? ` É ${NOME_ESTACAO[S.estacao]}${fimEst > 0 && S.estacao_proxima ? `, vira ${NOME_ESTACAO[S.estacao_proxima]} em ${fmtTempo(fimEst)}` : ''}.` : ''));
     }
 
     /* ---------- Energia (nível 16+) ----------
@@ -1816,7 +1832,7 @@
                     <li>Em <b>Construir → Máquinas</b>: irrigador, pulverizador e robô capinador evitam seca, pragas e ervas por perto; o alarme protege dos vizinhos; trator e colheitadeira ajudam na fazenda toda.</li>
                     <li>Na loja tem <b>animais</b>: dê ração (sai do celeiro) e colete ovos, leite e lã. No celeiro, <b>Reservar</b> guarda a ração deles para não ir junto no "Vender tudo".</li>
                     <li>No botão <b>Construir</b> você coloca cercas, caminhos, árvores, flores e objetos onde quiser. Toque em <b>Pronto</b> para fechar.</li>
-                    <li>Cada <b>estação</b> tem sementes só dela (morango, melancia, abóbora, repolho) e o <b>clima</b> muda todo dia: chuva rega tudo, onda de calor seca mais. Toque no clima, lá em cima, para ver a previsão.</li>
+                    <li>A semana tem as 4 <b>estações</b> (42 horas cada), e cada uma tem uma semente só dela: morango, melancia, abóbora e repolho. O <b>clima</b> muda várias vezes por dia: sol dá +1 na colheita, chuva rega tudo, onda de calor seca mais, nublado não traz problema novo e ventania espalha pragas. Toque no clima, lá em cima, para ver até quando ele vai.</li>
                     <li>Do nível 16 em diante vem a <b>energia</b> ${ico('raio', 14)}: painel solar, turbina, gerador a biomassa e reator enchem as baterias, e as máquinas elétricas (estufa, triturador, fábrica automática, robô, aspersor) trabalham sozinhas gastando energia.</li>
                     ${ANUNCIO.ligado || ehLocal ? `<li>Quando aparecer o botão <b>+30 min</b>, assista a um anúncio até o fim e tudo o que está em andamento (plantas, animais, oficinas, ajudantes e energia) adianta 30 minutos.</li>` : ''}
                     <li>No Perfil (ou em Vizinhos) tem o seu <b>link de convite</b>: quem criar uma fazenda por ele ganha moedas, e você também.</li>
@@ -1943,7 +1959,7 @@
             return `<button type="button" class="item${k.id === semente ? ' selecionada' : ''}${travada ? ' travada' : ''}" data-semente="${esc(k.id)}" ${travada ? 'aria-disabled="true"' : ''}>
                 <span class="ico${k.nivel_min <= S.jogador.nivel && travada ? ' fora' : ''}">${k.nivel_min > S.jogador.nivel ? ico('cadeado', 28) : spr(A.cultura(k.id).item, 44)}</span>
                 <span>
-                    <span class="nome">${esc(k.nome)}${k.estacao ? ` <small class="tag-estacao${daEstacao(k) ? ' agora' : temEstufa() ? ' estufa' : ''}">${daEstacao(k) ? 'da estação!' : temEstufa() ? 'só na estufa' : 'só no ' + NOME_ESTACAO[k.estacao]}</small>` : ''}</span>
+                    <span class="nome">${esc(k.nome)}${k.estacao ? ` <small class="tag-estacao${daEstacao(k) ? ' agora' : temEstufa() ? ' estufa' : ''}">${daEstacao(k) ? 'da estação!' : temEstufa() ? 'só na estufa' : 'só ' + naEstacao(k.estacao) + (faltaParaEstacao(k.estacao) ? ' · em ' + fmtTempo(faltaParaEstacao(k.estacao)) : '')}</small>` : ''}</span>
                     <span class="det">
                         <span>${fmtDuracao(k.tempo_seg)}</span>
                         <span>colhe ${k.rendimento} × ${moeda(k.venda)}</span>
@@ -2109,7 +2125,7 @@
         if (sem) {
             const k = culturas[sem.dataset.semente];
             if (k.nivel_min > S.jogador.nivel) return toast(`${ico('cadeado', 12)} ${esc(k.nome)} libera no nível ${k.nivel_min}.`);
-            if (!podeEscolher(k)) return toast(`${itemDe(k, 18)} ${esc(k.nome)} só dá no ${NOME_ESTACAO[k.estacao]}. Agora é ${NOME_ESTACAO[S.estacao]}.`);
+            if (!podeEscolher(k)) return toast(`${itemDe(k, 18)} ${esc(k.nome)} só dá ${naEstacao(k.estacao)}, que começa em ${fmtTempo(faltaParaEstacao(k.estacao))}.`);
             if (!daEstacao(k)) toast(`${itemDe(k, 18)} Fora de época: ${esc(k.nome.toLowerCase())} só cresce perto da estufa elétrica.`);
             semente = k.id;
             store.set(LS.semente, semente);

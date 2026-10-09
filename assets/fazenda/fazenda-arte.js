@@ -70,18 +70,18 @@
         return noTerreno(x, y) && !MAPA.reservas.some((r) => dentroRet(r, x, y));
     }
 
-    /* ---------- Estação do ano (hemisfério sul) ---------- */
+    /* ---------- Estação: a do servidor; antes de entrar, a mesma conta dele ---------- */
+    let estacaoServidor = null;
     function estacao() {
         try {
             const forcada = new URLSearchParams(location.search).get('estacao');
             if (['primavera', 'verao', 'outono', 'inverno'].includes(forcada)) return forcada;
         } catch { /* ignora */ }
-        const d = new Date(), m = d.getMonth() + 1, dia = d.getDate();
-        const md = m * 100 + dia;
-        if (md >= 1221 || md < 320) return 'verao';
-        if (md < 621) return 'outono';
-        if (md < 923) return 'inverno';
-        return 'primavera';
+        if (estacaoServidor) return estacaoServidor;
+        // igual a fazenda_estacao_em no SQL: 4 estações por semana, 42 h cada, desde segunda 0h
+        const b = new Date(Date.now() - 3 * 3600e3);   // Brasília: UTC-3 o ano todo
+        const min = ((b.getUTCDay() + 6) % 7) * 1440 + b.getUTCHours() * 60 + b.getUTCMinutes();
+        return ['primavera', 'verao', 'outono', 'inverno'][Math.floor(min / 2520)];
     }
 
     /* ---------- Sprites do pacote por cultura ----------
@@ -468,7 +468,7 @@
     function criarCena(canvas, cb) {
         cb = cb || {};
         const ctx = canvas.getContext('2d');
-        const EST = estacao();
+        let EST = estacao();   // muda junto com a estação do servidor (definirEstacao)
 
         // mundo inteiro em pixels do jogo (terreno + mata em volta)
         const MW = (MAPA.w + MARGEM * 2) * T, MH = (MAPA.h + MARGEM * 2) * T;
@@ -1346,6 +1346,15 @@
             },
             focarTile(tx, ty) { focar(wx(tx) + T / 2, wy(ty) + T / 2); },
             definirClima(c) { clima = c || null; precisaDesenhar = true; },
+            // estação nova: refaz o chão (neve, folhas, flores) e a arte das árvores
+            definirEstacao(e) {
+                estacaoServidor = e || null;
+                const nova = estacao();
+                if (nova === EST) return;
+                EST = nova;
+                montarFundo();
+                precisaDesenhar = true;
+            },
             definirModoConstrucao(estado) { construcao = estado || { ativo: false }; },
             irAte(p) {
                 const { x, y } = posCanteiro(p);
