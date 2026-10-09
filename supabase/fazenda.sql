@@ -279,6 +279,10 @@ alter table public.fazenda_estatisticas add column if not exists energia int not
 alter table public.fazenda_jogadores add column if not exists curva smallint not null default 1;
 alter table public.fazenda_jogadores alter column curva set default 2;
 
+-- Fase 13: anúncio premiado (quando foi o último) e quantos cada jogador já assistiu
+alter table public.fazenda_jogadores add column if not exists anuncio_em timestamptz;
+alter table public.fazenda_estatisticas add column if not exists anuncios int not null default 0;
+
 -- Fase 7: ração reservada para os animais (fica no celeiro, o "vender" não leva)
 create table if not exists public.fazenda_reservas (
   jogador_id  uuid not null references public.fazenda_jogadores(id) on delete cascade,
@@ -2428,6 +2432,82 @@ begin
 end;
 $$;
 
+-- Anúncio premiado: o jogador assistiu até o fim e tudo o que está em andamento anda
+-- 30 minutos — plantas, animais, oficinas, amoreira, ajudantes e geradores. Nada passa do
+-- ponto (o que amadurece fica maduro, não murcha). Sem limite por dia: só um intervalo
+-- mínimo entre dois anúncios, menor que a duração de um, contra clique repetido.
+create or replace function public.fazenda_anuncio(p_token text)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id  uuid := fazenda_auth(p_token);
+  j     record;
+  v_d   interval := interval '30 minutes';
+  v_c   int;
+  v_a   int;
+  v_o   int;
+  v_p   int;
+begin
+  select anuncio_em into j from fazenda_jogadores where id = v_id for update;
+  if j.anuncio_em is not null and j.anuncio_em > now() - interval '10 seconds' then
+    raise exception 'anuncio_cedo';
+  end if;
+  perform fazenda_energia_atualizar(v_id);   -- fecha a conta da energia antes de somar os 30 min
+
+  -- plantas crescendo (os problemas que cairiam nesse tempo também chegam)
+  update fazenda_canteiros c
+     set plantado_em = greatest(c.plantado_em - v_d, now() - make_interval(secs => k.tempo_seg)),
+         prox_evento = c.prox_evento - (c.plantado_em - greatest(c.plantado_em - v_d, now() - make_interval(secs => k.tempo_seg)))
+    from fazenda_culturas k
+   where c.jogador_id = v_id and k.id = c.cultura and c.estado = 'plantado'
+     and now() < c.plantado_em + make_interval(secs => k.tempo_seg);
+  get diagnostics v_c = row_count;
+
+  -- animais produzindo
+  update fazenda_animais a
+     set alimentado_em = greatest(a.alimentado_em - v_d, now() - make_interval(secs => t.tempo_seg))
+    from fazenda_animais_tipos t
+   where a.jogador_id = v_id and t.id = a.tipo and a.alimentado_em is not null
+     and now() < a.alimentado_em + make_interval(secs => t.tempo_seg);
+  get diagnostics v_a = row_count;
+
+  -- oficinas trabalhando
+  update fazenda_construcoes c
+     set iniciado_em = greatest(c.iniciado_em - v_d, now() - make_interval(secs => i.produz_seg))
+    from fazenda_itens i
+   where c.jogador_id = v_id and i.id = c.tipo and i.entradas is not null and c.iniciado_em is not null
+     and now() < c.iniciado_em + make_interval(secs => i.produz_seg);
+  get diagnostics v_o = row_count;
+
+  -- o que produz sozinho (amoreira)
+  update fazenda_construcoes c
+     set colhido_em = greatest(c.colhido_em - v_d, now() - make_interval(secs => i.produz_seg))
+    from fazenda_itens i
+   where c.jogador_id = v_id and i.id = c.tipo and i.produz is not null and i.entradas is null
+     and c.colhido_em is not null and now() < c.colhido_em + make_interval(secs => i.produz_seg);
+  get diagnostics v_p = row_count;
+
+  -- ajudantes ganham meia hora de trabalho; sol, vento e reator, meia hora de energia
+  update fazenda_ajudantes
+     set credito = least(credito + fazenda_ritmo(nivel) * 0.5, fazenda_ritmo(nivel) * 8)
+   where jogador_id = v_id;
+  update fazenda_jogadores
+     set energia = least(energia + fazenda_energia_taxa(v_id, now()) * 0.5, fazenda_capacidade(v_id)),
+         anuncio_em = now()
+   where id = v_id;
+  insert into fazenda_estatisticas (jogador_id) values (v_id) on conflict do nothing;
+  update fazenda_estatisticas set anuncios = anuncios + 1 where jogador_id = v_id;
+
+  -- já roda o que o tempo a mais destrava (problemas, ajudantes, máquinas)
+  perform fazenda_tick(v_id);
+  perform fazenda_trabalhar(v_id);
+  perform fazenda_industria(v_id);
+  return jsonb_build_object('canteiros', v_c, 'animais', v_a, 'oficinas', v_o + v_p, 'estado', fazenda_estado(v_id));
+end;
+$$;
+
 create or replace function public.fazenda_resgatar_missao(p_token text, p_slot int)
 returns jsonb
 language plpgsql security definer
@@ -2476,6 +2556,7 @@ revoke execute on function
   public.fazenda_aspersor(uuid, int, int),
   public.fazenda_industria(uuid),
   public.fazenda_gerador(text, int, int),
+  public.fazenda_anuncio(text),
   public.fazenda_checar_lugar(uuid, int, int, int, int, int, int, int, int),
   public.fazenda_auth(text),
   public.fazenda_nova_sessao(uuid),
@@ -2533,5 +2614,6 @@ grant execute on function
   public.fazenda_reservar(text, text, int),
   public.fazenda_contratar(text, text),
   public.fazenda_oficina(text, int, int),
-  public.fazenda_gerador(text, int, int)
+  public.fazenda_gerador(text, int, int),
+  public.fazenda_anuncio(text)
 to anon, authenticated;

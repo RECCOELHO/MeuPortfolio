@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, follow">
+    <title>Política de privacidade — Jogos do site</title>
+    <link rel="icon" type="image/png" href="assets/fazenda/app/icone-192.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --fundo: #f4ecd8;
+            --papel: #fffaf0;
+            --texto: #3f2631;
+            --suave: #6b5560;
+            --verde: #3e8948;
+            --borda: #e2d3b4;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --fundo: #1f1a1d;
+                --papel: #2a2427;
+                --texto: #f1e7e4;
+                --suave: #c2b3b8;
+                --verde: #84c669;
+                --borda: #3d3438;
+            }
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: var(--fundo);
+            color: var(--texto);
+            font: 600 17px/1.6 'Nunito', system-ui, sans-serif;
+        }
+
+        main {
+            max-width: 720px;
+            margin: 0 auto;
+            padding: 32px 16px 56px;
+        }
+
+        .papel {
+            background: var(--papel);
+            border: 2px solid var(--borda);
+            border-radius: 12px;
+            padding: 24px 22px;
+        }
+
+        h1 {
+            margin: 0 0 4px;
+            font-size: 28px;
+            line-height: 1.2;
+        }
+
+        h2 {
+            margin: 28px 0 6px;
+            font-size: 19px;
+            color: var(--verde);
+        }
+
+        p,
+        li {
+            color: var(--texto);
+        }
+
+        .data {
+            margin: 0 0 18px;
+            color: var(--suave);
+            font-size: 15px;
+        }
+
+        a {
+            color: var(--verde);
+            font-weight: 800;
+        }
+
+        ul {
+            padding-left: 22px;
+        }
+
+        footer {
+            margin-top: 20px;
+            text-align: center;
+            font-size: 15px;
+            color: var(--suave);
+        }
+    </style>
+</head>
+
+<body>
+    <main>
+        <div class="papel">
+            <h1>Política de privacidade</h1>
+            <p class="data">Jogos do site jessecoelho.com.br · atualizada em 9 de outubro de 2026</p>
+
+            <p>Esta política vale para os jogos escondidos do site <b>jessecoelho.com.br</b>: a <b>Fazendinha Secreta</b> e o <b>Pong</b>. O responsável é Carlos Jessé Coelho da Silva.</p>
+
+            <h2>O que fica guardado no servidor</h2>
+            <ul>
+                <li><b>Fazendinha:</b> o apelido que você escolhe e o andamento do jogo (canteiros, celeiro, moedas, nível, construções, animais, ajudantes, missões e as visitas entre vizinhos). O código de recuperação e a sessão ficam guardados só como um resumo criptográfico (hash), nunca em texto.</li>
+                <li><b>Pong:</b> o nome que você digita no placar, o resultado da partida e a data.</li>
+                <li>Os jogos <b>não pedem</b> nome completo, e-mail, telefone nem senha. Os dados ficam num banco de dados no Supabase.</li>
+            </ul>
+
+            <h2>O que fica no seu aparelho</h2>
+            <p>O navegador guarda a sessão da fazenda, o código de recuperação (se você deixar salvo) e preferências como som, semente escolhida, avisos e tutorial. Se você limpar os dados do site, isso some. Guarde o código de recuperação para abrir sua fazenda de novo.</p>
+
+            <h2>Avisos no celular</h2>
+            <p>Os avisos de "tem coisa pronta" só aparecem se você permitir. Eles são criados no próprio aparelho e nada é enviado para fora por causa deles.</p>
+
+            <h2>Anúncios</h2>
+            <p>A Fazendinha pode mostrar anúncios do Google (AdSense), e só quando você escolhe assistir a um, no botão <b>+30 min</b>, para adiantar o tempo no jogo. O Google e os parceiros dele podem usar cookies e identificadores do aparelho para mostrar os anúncios, limitar quantas vezes eles aparecem, medir os resultados e, onde a lei permitir, personalizá-los.</p>
+            <ul>
+                <li><a href="https://policies.google.com/technologies/partner-sites" target="_blank" rel="noopener">Como o Google usa as informações de sites que usam os serviços dele</a></li>
+                <li><a href="https://myadcenter.google.com/" target="_blank" rel="noopener">Minha Central de anúncios do Google</a>, para ver e mudar a personalização dos anúncios</li>
+            </ul>
+
+            <h2>Seus direitos</h2>
+            <p>Pela Lei Geral de Proteção de Dados (LGPD), você pode pedir para ver, corrigir ou apagar os dados do seu jogo. Peça pelo botão <b>Contato</b> da <a href="/">página inicial do site</a> informando seu apelido e, se puder, o código de recuperação, para mostrar que a fazenda é sua.</p>
+
+            <h2>Mudanças</h2>
+            <p>Se esta política mudar, a data lá em cima muda junto.</p>
+        </div>
+        <footer><a href="fazenda.html">Voltar para a fazenda</a></footer>
+    </main>
+</body>
+
+</html>

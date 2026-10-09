@@ -1745,3 +1745,72 @@ body.construindo .status {
         box-shadow: 0 -2px 0 var(--ouro), 0 2px 0 var(--ouro), -2px 0 0 var(--ouro), 2px 0 0 var(--ouro);
     }
 }
+
+/* ---------- Anúncio premiado (+30 min) ---------- */
+.botao.anuncio {
+    position: absolute;
+    right: 18px;
+    bottom: calc(100% + 2px);
+    flex-direction: row;
+    gap: 6px;
+    padding: 6px 12px;
+    background: #ffe08a;
+    animation: anuncio-chama 2.4s steps(2) infinite;
+}
+
+.botao.anuncio[hidden] {
+    display: none;
+}
+
+.botao.anuncio em {
+    font-style: normal;
+    font-weight: 800;
+}
+
+@keyframes anuncio-chama {
+    50% {
+        transform: translateY(-2px);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .botao.anuncio {
+        animation: none;
+    }
+}
+
+@media (max-width: 760px) {
+    /* estreito, para não encostar no balão de mensagem do meio */
+    .botao.anuncio {
+        right: 10px;
+        flex-direction: column;
+        gap: 0;
+        width: 58px;
+        padding: 4px 6px;
+        font-size: 13px;
+        line-height: 1.05;
+        text-align: center;
+    }
+}
+
+/* anúncio de mentira (só no localhost) */
+.anuncio-teste {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: grid;
+    place-items: center;
+    padding: 16px;
+    background: rgba(20, 16, 24, .82);
+}
+
+.anuncio-teste .caixa {
+    max-width: 320px;
+    padding: 20px;
+    text-align: center;
+}
+
+.anuncio-conta {
+    font-size: 40px;
+    font-weight: 900;
+}
