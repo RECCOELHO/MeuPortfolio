@@ -10,10 +10,10 @@
     const A = window.FazendaArte;
     const SUPABASE_URL = 'https://vhdjqppzylxdksgjzvsh.supabase.co';
     const SUPABASE_KEY = 'sb_publishable_y-rrBFvf0QRFG3WL3P0kxQ_gItonE2U';
-    // Anúncio premiado (AdSense, anúncios para jogos H5). Cole em cliente o código de editor
-    // (ca-pub-...) quando a conta for aprovada; vazio = sem anúncios. teste: true mostra só
-    // anúncios de teste do Google — troque para false depois de conferir que funciona.
-    const ANUNCIO = { cliente: '', teste: true };
+    // Anúncio premiado (AdSense, anúncios para jogos H5). ligado: false até o Google aprovar o
+    // site e liberar os anúncios para jogos; teste: true mostra só anúncios de teste do Google
+    // (troque para false depois de conferir que funciona).
+    const ANUNCIO = { cliente: 'ca-pub-9193438749452073', ligado: false, teste: true };
 
     // Em localhost dá pra apontar para um backend de teste: fazenda.html?api=http://localhost:8787
     let API = SUPABASE_URL;
@@ -305,13 +305,13 @@
     /* ---------- Anúncio premiado: assiste até o fim e tudo anda 30 minutos ----------
        API de anúncios para jogos H5 do AdSense (adBreak do tipo 'reward'): ela avisa quando
        tem anúncio pronto (beforeReward) e o botão aparece; o tempo só vem com o anúncio
-       visto até o fim (adViewed). Sem ANUNCIO.cliente não aparece nada; no localhost dá
+       visto até o fim (adViewed). Com ANUNCIO.ligado false não aparece nada; no localhost dá
        para testar com um anúncio de mentira. */
     const ehLocal = ['localhost', '127.0.0.1'].includes(location.hostname);
     let mostrarAnuncio = null;   // chamar mostra o vídeo (só existe quando tem anúncio pronto)
     let timerAnuncio = null;
     function iniciarAnuncios() {
-        if (ANUNCIO.cliente) {
+        if (ANUNCIO.ligado) {
             window.adsbygoogle = window.adsbygoogle || [];
             window.adBreak = window.adConfig = (o) => { window.adsbygoogle.push(o); };
             const sc = document.createElement('script');
@@ -330,7 +330,7 @@
     }
     function prepararAnuncio() {
         clearTimeout(timerAnuncio);
-        if (!ANUNCIO.cliente || mostrarAnuncio) return;
+        if (!ANUNCIO.ligado || mostrarAnuncio) return;
         window.adBreak({
             type: 'reward',
             name: 'adiantar_30min',
@@ -1716,7 +1716,7 @@
                     <li>No botão <b>Construir</b> você coloca cercas, caminhos, árvores, flores e objetos onde quiser. Toque em <b>Pronto</b> para fechar.</li>
                     <li>Cada <b>estação</b> tem sementes só dela (morango, melancia, abóbora, repolho) e o <b>clima</b> muda todo dia: chuva rega tudo, onda de calor seca mais. Toque no clima, lá em cima, para ver a previsão.</li>
                     <li>Do nível 16 em diante vem a <b>energia</b> ${ico('raio', 14)}: painel solar, turbina, gerador a biomassa e reator enchem as baterias, e as máquinas elétricas (estufa, triturador, fábrica automática, robô, aspersor) trabalham sozinhas gastando energia.</li>
-                    ${ANUNCIO.cliente || ehLocal ? `<li>Quando aparecer o botão <b>+30 min</b>, assista a um anúncio até o fim e tudo o que está em andamento (plantas, animais, oficinas, ajudantes e energia) adianta 30 minutos.</li>` : ''}
+                    ${ANUNCIO.ligado || ehLocal ? `<li>Quando aparecer o botão <b>+30 min</b>, assista a um anúncio até o fim e tudo o que está em andamento (plantas, animais, oficinas, ajudantes e energia) adianta 30 minutos.</li>` : ''}
                     <li>Cumpra as <b>missões do dia</b> para ganhar moedas e XP extras.</li>
                     <li>Cada nível libera coisas novas e dá um presente de moedas. Toque no seu nome, lá em cima, para ver o <b>caminho dos níveis</b>.</li>
                     <li>Em <b>Vizinhos</b> você visita outras fazendas: <b>pega</b> um pouco da colheita madura ou <b>ajuda</b> com os problemas e ganha XP.</li>
