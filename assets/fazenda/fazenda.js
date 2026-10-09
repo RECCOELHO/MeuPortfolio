@@ -105,7 +105,7 @@
     const $ = (id) => document.getElementById(id);
     const el = {
         canvas: $('cena'), hud: $('hud'), barra: $('barra'), status: $('status'),
-        apelido: $('hudApelido'), nivel: $('hudNivel'), xpBar: $('hudXpBar'), xp: $('hudXp'),
+        apelido: $('hudApelido'), nivel: $('hudNivel'), xpBar: $('hudXpBar'), xp: $('hudXp'), premio: $('hudPremio'),
         moedas: $('hudMoedas'), celeiroCont: $('hudCeleiro'),
         semIcone: $('semIcone'), semNome: $('semNome'), btnSemente: $('btnSemente'),
         toasts: $('toasts'), flut: $('flutuantes'),
@@ -360,7 +360,7 @@
        contas abaixo precisam bater com fazenda_presente_nivel e
        fazenda_limite_canteiros no SQL. */
     const NIVEL_MAX = 25;
-    const presenteNivel = (n) => 50 * n;
+    const presenteNivel = (n) => (n > 10 ? 100 : 50) * n;   // do 10 em diante sobe devagar, e o presente dobra
     const limiteCanteirosNivel = (n) => Math.min(6 + (n - 1) * 2, 54);
     const ORDEM_TIPO = { Terreno: 0, Ajudante: 1, Oficina: 1, 'Máquina': 1, Energia: 1, Animal: 2, Semente: 3, Casa: 4, Enfeite: 5 };
     function liberaNoNivel(n) {
@@ -974,8 +974,16 @@
         el.apelido.textContent = j.apelido;
         el.nivel.textContent = j.nivel;
         const faixa = j.xp_proximo - j.xp_nivel;
-        el.xpBar.style.width = `${Math.min(100, ((j.xp - j.xp_nivel) / faixa) * 100)}%`;
+        const prog = (j.xp - j.xp_nivel) / faixa;
+        el.xpBar.style.width = `${Math.min(100, prog * 100)}%`;
         el.xp.textContent = `${j.xp}/${j.xp_proximo}`;
+        // a isca: o que vem no próximo nível fica sempre à vista, e a barra brilha quando falta pouco
+        const premio = j.nivel < NIVEL_MAX ? liberaNoNivel(j.nivel + 1)[0] : null;
+        if (el.premio) {
+            el.premio.hidden = !premio;
+            el.premio.innerHTML = premio ? premio.html : '';
+        }
+        el.xpBar.parentElement.classList.toggle('quase', j.nivel < NIVEL_MAX && prog >= 0.8);
         if (el.hudPerfil) {
             const prox = j.nivel < NIVEL_MAX ? liberaNoNivel(j.nivel + 1).slice(0, 3).map((x) => x.nome).join(', ') : '';
             el.hudPerfil.title = j.nivel < NIVEL_MAX
@@ -1639,7 +1647,7 @@
             const falta = j.xp_proximo - j.xp;
             corpo.innerHTML = `
                 <p>Você está no nível <b>${j.nivel}</b>${j.nivel < NIVEL_MAX ? `: faltam <b>${falta}</b> ${ico('xp', 14)} para o próximo.` : '. Fazenda completa!'}</p>
-                <p class="aviso">Colher, cuidar dos canteiros, os animais e as missões dão XP. Cada nível traz um presente de moedas.</p>
+                <p class="aviso">Colher, cuidar dos canteiros, os animais e as missões dão XP. Cada nível traz um presente de moedas. Do nível 10 em diante cada nível pede mais XP que o anterior, e o presente dobra.</p>
                 <ol class="caminho">${Array.from({ length: NIVEL_MAX }, (_, i) => i + 1).map((n) => {
                     const x = extrasDoNivel(n);
                     const lista = liberaNoNivel(n);

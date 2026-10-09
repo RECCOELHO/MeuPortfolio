@@ -274,6 +274,11 @@ alter table public.fazenda_jogadores add column if not exists energia real not n
 alter table public.fazenda_jogadores add column if not exists energia_em timestamptz;
 alter table public.fazenda_estatisticas add column if not exists energia int not null default 0;
 
+-- Fase 12: curva de XP. 1 = a antiga (25·(n-1)² em todos os níveis), 2 = a nova (mais
+-- difícil do nível 10 em diante). Quem já jogava é convertido uma vez só (ver abaixo).
+alter table public.fazenda_jogadores add column if not exists curva smallint not null default 1;
+alter table public.fazenda_jogadores alter column curva set default 2;
+
 -- Fase 7: ração reservada para os animais (fica no celeiro, o "vender" não leva)
 create table if not exists public.fazenda_reservas (
   jogador_id  uuid not null references public.fazenda_jogadores(id) on delete cascade,
@@ -606,11 +611,40 @@ returns text language sql stable as $$
     from (select abs(hashtext('clima-' || p_dia::text)) % 100 as r) x));
 $$;
 
--- Nível a partir do XP: nível n começa em 25·(n-1)² XP (25, 100, 225, 400...)
-create or replace function public.fazenda_nivel(p_xp int)
-returns int language sql immutable as $$
-  select floor(sqrt(greatest(p_xp, 0) / 25.0))::int + 1;
+-- XP onde começa o nível n. Até o 10: 25·(n-1)² (25, 100, 225... 2025). Do 10 em diante
+-- cada nível pede 22% a mais que o anterior, começando em 700 (10→11: 700, 15→16: 1.892,
+-- 20→21: 5.113, 24→25: 11.327). Os números da barra vêm daqui (estado: xp_nivel/xp_proximo).
+create or replace function public.fazenda_xp_nivel(p_nivel int)
+returns bigint language sql immutable as $$
+  select case when p_nivel <= 10 then 25 * (p_nivel - 1) * (p_nivel - 1)
+              else 2025 + round(700 * (power(1.22::float8, p_nivel - 10) - 1) / 0.22)::bigint end;
 $$;
+
+-- Nível a partir do XP (o inverso de fazenda_xp_nivel)
+create or replace function public.fazenda_nivel(p_xp int)
+returns int language plpgsql immutable as $$
+declare
+  n int;
+begin
+  if p_xp < 2025 then
+    return floor(sqrt(greatest(p_xp, 0) / 25.0))::int + 1;
+  end if;
+  n := 10 + floor(ln(1 + (p_xp - 2025) * 0.22 / 700) / ln(1.22))::int;
+  while fazenda_xp_nivel(n + 1) <= p_xp loop n := n + 1; end loop;    -- acerta o arredondamento
+  while n > 10 and fazenda_xp_nivel(n) > p_xp loop n := n - 1; end loop;
+  return n;
+end;
+$$;
+
+-- Quem já jogava na curva antiga continua no mesmo nível e com a barra cheia na mesma
+-- proporção (só muda o XP de quem passou do nível 10). Roda uma vez por jogador (curva 1 → 2).
+update public.fazenda_jogadores j
+   set xp = case when x.n < 10 then j.xp
+                 else fazenda_xp_nivel(x.n) + floor((j.xp - 25 * (x.n - 1) * (x.n - 1))::numeric / (25 * (2 * x.n - 1))
+                                                    * (fazenda_xp_nivel(x.n + 1) - fazenda_xp_nivel(x.n)))::int end,
+       curva = 2
+  from (select id, floor(sqrt(greatest(xp, 0) / 25.0))::int + 1 as n from public.fazenda_jogadores where curva = 1) x
+ where j.id = x.id;
 
 create or replace function public.fazenda_max_canteiros(p_nivel int)
 returns int language sql immutable as $$
@@ -645,10 +679,11 @@ returns int language sql immutable as $$
   select least(6 + (p_nivel - 1) * 2, 54) + 6 * p_zonas;
 $$;
 
--- Presente de moedas ao chegar no nível n (igual a presenteNivel em fazenda.js)
+-- Presente de moedas ao chegar no nível n: 50·n até o 10 e o dobro depois, que custa mais
+-- (igual a presenteNivel em fazenda.js)
 create or replace function public.fazenda_presente_nivel(p_nivel int)
 returns int language sql immutable as $$
-  select 50 * p_nivel;
+  select case when p_nivel > 10 then 100 * p_nivel else 50 * p_nivel end;
 $$;
 
 -- ⚡ que cabe nas baterias: 50 da caixa de luz + 100 por banco de baterias + 500 por supercapacitor
@@ -809,8 +844,8 @@ begin
       'moedas', j.moedas,
       'xp', j.xp,
       'nivel', v_nivel,
-      'xp_nivel', 25 * (v_nivel - 1) * (v_nivel - 1),
-      'xp_proximo', 25 * v_nivel * v_nivel,
+      'xp_nivel', fazenda_xp_nivel(v_nivel),
+      'xp_proximo', fazenda_xp_nivel(v_nivel + 1),
       'max_canteiros', v_max,
       'zonas', j.zonas,
       'beleza', fazenda_beleza(p_jogador),
@@ -2422,6 +2457,7 @@ $$;
 -- ------------------------------------------------------------
 revoke execute on function
   public.fazenda_nivel(int),
+  public.fazenda_xp_nivel(int),
   public.fazenda_estacao(date),
   public.fazenda_clima(date),
   public.fazenda_max_canteiros(int),
