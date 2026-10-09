@@ -1863,3 +1863,31 @@ body.construindo .status {
 .conta-semente b {
     color: var(--grama-esc);
 }
+
+/* ---------- O lendário Peixe do Velho Chico ---------- */
+.lendario {
+    text-align: center;
+}
+
+.lendario-peixe {
+    display: inline-grid;
+    place-items: center;
+    width: 140px;
+    height: 140px;
+    margin: 4px 0 8px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #fff3b0 0%, #ffe08a 45%, rgba(253, 190, 83, 0) 70%);
+    animation: lendario-brilho 1.6s steps(4) infinite;
+}
+
+@keyframes lendario-brilho {
+    50% {
+        transform: scale(1.06) rotate(-4deg);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .lendario-peixe {
+        animation: none;
+    }
+}

@@ -44,9 +44,11 @@
         porteira: [18, 19],
         cochos: [{ i: 110, x: 18, y: 1 }, { i: 111, x: 19, y: 1 }],
         // celeiro, casa, galinheiro e pasto: o resto do terreno é livre (até para canteiros)
+        // o lago (terreno 3, Vale do sudeste): o tanque e a grama do pescador, à esquerda; igual a fazenda_livre no SQL
+        lago: { x: 24, y: 14, w: 6, h: 5 },
         reservas: [
             { x: 1, y: 1, w: 3, h: 6 }, { x: 5, y: 1, w: 3, h: 3 }, { x: 0, y: 7, w: 7, h: 2 },
-            { x: 16, y: 0, w: 6, h: 7 }
+            { x: 16, y: 0, w: 6, h: 7 }, { x: 24, y: 14, w: 6, h: 5 }
         ]
     };
     const MARGEM = 9;   // quadrados de mata em volta do terreno
@@ -102,6 +104,9 @@
         pelo:     { fases: [1004, 1004, 1004], murcho: 1004, item: 1004, semente: 1004 },
         pena:     { fases: [1003, 1003, 1003], murcho: 1003, item: 1003, semente: 1003 },
         trufa:    { fases: [79, 79, 79], murcho: 79, item: 79, semente: 79 },
+        // peixes do lago (arte própria 1030..1036)
+        lambari: { item: 1030 }, tilapia: { item: 1031 }, piau: { item: 1032 }, curimata: { item: 1033 },
+        tucunare: { item: 1034 }, surubim: { item: 1035 }, velho_chico: { item: 1036 },
         // sementes da estação (broto e meio do pacote; madura e fruta próprias)
         moranguinho: { fases: [52, 53, 1013], murcho: 55, item: 1014, semente: 1014 },
         melancia: { fases: [52, 53, 1015], murcho: 55, item: 1016, semente: 1016 },
@@ -207,7 +212,27 @@
         // 28 reator (baixo, esq.)
         ['.....addfffflla.', '.....addfffflla.', '.....addfffflla.', '.....addfffflla.', '.....addfffflla.', '.....addfffflla.', '.....addfffflla.', '.....addfffflla.', '.....addfffflla.', '.....adffffflla.', '....addfffffllla', '...adddfffffflll', '...addffffffflll', '..adddffffffflll', '.adddfffffffffll', '..aaaaaaaaaaaaaa'],
         // 29 reator (baixo, dir.)
-        ['....addffffflla.', '....affffffflla.', '...affffffffllla', '...affffffffllla', '...allllllllKKKa', '...allllllllKKKa', '...alWllggglKWKa', '...alWlgegegKWKa', '...alllggeggKKKa', '...alllgggggKKKa', '...allllgeglKKKa', 'a..allllllllKKKa', 'a..allllllllKKKa', 'la.aKKKKKKKKKKKa', 'llaaKKKKKKKKKKKa', 'aa..aaaaaaaaaaa.']
+        ['....addffffflla.', '....affffffflla.', '...affffffffllla', '...affffffffllla', '...allllllllKKKa', '...allllllllKKKa', '...alWllggglKWKa', '...alWlgegegKWKa', '...alllggeggKKKa', '...alllgggggKKKa', '...allllgeglKKKa', 'a..allllllllKKKa', 'a..allllllllKKKa', 'la.aKKKKKKKKKKKa', 'llaaKKKKKKKKKKKa', 'aa..aaaaaaaaaaa.'],
+        // 30 lambari
+        ['................', '................', '................', '......aa..aa....', '.....aggaalla...', '....agggllefa...', '.....agllffda...', '.....alfffdda...', '.aaaalffddda....', 'aggggfdddgga....', '.agggaaaaaa.....', '.aggga..........', '..agga..........', '...aga..........', '....a...........', '................'],
+        // 31 tilápia
+        ['................', '................', '......aa........', '.....aKKaaaaa...', '....aKKKKKKlla..', '....aKKKKKlela..', '.....aKKlKllfa..', '....aKKllKfffa..', 'a...aKlKlfKfa...', 'laaaKllfKffKa...', 'allllfffaaKa....', '.alllaaa..a.....', '.alla...........', '..ala...........', '...a............', '................'],
+        // 32 piau
+        ['................', '................', '.......a........', '......araaaaa...', '.....arrallefa..', '....arrlllfffa..', '.....alllefdda..', '.....alefedda...', '....alfeddda....', '.aaalffdddrra...', 'arrrfdaaaara....', 'arrrra....a.....', '.arra...........', '..ara...........', '...a............', '................'],
+        // 33 curimatã
+        ['................', '................', '......aa...a....', '.....aKKaaala...', '....aKKKlllefa..', '....aKKlllfffa..', '.....allfBBfda..', '....allfBBddda..', '....alfBfddda...', 'aaaalBBdddKKa...', 'llllBdddaaKa....', 'alllaaaa..a.....', '.alla...........', '.alla...........', '..aa............', '................'],
+        // 34 tucunaré
+        ['................', '................', '......aa...a....', '.....aDDaaaDa...', '....aDDDDLDrMa..', '....aDDLDLMMMa..', '.....aDLMMLMsa..', '....aLDMLMsssa..', '....aDLMMsssa...', 'aaaaDMMsssDDa...', 'ggggMsssaaDa....', 'agggaaaa..a.....', '.agea...........', '.agga...........', '..aa............', '................'],
+        // 35 surubim
+        ['................', '................', '................', '......aa.aaaaaaa', '.....aKKaeeeleee', '....aKKKKKellaaa', '.....aKeellffa..', '.....aKlelffa...', '....aKeleffa....', 'aaaaKleffKKa....', 'KKKKlfaaaaa.....', 'KKKKaa..........', 'aKKKa...........', '.aKa............', '..a.............', '................'],
+        // 36 Peixe do Velho Chico
+        ['............ada.', '...........adada', '.a....aa..aaada.', 'ada..aHHaaHHaa..', '.a..aHHHdHHega..', '....aHdddHggga..', '.....aHdggggGa..', '....aHHgggGGGa..', '....aHgggGGGa...', 'aaaaHggGGGGHa...', 'gggggGGGaaHa....', 'agggaaaa..a.....', '.agga...........', '.agga...........', '.ada............', '..a.............'],
+        // 37 estátua do Velho Chico (metade de baixo)
+        ['...aGGGGGGga.aGg', '...aGGggGGGaaGGa', '..aaaagggaaaGGga', '.aGgHggggHgGGaa.', '.aGgHggggHgaa...', '.aGgHggggHga....', '.aGgHHHHHHga....', '.aGaHiddiHa.....', '.agaHiiiiHa.....', '..aaHHHHHHa.....', '...aHHHHHHa.....', '...aHHHHHHa.....', '...aHHHaHHa.....', '...aHHHaHHaa....', '..aiiiiaiiiia...', '..aiiiiaiiiia...'],
+        // 38 estátua do Velho Chico (pedestal)
+        ['affffffffffffffa', 'alllllllllllllla', '.aafllllllllKaa.', '..afllllllllKa..', '..aflHHHHHHlKa..', '..aflHggggHlKa..', '..aflHgGGGHlKa..', '..aflHGGGgHlKa..', '..aflHgggGHlKa..', '..aflHHHHHHlKa..', '..afllllllllKa..', '..afllllllllKa..', '.aafllllllllKaa.', 'alllllllllllllla', 'aKKKKKKKKKKKKKKa', '.aaaaaaaaaaaaaa.'],
+        // 39 estátua do Velho Chico (metade de cima: cabeça e o peixe erguido)
+        ['.............a..', '............aga.', '...d.......aggga', '..d.d.....agdHGa', '...d......agdgGg', '..........aHggGH', '..........agHHGg', '..........agggGa', '....aaaaaaaaggga', '...aHHHHHHHagaga', '..aHHggHHHHHaaag', '..aHHHHHgHHHGGGa', '..aHHHHHHHHHgGGg', '..aHHGHGHGHHaGGa', '..aHGGGGGGGHaGGa', '..aHGHGGHGGaaGGa']
     ];
     const atlasProprio = document.createElement('canvas');
     atlasProprio.width = 12 * 16;
@@ -233,7 +258,7 @@
     let quadroHelice = 0;   // a turbina eólica gira (troca a cada poucos quadros)
 
     /* ---------- Arte dos itens construíveis ----------
-       p = pacote, i = tile, topo = tile de cima (árvores altas), auto = encaixe automático */
+       p = pacote, i = tile, topo = tile de cima (árvores altas), topo2 = mais um em cima, auto = encaixe automático */
     function arteItem(id, est) {
         const inv = est === 'inverno';
         switch (id) {
@@ -292,6 +317,7 @@
             case 'robo_colheita': return { p: 'factory', i: 108 };
             case 'aspersor': return { p: 'factory', i: 94 };
             case 'reator': return { p: 'farm', w: 2, h: 2, grade: [[1026, 1027], [1028, 1029]] };
+            case 'estatua_chico': return { p: 'farm', i: 1038, topo: 1037, topo2: 1039 };
             default: return { p: 'farm', i: 89 };
         }
     }
@@ -399,8 +425,8 @@
         }
         const i = a.auto === 'cerca' ? 45 : a.auto === 'terra' ? 25 : a.i;
         if (a.topo == null) return htmlTile(i, px, a.p);
-        const m = Math.round(px / 2);
-        return `<span class="px-alto" style="width:${m}px;height:${px}px">${htmlTile(a.topo, m, a.p)}${htmlTile(i, m, a.p)}</span>`;
+        const pecas = a.topo2 != null ? 3 : 2, m = Math.round(px / pecas);
+        return `<span class="px-alto" style="width:${m}px;height:${m * pecas}px">${a.topo2 != null ? htmlTile(a.topo2, m, a.p) : ''}${htmlTile(a.topo, m, a.p)}${htmlTile(i, m, a.p)}</span>`;
     }
 
     /* ---------- Atlas ---------- */
@@ -477,6 +503,8 @@
         const q = mundo.getContext('2d');
         const fundo = document.createElement('canvas');
         fundo.width = MW; fundo.height = MH;
+        const fundoGrama = document.createElement('canvas');   // cópia do fundo antes do lago (cantos do tanque)
+        fundoGrama.width = MW; fundoGrama.height = MH;
         const f = fundo.getContext('2d');
 
         let escala = 3, dpr = 1, vw = 0, vh = 0;           // vw/vh: tela em pixels do jogo
@@ -491,6 +519,7 @@
         let construcao = { ativo: false };                 // estado do modo construir
         let zonaVenda = null;                              // próximo terreno à venda (ZONAS) ou null
         let clima = null;                                  // sol | nublado | chuva | calor | vento
+        let lago = null;                                   // { prontos, max } do seu lago, ou null
         let hover = null;                                  // canteiro, 'celeiro', 'a:<id>' ou {tx, ty}
         const atores = new Map();
         const fazendeiro = { x: 0, y: 0, tx: 0, ty: 0, flip: false, passo: 0 };
@@ -709,7 +738,7 @@
                     const v = r();
                     let a;
                     if (EST === 'inverno') {
-                        a = v < 0.6 ? { p: 'ski', i: 18, topo: 6 } : v < 0.75 ? { p: 'ski', i: 19, topo: 7 } : v < 0.9 ? { p: 'ski', i: 30 } : v < 0.98 ? { p: 'ski', i: 31 } : { p: 'ski', i: 64 };
+                        a = v < 0.6 ? { p: 'ski', i: 18, topo: 6 } : v < 0.75 ? { p: 'ski', i: 19, topo: 7 } : v < 0.9 ? { p: 'ski', i: 30 } : { p: 'ski', i: 31 };
                     } else if (EST === 'outono') {
                         a = v < 0.45 ? { p: 'town', i: 15, topo: 3 } : v < 0.7 ? { p: 'farm', i: 15, topo: 3 } : v < 0.85 ? { p: 'town', i: 27 } : { p: 'town', i: 5 };
                     } else {
@@ -746,6 +775,75 @@
                 }
             }
             for (const o of MAPA.cochos) tile(f, o.i, wx(o.x), wy(o.y));
+            if (zonasAtuais >= 3) {
+                fundoGrama.getContext('2d').drawImage(fundo, 0, 0);
+                desenharLago();
+            }
+        }
+
+        /* ---- o lago: tanque com borda de pedras, água funda com sombras de peixe, rede
+           pendurada em dois postes e um balde no canto. O Bira pesca da grama, à esquerda. ---- */
+        const LAGO = MAPA.lago;
+        const lagoNaTela = () => zonasAtuais >= 3;
+        const TANQUE = { x0: wx(LAGO.x + 1), y0: wy(LAGO.y) + 14, x1: wx(LAGO.x + LAGO.w), y1: wy(LAGO.y + LAGO.h), borda: 9 };
+        function desenharLago() {
+            const { x0, y0, x1, y1, borda } = TANQUE;
+            const r = rng(7171);
+            const ret = (x, y, w, h, cor) => { f.fillStyle = cor; f.fillRect(x, y, w, h); };
+            // pedras da borda: argamassa escura e pedras de tamanhos e cores variados
+            ret(x0, y0, x1 - x0, y1 - y0, '#4a3b35');
+            const CORES = [['#a39388', '#c2b4a8', '#7d6f66'], ['#8b7d72', '#ab9d92', '#6a5d55'], ['#b88a7a', '#d4a898', '#8e6658'], ['#958a80', '#b5aaa0', '#71675f']];
+            const pedra = (x, y, w, h) => {
+                const [c, cl, cs] = CORES[Math.floor(r() * CORES.length)];
+                ret(x + 1, y + 1, w - 2, h - 2, c);
+                ret(x + 1, y + 1, w - 2, 1, cl); ret(x + 1, y + 1, 1, h - 2, cl);           // luz em cima e à esquerda
+                ret(x + 1, y + h - 2, w - 2, 1, cs); ret(x + w - 2, y + 1, 1, h - 2, cs);   // sombra embaixo e à direita
+            };
+            const fileira = (a0, a1, fixo, horizontal) => {
+                for (let a = a0; a < a1;) {
+                    let tam = 9 + Math.floor(r() * 5);
+                    if (a1 - a - tam < 7) tam = a1 - a;                                        // a última não fica miudinha
+                    if (horizontal) pedra(a, fixo, tam, borda); else pedra(fixo, a, borda, tam);
+                    a += tam;
+                }
+            };
+            fileira(x0, x1, y0, true); fileira(x0, x1, y1 - borda, true);
+            fileira(y0 + borda, y1 - borda, x0, false); fileira(y0 + borda, y1 - borda, x1 - borda, false);
+            // cantos arredondados: volta a grama do fundo
+            const grama = (x, y) => f.drawImage(fundoGrama, x, y, 1, 1, x, y, 1, 1);
+            [[x0, y0], [x0 + 1, y0], [x0, y0 + 1], [x1 - 1, y0], [x1 - 2, y0], [x1 - 1, y0 + 1],
+                [x0, y1 - 1], [x0 + 1, y1 - 1], [x0, y1 - 2], [x1 - 1, y1 - 1], [x1 - 2, y1 - 1], [x1 - 1, y1 - 2]].forEach(([x, y]) => grama(x, y));
+            // água funda: sombra da borda em cima e à esquerda, ondinhas e sombras de peixe
+            const ax0 = x0 + borda, ay0 = y0 + borda, ax1 = x1 - borda, ay1 = y1 - borda;
+            ret(ax0, ay0, ax1 - ax0, ay1 - ay0, '#3a7cc4');
+            ret(ax0, ay0, ax1 - ax0, 3, '#2b5f9e'); ret(ax0, ay0, 2, ay1 - ay0, '#2f6aac');
+            for (let k = 0; k < 18; k++) {
+                const x = ax0 + 3 + Math.floor(r() * (ax1 - ax0 - 8)), y = ay0 + 5 + Math.floor(r() * (ay1 - ay0 - 8));
+                ret(x, y, 2 + Math.floor(r() * 3), 1, r() < 0.6 ? '#5d9fe0' : '#2f6aac');
+            }
+            [[ax0 + 10, ay0 + 12], [ax0 + 38, ay0 + 22], [ax0 + 20, ay0 + 34]].forEach(([x, y], n) => {
+                const d = n % 2 ? -1 : 1;
+                ret(x, y, 7, 3, '#2d64a6'); ret(x + 1, y - 1, 5, 1, '#2d64a6'); ret(x + 1, y + 3, 5, 1, '#2d64a6');
+                ret(d > 0 ? x - 2 : x + 7, y - 1, 2, 5, '#2d64a6');
+            });
+            // balde de madeira no canto de baixo, à direita
+            const bx = x1 - 15, by = y1 - 16;
+            ret(bx, by, 12, 13, '#3f2631');
+            ret(bx + 1, by + 1, 10, 11, '#9a5a32'); ret(bx + 1, by + 1, 10, 3, '#5a3a28');
+            ret(bx + 2, by + 2, 8, 1, '#3f2631');
+            ret(bx + 1, by + 6, 10, 1, '#5a3a28'); ret(bx + 1, by + 10, 10, 1, '#5a3a28');
+            ret(bx + 2, by + 4, 1, 7, '#c07a48');
+            // rede pendurada entre dois postes, com um peixe preso
+            const pe = x0 + 2, pd = x1 - 6, topo = wy(LAGO.y) + 1;
+            [pe, pd].forEach((x) => { ret(x, topo, 4, y0 - topo + 8, '#3f2631'); ret(x + 1, topo + 1, 2, y0 - topo + 6, '#8a4a2b'); ret(x + 1, topo + 1, 1, y0 - topo + 6, '#b4673a'); });
+            for (let x = pe + 4; x < pd; x++) {
+                const t = (x - pe - 4) / (pd - pe - 4), yc = topo + 2 + Math.round(Math.sin(Math.PI * t) * 4);
+                const fundoRede = topo + 6 + Math.round(Math.sin(Math.PI * t) * 7);
+                ret(x, yc, 1, 1, '#c99a4a');
+                for (let y = yc + 1; y <= fundoRede; y++) if ((x + y) % 3 === 0 || (x - y) % 3 === 0) ret(x, y, 1, 1, '#e8c070');
+            }
+            const mx = Math.round((pe + pd) / 2) - 4, my = topo + 8;
+            ret(mx, my, 9, 4, '#3f2631'); ret(mx + 1, my + 1, 6, 2, '#c0cbdc'); ret(mx + 7, my, 2, 4, '#fdbe53');
         }
 
         /* ---- animais ---- */
@@ -1032,6 +1130,7 @@
                         const temp = new Map(m); temp.set(tx + ',' + ty, tipo);
                         const sp = spritesDe(tipo, tx, ty, temp);
                         if (sp.topo != null) tile(q, sp.topo, x, y - T, false, sp.p);
+                        if (sp.topo2 != null) tile(q, sp.topo2, x, y - 2 * T, false, sp.p);
                         tile(q, sp.i, x, y, false, sp.p);
                     }
                     q.globalAlpha = 1;
@@ -1093,6 +1192,7 @@
             }
             const andando = fazendeiro.passo > 0;
             pe.push({ p: 'farm', i: 109, x: fazendeiro.x, y: fazendeiro.y, flip: fazendeiro.flip, bob: andando && Math.floor(tempo / 120) % 2 ? -1 : 0 });
+            if (lago && lagoNaTela()) pe.push({ p: 'factory', i: 120, x: wx(LAGO.x) + 1, y: wy(LAGO.y + 2), flip: false, bob: Math.floor(tempo / 700) % 2 ? -1 : 0 });
             pe.sort((a, b) => a.y - b.y).forEach((a) => {
                 const x = Math.round(a.x), y = Math.round(a.y) + a.bob;
                 if (a.grade) {
@@ -1100,10 +1200,12 @@
                     return;
                 }
                 if (a.topo != null) tile(q, a.topo, x, y - T, a.flip, a.p);
+                if (a.topo2 != null) tile(q, a.topo2, x, y - 2 * T, a.flip, a.p);
                 tile(q, a.i, x, y, a.flip, a.p);
             });
 
             for (const a of atores.values()) if (a.v) desenharSinalAnimal(a, tempo);
+            if (lago && lagoNaTela()) desenharPescaria(tempo);
             for (const c of lista) {
                 const of = c.oficina;
                 if (!of) continue;
@@ -1148,6 +1250,8 @@
                 const [hx, hy] = hover.slice(2).split(',').map(Number);
                 const c = lista.find((k) => k.x === hx && k.y === hy);
                 if (c) { const a = arteItem(c.tipo, EST); moldura(wx(hx), wy(hy), T * (a.w || 1), T * (a.h || 1)); }
+            } else if (hover === 'lago' && lagoNaTela()) {
+                moldura(wx(LAGO.x), wy(LAGO.y), LAGO.w * T, LAGO.h * T);
             } else if (hover === 'celeiro') {
                 const c = retCeleiro();
                 moldura(c.x, c.y + T, c.w, c.h - T);
@@ -1163,6 +1267,26 @@
             const k = escala * dpr;
             ctx.drawImage(mundo, 0, 0, MW, MH, -Math.round(cam.x * k), -Math.round(cam.y * k), MW * k, MH * k);
             desenharClima(tempo, k);
+        }
+
+        // vara, linha e boia do Bira; balão com peixe quando tem peixe no cesto
+        function desenharPescaria(tempo) {
+            const hx = wx(LAGO.x) + 13, hy = wy(LAGO.y + 2) + 9;          // mão
+            const tx = hx + 16, ty = hy - 12;                               // ponta da vara, já por cima da água
+            q.fillStyle = '#8a4a2b';
+            for (let k = 0; k <= 16; k++) q.fillRect(Math.round(hx + k), Math.round(hy - k * 12 / 16), 1, 1);
+            const morde = lago.prontos > 0 && Math.floor(tempo / 260) % 3 === 0;
+            const bx = tx + 8, by = hy + 4 + (morde ? 2 : Math.floor(tempo / 600) % 2);
+            q.fillStyle = 'rgba(255,255,255,.7)';
+            for (let k = 0; k <= 8; k++) q.fillRect(Math.round(tx + k), Math.round(ty + (by - ty) * (k / 8) ** 1.6), 1, 1);
+            q.fillStyle = '#e8434a'; q.fillRect(bx, by, 2, 1);
+            q.fillStyle = '#ffffff'; q.fillRect(bx, by + 1, 2, 1);
+            if (lago.prontos > 0) {
+                const px = wx(LAGO.x) + 1, py = wy(LAGO.y + 1) - 6 + (Math.floor(tempo / 350) % 2);
+                balao(px - 2, py, 20, 18);
+                tile(q, lago.ultimo || 1030, px, py + 1);
+                if (lago.prontos >= lago.max && Math.floor(tempo / 300) % 3) icone(q, 'brilho', px + 15, py - 3);
+            }
         }
 
         /* ---- clima por cima de tudo (na tela, não no mundo) ---- */
@@ -1217,6 +1341,7 @@
                 return tx >= c.x && ty >= c.y && tx < c.x + (a.w || 1) && ty < c.y + (a.h || 1);
             });
             if (cons) return 'c:' + cons.x + ',' + cons.y;
+            if (lagoNaTela() && dentroRet(LAGO, tx, ty)) return 'lago';
             const c = retCeleiro();
             if (px >= c.x && py >= c.y && px < c.x + c.w && py < c.y + c.h) return 'celeiro';
             // terreno à venda: a placa ou qualquer pedaço de mata dele
@@ -1292,6 +1417,7 @@
             if (typeof alvo === 'object' && 'tx' in alvo) { if (cb.aoTile) cb.aoTile(alvo.tx, alvo.ty); }
             else if (alvo === 'celeiro') { if (cb.aoCeleiro) cb.aoCeleiro(); }
             else if (alvo === 'venda') { if (cb.aoVenda) cb.aoVenda(); }
+            else if (alvo === 'lago') { if (cb.aoLago) cb.aoLago(); }
             else if (typeof alvo === 'object' && alvo.construcao) { if (cb.aoConstrucao) cb.aoConstrucao(alvo.construcao.x, alvo.construcao.y); }
             else if (typeof alvo === 'object') { if (cb.aoAnimal) cb.aoAnimal(alvo.animal); }
             else if (cb.aoCanteiro) cb.aoCanteiro(alvo);
@@ -1380,6 +1506,8 @@
             },
             focarTile(tx, ty) { focar(wx(tx) + T / 2, wy(ty) + T / 2); },
             definirClima(c) { clima = c || null; precisaDesenhar = true; },
+            // seu lago: { prontos, max } (null na visita ou sem o terreno 3)
+            definirLago(l) { lago = l || null; },
             // estação nova: refaz o chão (neve, folhas, flores) e a arte das árvores
             definirEstacao(e) {
                 estacaoServidor = e || null;

@@ -298,6 +298,12 @@ create index if not exists fazenda_convites_dono_idx on public.fazenda_convites 
 alter table public.fazenda_convites enable row level security;
 revoke all on public.fazenda_convites from anon, authenticated;
 
+-- Fase 16: o lago. lago_em = desde quando o pescador Bira está enchendo o cesto (1 peixe a
+-- cada 30 min, até 16); começa quando o jogador compra o terreno 3 (Vale do sudeste).
+alter table public.fazenda_jogadores add column if not exists lago_em timestamptz;
+alter table public.fazenda_estatisticas add column if not exists peixes int not null default 0;
+alter table public.fazenda_estatisticas add column if not exists lendarios int not null default 0;
+
 -- Fase 7: ração reservada para os animais (fica no celeiro, o "vender" não leva)
 create table if not exists public.fazenda_reservas (
   jogador_id  uuid not null references public.fazenda_jogadores(id) on delete cascade,
@@ -377,7 +383,15 @@ insert into public.fazenda_culturas (id, nome, emoji, tempo_seg, custo, venda, r
   ('pao',     'Pão',             '🍞', 1, 0, 180, 1, 20,  7, 34, 'produto'),
   ('bolo',    'Bolo de cenoura', '🍰', 1, 0, 170, 1, 18,  9, 35, 'produto'),
   ('tecido',  'Tecido',          '🧵', 1, 0, 500, 1, 45, 10, 36, 'produto'),
-  ('geleia',  'Geleia de amora', '🫙', 1, 0, 120, 1, 14, 11, 37, 'produto')
+  ('geleia',  'Geleia de amora', '🫙', 1, 0, 120, 1, 14, 11, 37, 'produto'),
+  -- peixes do lago: quanto mais raro, mais vale (chances em fazenda_peixes)
+  ('lambari',     'Lambari',              '🐟', 1, 0,   15, 1,   2, 10, 40, 'produto'),
+  ('tilapia',     'Tilápia',              '🐟', 1, 0,   30, 1,   3, 10, 41, 'produto'),
+  ('piau',        'Piau',                 '🐟', 1, 0,   50, 1,   5, 10, 42, 'produto'),
+  ('curimata',    'Curimatã',             '🐟', 1, 0,   80, 1,   7, 10, 43, 'produto'),
+  ('tucunare',    'Tucunaré',             '🐟', 1, 0,  150, 1,  12, 10, 44, 'produto'),
+  ('surubim',     'Surubim',              '🐟', 1, 0,  300, 1,  20, 10, 45, 'produto'),
+  ('velho_chico', 'Peixe do Velho Chico', '🐠', 1, 0, 2500, 1, 100, 10, 46, 'produto')
 on conflict (id) do update set
   nome = excluded.nome, emoji = excluded.emoji, venda = excluded.venda,
   xp = excluded.xp, nivel_min = excluded.nivel_min, ordem = excluded.ordem, tipo = excluded.tipo;
@@ -471,6 +485,35 @@ on conflict (id) do update set
   ordem = excluded.ordem, largura = excluded.largura, altura = excluded.altura, produz = excluded.produz,
   produz_seg = excluded.produz_seg, produz_qtd = excluded.produz_qtd, entradas = excluded.entradas,
   limite = excluded.limite, beleza = excluded.beleza, descricao = excluded.descricao;
+
+-- Fase 16: a estátua dourada em homenagem ao Chico, nosso beta tester
+insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem, efeito, raio, limite, beleza, descricao) values
+  ('estatua_chico', 'O Velho Chico, Pescador de Betinhas', 'construcao', 30000, 30, 45, 'chico', 0, 1, 50,
+   'Estátua dourada em homenagem ao Chico, nosso beta tester. Dobra a chance do Peixe do Velho Chico no lago (1% → 2%) e dá +50 de beleza.')
+on conflict (id) do update set
+  nome = excluded.nome, categoria = excluded.categoria, custo = excluded.custo, nivel_min = excluded.nivel_min,
+  ordem = excluded.ordem, efeito = excluded.efeito, raio = excluded.raio, limite = excluded.limite,
+  beleza = excluded.beleza, descricao = excluded.descricao;
+
+-- O lago ocupa x 24..29, y 14..18 (terreno 3). Quem já tinha algo ali recebe de volta: o preço
+-- das construções e a semente dos canteiros plantados (os canteiros voltam para o limite).
+update public.fazenda_jogadores j
+   set moedas = moedas + x.total
+  from (select c.jogador_id, sum(i.custo)::int as total
+          from public.fazenda_construcoes c join public.fazenda_itens i on i.id = c.tipo
+         where c.x < 30 and c.x + i.largura > 24 and c.y < 19 and c.y + i.altura > 14
+         group by c.jogador_id) x
+ where j.id = x.jogador_id;
+delete from public.fazenda_construcoes c using public.fazenda_itens i
+ where i.id = c.tipo and c.x < 30 and c.x + i.largura > 24 and c.y < 19 and c.y + i.altura > 14;
+update public.fazenda_jogadores j
+   set moedas = moedas + x.total
+  from (select c.jogador_id, coalesce(sum(k.custo), 0)::int as total
+          from public.fazenda_canteiros c left join public.fazenda_culturas k on k.id = c.cultura and c.estado = 'plantado'
+         where c.x between 24 and 29 and c.y between 14 and 18
+         group by c.jogador_id) x
+ where j.id = x.jogador_id;
+delete from public.fazenda_canteiros where x between 24 and 29 and y between 14 and 18;
 
 -- Máquinas — fase 5 (arte: Tiny Factory, Kenney)
 insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem, efeito, raio, limite, descricao) values
@@ -589,7 +632,9 @@ insert into public.fazenda_conquistas_tipos (id, nome, descricao, medida, meta, 
   ('eletricista',       'Eletricista',         'Gaste 500 ⚡ com máquinas elétricas', 'energia',   500,  800, 15),
   ('nivel_20',          'Fazendeiro nível 20', 'Chegue ao nível 20',              'nivel',        20, 1500, 16),
   ('nivel_25',          'Fazenda industrial',  'Chegue ao nível 25',              'nivel',        25, 5000, 17),
-  ('popular',           'Fazendeiro popular',  'Traga 3 amigos pelo seu convite', 'convites',      3,  500, 18)
+  ('popular',           'Fazendeiro popular',  'Traga 3 amigos pelo seu convite', 'convites',      3,  500, 18),
+  ('pescador',          'Pescador',            'Tire 100 peixes do cesto do lago', 'peixes',      100,  300, 19),
+  ('velho_chico',       'Lenda do Velho Chico', 'Pesque o Peixe do Velho Chico',   'lendarios',     1, 1000, 20)
 on conflict (id) do update set
   nome = excluded.nome, descricao = excluded.descricao, medida = excluded.medida,
   meta = excluded.meta, recompensa = excluded.recompensa, ordem = excluded.ordem;
@@ -739,7 +784,7 @@ create or replace function public.fazenda_zonas()
 returns jsonb language sql immutable as $$
   select '[{"n":1,"nome":"Campo do sul","x":0,"y":13,"w":22,"h":7,"custo":500,"nivel":4},
            {"n":2,"nome":"Mata do leste","x":22,"y":0,"w":10,"h":13,"custo":1500,"nivel":7},
-           {"n":3,"nome":"Vale do sudeste","x":22,"y":13,"w":10,"h":7,"custo":3500,"nivel":10}]'::jsonb;
+           {"n":3,"nome":"Vale do sudeste","x":22,"y":13,"w":10,"h":7,"custo":3500,"nivel":10,"lago":true}]'::jsonb;
 $$;
 
 -- (x, y) fica dentro do terreno de quem já comprou p_zonas terrenos?
@@ -829,6 +874,17 @@ begin
     update public.fazenda_jogadores set convite = public.fazenda_novo_convite() where id = r.id;
   end loop;
 end $$;
+
+-- Peixes do lago e a chance (em %) de cada um no anzol. A estátua do Velho Chico dobra a do
+-- lendário (tirando do lambari). Os preços ficam no catálogo (fazenda_culturas).
+create or replace function public.fazenda_peixes(p_estatua boolean default false)
+returns table (peixe text, chance int) language sql immutable as $$
+  select t.p, case when p_estatua and t.p = 'velho_chico' then t.c * 2
+                   when p_estatua and t.p = 'lambari' then t.c - 1 else t.c end
+    from (values ('lambari', 40, 1), ('tilapia', 25, 2), ('piau', 15, 3), ('curimata', 10, 4),
+                 ('tucunare', 6, 5), ('surubim', 3, 6), ('velho_chico', 1, 7)) t(p, c, o)
+   order by t.o;
+$$;
 
 create or replace function public.fazenda_auth(p_token text)
 returns uuid
@@ -950,6 +1006,10 @@ begin
     update fazenda_jogadores set convite = fazenda_novo_convite() where id = p_jogador;
     select * into j from fazenda_jogadores where id = p_jogador;
   end if;
+  if j.zonas >= 3 and j.lago_em is null then   -- comprou o Vale do sudeste: o Bira começa a pescar
+    update fazenda_jogadores set lago_em = now() where id = p_jogador;
+    select * into j from fazenda_jogadores where id = p_jogador;
+  end if;
   v_nivel := fazenda_nivel(j.xp);
   -- subiu de nível: presente de moedas por cada nível novo
   if v_nivel > coalesce(j.nivel_premiado, 1) then
@@ -981,6 +1041,12 @@ begin
       'bonus_venda', fazenda_bonus_venda(p_jogador)
     ),
     'zonas_venda', fazenda_zonas(),
+    -- o lago (só com o terreno 3): desde quando o cesto enche, o ritmo, o máximo e as chances
+    'lago', case when j.zonas >= 3 then jsonb_build_object(
+      'desde', j.lago_em, 'intervalo', 1800, 'max', 16,
+      'estatua', fazenda_tem_efeito(p_jogador, 'chico'),
+      'peixes', (select jsonb_agg(jsonb_build_object('id', peixe, 'chance', chance))
+                   from fazenda_peixes(fazenda_tem_efeito(p_jogador, 'chico')))) end,
     'convites', jsonb_build_object(
       'codigo', j.convite,
       'premio', fazenda_premio_convite(),
@@ -2200,6 +2266,8 @@ begin
       when 'pegar' then s.pegar
       when 'energia' then s.energia
       when 'convites' then v_conv
+      when 'peixes' then s.peixes
+      when 'lendarios' then s.lendarios
       else 0
     end;
     if v_valor >= r.meta then
@@ -2347,14 +2415,15 @@ $$;
    O terreno é um mapa fixo de 22 x 13 quadrados. Áreas reservadas
    (precisam bater com MAPA em assets/fazenda/fazenda-arte.js):
      celeiro x1..3 y1..6 · casa x5..7 y1..3 · galinheiro x0..6 y7..8
-     campo x9..14 y3..6 · pasto x16..21 y0..6 */
+     campo x9..14 y3..6 · pasto x16..21 y0..6 · lago x24..29 y14..18 (terreno 3) */
 create or replace function public.fazenda_livre(p_x int, p_y int)
 returns boolean language sql immutable as $$
   select p_x between 0 and 31 and p_y between 0 and 19
      and not (p_x between 1 and 3  and p_y between 1 and 6)     -- celeiro
      and not (p_x between 5 and 7  and p_y between 1 and 3)     -- casa
      and not (p_x between 0 and 6  and p_y between 7 and 8)     -- galinheiro
-     and not (p_x between 16 and 21 and p_y between 0 and 6);   -- pasto
+     and not (p_x between 16 and 21 and p_y between 0 and 6)    -- pasto
+     and not (p_x between 24 and 29 and p_y between 14 and 18); -- lago
 $$;
 
 -- Confere se dá para pôr algo de p_w x p_h em (p_x, p_y): dentro do terreno, fora
@@ -2575,6 +2644,63 @@ begin
 end;
 $$;
 
+-- Tira os peixes do cesto do Bira: 1 a cada 30 min desde lago_em, até 16 (o que passar disso
+-- se perde: o cesto estava cheio). Cada peixe é sorteado pela chance (fazenda_peixes).
+create or replace function public.fazenda_pescar(p_token text)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id      uuid := fazenda_auth(p_token);
+  j         record;
+  p         record;
+  v_estatua boolean := fazenda_tem_efeito(v_id, 'chico');
+  v_n       int;
+  v_k       int;
+  v_r       numeric;
+  v_soma    int;
+  v_peixes  jsonb := '{}'::jsonb;
+  v_xp      int;
+  v_lend    int;
+begin
+  select zonas, lago_em into j from fazenda_jogadores where id = v_id for update;
+  if j.zonas < 3 then raise exception 'sem_lago'; end if;
+  if j.lago_em is null then
+    update fazenda_jogadores set lago_em = now() where id = v_id;
+    raise exception 'cesto_vazio';
+  end if;
+  v_n := least(floor(extract(epoch from now() - j.lago_em) / 1800)::int, 16);
+  if v_n <= 0 then raise exception 'cesto_vazio'; end if;
+  for v_k in 1..v_n loop
+    v_r := random() * 100;
+    v_soma := 0;
+    for p in select * from fazenda_peixes(v_estatua) loop
+      v_soma := v_soma + p.chance;
+      if v_r < v_soma then
+        v_peixes := jsonb_set(v_peixes, array[p.peixe], to_jsonb(coalesce((v_peixes->>p.peixe)::int, 0) + 1));
+        exit;
+      end if;
+    end loop;
+  end loop;
+  insert into fazenda_celeiro (jogador_id, item, quantidade)
+  select v_id, e.key, e.value::int from jsonb_each_text(v_peixes) e
+  on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
+  select coalesce(sum(k.xp * e.value::int), 0)::int into v_xp
+    from jsonb_each_text(v_peixes) e join fazenda_culturas k on k.id = e.key;
+  v_lend := coalesce((v_peixes->>'velho_chico')::int, 0);
+  update fazenda_jogadores
+     set xp = xp + v_xp,
+         lago_em = case when now() - j.lago_em >= interval '8 hours' then now()   -- cesto cheio: recomeça agora
+                        else j.lago_em + make_interval(secs => v_n * 1800) end    -- guarda o pedaço do próximo
+   where id = v_id;
+  insert into fazenda_estatisticas (jogador_id) values (v_id) on conflict do nothing;
+  update fazenda_estatisticas set peixes = peixes + v_n, lendarios = lendarios + v_lend where jogador_id = v_id;
+  perform fazenda_missao(v_id, 'colher', v_n);
+  return jsonb_build_object('peixes', v_peixes, 'qtd', v_n, 'xp', v_xp, 'lendario', v_lend, 'estado', fazenda_estado(v_id));
+end;
+$$;
+
 -- Liga ou desliga o gerador a biomassa (toque nele). Ao ligar já queima o primeiro milho.
 create or replace function public.fazenda_gerador(p_token text, p_x int, p_y int)
 returns jsonb
@@ -2673,6 +2799,7 @@ begin
    where id = v_id;
   insert into fazenda_estatisticas (jogador_id) values (v_id) on conflict do nothing;
   update fazenda_estatisticas set anuncios = anuncios + 1 where jogador_id = v_id;
+  update fazenda_jogadores set lago_em = lago_em - v_d where id = v_id and lago_em is not null;   -- +1 peixe no cesto
 
   -- já roda o que o tempo a mais destrava (problemas, ajudantes, máquinas)
   perform fazenda_tick(v_id);
@@ -2738,6 +2865,8 @@ revoke execute on function
   public.fazenda_premio_convite(),
   public.fazenda_novo_convite(),
   public.fazenda_convite_info(text),
+  public.fazenda_peixes(boolean),
+  public.fazenda_pescar(text),
   public.fazenda_checar_lugar(uuid, int, int, int, int, int, int, int, int),
   public.fazenda_auth(text),
   public.fazenda_nova_sessao(uuid),
@@ -2797,5 +2926,6 @@ grant execute on function
   public.fazenda_oficina(text, int, int),
   public.fazenda_gerador(text, int, int),
   public.fazenda_anuncio(text),
-  public.fazenda_convite_info(text)
+  public.fazenda_convite_info(text),
+  public.fazenda_pescar(text)
 to anon, authenticated;
