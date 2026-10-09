@@ -27,7 +27,7 @@
     /* ---------- Armazenamento local (protegido) ---------- */
     const LS = {
         token: 'fazenda_token', codigo: 'fazenda_codigo', semente: 'fazenda_semente',
-        diarioVisto: 'fazenda_diario_visto', mudo: 'fazenda_mudo', tutorial: 'fazenda_tutorial', avisos: 'fazenda_avisos'
+        diarioVisto: 'fazenda_diario_visto', mudo: 'fazenda_mudo', tutorial: 'fazenda_tutorial', avisos: 'fazenda_avisos', convite: 'fazenda_convite'
     };
     const store = {
         get(k) { try { return localStorage.getItem(k); } catch { return null; } },
@@ -114,7 +114,7 @@
         moedas: $('hudMoedas'), celeiroCont: $('hudCeleiro'),
         semIcone: $('semIcone'), semNome: $('semNome'), btnSemente: $('btnSemente'),
         toasts: $('toasts'), flut: $('flutuantes'),
-        entrada: $('telaEntrada'), entradaCarregando: $('entradaCarregando'), entradaAbas: $('entradaAbas'),
+        entrada: $('telaEntrada'), entradaCarregando: $('entradaCarregando'), entradaAbas: $('entradaAbas'), conviteFaixa: $('conviteFaixa'),
         entradaErro: $('entradaErro'), formNova: $('formNova'), formCodigo: $('formCodigo'),
         inApelido: $('inApelido'), inCodigo: $('inCodigo'),
         painel: $('painel'), painelTitulo: $('painelTitulo'), painelCorpo: $('painelCorpo'), painelFechar: $('painelFechar'),
@@ -301,6 +301,93 @@
         return it && it.efeito === 'estufa' && Math.abs(m.x - c.x) <= it.raio && Math.abs(m.y - c.y) <= it.raio;
     });
     const podeEscolher = (k) => daEstacao(k) || temEstufa();
+
+    /* ---------- Convites: link ?convite=CODIGO; quem entra e quem chamou ganham moedas ----------
+       O código chega pelo link e fica guardado até a pessoa criar a fazenda (o link some da
+       barra de endereço). Os valores do prêmio vêm do servidor (estado.convites.premio). */
+    let conviteDoLink = false;
+    try {
+        const url = new URL(location.href);
+        const cod = (url.searchParams.get('convite') || '').trim().toUpperCase();
+        if (/^[A-Z0-9]{6}$/.test(cod)) { store.set(LS.convite, cod); conviteDoLink = true; }
+        if (url.searchParams.has('convite')) {
+            url.searchParams.delete('convite');
+            history.replaceState(null, '', url.pathname + url.search + url.hash);
+        }
+    } catch { /* ignora */ }
+    const linkConvite = () => (S && S.convites && S.convites.codigo
+        ? `${location.origin}${location.pathname}?convite=${S.convites.codigo}` : '');
+    const premioConvite = () => (S && S.convites && S.convites.premio) || { amigo: 200, dono: 300 };
+    const textoConvite = () => `Vem jogar a Fazendinha Secreta comigo! 🌻 Entrando pelo meu link você ganha ${premioConvite().amigo} moedas de presente: ${linkConvite()}`;
+    async function compartilharConvite() {
+        const link = linkConvite();
+        if (!link) return;
+        if (navigator.share) {
+            try {
+                await navigator.share({ title: 'Fazendinha Secreta', text: textoConvite().replace(link, '').trim(), url: link });
+                return;
+            } catch (e) {
+                if (e && e.name === 'AbortError') return;   // a pessoa fechou o menu de compartilhar
+            }
+        }
+        copiarConvite();
+    }
+    async function copiarConvite() {
+        if (await copiarTexto(textoConvite())) toast('Convite copiado! Cole no WhatsApp ou onde quiser.');
+        else toast('Não deu para copiar. Segure no link para copiar.', 'erro');
+    }
+    // copia para a área de transferência; se o navegador negar o jeito novo, tenta o antigo
+    async function copiarTexto(txt) {
+        try {
+            await navigator.clipboard.writeText(txt);
+            return true;
+        } catch {
+            const t = document.createElement('textarea');
+            t.value = txt;
+            t.setAttribute('readonly', '');
+            t.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
+            document.body.appendChild(t);
+            t.select();
+            let ok = false;
+            try { ok = document.execCommand('copy'); } catch { /* sem jeito */ }
+            t.remove();
+            return ok;
+        }
+    }
+    function htmlConvite() {
+        const link = linkConvite();
+        if (!link) return '';
+        const p = premioConvite(), total = S.convites.total || 0;
+        return `<h3 class="secao-titulo">Convide amigos</h3>
+            <p>Quem criar uma fazenda pelo seu link ganha <b>${p.amigo}</b> ${ico('moeda', 14)}, e você ganha <b>${p.dono}</b> ${ico('moeda', 14)}.</p>
+            <div class="codigo-box convite-box"><code>${esc(link)}</code></div>
+            <p class="convite-botoes">
+                ${navigator.share ? '<button type="button" class="botao verde" data-convite-compartilhar>Compartilhar</button>'
+                    : `<a class="botao verde" href="https://wa.me/?text=${encodeURIComponent(textoConvite())}" target="_blank" rel="noopener">Mandar no WhatsApp</a>`}
+                <button type="button" class="botao creme" data-convite-copiar>Copiar convite</button>
+            </p>
+            <p class="det">${total ? `${total} amigo(s) já entraram pelo seu convite.` : 'Ninguém entrou pelo seu convite ainda: chama a galera!'}</p>`;
+    }
+    // amigos que entraram pelo seu link desde a última vez (o servidor manda uma vez só)
+    function avisarConvites(estado) {
+        const novos = (estado.convites && estado.convites.novos) || [];
+        if (!novos.length) return;
+        const com = novos.filter((n) => n.premiado), sem = novos.filter((n) => !n.premiado);
+        const nomes = (l) => l.map((n) => esc(n.apelido)).join(', ');
+        if (com.length) toast(`${ico('coracao', 16)} ${nomes(com)} entrou pelo seu convite: +${com.length * premioConvite().dono} ${ico('moeda', 14)}!`, 'festa');
+        if (sem.length) toast(`${nomes(sem)} entrou pelo seu convite (os prêmios de hoje já acabaram, volta amanhã).`);
+    }
+    // tela de entrada aberta por um convite: mostra de quem é e o presente
+    async function mostrarFaixaConvite() {
+        const cod = store.get(LS.convite);
+        if (!cod || !el.conviteFaixa) return;
+        try {
+            const info = await rpc('fazenda_convite_info', { p_codigo: cod });
+            if (!info) { store.del(LS.convite); return; }
+            el.conviteFaixa.innerHTML = `${ico('coracao', 16)} <b>${esc(info.apelido)}</b> te convidou! Crie sua fazenda e ganhe <b>${info.moedas}</b> ${ico('moeda', 14)} de presente.`;
+            el.conviteFaixa.hidden = false;
+        } catch { /* sem faixa, sem problema */ }
+    }
 
     /* ---------- Anúncio premiado: assiste até o fim e tudo anda 30 minutos ----------
        API de anúncios para jogos H5 do AdSense (adBreak do tipo 'reward'): ela avisa quando
@@ -1287,6 +1374,7 @@
         }
         avisarDiario();
         avisarAjudantes(estado);
+        avisarConvites(estado);
         desenharClima();
         agendarAvisos();
         energiaEm = agora();
@@ -1710,6 +1798,7 @@
                 <p class="aviso">Guarde esse código: é o único jeito de abrir sua fazenda em outro aparelho ou se o navegador for limpo.</p>
                 ${htmlInstalar()}
                 ${boasVindas ? '' : htmlAvisos()}
+                ${boasVindas ? '' : htmlConvite()}
                 <p class="aviso"><a href="privacidade.html" target="_blank" rel="noopener">Política de privacidade</a>: o que a fazenda guarda e como funcionam os anúncios.</p>
                 <h3 class="secao-titulo">Como jogar</h3>
                 <ul class="ajuda">
@@ -1730,6 +1819,7 @@
                     <li>Cada <b>estação</b> tem sementes só dela (morango, melancia, abóbora, repolho) e o <b>clima</b> muda todo dia: chuva rega tudo, onda de calor seca mais. Toque no clima, lá em cima, para ver a previsão.</li>
                     <li>Do nível 16 em diante vem a <b>energia</b> ${ico('raio', 14)}: painel solar, turbina, gerador a biomassa e reator enchem as baterias, e as máquinas elétricas (estufa, triturador, fábrica automática, robô, aspersor) trabalham sozinhas gastando energia.</li>
                     ${ANUNCIO.ligado || ehLocal ? `<li>Quando aparecer o botão <b>+30 min</b>, assista a um anúncio até o fim e tudo o que está em andamento (plantas, animais, oficinas, ajudantes e energia) adianta 30 minutos.</li>` : ''}
+                    <li>No Perfil (ou em Vizinhos) tem o seu <b>link de convite</b>: quem criar uma fazenda por ele ganha moedas, e você também.</li>
                     <li>Cumpra as <b>missões do dia</b> para ganhar moedas e XP extras.</li>
                     <li>Cada nível libera coisas novas e dá um presente de moedas. Toque no seu nome, lá em cima, para ver o <b>caminho dos níveis</b>.</li>
                     <li>Em <b>Vizinhos</b> você visita outras fazendas: <b>pega</b> um pouco da colheita madura ou <b>ajuda</b> com os problemas e ganha XP.</li>
@@ -1807,7 +1897,7 @@
                 </div>
                 <div id="vizConteudo"></div>
                 <div class="rodape-painel">
-                    <span class="det">Visite alguém com colheita madura</span>
+                    <button type="button" class="botao creme" data-convite-abrir>Convidar amigos</button>
                     <button type="button" class="botao verde" data-visitar="">Visitar alguém</button>
                 </div>`;
             preencherVizinhos();
@@ -2171,13 +2261,24 @@
             }
             return;
         }
+        if (e.target.closest('[data-convite-compartilhar]')) {
+            compartilharConvite();
+            return;
+        }
+        if (e.target.closest('[data-convite-abrir]')) {
+            // no celular abre o compartilhar; no computador, o cartão do convite no Perfil
+            if (navigator.share) return compartilharConvite();
+            abrirPainel('conta');
+            requestAnimationFrame(() => { const c = el.painelCorpo.querySelector('.convite-box'); if (c) c.scrollIntoView({ block: 'center' }); });
+            return;
+        }
+        if (e.target.closest('[data-convite-copiar]')) {
+            copiarConvite();
+            return;
+        }
         if (e.target.closest('[data-copiar]')) {
-            try {
-                await navigator.clipboard.writeText(store.get(LS.codigo));
-                toast('Código copiado!');
-            } catch {
-                toast('Não deu para copiar. Anote o código.', 'erro');
-            }
+            if (await copiarTexto(store.get(LS.codigo))) toast('Código copiado!');
+            else toast('Não deu para copiar. Anote o código.', 'erro');
             return;
         }
         if (e.target.closest('[data-sair]')) {
@@ -2327,6 +2428,7 @@
         el.entradaAbas.hidden = false;
         el.inApelido.focus();
         ajustarMargens();
+        mostrarFaixaConvite();
     }
 
     function mostrarFazenda() {
@@ -2386,10 +2488,13 @@
         e.preventDefault();
         const apelido = el.inApelido.value.trim();
         if (apelido.length < 2) return mostrarErroEntrada(ERROS.apelido_invalido);
-        enviarEntrada(el.formNova, 'fazenda_criar', { p_apelido: apelido }, (r) => {
+        enviarEntrada(el.formNova, 'fazenda_criar', { p_apelido: apelido, p_convite: store.get(LS.convite) }, (r) => {
             store.set(LS.codigo, r.codigo);
+            store.del(LS.convite);
+            el.conviteFaixa.hidden = true;
             // Mostra o código logo de cara para a pessoa anotar
             abrirPainel('conta', false, true);
+            if (r.convite) toast(`${ico('coracao', 16)} Presente do convite de ${esc(r.convite.apelido)}: +${r.convite.moedas} ${ico('moeda', 14)}!`, 'festa');
         });
     });
 
@@ -2437,6 +2542,10 @@
         try {
             aplicarEstado(await rpc('fazenda_carregar', { p_token: token }));
             mostrarFazenda();
+            if (conviteDoLink) {
+                store.del(LS.convite);
+                toast('Esse convite é para quem ainda não tem fazenda. Você pode chamar os seus amigos pelo Perfil!');
+            }
             const salvo = store.get(LS.tutorial);
             if (salvo !== null && salvo !== 'feito') { passoTutorial = Number(salvo) || 0; mostrarPasso(); }
         } catch (e) {

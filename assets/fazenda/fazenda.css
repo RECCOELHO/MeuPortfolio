@@ -1822,3 +1822,32 @@ body.construindo .status {
 body.construindo .status {
     bottom: var(--status-fundo, 96px);
 }
+
+/* ---------- Convites ---------- */
+.convite-faixa {
+    margin: 0 0 12px;
+    padding: 8px 12px;
+    background: #fff1c4;
+    box-shadow: 0 -2px 0 var(--o), 0 2px 0 var(--o), -2px 0 0 var(--o), 2px 0 0 var(--o);
+    font-size: 15px;
+    text-align: center;
+}
+
+.convite-faixa[hidden] {
+    display: none;
+}
+
+.convite-box code {
+    font-size: 13px;
+    word-break: break-all;
+}
+
+.convite-botoes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.convite-botoes a.botao {
+    text-decoration: none;
+}
