@@ -21,7 +21,7 @@
     --texto-suave: #763b36;
     --px: 3px;             /* espessura da borda pixel */
     --fonte-texto: 'Nunito', system-ui, sans-serif;
-    --fonte-pixel: 'Pixelify Sans', 'Nunito', monospace;
+    --fonte-pixel: 'Jersey 10', 'Nunito', monospace;   /* números claros: o 5 não parece 8 */
 }
 
 *,
@@ -393,6 +393,7 @@ button {
 }
 
 .status {
+    transition: opacity .4s;
     position: fixed;
     left: 50%;
     bottom: 96px;
@@ -1423,4 +1424,200 @@ body.construindo .status {
 
 .degrau.futuro .chip {
     filter: saturate(.75);
+}
+
+/* ---------- Fonte pixel (Jersey 10): é mais miúda, então os tamanhos sobem ---------- */
+.entrada h1 { font-size: 38px; }
+.painel h2 { font-size: 30px; }
+.apelido { font-size: 20px; font-weight: 400; }
+.nivel-badge { font-size: 17px; font-weight: 400; }
+.hud-moedas b { font-size: 25px; font-weight: 400; }
+.contador { font-size: 15px; font-weight: 400; }
+.secao-titulo { font-size: 21px; font-weight: 400; }
+.rank .pos { font-size: 22px; }
+.codigo-box code { font-size: 24px; }
+.flut { font-size: 22px; font-weight: 400; }
+.preco { font-size: 1.15em; font-weight: 400; }
+.estatisticas b { font-size: 24px; }
+.nivel-numero { font-size: 50px; font-weight: 400; }
+.degrau-nv { font-size: 22px; font-weight: 400; }
+
+/* status: some sozinho depois de uns segundos */
+.status.apagado {
+    opacity: 0;
+}
+
+/* ---------- Celular: topo numa linha só e barra com 5 botões ---------- */
+.so-celular {
+    display: none;
+}
+
+.menu-ico {
+    display: block;
+    width: 22px;
+    height: 18px;
+    background: linear-gradient(var(--o) 0 4px, transparent 4px 7px, var(--o) 7px 11px, transparent 11px 14px, var(--o) 14px 18px);
+}
+
+@media (min-width: 761px) {
+    /* no PC as 4 ações continuam soltas na barra */
+    .acoes-grupo,
+    .acoes-lista {
+        display: contents;
+    }
+}
+
+@media (max-width: 760px) {
+    .so-celular {
+        display: inline-flex;
+    }
+
+    /* topo: perfil, moedas e ☰ numa linha */
+    .hud {
+        flex-wrap: nowrap;
+    }
+
+    .hud-perfil {
+        flex: 0 1 auto;
+    }
+
+    .menu-btn {
+        position: relative;
+        flex: none;
+        padding: 9px 10px;
+    }
+
+    .hud-botoes {
+        display: none;
+        position: absolute;
+        top: calc(100% - 2px);
+        right: 12px;
+        width: min(240px, calc(100vw - 24px));
+        flex-direction: column;
+        gap: 10px;
+        padding: 12px;
+        margin: 0;
+        background: var(--creme);
+        box-shadow: 0 -3px 0 var(--o), 0 3px 0 var(--o), -3px 0 0 var(--o), 3px 0 0 var(--o), 0 8px 0 rgba(63, 38, 49, .25);
+    }
+
+    .hud.menu-aberto .hud-botoes {
+        display: flex;
+    }
+
+    .hud-botoes .botao {
+        flex: none;
+        width: 100%;
+        justify-content: flex-start;
+        gap: 10px;
+        padding: 6px 12px;
+    }
+
+    .hud-botoes em {
+        display: inline;
+        font-size: 16px;
+    }
+
+    .hud-botoes .contador {
+        position: static;
+        margin-left: auto;
+    }
+
+    /* loja e celeiro ficam na barra de baixo */
+    .hud-botoes [data-painel="loja"],
+    .hud-botoes [data-painel="celeiro"] {
+        display: none;
+    }
+
+    /* barra de baixo: Semente · Loja · Celeiro · Ações · Construir, com nome */
+    .acoes-massa {
+        gap: 8px;
+    }
+
+    .barra .botao {
+        flex-direction: column;
+        gap: 1px;
+        padding: 4px 0 3px;
+    }
+
+    .acoes-massa em,
+    .semente-atual em {
+        display: block;
+        font-size: 11px;
+        font-style: normal;
+        line-height: 1.1;
+    }
+
+    .semente-atual {
+        flex: none;
+        width: 58px;
+        justify-content: center;
+    }
+
+    .sem-info {
+        display: none;
+    }
+
+    .acoes-grupo {
+        position: relative;
+        flex: 1;
+        display: flex;
+        min-width: 0;
+    }
+
+    #btnAcoes {
+        flex: 1;
+    }
+
+    .acoes-lista {
+        display: none;
+        position: absolute;
+        bottom: calc(100% + 14px);
+        left: 50%;
+        transform: translateX(-50%);
+        width: 190px;
+        flex-direction: column;
+        gap: 10px;
+        padding: 12px;
+        background: var(--creme);
+        box-shadow: 0 -3px 0 var(--o), 0 3px 0 var(--o), -3px 0 0 var(--o), 3px 0 0 var(--o), 0 8px 0 rgba(63, 38, 49, .25);
+    }
+
+    .acoes-grupo.aberto .acoes-lista {
+        display: flex;
+    }
+
+    .acoes-lista .botao {
+        flex-direction: row;
+        justify-content: flex-start;
+        gap: 10px;
+        padding: 6px 12px;
+    }
+
+    .acoes-lista em {
+        font-size: 15px !important;
+    }
+
+    /* mensagens: abaixo do topo e acima da barra, sem se atropelar */
+    .toasts {
+        top: calc(max(10px, env(safe-area-inset-top)) + 64px);
+        gap: 8px;
+    }
+
+    .toast {
+        font-size: 14px;
+        padding: 6px 12px;
+    }
+
+    .toast.festa {
+        font-size: 16px;
+    }
+
+    .status {
+        bottom: calc(max(12px, env(safe-area-inset-bottom)) + 84px);
+    }
+
+    .faixa-visita {
+        top: calc(max(10px, env(safe-area-inset-top)) + 64px);
+    }
 }
