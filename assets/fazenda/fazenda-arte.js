@@ -261,7 +261,6 @@
             case 'caixote': return { p: 'farm', i: 47 };
             case 'colmeia': return { p: 'town', i: 94 };
             case 'bau': return { p: 'farm', i: 76 };
-            case 'boneco_neve': return { p: 'ski', i: 64 };
             case 'casa_vermelha': return { p: 'town', w: 3, h: 3, grade: [[52, 53, 55], [64, 65, 67], [84, 85, 75]] };
             case 'casa_azul': return { p: 'town', w: 3, h: 3, grade: [[48, 49, 51], [60, 61, 63], [88, 89, 79]] };
             case 'canteiro': return { p: 'farm', i: 1 };

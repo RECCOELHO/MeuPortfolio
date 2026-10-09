@@ -432,11 +432,19 @@ insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem) 
   ('alvo',          'Alvo',                'objeto',    80, 6, 26),
   ('caixote',       'Caixote de tomate',   'objeto',   100, 7, 27),
   ('colmeia',       'Colmeia',             'objeto',   120, 8, 28),
-  ('bau',           'Baú',                 'objeto',   150, 11, 29),
-  ('boneco_neve',   'Boneco de neve',      'objeto',   150, 11, 30)
+  ('bau',           'Baú',                 'objeto',   150, 11, 29)
 on conflict (id) do update set
   nome = excluded.nome, categoria = excluded.categoria, custo = excluded.custo,
   nivel_min = excluded.nivel_min, ordem = excluded.ordem;
+
+-- O boneco de neve saiu da loja (a arte não funcionava): quem tinha recebe o preço de volta
+update public.fazenda_jogadores j
+   set moedas = moedas + x.qtd * (select custo from public.fazenda_itens where id = 'boneco_neve')
+  from (select jogador_id, count(*)::int as qtd from public.fazenda_construcoes
+         where tipo = 'boneco_neve' group by jogador_id) x
+ where j.id = x.jogador_id;
+delete from public.fazenda_construcoes where tipo = 'boneco_neve';
+delete from public.fazenda_itens where id = 'boneco_neve';
 
 -- Construções grandes (3 x 3) — fase 4
 insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem, largura, altura) values
@@ -545,7 +553,6 @@ update public.fazenda_itens i
     ('caixote',       'venda',        0,  2, '+10% no preço de venda (fazenda toda, não acumula).', null, null, null),
     ('colmeia',       'adubo',        2,  3, 'Abelhas: +1 item na colheita em volta (2 quadrados).', null, null, null),
     ('bau',           'missao',       0,  3, '+25% de moedas nas missões (fazenda toda, não acumula).', null, null, null),
-    ('boneco_neve',   'xp',           2,  5, 'Mascote: +1 XP ao colher em volta (2 quadrados).', null, null, null),
     ('casa_vermelha', null,           0, 20, 'Casinha: +20 de beleza (beleza dá bônus nas vendas).', null, null, null),
     ('casa_azul',     null,           0, 30, 'Casinha: +30 de beleza (beleza dá bônus nas vendas).', null, null, null)
   ) v(id, efeito, raio, beleza, descricao, produz, produz_seg, produz_qtd)
