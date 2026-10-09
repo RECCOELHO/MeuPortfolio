@@ -876,28 +876,62 @@
         }
 
         /* ---- canteiros ----
-           Lado a lado viram uma fileira só (peças do Tiny Farm): na horizontal
-           60-62 (terra clara) / 48-50 (arada); na vertical 12/24/36 e 13/25/37. */
-        function soloDe(c, escuro, mc) {
+           Sozinho: a peça do Tiny Farm (0 terra clara, 1 arada). Encostados (em fileira, em
+           coluna, em L ou em bloco) viram um canteiro grande só: a terra é desenhada aqui,
+           com as cores e medidas das tiras do pacote (60-62 / 12-36), borda só nos lados sem
+           vizinho, cantos de fora arredondados e a borda dobrando nos cantos de dentro.
+           Onde não é terra, volta a grama do fundo (com as flores e a neve da estação). */
+        const TERRA = {
+            clara: { borda: '#cf8254', miolo: '#eaa56c', ponto: '#cf8254', brilho: '#fec99c' },
+            arada: { borda: '#b86542', miolo: '#cf8254', ponto: '#b86542', brilho: '#eaa56c' }
+        };
+        // . grama, b borda, c miolo (copiados das peças 60 e 62, encostados na borda do bloco)
+        const CANTOS = {
+            cimaEsq: ['....bb', '..bbbb', '.bbbcc', '.bbccc', 'bbbccc'],
+            cimaDir: ['bb....', 'bbbb..', 'ccbbb.', 'cccbb.', 'cccbbb'],
+            baixoEsq: ['bbbbcc', '.bbbbb', '.bbbbb', '..bbbb', '....bb'],
+            baixoDir: ['ccbbbb', 'bbbbb.', 'bbbbb.', 'bbbb..', 'bb....']
+        };
+        function desenharTerra(c, escuro, mc) {
             const viz = (dx, dy) => mc.has((c.x + dx) + ',' + (c.y + dy));
-            const e = viz(-1, 0), d = viz(1, 0);
-            if (e || d) {
-                const b = escuro ? 48 : 60;
-                return !e ? b : !d ? b + 2 : b + 1;   // ponta esquerda, meio, ponta direita
-            }
-            const cima = viz(0, -1), baixo = viz(0, 1);
-            if (cima || baixo) {
-                const b = escuro ? 13 : 12;
-                return !cima ? b : !baixo ? b + 24 : b + 12;
-            }
-            return escuro ? 1 : 0;
+            const cima = viz(0, -1), baixo = viz(0, 1), esq = viz(-1, 0), dir = viz(1, 0);
+            const x = wx(c.x), y = wy(c.y);
+            if (!cima && !baixo && !esq && !dir) return tile(q, escuro ? 1 : 0, x, y);
+            const cor = escuro ? TERRA.arada : TERRA.clara;
+            const pinta = (px, py, w, h, cc) => { q.fillStyle = cc; q.fillRect(x + px, y + py, w, h); };
+            const grama = (px, py, w, h) => q.drawImage(fundo, x + px, y + py, w, h, x + px, y + py, w, h);
+            // até onde vai a terra nesta casa: sem vizinho, recua como nas tiras do pacote
+            const x0 = esq ? 0 : 2, x1 = dir ? 16 : 14, y0 = cima ? 0 : 4;
+            pinta(x0, y0, x1 - x0, 16 - y0, cor.borda);
+            // miolo: borda de 3 nos lados, 2 em cima e 4 embaixo (a sombra da terra)
+            const m0 = esq ? 0 : 5, m1 = dir ? 16 : 11, n0 = cima ? 0 : 6, n1 = baixo ? 16 : 12;
+            pinta(m0, n0, m1 - m0, n1 - n0, cor.miolo);
+            // pontinhos da terra, sempre nos mesmos lugares em cada casa
+            let r = ((c.x * 73856093) ^ (c.y * 19349663)) >>> 0;
+            const sorteia = (a, b) => { r = (r * 1103515245 + 12345) >>> 0; return a + (r >>> 8) % Math.max(1, b - a); };
+            for (let k = 0; k < 3; k++) pinta(sorteia(m0 + 1, m1 - 2), sorteia(n0 + 1, n1 - 1), 2, 1, cor.ponto);
+            pinta(sorteia(m0 + 1, m1 - 1), sorteia(n0 + 1, n1 - 1), 1, 1, cor.brilho);
+            // cantos de fora arredondados: o mesmo desenho das pontas das tiras do pacote (60 e 62)
+            const canto = (px, py, linhas) => linhas.forEach((l, dy) => [...l].forEach((ch, dx) => {
+                if (ch === '.') grama(px + dx, py + dy, 1, 1);
+                else pinta(px + dx, py + dy, 1, 1, ch === 'b' ? cor.borda : cor.miolo);
+            }));
+            if (!cima && !esq) canto(2, 4, CANTOS.cimaEsq);
+            if (!cima && !dir) canto(8, 4, CANTOS.cimaDir);
+            if (!baixo && !esq) canto(2, 11, CANTOS.baixoEsq);
+            if (!baixo && !dir) canto(8, 11, CANTOS.baixoDir);
+            // cantos de dentro (vizinho dos dois lados, mas não na diagonal): a borda dobra
+            if (cima && esq && !viz(-1, -1)) { grama(0, 0, 2, 4); pinta(2, 0, 3, 6, cor.borda); pinta(0, 4, 5, 2, cor.borda); }
+            if (cima && dir && !viz(1, -1)) { grama(14, 0, 2, 4); pinta(11, 0, 3, 6, cor.borda); pinta(11, 4, 5, 2, cor.borda); }
+            if (baixo && esq && !viz(-1, 1)) pinta(0, 12, 5, 4, cor.borda);
+            if (baixo && dir && !viz(1, 1)) pinta(11, 12, 5, 4, cor.borda);
         }
 
         function desenharCanteiro(c, tempo, mc) {
             const v = visual(c.posicao);
             if (!v) return;
             const x = wx(c.x), y = wy(c.y);
-            tile(q, soloDe(c, v.solo === 'arado', mc), x, y);
+            desenharTerra(c, v.solo === 'arado', mc);
             if (v.seco) {
                 q.fillStyle = PAL.k;
                 q.fillRect(x + 4, y + 5, 3, 1); q.fillRect(x + 6, y + 6, 1, 2);
