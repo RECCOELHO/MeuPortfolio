@@ -97,10 +97,66 @@
         morango:  { fases: [81, 39, 78], murcho: 43, item: 78, semente: 74 }, // arte: amora
         ovo:      { fases: [125, 125, 125], murcho: 125, item: 125, semente: 125 },
         la:       { fases: [74, 74, 74], murcho: 74, item: 74, semente: 74 },
-        leite:    { fases: [123, 123, 123], murcho: 123, item: 123, semente: 123 }
+        leite:    { fases: [123, 123, 123], murcho: 123, item: 123, semente: 123 },
+        // produtos dos animais novos (1000+ = arte própria, ver PROPRIA abaixo)
+        pelo:     { fases: [1004, 1004, 1004], murcho: 1004, item: 1004, semente: 1004 },
+        pena:     { fases: [1003, 1003, 1003], murcho: 1003, item: 1003, semente: 1003 },
+        trufa:    { fases: [79, 79, 79], murcho: 79, item: 79, semente: 79 }
     };
     const CULTURA_PADRAO = CULTURAS.alface;
-    const ANIMAL = { galinha: 122, vaca: 121, ovelha: 120 };
+    const ANIMAL = { galinha: 122, vaca: 121, ovelha: 120, porco: 1000, pato: 1001, coelho: 1002 };
+    // bichos pequenos ficam no galinheiro; os grandes, no pasto
+    const PEQUENOS = ['galinha', 'pato', 'coelho'];
+
+    /* ---------- Arte própria (desenhada aqui, no estilo do Kenney) ----------
+       Os pacotes não têm porco, pato nem coelho: cada sprite é um 16 x 16 em
+       texto (uma letra por cor, "." = transparente). Índices 1000+ em tile(). */
+    const PAL_PROPRIA = {
+        a: '#3f2631', e: '#262b44', d: '#ffffff', f: '#c0cbdc', l: '#8b9bb4', i: '#e38628',
+        j: '#f7c282', k: '#e19a65', m: '#ff9aa8', P: '#f5a3b0', Q: '#d27688', R: '#e98b9b'
+    };
+    const PROPRIA = [
+        // 0 porco
+        ['................', '................', '..........a..a..', '.........aQaaQa.', '...aaaaaaaPPPPa.', '..aPPPPPPPPPPPPa',
+         '.aaPPPPPPPPPePPa', 'aQaPPPPPPPPPPRRa', '.aaPPPPPPPPPPRRa', '..aPPPPPPPPPPPa.', '..aQPPPPPPPPPQa.', '..aaQQQQQQQQQaa.',
+         '...aQa....aQa...', '...aaa....aaa...', '................', '................'],
+        // 1 pato
+        ['................', '................', '.........aaaa...', '........adddda..', '........addedaaa', '........addddiia',
+         '........addddaaa', '.aa.....addda...', '.adaaaaadddda...', '.addddddddddda..', '.adfddddddddda..', '.aadffffddddfa..',
+         '..aafffffffaa...', '....aia..aia....', '....aaa..aaa....', '................'],
+        // 2 coelho
+        ['..........a.a...', '.........ajaja..', '.........ajaja..', '.........amama..', '........ajjjjja.', '........ajjejja.',
+         '....aaaaajjjjmja', '...ajjjjjjjjjjaa', '..ajjjjjjjjjja..', '.adajjjjjjjjja..', '.addjjjjjjjjja..', '..aajkkjjjjkka..',
+         '...akkaaaakka...', '...aaa....aaa...', '................', '................'],
+        // 3 pena
+        ['................', '...........aa...', '.........aadda..', '........adddfa..', '.......addddfa..', '......adddlfa...',
+         '.....adddlfa....', '....addflfa.....', '...addflfa......', '...adflfa.......', '...aflfa........', '..alaaa.........',
+         '.ala............', '.aa.............', '................', '................'],
+        // 4 pelo de coelho
+        ['................', '................', '................', '.....aaaaaa.....', '....ajjdjjja....', '...ajdjjjjjja...',
+         '..ajjjjjjdjjja..', '..ajdjjjjjjjja..', '..ajjjjjdjjjka..', '..ajjjjjjjjkka..', '...ajjjjjjkka...', '....akkkkkka....',
+         '.....aaaaaa.....', '................', '................', '................']
+    ];
+    const atlasProprio = document.createElement('canvas');
+    atlasProprio.width = 12 * 16;
+    atlasProprio.height = LINHAS * 16;   // mesmo formato dos pacotes (htmlTile conta 12 x 11)
+    {
+        const g = atlasProprio.getContext('2d');
+        PROPRIA.forEach((linhas, n) => linhas.forEach((linha, y) => [...linha].forEach((ch, x) => {
+            if (PAL_PROPRIA[ch]) { g.fillStyle = PAL_PROPRIA[ch]; g.fillRect(n * 16 + x, y, 1, 1); }
+        })));
+    }
+    let urlPropria = null;
+
+    // ajudantes: quem é (pessoa) e o que carrega (ferramenta) — tudo dos pacotes
+    const MOCA = { p: 'farm', i: 108 }, MOCO = { p: 'factory', i: 120 };
+    const AJUDANTE_ARTE = {
+        granjeira: { ...MOCA, ferramenta: 125 }, lavrador: { ...MOCO, ferramenta: 86 },
+        jardineiro: { ...MOCO, ferramenta: 84 }, coelheira: { ...MOCA, ferramenta: 8 },
+        vaqueiro: { ...MOCO, ferramenta: 123 }, colhedor: { ...MOCO, ferramenta: 88 },
+        semeadora: { ...MOCA, ferramenta: 10 }, patinheiro: { ...MOCO, ferramenta: 1003 },
+        pastora: { ...MOCA, ferramenta: 74 }, porqueiro: { ...MOCO, ferramenta: 79 }
+    };
 
     /* ---------- Arte dos itens construíveis ----------
        p = pacote, i = tile, topo = tile de cima (árvores altas), auto = encaixe automático */
@@ -223,8 +279,11 @@
     const ARQUIVOS = { farm: 'tiny-farm.png', town: 'tiny-town.png', ski: 'tiny-ski.png', factory: 'tiny-factory.png' };
     const VERSAO_ARTE = '2';   // troque se as imagens dos pacotes mudarem (cache de 4 h do Cloudflare)
     function htmlTile(i, px = 32, pacote = 'farm') {
+        if (i >= 1000) { i -= 1000; pacote = 'propria'; }
         const c = i % COLS, l = Math.floor(i / COLS);
-        const img = pacote === 'farm' ? '' : `background-image:url('assets/fazenda/${ARQUIVOS[pacote]}');`;
+        if (pacote === 'propria' && !urlPropria) urlPropria = atlasProprio.toDataURL();
+        const img = pacote === 'farm' ? '' : pacote === 'propria' ? `background-image:url('${urlPropria}');`
+            : `background-image:url('assets/fazenda/${ARQUIVOS[pacote]}');`;
         return `<span class="px-spr" style="${img}width:${px}px;height:${px}px;background-size:${COLS * px}px ${LINHAS * px}px;background-position:-${c * px}px -${l * px}px" aria-hidden="true"></span>`;
     }
 
@@ -256,7 +315,8 @@
     }
 
     function tile(ctx, i, x, y, flip, pacote = 'farm') {
-        const img = atlas[pacote];
+        if (i >= 1000) { i -= 1000; pacote = 'propria'; }
+        const img = pacote === 'propria' ? atlasProprio : atlas[pacote];
         const sx = (i % COLS) * T, sy = Math.floor(i / COLS) * T;
         if (flip) {
             ctx.save();
@@ -322,6 +382,7 @@
         let margem = { topo: 0, base: 0 };
         let visual = () => null;
         let animaisFn = () => [];
+        let ajudantesFn = () => [];                        // [{ id, tipo, area: campo|galinheiro|pasto }]
         let construcoesFn = () => [];
         let canteirosFn = () => [];                        // [{ posicao, x, y }]
         let construcao = { ativo: false };                 // estado do modo construir
@@ -360,7 +421,16 @@
             return { x: wx(MAPA.celeiro.x), y: wy(MAPA.celeiro.y), w: 3 * T, h: 6 * T };
         }
         function areaDe(tipo) {
-            const a = tipo === 'galinha'
+            if (tipo === 'campo') {
+                // ajudantes da lavoura andam em volta dos canteiros
+                const l = listaCanteiros();
+                if (l.length) {
+                    const xs = l.map((c) => c.x), ys = l.map((c) => c.y);
+                    return { x0: wx(Math.min(...xs) - 1), y0: wy(Math.min(...ys)), x1: wx(Math.max(...xs) + 1), y1: wy(Math.max(...ys) + 1) };
+                }
+                return { x0: wx(MAPA.campo.x), y0: wy(MAPA.campo.y), x1: wx(MAPA.campo.x + 5), y1: wy(MAPA.campo.y + 1) };
+            }
+            const a = tipo === 'galinheiro' || PEQUENOS.includes(tipo)
                 ? { x: MAPA.galinheiro.x, y: MAPA.galinheiro.y, w: MAPA.galinheiro.w, h: MAPA.galinheiro.h }
                 : { x: MAPA.pasto.x + 1, y: MAPA.pasto.y + 2, w: MAPA.pasto.w - 2, h: MAPA.pasto.h - 3 };
             return { x0: wx(a.x), y0: wy(a.y), x1: wx(a.x + a.w - 1), y1: wy(a.y + a.h - 1) };
@@ -586,11 +656,23 @@
                     const x = area.x0 + r() * (area.x1 - area.x0), y = area.y0 + r() * (area.y1 - area.y0);
                     a = {
                         id: v.id, tipo: v.tipo, i: ANIMAL[v.tipo] || 122, area, x, y, tx: x, ty: y,
-                        flip: r() < 0.5, espera: r() * 2500, vel: v.tipo === 'galinha' ? 10 : 4
+                        flip: r() < 0.5, espera: r() * 2500, vel: PEQUENOS.includes(v.tipo) ? 10 : 4
                     };
                     atores.set(v.id, a);
                 }
                 a.v = v;
+            }
+            for (const h of ajudantesFn() || []) {
+                vistos.add(h.id);
+                if (atores.has(h.id)) continue;
+                const arte = AJUDANTE_ARTE[h.tipo] || MOCO;
+                const area = areaDe(h.area);
+                const r = rng(hash(h.id));
+                const x = area.x0 + r() * (area.x1 - area.x0), y = area.y0 + r() * (area.y1 - area.y0);
+                atores.set(h.id, {
+                    id: h.id, tipo: h.tipo, i: arte.i, p: arte.p, ferramenta: arte.ferramenta, area, x, y, tx: x, ty: y,
+                    flip: r() < 0.5, espera: r() * 2000, vel: 12, ajudante: true
+                });
             }
             for (const id of [...atores.keys()]) if (!vistos.has(id)) atores.delete(id);
         }
@@ -864,7 +946,11 @@
 
             for (const a of atores.values()) {
                 const parado = a.v && a.v.estado !== 'produzindo';
-                pe.push({ p: 'farm', i: a.i, x: a.x, y: a.y, flip: a.flip, bob: parado && Math.floor(tempo / 600) % 2 ? -1 : 0 });
+                const andando = a.ajudante && Math.hypot(a.tx - a.x, a.ty - a.y) > 0.5;
+                const bob = (parado && Math.floor(tempo / 600) % 2) || (andando && Math.floor(tempo / 140) % 2) ? -1 : 0;
+                pe.push({ p: a.p || 'farm', i: a.i, x: a.x, y: a.y, flip: a.flip, bob });
+                // ferramenta na mão do ajudante (do lado para onde ele olha)
+                if (a.ferramenta != null) pe.push({ p: 'farm', i: a.ferramenta, x: a.x + (a.flip ? -7 : 7), y: a.y + 0.5, flip: a.flip, bob });
             }
             const andando = fazendeiro.passo > 0;
             pe.push({ p: 'farm', i: 109, x: fazendeiro.x, y: fazendeiro.y, flip: fazendeiro.flip, bob: andando && Math.floor(tempo / 120) % 2 ? -1 : 0 });
@@ -1082,6 +1168,7 @@
             },
             definirVisual(fn) { visual = fn; },
             definirAnimais(fn) { animaisFn = fn; },
+            definirAjudantes(fn) { ajudantesFn = fn; },
             definirConstrucoes(fn) { construcoesFn = fn; },
             definirCanteiros(fn) { canteirosFn = fn; },
             // terrenos da fazenda na tela e o próximo à venda (número da zona ou null)
@@ -1135,6 +1222,7 @@
         htmlIcone,
         htmlItem,
         ANIMAL,
+        AJUDANTE_ARTE,
         MAPA,
         ZONAS,
         noTerreno,

@@ -212,6 +212,12 @@ button {
     font-size: 14px;
 }
 
+/* estrelas de nível dos ajudantes */
+.estrelas {
+    color: var(--laranja);
+    letter-spacing: 1px;
+}
+
 /* botões −/+ (ração reservada no celeiro) */
 .botao.mini {
     padding: 0;

@@ -236,6 +236,32 @@ create table if not exists public.fazenda_missoes (
   primary key (jogador_id, dia, slot)
 );
 
+-- Fase 8: ajudantes — pessoas contratadas que trabalham sozinhas (arar, plantar, cuidar,
+-- colher e um para cada animal). Trabalham no ritmo do nível (tarefas por hora) e
+-- guardam até 8 horas de trabalho enquanto o jogador está fora.
+create table if not exists public.fazenda_ajudantes_tipos (
+  id         text primary key,
+  nome       text not null,       -- nome da pessoa
+  papel      text not null,       -- o que ela é (Colhedor, Granjeira...)
+  funcao     text not null check (funcao in ('arar', 'plantar', 'cuidar', 'colher', 'animal')),
+  alvo       text references public.fazenda_animais_tipos(id),   -- animal que ela cuida
+  custo      int  not null,       -- contratar; evoluir custa 2x e 4x isso
+  nivel_min  int  not null,
+  descricao  text not null,
+  ordem      int  not null default 0
+);
+create table if not exists public.fazenda_ajudantes (
+  jogador_id     uuid not null references public.fazenda_jogadores(id) on delete cascade,
+  tipo           text not null references public.fazenda_ajudantes_tipos(id),
+  nivel          smallint not null default 1 check (nivel between 1 and 3),
+  credito        real not null default 0,                 -- tarefas que já pode fazer
+  atualizado_em  timestamptz not null default now(),
+  relatorio      int not null default 0,                  -- tarefas feitas desde a última olhada
+  primary key (jogador_id, tipo)
+);
+-- última semente que o jogador plantou (a semeadora usa a mesma)
+alter table public.fazenda_jogadores add column if not exists semente text references public.fazenda_culturas(id);
+
 -- Fase 7: ração reservada para os animais (fica no celeiro, o "vender" não leva)
 create table if not exists public.fazenda_reservas (
   jogador_id  uuid not null references public.fazenda_jogadores(id) on delete cascade,
@@ -260,13 +286,15 @@ alter table public.fazenda_estatisticas   enable row level security;
 alter table public.fazenda_conquistas_tipos enable row level security;
 alter table public.fazenda_conquistas     enable row level security;
 alter table public.fazenda_reservas       enable row level security;
+alter table public.fazenda_ajudantes_tipos enable row level security;
+alter table public.fazenda_ajudantes      enable row level security;
 
 revoke all on public.fazenda_culturas, public.fazenda_jogadores, public.fazenda_sessoes,
               public.fazenda_canteiros, public.fazenda_celeiro, public.fazenda_visitas,
               public.fazenda_animais_tipos, public.fazenda_animais,
               public.fazenda_itens, public.fazenda_construcoes, public.fazenda_missoes,
               public.fazenda_estatisticas, public.fazenda_conquistas_tipos, public.fazenda_conquistas,
-              public.fazenda_reservas
+              public.fazenda_reservas, public.fazenda_ajudantes_tipos, public.fazenda_ajudantes
   from anon, authenticated;
 
 -- ------------------------------------------------------------
@@ -298,7 +326,10 @@ delete from public.fazenda_culturas k
 insert into public.fazenda_culturas (id, nome, emoji, tempo_seg, custo, venda, rendimento, xp, nivel_min, ordem, tipo) values
   ('ovo',   'Ovo',   '🥚', 1, 0, 26, 1,  6, 2, 20, 'produto'),
   ('leite', 'Leite', '🥛', 1, 0, 70, 1, 16, 4, 21, 'produto'),
-  ('la',    'Lã',    '🧶', 1, 0, 150, 1, 32, 6, 22, 'produto')
+  ('la',    'Lã',    '🧶', 1, 0, 150, 1, 32, 6, 22, 'produto'),
+  ('pelo',  'Pelo de coelho', '🐇', 1, 0, 45, 1, 10, 6, 23, 'produto'),
+  ('pena',  'Pena',  '🪶', 1, 0, 60, 1, 14, 11, 24, 'produto'),
+  ('trufa', 'Trufa', '🍄', 1, 0, 180, 1, 36, 14, 25, 'produto')
 on conflict (id) do update set
   nome = excluded.nome, emoji = excluded.emoji, venda = excluded.venda,
   xp = excluded.xp, nivel_min = excluded.nivel_min, ordem = excluded.ordem, tipo = excluded.tipo;
@@ -306,11 +337,30 @@ on conflict (id) do update set
 insert into public.fazenda_animais_tipos (id, nome, custo, nivel_min, maximo, produto, tempo_seg, racao, racao_qtd, ordem) values
   ('galinha', 'Galinha', 100, 2, 4, 'ovo',    3600, 'alface', 1, 1),
   ('vaca',    'Vaca',    350, 5, 2, 'leite', 14400, 'batata', 2, 2),
-  ('ovelha',  'Ovelha',  600, 8, 2, 'la',    28800, 'abobora', 2, 3)
+  ('ovelha',  'Ovelha',  600, 8, 2, 'la',    28800, 'abobora', 2, 3),
+  ('coelho',  'Coelho',  250, 6, 4, 'pelo',   7200, 'cenoura', 2, 4),
+  ('pato',    'Pato',    450, 11, 3, 'pena', 10800, 'alface', 2, 5),
+  ('porco',   'Porco',   900, 14, 2, 'trufa', 21600, 'milho', 2, 6)
 on conflict (id) do update set
   nome = excluded.nome, custo = excluded.custo, nivel_min = excluded.nivel_min, maximo = excluded.maximo,
   produto = excluded.produto, tempo_seg = excluded.tempo_seg, racao = excluded.racao,
   racao_qtd = excluded.racao_qtd, ordem = excluded.ordem;
+
+-- Ajudantes (fase 8): um por função e um por animal. Caros de contratar e de evoluir.
+insert into public.fazenda_ajudantes_tipos (id, nome, papel, funcao, alvo, custo, nivel_min, descricao, ordem) values
+  ('granjeira',  'Dona Cida', 'Granjeira',          'animal',  'galinha', 1500,  5, 'Dá a ração e coleta os ovos das galinhas.', 1),
+  ('lavrador',   'Seu Zé',    'Lavrador',           'arar',    null,      2000,  6, 'Ara os canteiros vazios e limpa os murchos.', 2),
+  ('jardineiro', 'Tião',      'Jardineiro',         'cuidar',  null,      2500,  7, 'Tira erva daninha, praga e seca dos canteiros.', 3),
+  ('coelheira',  'Nina',      'Cuidadora de coelhos','animal', 'coelho',  2000,  8, 'Dá a ração e coleta o pelo dos coelhos.', 4),
+  ('vaqueiro',   'Bento',     'Vaqueiro',           'animal',  'vaca',    3000,  9, 'Dá a ração e tira o leite das vacas.', 5),
+  ('colhedor',   'Juca',      'Colhedor',           'colher',  null,      4000, 10, 'Colhe tudo o que estiver maduro, antes de murchar.', 6),
+  ('semeadora',  'Dona Rosa', 'Semeadora',          'plantar', null,      4000, 11, 'Planta a última semente que você usou nos canteiros arados (paga com suas moedas).', 7),
+  ('patinheiro', 'Pedrinho',  'Cuidador de patos',  'animal',  'pato',    3000, 12, 'Dá a ração e junta as penas dos patos.', 8),
+  ('pastora',    'Lia',       'Pastora',            'animal',  'ovelha',  4000, 13, 'Dá a ração e tosquia a lã das ovelhas.', 9),
+  ('porqueiro',  'Tonho',     'Porqueiro',          'animal',  'porco',   5000, 15, 'Dá a ração e acha as trufas dos porcos.', 10)
+on conflict (id) do update set
+  nome = excluded.nome, papel = excluded.papel, funcao = excluded.funcao, alvo = excluded.alvo,
+  custo = excluded.custo, nivel_min = excluded.nivel_min, descricao = excluded.descricao, ordem = excluded.ordem;
 
 -- Itens do modo construir (a arte de cada um fica no cliente, em fazenda-arte.js)
 insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem) values
@@ -607,6 +657,7 @@ declare
   j       record;
   v_nivel int;
   v_max   int;
+  v_json  jsonb;
 begin
   perform fazenda_checar_conquistas(p_jogador);
   select * into j from fazenda_jogadores where id = p_jogador;
@@ -624,7 +675,7 @@ begin
 
   perform fazenda_gerar_missoes(p_jogador);
 
-  return jsonb_build_object(
+  v_json := jsonb_build_object(
     'agora', now(),
     'jogador', jsonb_build_object(
       'id', j.id,
@@ -694,13 +745,23 @@ begin
       select jsonb_agg(jsonb_build_object(
                'slot', slot, 'tipo', tipo, 'alvo', alvo, 'progresso', progresso,
                'moedas', moedas, 'xp', xp, 'resgatada', resgatada) order by slot)
-        from fazenda_missoes where jogador_id = p_jogador and dia = fazenda_hoje()), '[]'::jsonb)
+        from fazenda_missoes where jogador_id = p_jogador and dia = fazenda_hoje()), '[]'::jsonb),
+    'ajudantes', coalesce((
+      select jsonb_agg(jsonb_build_object('tipo', tipo, 'nivel', nivel, 'relatorio', relatorio))
+        from fazenda_ajudantes where jogador_id = p_jogador), '[]'::jsonb),
+    'ajudantes_tipos', (
+      select jsonb_agg(to_jsonb(t) order by t.ordem) from fazenda_ajudantes_tipos t)
   );
+  -- o relatório (o que fizeram enquanto você estava fora) aparece uma vez só
+  update fazenda_ajudantes set relatorio = 0 where jogador_id = p_jogador and relatorio > 0;
+  return v_json;
 end;
 $$;
 
 -- Aplica uma ação em um canteiro. Retorna a quantidade colhida (0 se não colheu).
-create or replace function public.fazenda_aplicar(p_jogador uuid, p_acao text, p_posicao int, p_cultura text)
+drop function if exists public.fazenda_aplicar(uuid, text, int, text);
+-- p_bot = feita por um ajudante (sem XP, sem missão, sem moeda de "cuidar")
+create or replace function public.fazenda_aplicar(p_jogador uuid, p_acao text, p_posicao int, p_cultura text, p_bot boolean default false)
 returns int
 language plpgsql security definer
 set search_path = public, extensions
@@ -739,7 +800,7 @@ begin
        set estado = 'arado', cultura = null, plantado_em = null,
            erva = false, praga = false, seco = false, roubado = 0, prox_evento = null
      where jogador_id = p_jogador and posicao = p_posicao;
-    update fazenda_jogadores set xp = xp + 1 where id = p_jogador;
+    if not p_bot then update fazenda_jogadores set xp = xp + 1 where id = p_jogador; end if;
 
   elsif p_acao = 'plantar' then
     if c.estado <> 'arado' then
@@ -764,7 +825,10 @@ begin
            erva = false, praga = false, seco = false, roubado = 0,
            prox_evento = now() + make_interval(secs => k.tempo_seg * (0.15 + random() * 0.35))
      where jogador_id = p_jogador and posicao = p_posicao;
-    perform fazenda_missao(p_jogador, 'plantar', 1);
+    if not p_bot then
+      perform fazenda_missao(p_jogador, 'plantar', 1);
+      update fazenda_jogadores set semente = k.id where id = p_jogador;   -- a semeadora usa a mesma
+    end if;
 
   elsif p_acao in ('erva', 'praga', 'seco') then
     if c.estado <> 'plantado' or now() >= v_murcho
@@ -778,8 +842,10 @@ begin
            praga = case when p_acao = 'praga' then false else praga end,
            seco  = case when p_acao = 'seco'  then false else seco  end
      where jogador_id = p_jogador and posicao = p_posicao;
-    update fazenda_jogadores set xp = xp + 1, moedas = moedas + 1 where id = p_jogador;
-    perform fazenda_missao(p_jogador, 'cuidar', 1);
+    if not p_bot then
+      update fazenda_jogadores set xp = xp + 1, moedas = moedas + 1 where id = p_jogador;
+      perform fazenda_missao(p_jogador, 'cuidar', 1);
+    end if;
 
   elsif p_acao = 'colher' then
     if c.estado <> 'plantado' or now() < v_maduro then
@@ -799,13 +865,13 @@ begin
     values (p_jogador, k.id, v_qtd)
     on conflict (jogador_id, item)
     do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
-    update fazenda_jogadores set xp = xp + k.xp + fazenda_protegido(p_jogador, 'xp', c.x, c.y)::int where id = p_jogador;
+    if not p_bot then update fazenda_jogadores set xp = xp + k.xp + fazenda_protegido(p_jogador, 'xp', c.x, c.y)::int where id = p_jogador; end if;
     update fazenda_canteiros   -- com trator, o canteiro já fica arado
        set estado = case when fazenda_tem_efeito(p_jogador, 'arar') then 'arado' else 'vazio' end,
            cultura = null, plantado_em = null,
            erva = false, praga = false, seco = false, roubado = 0, prox_evento = null
      where jogador_id = p_jogador and posicao = p_posicao;
-    perform fazenda_missao(p_jogador, 'colher', v_qtd);
+    if not p_bot then perform fazenda_missao(p_jogador, 'colher', v_qtd); end if;
 
   else
     raise exception 'acao_invalida';
@@ -890,6 +956,123 @@ begin
 end;
 $$;
 
+-- Tarefas por hora de um ajudante em cada nível
+create or replace function public.fazenda_ritmo(p_nivel int)
+returns real language sql immutable as $$
+  select (case p_nivel when 1 then 4 when 2 then 12 else 36 end)::real;
+$$;
+
+-- Os ajudantes fazem o trabalho acumulado desde a última vez (até 8 horas).
+-- Roda quando a fazenda carrega (abrir a página e a cada 30 s com ela aberta).
+create or replace function public.fazenda_trabalhar(p_jogador uuid)
+returns void
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  a       record;
+  c       record;
+  m       record;
+  v_cred  real;
+  v_n     int;
+  v_feito int;
+  v_sem   text;
+begin
+  for a in
+    select h.tipo, h.nivel, h.credito, h.atualizado_em, t.funcao, t.alvo
+      from fazenda_ajudantes h join fazenda_ajudantes_tipos t on t.id = h.tipo
+     where h.jogador_id = p_jogador
+     order by t.ordem
+       for update of h
+  loop
+    v_cred := least(a.credito + extract(epoch from now() - a.atualizado_em)::real / 3600 * fazenda_ritmo(a.nivel),
+                    fazenda_ritmo(a.nivel) * 8);
+    v_n := floor(v_cred);
+    v_feito := 0;
+
+    if v_n > 0 and a.funcao = 'colher' then
+      for c in
+        select cc.posicao from fazenda_canteiros cc join fazenda_culturas k on k.id = cc.cultura
+         where cc.jogador_id = p_jogador and cc.estado = 'plantado'
+           and now() >= cc.plantado_em + make_interval(secs => k.tempo_seg)
+           and now() < cc.plantado_em + make_interval(secs => k.tempo_seg + greatest(k.tempo_seg * 2, 3600))
+         order by cc.plantado_em limit v_n
+      loop
+        begin perform fazenda_aplicar(p_jogador, 'colher', c.posicao, null, true); v_feito := v_feito + 1;
+        exception when others then null; end;
+      end loop;
+
+    elsif v_n > 0 and a.funcao = 'arar' then
+      for c in
+        select cc.posicao from fazenda_canteiros cc left join fazenda_culturas k on k.id = cc.cultura
+         where cc.jogador_id = p_jogador
+           and (cc.estado = 'vazio'
+                or (cc.estado = 'plantado' and now() >= cc.plantado_em + make_interval(secs => k.tempo_seg + greatest(k.tempo_seg * 2, 3600))))
+         order by cc.posicao limit v_n
+      loop
+        begin perform fazenda_aplicar(p_jogador, 'arar', c.posicao, null, true); v_feito := v_feito + 1;
+        exception when others then null; end;
+      end loop;
+
+    elsif v_n > 0 and a.funcao = 'plantar' then
+      select coalesce(semente, 'alface') into v_sem from fazenda_jogadores where id = p_jogador;
+      for c in
+        select posicao from fazenda_canteiros
+         where jogador_id = p_jogador and estado = 'arado' order by posicao limit v_n
+      loop
+        begin perform fazenda_aplicar(p_jogador, 'plantar', c.posicao, v_sem, true); v_feito := v_feito + 1;
+        exception when others then exit;   -- acabou o dinheiro (ou a semente não serve): para
+        end;
+      end loop;
+
+    elsif v_n > 0 and a.funcao = 'cuidar' then
+      for c in
+        select cc.posicao, cc.erva, cc.praga, cc.seco from fazenda_canteiros cc join fazenda_culturas k on k.id = cc.cultura
+         where cc.jogador_id = p_jogador and cc.estado = 'plantado' and (cc.erva or cc.praga or cc.seco)
+           and now() < cc.plantado_em + make_interval(secs => k.tempo_seg + greatest(k.tempo_seg * 2, 3600))
+         order by cc.plantado_em
+      loop
+        exit when v_feito >= v_n;
+        begin
+          if c.erva and v_feito < v_n then perform fazenda_aplicar(p_jogador, 'erva', c.posicao, null, true); v_feito := v_feito + 1; end if;
+          if c.praga and v_feito < v_n then perform fazenda_aplicar(p_jogador, 'praga', c.posicao, null, true); v_feito := v_feito + 1; end if;
+          if c.seco and v_feito < v_n then perform fazenda_aplicar(p_jogador, 'seco', c.posicao, null, true); v_feito := v_feito + 1; end if;
+        exception when others then null;
+        end;
+      end loop;
+
+    elsif v_n > 0 and a.funcao = 'animal' then
+      for m in
+        select an.id, an.alimentado_em, t.tempo_seg from fazenda_animais an join fazenda_animais_tipos t on t.id = an.tipo
+         where an.jogador_id = p_jogador and an.tipo = a.alvo order by an.id
+      loop
+        exit when v_feito >= v_n;
+        -- coletar e dar ração em blocos separados: faltar ração não desfaz a coleta
+        begin
+          if m.alimentado_em is not null and now() >= m.alimentado_em + make_interval(secs => m.tempo_seg) then
+            perform fazenda_animal_um(p_jogador, m.id, 'coletar', true);
+            v_feito := v_feito + 1;
+            m.alimentado_em := null;
+          end if;
+        exception when others then null;
+        end;
+        begin
+          if m.alimentado_em is null and v_feito < v_n then
+            perform fazenda_animal_um(p_jogador, m.id, 'alimentar', true);   -- sem ração no celeiro: pula
+            v_feito := v_feito + 1;
+          end if;
+        exception when others then null;
+        end;
+      end loop;
+    end if;
+
+    update fazenda_ajudantes
+       set credito = v_cred - v_feito, atualizado_em = now(), relatorio = relatorio + v_feito
+     where jogador_id = p_jogador and tipo = a.tipo;
+  end loop;
+end;
+$$;
+
 create or replace function public.fazenda_carregar(p_token text)
 returns jsonb
 language plpgsql security definer
@@ -899,7 +1082,37 @@ declare
   v_id uuid := fazenda_auth(p_token);
 begin
   perform fazenda_tick(v_id);
+  perform fazenda_trabalhar(v_id);
   return fazenda_estado(v_id);
+end;
+$$;
+
+-- Contrata um ajudante ou evolui o nível dele (2x e 4x o preço de contratar)
+create or replace function public.fazenda_contratar(p_token text, p_tipo text)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id    uuid := fazenda_auth(p_token);
+  j       record;
+  t       record;
+  v_nivel int;
+  v_custo int;
+begin
+  select * into j from fazenda_jogadores where id = v_id for update;
+  select * into t from fazenda_ajudantes_tipos where id = p_tipo;
+  if not found then raise exception 'item_invalido'; end if;
+  if fazenda_nivel(j.xp) < t.nivel_min then raise exception 'nivel_insuficiente'; end if;
+  perform fazenda_trabalhar(v_id);   -- fecha o trabalho no ritmo antigo antes de mudar
+  select nivel into v_nivel from fazenda_ajudantes where jogador_id = v_id and tipo = p_tipo;
+  if v_nivel >= 3 then raise exception 'nivel_maximo'; end if;
+  v_custo := case coalesce(v_nivel, 0) when 0 then t.custo when 1 then t.custo * 2 else t.custo * 4 end;
+  if j.moedas < v_custo then raise exception 'moedas_insuficientes'; end if;
+  update fazenda_jogadores set moedas = moedas - v_custo where id = v_id;
+  insert into fazenda_ajudantes (jogador_id, tipo) values (v_id, p_tipo)
+  on conflict (jogador_id, tipo) do update set nivel = fazenda_ajudantes.nivel + 1;
+  return jsonb_build_object('estado', fazenda_estado(v_id), 'nivel', coalesce(v_nivel, 0) + 1);
 end;
 $$;
 
@@ -1433,7 +1646,8 @@ end;
 $$;
 
 -- Alimenta ou coleta um animal. Retorna quantos produtos coletou.
-create or replace function public.fazenda_animal_um(p_jogador uuid, p_animal bigint, p_acao text)
+drop function if exists public.fazenda_animal_um(uuid, bigint, text);
+create or replace function public.fazenda_animal_um(p_jogador uuid, p_animal bigint, p_acao text, p_bot boolean default false)
 returns int
 language plpgsql security definer
 set search_path = public, extensions
@@ -1480,9 +1694,9 @@ begin
     values (p_jogador, r.produto, 1)
     on conflict (jogador_id, item)
     do update set quantidade = fazenda_celeiro.quantidade + 1;
-    update fazenda_jogadores set xp = xp + r.produto_xp where id = p_jogador;
+    if not p_bot then update fazenda_jogadores set xp = xp + r.produto_xp where id = p_jogador; end if;
     update fazenda_animais set alimentado_em = null where id = p_animal;
-    perform fazenda_missao(p_jogador, 'animal', 1);
+    if not p_bot then perform fazenda_missao(p_jogador, 'animal', 1); end if;
     return 1;
   end if;
 
@@ -1787,7 +2001,9 @@ revoke execute on function
   public.fazenda_nova_sessao(uuid),
   public.fazenda_tick(uuid),
   public.fazenda_estado(uuid),
-  public.fazenda_aplicar(uuid, text, int, text),
+  public.fazenda_aplicar(uuid, text, int, text, boolean),
+  public.fazenda_ritmo(int),
+  public.fazenda_trabalhar(uuid),
   public.fazenda_criar(text),
   public.fazenda_recuperar(text),
   public.fazenda_carregar(text),
@@ -1803,7 +2019,7 @@ revoke execute on function
   public.fazenda_hoje(),
   public.fazenda_gerar_missoes(uuid),
   public.fazenda_missao(uuid, text, int),
-  public.fazenda_animal_um(uuid, bigint, text),
+  public.fazenda_animal_um(uuid, bigint, text, boolean),
   public.fazenda_comprar(text, text, text),
   public.fazenda_animal(text, text, bigint[]),
   public.fazenda_resgatar_missao(text, int),
@@ -1813,6 +2029,7 @@ revoke execute on function
   public.fazenda_demolir(text, int, int),
   public.fazenda_coletar(text, int, int),
   public.fazenda_reservar(text, text, int),
+  public.fazenda_contratar(text, text),
   public.fazenda_checar_conquistas(uuid)
 from public, anon, authenticated;
 
@@ -1832,5 +2049,6 @@ grant execute on function
   public.fazenda_mover(text, int, int, int, int),
   public.fazenda_demolir(text, int, int),
   public.fazenda_coletar(text, int, int),
-  public.fazenda_reservar(text, text, int)
+  public.fazenda_reservar(text, text, int),
+  public.fazenda_contratar(text, text)
 to anon, authenticated;
