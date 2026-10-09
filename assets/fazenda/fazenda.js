@@ -71,6 +71,8 @@
         sem_energia: 'Sem energia nas baterias. Construa geradores (painel solar, turbina...) e espere carregar.',
         sem_milho: 'O gerador a biomassa queima milho: colha milho e tente de novo.',
         anuncio_cedo: 'Calma! Espere uns segundos entre um anúncio e outro.',
+        sem_lago: 'Compre o Vale do sudeste (aba Terrenos da loja) para liberar o lago.',
+        cesto_vazio: 'O cesto ainda está vazio: o Bira tira um peixe a cada 30 minutos.',
         limite_canteiros: 'Você já usou todos os seus canteiros. Suba de nível ou compre terrenos para ter mais.',
         limite_maquina: 'Você já tem essa máquina (uma basta para a fazenda toda).',
         alarme: 'O alarme disparou! Esse canteiro está protegido.',
@@ -405,6 +407,50 @@
         } catch { /* sem faixa, sem problema */ }
     }
 
+    /* ---------- O lago (terreno 3): o Bira enche o cesto, 1 peixe a cada 30 min ----------
+       O servidor manda desde quando o cesto enche, o ritmo, o máximo e as chances. */
+    function infoLago() {
+        const l = S && S.lago;
+        if (!l || !l.desde) return null;
+        const passou = agora() - Date.parse(l.desde), passo = l.intervalo * 1000;
+        const prontos = Math.max(0, Math.min(l.max, Math.floor(passou / passo)));
+        return { ...l, prontos, proximo: prontos >= l.max ? 0 : (prontos + 1) * passo - passou };
+    }
+    function atualizarLago() {
+        const i = !visita && infoLago();
+        cena.definirLago(i ? { prontos: i.prontos, max: i.max } : null);
+    }
+    function descreverLago() {
+        const i = infoLago();
+        const peixinho = spr(A.cultura('lambari').item, 22);
+        if (!i) return mostrarStatus(visita ? `${peixinho} O lago do vizinho.` : `${peixinho} O lago do Vale do sudeste: compre esse terreno e o Bira pesca para você.`);
+        const chico = (i.peixes || []).find((p) => p.id === 'velho_chico');
+        mostrarStatus(`${peixinho} <b>Bira, o pescador</b>: ` + (i.prontos
+            ? `${i.prontos} peixe(s) no cesto${i.prontos >= i.max ? ' (cheio!)' : ''}. Toque para pegar.`
+            : `o cesto está vazio; o próximo peixe sai em ${fmtTempo(i.proximo)}.`) +
+            (chico ? ` Chance do lendário Peixe do Velho Chico: ${chico.chance}%.` : ''));
+    }
+    function pescar() {
+        const i = infoLago();
+        if (!i || !i.prontos) return descreverLago();
+        cena.definirLago({ prontos: 0, max: i.max });   // o balão some na hora
+        som.tocar('colher');
+        enfileirar([], async () => {
+            const r = await rpc('fazenda_pescar', { p_token: token });
+            aplicarEstado(r.estado);
+            const lista = Object.entries(r.peixes || {})
+                .sort((a, b) => (culturas[b[0]] || {}).venda - (culturas[a[0]] || {}).venda)
+                .map(([id, n]) => `${n} ${itemDe(culturas[id] || { id }, 18)}`).join(' ');
+            toast(`O Bira tirou ${r.qtd} peixe(s): ${lista} +${r.xp} ${ico('xp', 14)}`, r.lendario ? 'festa' : undefined);
+            if (r.lendario) {
+                som.tocar('festa');
+                abrirPainel('lendario');
+            } else {
+                descreverLago();
+            }
+        });
+    }
+
     /* ---------- Anúncio premiado: assiste até o fim e tudo anda 30 minutos ----------
        API de anúncios para jogos H5 do AdSense (adBreak do tipo 'reward'): ela avisa quando
        tem anúncio pronto (beforeReward) e o botão aparece; o tempo só vem com o anúncio
@@ -519,6 +565,8 @@
             const i = info(c);
             if (i.fase === 'crescendo' || i.fase === 'maduro') ev.push({ quando: i.maduro, chave: 'c' + c.posicao + c.plantado_em, texto: `${i.k.nome} pronto para colher` });
         }
+        const lg = !visita && infoLago();
+        if (lg) ev.push({ quando: Date.parse(lg.desde) + lg.max * lg.intervalo * 1000, chave: 'lago' + lg.desde, texto: 'o cesto de peixes do Bira está cheio' });
         for (const a of S.animais || []) {
             const t = tipoAnimal(a.tipo);
             if (t && a.alimentado_em) ev.push({ quando: Date.parse(a.alimentado_em) + t.tempo_seg * 1000, chave: 'a' + a.id + a.alimentado_em, texto: `${t.nome} com ${((culturas[t.produto] || {}).nome || 'produto').toLowerCase()} pronto` });
@@ -569,14 +617,14 @@
        Os níveis de cada coisa vêm do servidor (nivel_min / nivel); as duas
        contas abaixo precisam bater com fazenda_presente_nivel e
        fazenda_limite_canteiros no SQL. */
-    const NIVEL_MAX = 25;
+    const NIVEL_MAX = 30;
     const presenteNivel = (n) => (n > 10 ? 100 : 50) * n;   // do 10 em diante sobe devagar, e o presente dobra
     const limiteCanteirosNivel = (n) => Math.min(6 + (n - 1) * 2, 54);
     const ORDEM_TIPO = { Terreno: 0, Ajudante: 1, Oficina: 1, 'Máquina': 1, Energia: 1, Animal: 2, Semente: 3, Casa: 4, Enfeite: 5 };
     function liberaNoNivel(n) {
         if (!S) return [];
         const r = [];
-        for (const z of zonasVenda()) if (z.nivel === n) r.push({ html: spr(39, 24), nome: z.nome, tipo: 'Terreno' });
+        for (const z of zonasVenda()) if (z.nivel === n) r.push({ html: spr(39, 24), nome: z.lago ? `${z.nome} (com lago)` : z.nome, tipo: 'Terreno' });
         for (const a of S.animais_tipos || []) if (a.nivel_min === n) r.push({ html: spr(A.ANIMAL[a.id], 24), nome: a.nome, tipo: 'Animal' });
         for (const t of S.ajudantes_tipos || []) if (t.nivel_min === n) r.push({ html: retratoAjudante(t.id, 24), nome: `${t.nome} (${t.papel.toLowerCase()})`, tipo: 'Ajudante' });
         for (const k of S.culturas) if (k.tipo === 'cultura' && k.nivel_min === n) r.push({ html: itemDe(k, 24), nome: k.estacao ? `${k.nome} (${NOME_ESTACAO[k.estacao]})` : k.nome, tipo: 'Semente' });
@@ -932,6 +980,7 @@
         aoTile: (x, y) => tocarTile(x, y),
         aoCeleiro: () => { if (S && !painelAtual) abrirPainel('celeiro'); },
         aoVenda: () => { if (S && !painelAtual) { abaLoja = 'terrenos'; abrirPainel('loja'); } },
+        aoLago: () => { if (S && !painelAtual && !visita) pescar(); },
         aoConstrucao: (x, y) => {
             if (!S || painelAtual) return;
             descreverConstrucao(x, y);
@@ -941,6 +990,7 @@
             if (!S || alvo == null) return;
             if (alvo === 'celeiro') mostrarStatus(`${spr(11, 22)} Celeiro: toque para ver e vender a colheita.`);
             else if (alvo === 'venda') descreverVenda();
+            else if (alvo === 'lago') descreverLago();
             else if (typeof alvo === 'object' && alvo.construcao) descreverConstrucao(alvo.construcao.x, alvo.construcao.y);
             else if (typeof alvo === 'object' && 'tx' in alvo) descreverTile(alvo.tx, alvo.ty);
             else if (typeof alvo === 'object') descreverAnimal(alvo.animal);
@@ -958,7 +1008,7 @@
         if (!z) return;
         mostrarStatus(S.jogador.nivel < z.nivel
             ? `${ico('cadeado', 12)} ${esc(z.nome)}: terreno à venda a partir do nível ${z.nivel}.`
-            : `${ico('moeda', 14)} ${esc(z.nome)} à venda por ${moeda(z.custo)}: mais espaço e +6 canteiros. Toque para ver.`);
+            : `${ico('moeda', 14)} ${esc(z.nome)} à venda por ${moeda(z.custo)}: mais espaço e +6 canteiros${z.lago ? ', e um lago com o Bira pescando para você' : ''}. Toque para ver.`);
     }
 
     /* ---------- Modo construir (abre e fecha pelo botão) ---------- */
@@ -973,6 +1023,7 @@
         if (dentro(casa)) return 'a casa';
         if (dentro(gal)) return 'o galinheiro';
         if (dentro(pasto)) return 'o pasto';
+        if (dentro(A.MAPA.lago)) return 'o lago';
         return 'fora do terreno';
     };
     const canteiroEm = (x, y) => (S.canteiros || []).find((c) => c.x === x && c.y === y);
@@ -1396,6 +1447,7 @@
         energiaEm = agora();
         desenharEnergia();
         atualizarBotaoAnuncio();
+        atualizarLago();
         atualizarTerreno();
         desenharHud();
         if (constr.ativo) desenharPaleta();
@@ -1860,6 +1912,7 @@
                     <li>Do nível 16 em diante vem a <b>energia</b> ${ico('raio', 14)}: painel solar, turbina, gerador a biomassa e reator enchem as baterias, e as máquinas elétricas (estufa, triturador, fábrica automática, robô, aspersor) trabalham sozinhas gastando energia.</li>
                     ${ANUNCIO.ligado || ehLocal ? `<li>Quando aparecer o botão <b>+30 min</b>, assista a um anúncio até o fim e tudo o que está em andamento (plantas, animais, oficinas, ajudantes e energia) adianta 30 minutos.</li>` : ''}
                     <li>No Perfil (ou em Vizinhos) tem o seu <b>link de convite</b>: quem criar uma fazenda por ele ganha moedas, e você também.</li>
+                    <li>No <b>Vale do sudeste</b> (terreno 3) tem um lago: o pescador <b>Bira</b> tira um peixe a cada 30 minutos, até 16 no cesto. Toque no lago para pegar. Quanto mais raro, mais vale, e o lendário <b>Peixe do Velho Chico</b> sai em 1% das vezes (2% com a estátua do nível 30).</li>
                     <li>Cumpra as <b>missões do dia</b> para ganhar moedas e XP extras.</li>
                     <li>Cada nível libera coisas novas e dá um presente de moedas. Toque no seu nome, lá em cima, para ver o <b>caminho dos níveis</b>.</li>
                     <li>Em <b>Vizinhos</b> você visita outras fazendas: <b>pega</b> um pouco da colheita madura ou <b>ajuda</b> com os problemas e ganha XP.</li>
@@ -1894,6 +1947,16 @@
                     <button type="button" class="botao creme" data-painel-ir="niveis">Ver todos os níveis</button>
                     <button type="button" class="botao verde" data-fechar>Bora jogar!</button>
                 </div>`;
+        } else if (nome === 'lendario') {
+            const k = culturas.velho_chico || { id: 'velho_chico', nome: 'Peixe do Velho Chico', venda: 2500 };
+            el.painelTitulo.innerHTML = `${itemDe(k, 32)} Peixe do Velho Chico!`;
+            corpo.innerHTML = `
+                <div class="lendario">
+                    <div class="lendario-peixe">${itemDe(k, 96)}</div>
+                    <p><b>LENDÁRIO!</b> O peixe dourado do Velho Chico caiu no anzol do Bira. Só 1 em cada ${S.lago && S.lago.estatua ? 50 : 100} peixes é ele.</p>
+                    <p>Ele já está no celeiro e vale ${moeda(k.venda)}.</p>
+                </div>
+                <div class="rodape-painel"><span></span><button type="button" class="botao verde" data-fechar>Que pescaria!</button></div>`;
         } else if (nome === 'niveis') {
             const j = S.jogador;
             el.painelTitulo.innerHTML = `${ico('xp', 26)} Caminho dos níveis`;
@@ -2055,7 +2118,7 @@
                 <span class="ico">${travado ? ico('cadeado', 28) : spr(comprado ? 1 : 39, 44)}</span>
                 <span>
                     <span class="nome">${esc(z.nome)}</span>
-                    <span class="det"><span>${z.w}×${z.h} quadrados</span><span>+6 canteiros</span></span>
+                    <span class="det"><span>${z.w}×${z.h} quadrados</span><span>+6 canteiros</span>${z.lago ? '<span>com lago e pescador!</span>' : ''}</span>
                 </span>
                 ${comprado ? '<span class="preco">Comprado</span>'
                     : !proximo ? `<span class="preco">Depois do ${z.n - 1}</span>`
@@ -2553,6 +2616,7 @@
         if (!S) return;
         desenharEnergia();
         atualizarBotaoAnuncio();
+        atualizarLago();
         if (document.visibilityState === 'visible' && Date.now() - ultimoPoll > POLL_MS) {
             ultimoPoll = Date.now();
             recarregar();
