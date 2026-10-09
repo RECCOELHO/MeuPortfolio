@@ -283,6 +283,21 @@ alter table public.fazenda_jogadores alter column curva set default 2;
 alter table public.fazenda_jogadores add column if not exists anuncio_em timestamptz;
 alter table public.fazenda_estatisticas add column if not exists anuncios int not null default 0;
 
+-- Fase 14: convites. Cada jogador tem um código curto (vai no link ?convite=); quem cria
+-- uma fazenda nova pelo link fica registrado aqui (premiado = quem chamou ganhou as moedas).
+alter table public.fazenda_jogadores add column if not exists convite text;
+create unique index if not exists fazenda_jogadores_convite_idx on public.fazenda_jogadores (convite);
+create table if not exists public.fazenda_convites (
+  convidado_id uuid primary key references public.fazenda_jogadores(id) on delete cascade,
+  dono_id      uuid not null references public.fazenda_jogadores(id) on delete cascade,
+  premiado     boolean not null default false,
+  visto        boolean not null default false,
+  criado_em    timestamptz not null default now()
+);
+create index if not exists fazenda_convites_dono_idx on public.fazenda_convites (dono_id, criado_em);
+alter table public.fazenda_convites enable row level security;
+revoke all on public.fazenda_convites from anon, authenticated;
+
 -- Fase 7: ração reservada para os animais (fica no celeiro, o "vender" não leva)
 create table if not exists public.fazenda_reservas (
   jogador_id  uuid not null references public.fazenda_jogadores(id) on delete cascade,
@@ -566,7 +581,8 @@ insert into public.fazenda_conquistas_tipos (id, nome, descricao, medida, meta, 
   ('nivel_10',          'Fazendeiro nível 10', 'Chegue ao nível 10',              'nivel',        10,  400, 14),
   ('eletricista',       'Eletricista',         'Gaste 500 ⚡ com máquinas elétricas', 'energia',   500,  800, 15),
   ('nivel_20',          'Fazendeiro nível 20', 'Chegue ao nível 20',              'nivel',        20, 1500, 16),
-  ('nivel_25',          'Fazenda industrial',  'Chegue ao nível 25',              'nivel',        25, 5000, 17)
+  ('nivel_25',          'Fazenda industrial',  'Chegue ao nível 25',              'nivel',        25, 5000, 17),
+  ('popular',           'Fazendeiro popular',  'Traga 3 amigos pelo seu convite', 'convites',      3,  500, 18)
 on conflict (id) do update set
   nome = excluded.nome, descricao = excluded.descricao, medida = excluded.medida,
   meta = excluded.meta, recompensa = excluded.recompensa, ordem = excluded.ordem;
@@ -713,6 +729,47 @@ returns real language sql stable security definer set search_path = public as $$
    where c.jogador_id = p_jogador and i.efeito in ('solar', 'eolica', 'reator');
 $$;
 
+-- Prêmio do convite: quem entra pelo link e quem chamou (igual ao que o jogo mostra, que vem
+-- do estado). Quem chamou ganha por no máximo 10 amigos por dia (contra fazendas falsas).
+create or replace function public.fazenda_premio_convite()
+returns jsonb language sql immutable as $$
+  select '{"amigo": 200, "dono": 300, "por_dia": 10}'::jsonb;
+$$;
+
+-- Código de convite novo: 6 letras/números sem os que confundem (0/O, 1/I/L)
+create or replace function public.fazenda_novo_convite()
+returns text
+language plpgsql volatile security definer
+set search_path = public, extensions
+as $$
+declare
+  v_alfabeto text := 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  v_bytes    bytea;
+  v_codigo   text;
+  i          int;
+begin
+  loop
+    v_bytes := gen_random_bytes(6);
+    v_codigo := '';
+    for i in 0..5 loop
+      v_codigo := v_codigo || substr(v_alfabeto, 1 + get_byte(v_bytes, i) % length(v_alfabeto), 1);
+    end loop;
+    exit when not exists (select 1 from fazenda_jogadores where convite = v_codigo);
+  end loop;
+  return v_codigo;
+end;
+$$;
+
+-- Quem já jogava ganha seu código (um por vez, para a checagem de repetido enxergar os anteriores)
+do $$
+declare
+  r record;
+begin
+  for r in select id from public.fazenda_jogadores where convite is null loop
+    update public.fazenda_jogadores set convite = public.fazenda_novo_convite() where id = r.id;
+  end loop;
+end $$;
+
 create or replace function public.fazenda_auth(p_token text)
 returns uuid
 language plpgsql security definer
@@ -825,6 +882,10 @@ declare
 begin
   perform fazenda_checar_conquistas(p_jogador);
   select * into j from fazenda_jogadores where id = p_jogador;
+  if j.convite is null then   -- (quem nasceu entre o SQL e o deploy)
+    update fazenda_jogadores set convite = fazenda_novo_convite() where id = p_jogador;
+    select * into j from fazenda_jogadores where id = p_jogador;
+  end if;
   v_nivel := fazenda_nivel(j.xp);
   -- subiu de nível: presente de moedas por cada nível novo
   if v_nivel > coalesce(j.nivel_premiado, 1) then
@@ -856,6 +917,14 @@ begin
       'bonus_venda', fazenda_bonus_venda(p_jogador)
     ),
     'zonas_venda', fazenda_zonas(),
+    'convites', jsonb_build_object(
+      'codigo', j.convite,
+      'premio', fazenda_premio_convite(),
+      'total', (select count(*) from fazenda_convites where dono_id = p_jogador),
+      'novos', coalesce((
+        select jsonb_agg(jsonb_build_object('apelido', a.apelido, 'premiado', c.premiado) order by c.criado_em)
+          from fazenda_convites c join fazenda_jogadores a on a.id = c.convidado_id
+         where c.dono_id = p_jogador and not c.visto), '[]'::jsonb)),
     -- energia agora, quanto cabe e quanto entra por hora (sol/vento/reator + biomassa ligada)
     'energia', jsonb_build_object(
       'carga', round(v_ener::numeric, 1),
@@ -928,6 +997,7 @@ begin
   );
   -- o relatório (o que fizeram enquanto você estava fora) aparece uma vez só
   update fazenda_ajudantes set relatorio = 0 where jogador_id = p_jogador and relatorio > 0;
+  update fazenda_convites set visto = true where dono_id = p_jogador and not visto;   -- idem os amigos novos
   return v_json;
 end;
 $$;
@@ -1073,7 +1143,9 @@ $$;
 -- API pública (chamada via /rest/v1/rpc/...)
 -- ------------------------------------------------------------
 
-create or replace function public.fazenda_criar(p_apelido text)
+-- p_convite: código de quem chamou (link ?convite=); código errado não impede de criar
+drop function if exists public.fazenda_criar(text);
+create or replace function public.fazenda_criar(p_apelido text, p_convite text default null)
 returns jsonb
 language plpgsql security definer
 set search_path = public, extensions
@@ -1086,6 +1158,9 @@ declare
   v_codigo text;
   v_id     uuid;
   i        int;
+  v_dono   record;
+  v_premio jsonb := fazenda_premio_convite();
+  v_conv   jsonb;
 begin
   p_apelido := btrim(p_apelido);
   if p_apelido is null or char_length(p_apelido) not between 2 and 20 then
@@ -1106,20 +1181,48 @@ begin
     end if;
   end loop;
 
-  insert into fazenda_jogadores (apelido, codigo_hash)
-  values (p_apelido, encode(digest(v_codigo, 'sha256'), 'hex'))
+  insert into fazenda_jogadores (apelido, codigo_hash, convite)
+  values (p_apelido, encode(digest(v_codigo, 'sha256'), 'hex'), fazenda_novo_convite())
   returning id into v_id;
 
   -- Começa com 6 canteiros já arados
   insert into fazenda_canteiros (jogador_id, posicao, estado, x, y)
   select v_id, g, 'arado', 9 + g, 4 from generate_series(0, 5) g;
 
+  -- Veio por um convite: os dois ganham moedas (quem chamou, até o limite do dia)
+  if nullif(btrim(p_convite), '') is not null then
+    select id, apelido into v_dono from fazenda_jogadores
+     where convite = upper(btrim(p_convite)) and id <> v_id
+       for update;
+    if found then
+      insert into fazenda_convites (convidado_id, dono_id, premiado)
+      values (v_id, v_dono.id,
+              (select count(*) from fazenda_convites
+                where dono_id = v_dono.id and premiado and criado_em > now() - interval '1 day') < (v_premio->>'por_dia')::int);
+      update fazenda_jogadores set moedas = moedas + (v_premio->>'amigo')::int where id = v_id;
+      update fazenda_jogadores set moedas = moedas + (v_premio->>'dono')::int
+       where id = v_dono.id and (select premiado from fazenda_convites where convidado_id = v_id);
+      v_conv := jsonb_build_object('apelido', v_dono.apelido, 'moedas', (v_premio->>'amigo')::int);
+    end if;
+  end if;
+
   return jsonb_build_object(
     'token', fazenda_nova_sessao(v_id),
     'codigo', v_codigo,
+    'convite', v_conv,
     'estado', fazenda_estado(v_id)
   );
 end;
+$$;
+
+-- Tela de entrada aberta por um link de convite: de quem é o convite?
+create or replace function public.fazenda_convite_info(p_codigo text)
+returns jsonb
+language sql stable security definer
+set search_path = public, extensions
+as $$
+  select jsonb_build_object('apelido', apelido, 'nivel', fazenda_nivel(xp), 'moedas', (fazenda_premio_convite()->>'amigo')::int)
+    from fazenda_jogadores where convite = upper(btrim(p_codigo));
 $$;
 
 create or replace function public.fazenda_recuperar(p_codigo text)
@@ -2005,12 +2108,14 @@ declare
   r        record;
   v_nivel  int;
   v_constr int;
+  v_conv   int;
   v_valor  int;
 begin
   insert into fazenda_estatisticas (jogador_id) values (p_jogador) on conflict do nothing;
   select * into s from fazenda_estatisticas where jogador_id = p_jogador;
   select fazenda_nivel(xp) into v_nivel from fazenda_jogadores where id = p_jogador;
   select count(*) into v_constr from fazenda_construcoes where jogador_id = p_jogador;
+  select count(*) into v_conv from fazenda_convites where dono_id = p_jogador;
   for r in
     select t.* from fazenda_conquistas_tipos t
      where not exists (select 1 from fazenda_conquistas c where c.jogador_id = p_jogador and c.conquista = t.id)
@@ -2026,6 +2131,7 @@ begin
       when 'ajudar' then s.ajudar
       when 'pegar' then s.pegar
       when 'energia' then s.energia
+      when 'convites' then v_conv
       else 0
     end;
     if v_valor >= r.meta then
@@ -2557,6 +2663,9 @@ revoke execute on function
   public.fazenda_industria(uuid),
   public.fazenda_gerador(text, int, int),
   public.fazenda_anuncio(text),
+  public.fazenda_premio_convite(),
+  public.fazenda_novo_convite(),
+  public.fazenda_convite_info(text),
   public.fazenda_checar_lugar(uuid, int, int, int, int, int, int, int, int),
   public.fazenda_auth(text),
   public.fazenda_nova_sessao(uuid),
@@ -2565,7 +2674,7 @@ revoke execute on function
   public.fazenda_aplicar(uuid, text, int, text, boolean),
   public.fazenda_ritmo(int),
   public.fazenda_trabalhar(uuid),
-  public.fazenda_criar(text),
+  public.fazenda_criar(text, text),
   public.fazenda_recuperar(text),
   public.fazenda_carregar(text),
   public.fazenda_acao(text, text, int[], text),
@@ -2596,7 +2705,7 @@ revoke execute on function
 from public, anon, authenticated;
 
 grant execute on function
-  public.fazenda_criar(text),
+  public.fazenda_criar(text, text),
   public.fazenda_recuperar(text),
   public.fazenda_carregar(text),
   public.fazenda_acao(text, text, int[], text),
@@ -2615,5 +2724,6 @@ grant execute on function
   public.fazenda_contratar(text, text),
   public.fazenda_oficina(text, int, int),
   public.fazenda_gerador(text, int, int),
-  public.fazenda_anuncio(text)
+  public.fazenda_anuncio(text),
+  public.fazenda_convite_info(text)
 to anon, authenticated;

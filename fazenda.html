@@ -7,9 +7,17 @@
     <meta name="robots" content="noindex, nofollow">
     <meta name="theme-color" content="#4e974c">
     <title>Fazendinha Secreta</title>
+    <!-- prévia do link (WhatsApp, redes): os convites vão para esta página -->
+    <meta name="description" content="Plante, colha e fique rico! Entre pelo link de um amigo e ganhe moedas de presente.">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Fazendinha Secreta 🌻">
+    <meta property="og:description" content="Vem plantar comigo! Entrando pelo link de convite você ganha moedas de presente.">
+    <meta property="og:image" content="https://www.jessecoelho.com.br/assets/fazenda/app/icone-512.png">
+    <meta property="og:url" content="https://www.jessecoelho.com.br/fazenda.html">
+    <meta name="twitter:card" content="summary">
     <link rel="icon" type="image/png" href="assets/fazenda/app/icone-192.png">
     <!-- instalar como app (PWA): manifesto, ícones e o service worker em assets/app/instalar.js -->
-    <link rel="manifest" href="assets/fazenda/app/fazenda.webmanifest?v=20261009-2">
+    <link rel="manifest" href="assets/fazenda/app/fazenda.webmanifest?v=20261009-3">
     <link rel="apple-touch-icon" href="assets/fazenda/app/icone-180.png">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -19,7 +27,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&family=Jersey+10&display=swap" rel="stylesheet">
     <!-- ?v=: o Cloudflare guarda CSS/JS por 4 h no navegador; troque a versão a cada deploy da fazenda -->
-    <link rel="stylesheet" href="assets/fazenda/fazenda.css?v=20261009-2">
+    <link rel="stylesheet" href="assets/fazenda/fazenda.css?v=20261009-3">
 </head>
 
 <body>
@@ -129,6 +137,7 @@
             <p class="sub">Você achou o segredo do portfólio! Plante, cuide, colha e fique rico.</p>
 
             <div class="carregando" id="entradaCarregando">Abrindo a porteira…</div>
+            <p class="convite-faixa" id="conviteFaixa" hidden></p>
 
             <div class="abas" id="entradaAbas" hidden>
                 <div class="abas-botoes" role="tablist">
@@ -161,9 +170,9 @@
         </div>
     </section>
 
-    <script src="assets/app/instalar.js?v=20261009-2" data-escopo="/fazenda" defer></script>
-    <script src="assets/fazenda/fazenda-arte.js?v=20261009-2" defer></script>
-    <script src="assets/fazenda/fazenda.js?v=20261009-2" defer></script>
+    <script src="assets/app/instalar.js?v=20261009-3" data-escopo="/fazenda" defer></script>
+    <script src="assets/fazenda/fazenda-arte.js?v=20261009-3" defer></script>
+    <script src="assets/fazenda/fazenda.js?v=20261009-3" defer></script>
 </body>
 
 </html>
