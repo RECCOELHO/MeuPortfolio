@@ -10,6 +10,10 @@
     const A = window.FazendaArte;
     const SUPABASE_URL = 'https://vhdjqppzylxdksgjzvsh.supabase.co';
     const SUPABASE_KEY = 'sb_publishable_y-rrBFvf0QRFG3WL3P0kxQ_gItonE2U';
+    // Anúncio premiado (AdSense, anúncios para jogos H5). ligado: false até o Google aprovar o
+    // site e liberar os anúncios para jogos; teste: true mostra só anúncios de teste do Google
+    // (troque para false depois de conferir que funciona).
+    const ANUNCIO = { cliente: 'ca-pub-9193438749452073', ligado: false, teste: true };
 
     // Em localhost dá pra apontar para um backend de teste: fazenda.html?api=http://localhost:8787
     let API = SUPABASE_URL;
@@ -66,6 +70,7 @@
         fora_de_estacao: 'Essa semente é de outra estação. Espere a época dela (ou plante perto de uma estufa elétrica).',
         sem_energia: 'Sem energia nas baterias. Construa geradores (painel solar, turbina...) e espere carregar.',
         sem_milho: 'O gerador a biomassa queima milho: colha milho e tente de novo.',
+        anuncio_cedo: 'Calma! Espere uns segundos entre um anúncio e outro.',
         limite_canteiros: 'Você já usou todos os seus canteiros. Suba de nível ou compre terrenos para ter mais.',
         limite_maquina: 'Você já tem essa máquina (uma basta para a fazenda toda).',
         alarme: 'O alarme disparou! Esse canteiro está protegido.',
@@ -119,7 +124,7 @@
         barraConstr: $('barraConstr'), constrAbas: $('constrAbas'), constrItens: $('constrItens'),
         constrFerramentas: $('constrFerramentas'), btnConstruir: $('btnConstruir'), construirCont: $('hudConstruir'),
         hudPerfil: $('hudPerfil'), btnMenu: $('btnMenu'), menuCont: $('hudMenu'), celeiroContDock: $('hudCeleiroDock'),
-        acoesGrupo: $('acoesGrupo'), btnAcoes: $('btnAcoes'), clima: $('hudClima'), energia: $('hudEnergia')
+        acoesGrupo: $('acoesGrupo'), btnAcoes: $('btnAcoes'), clima: $('hudClima'), energia: $('hudEnergia'), anuncio: $('btnAnuncio')
     };
 
     /* ---------- Ícones (pixel art) ---------- */
@@ -135,6 +140,7 @@
     const som = (() => {
         let ctx = null;
         let mudo = store.get(LS.mudo) === '1';
+        let pausado = false;   // durante o anúncio
         function audio() {
             if (!ctx) {
                 const C = window.AudioContext || window.webkitAudioContext;
@@ -167,7 +173,8 @@
             festa: () => { [523, 659, 784, 1047].forEach((f, n) => nota(f, n * 0.09, 0.14)); }
         };
         return {
-            tocar(nome) { if (!mudo && SONS[nome]) { try { SONS[nome](); } catch { /* sem áudio */ } } },
+            tocar(nome) { if (!mudo && !pausado && SONS[nome]) { try { SONS[nome](); } catch { /* sem áudio */ } } },
+            pausar(p) { pausado = p; },
             alternar() { mudo = !mudo; store.set(LS.mudo, mudo ? '1' : '0'); return mudo; },
             get mudo() { return mudo; }
         };
@@ -294,6 +301,106 @@
         return it && it.efeito === 'estufa' && Math.abs(m.x - c.x) <= it.raio && Math.abs(m.y - c.y) <= it.raio;
     });
     const podeEscolher = (k) => daEstacao(k) || temEstufa();
+
+    /* ---------- Anúncio premiado: assiste até o fim e tudo anda 30 minutos ----------
+       API de anúncios para jogos H5 do AdSense (adBreak do tipo 'reward'): ela avisa quando
+       tem anúncio pronto (beforeReward) e o botão aparece; o tempo só vem com o anúncio
+       visto até o fim (adViewed). Com ANUNCIO.ligado false não aparece nada; no localhost dá
+       para testar com um anúncio de mentira. */
+    const ehLocal = ['localhost', '127.0.0.1'].includes(location.hostname);
+    let mostrarAnuncio = null;   // chamar mostra o vídeo (só existe quando tem anúncio pronto)
+    let timerAnuncio = null;
+    function iniciarAnuncios() {
+        if (ANUNCIO.ligado) {
+            window.adsbygoogle = window.adsbygoogle || [];
+            window.adBreak = window.adConfig = (o) => { window.adsbygoogle.push(o); };
+            const sc = document.createElement('script');
+            sc.async = true;
+            sc.crossOrigin = 'anonymous';
+            sc.dataset.adClient = ANUNCIO.cliente;
+            if (ANUNCIO.teste) sc.dataset.adbreakTest = 'on';
+            sc.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=' + encodeURIComponent(ANUNCIO.cliente);
+            document.head.appendChild(sc);
+            window.adConfig({ preloadAdBreaks: 'on', sound: 'on' });
+            prepararAnuncio();
+        } else if (ehLocal) {
+            mostrarAnuncio = simularAnuncio;
+        }
+        atualizarBotaoAnuncio();
+    }
+    function prepararAnuncio() {
+        clearTimeout(timerAnuncio);
+        if (!ANUNCIO.ligado || mostrarAnuncio) return;
+        window.adBreak({
+            type: 'reward',
+            name: 'adiantar_30min',
+            beforeAd: () => som.pausar(true),
+            afterAd: () => som.pausar(false),
+            beforeReward: (mostrar) => { mostrarAnuncio = mostrar; atualizarBotaoAnuncio(); },
+            adDismissed: () => toast('Anúncio fechado antes do fim: sem os 30 minutos desta vez.'),
+            adViewed: ganharRecompensa,
+            adBreakDone: (info) => {
+                mostrarAnuncio = null;
+                atualizarBotaoAnuncio();
+                // depois de um anúncio já prepara o próximo; sem anúncio agora, tenta daqui a 1 min
+                const st = info && info.breakStatus;
+                timerAnuncio = setTimeout(prepararAnuncio, st === 'viewed' || st === 'dismissed' ? 2000 : 60000);
+            }
+        });
+    }
+    // tem algo em andamento para os 30 minutos valerem alguma coisa?
+    function algoEmAndamento() {
+        return (S.canteiros || []).some((c) => info(c).fase === 'crescendo')
+            || (S.animais || []).some((a) => infoAnimal(a).estado === 'produzindo')
+            || (S.construcoes || []).some((c) => {
+                const o = infoOficina(c), p = infoProducao(c);
+                return (o && o.estado === 'trabalhando') || (p && p.falta > 0);
+            });
+    }
+    function atualizarBotaoAnuncio() {
+        if (!el.anuncio) return;
+        el.anuncio.hidden = !(mostrarAnuncio && S && !visita && !constr.ativo && algoEmAndamento());
+    }
+    function assistirAnuncio() {
+        if (!mostrarAnuncio) return;
+        const mostrar = mostrarAnuncio;
+        mostrarAnuncio = null;     // um toque, um anúncio
+        el.anuncio.hidden = true;
+        mostrar();
+    }
+    function ganharRecompensa() {
+        enfileirar([], async () => {
+            const r = await rpc('fazenda_anuncio', { p_token: token });
+            aplicarEstado(r.estado);
+            const partes = [r.canteiros && `${r.canteiros} canteiro(s)`, r.animais && `${r.animais} animal(is)`, r.oficinas && `${r.oficinas} oficina(s)`].filter(Boolean);
+            som.tocar('colher');
+            toast(`${ico('brilho', 14)} Tudo adiantou 30 minutos${partes.length ? ': ' + partes.join(', ') : ''}!`, 'festa');
+        });
+    }
+    // só no localhost: um "anúncio" de 5 segundos para testar o caminho todo
+    function simularAnuncio() {
+        const tela = document.createElement('div');
+        tela.className = 'anuncio-teste';
+        tela.innerHTML = `<div class="caixa"><p><b>Anúncio de teste</b></p><p>No site de verdade, aqui passa o vídeo do Google.</p>
+            <p class="anuncio-conta">5</p><button type="button" class="botao creme" data-pular>Fechar sem assistir</button></div>`;
+        document.body.appendChild(tela);
+        som.pausar(true);
+        let n = 5;
+        const fim = (viu) => {
+            clearInterval(iv);
+            tela.remove();
+            som.pausar(false);
+            if (viu) ganharRecompensa();
+            else toast('Anúncio fechado antes do fim: sem os 30 minutos desta vez.');
+            setTimeout(() => { mostrarAnuncio = simularAnuncio; atualizarBotaoAnuncio(); }, 1000);
+        };
+        const iv = setInterval(() => {
+            n -= 1;
+            tela.querySelector('.anuncio-conta').textContent = n;
+            if (n <= 0) fim(true);
+        }, 1000);
+        tela.querySelector('[data-pular]').addEventListener('click', () => fim(false));
+    }
 
     /* ---------- Avisos no celular ----------
        Com a fazenda aberta ou minimizada, avisa quando algo fica pronto
@@ -1171,6 +1278,7 @@
         agendarAvisos();
         energiaEm = agora();
         desenharEnergia();
+        atualizarBotaoAnuncio();
         atualizarTerreno();
         desenharHud();
         if (constr.ativo) desenharPaleta();
@@ -1589,6 +1697,7 @@
                 <p class="aviso">Guarde esse código: é o único jeito de abrir sua fazenda em outro aparelho ou se o navegador for limpo.</p>
                 ${htmlInstalar()}
                 ${boasVindas ? '' : htmlAvisos()}
+                <p class="aviso"><a href="privacidade.html" target="_blank" rel="noopener">Política de privacidade</a>: o que a fazenda guarda e como funcionam os anúncios.</p>
                 <h3 class="secao-titulo">Como jogar</h3>
                 <ul class="ajuda">
                     <li>Toque num canteiro e ele faz a ação certa: <b>arar</b>, <b>plantar</b>, <b>cuidar</b> ou <b>colher</b>.</li>
@@ -1607,6 +1716,7 @@
                     <li>No botão <b>Construir</b> você coloca cercas, caminhos, árvores, flores e objetos onde quiser. Toque em <b>Pronto</b> para fechar.</li>
                     <li>Cada <b>estação</b> tem sementes só dela (morango, melancia, abóbora, repolho) e o <b>clima</b> muda todo dia: chuva rega tudo, onda de calor seca mais. Toque no clima, lá em cima, para ver a previsão.</li>
                     <li>Do nível 16 em diante vem a <b>energia</b> ${ico('raio', 14)}: painel solar, turbina, gerador a biomassa e reator enchem as baterias, e as máquinas elétricas (estufa, triturador, fábrica automática, robô, aspersor) trabalham sozinhas gastando energia.</li>
+                    ${ANUNCIO.ligado || ehLocal ? `<li>Quando aparecer o botão <b>+30 min</b>, assista a um anúncio até o fim e tudo o que está em andamento (plantas, animais, oficinas, ajudantes e energia) adianta 30 minutos.</li>` : ''}
                     <li>Cumpra as <b>missões do dia</b> para ganhar moedas e XP extras.</li>
                     <li>Cada nível libera coisas novas e dá um presente de moedas. Toque no seu nome, lá em cima, para ver o <b>caminho dos níveis</b>.</li>
                     <li>Em <b>Vizinhos</b> você visita outras fazendas: <b>pega</b> um pouco da colheita madura ou <b>ajuda</b> com os problemas e ganha XP.</li>
@@ -1715,8 +1825,8 @@
         const linhas = [
             ['colher', 'itens colhidos'], ['plantar', 'sementes plantadas'], ['cuidar', 'problemas resolvidos'],
             ['vender', 'moedas em vendas'], ['animal', 'produtos dos animais'], ['ajudar', 'ajudas a vizinhos'],
-            ['pegar', 'itens pegos de vizinhos']
-        ];
+            ['pegar', 'itens pegos de vizinhos'], ['anuncios', 'anúncios assistidos']
+        ].filter(([k]) => k !== 'anuncios' || e.anuncios);
         return '<div class="estatisticas">' + linhas.map(([k, txt]) => `<div><b>${e[k] || 0}</b><span>${txt}</span></div>`).join('') + '</div>';
     }
 
@@ -2161,6 +2271,7 @@
     el.btnConstruir.addEventListener('click', abrirConstrucao);
     if (el.clima) el.clima.addEventListener('click', descreverClima);
     if (el.energia) el.energia.addEventListener('click', descreverEnergia);
+    if (el.anuncio) el.anuncio.addEventListener('click', assistirAnuncio);
     if (el.hudPerfil) {
         const abrirCaminho = () => { if (S && !painelAtual) abrirPainel('niveis'); };
         el.hudPerfil.addEventListener('click', abrirCaminho);
@@ -2284,6 +2395,7 @@
     setInterval(() => {
         if (!S) return;
         desenharEnergia();
+        atualizarBotaoAnuncio();
         if (document.visibilityState === 'visible' && Date.now() - ultimoPoll > POLL_MS) {
             ultimoPoll = Date.now();
             recarregar();
@@ -2307,6 +2419,7 @@
         }
         cena.iniciar();
         ajustarMargens();
+        iniciarAnuncios();
         if (!token) return mostrarEntrada();
         try {
             aplicarEstado(await rpc('fazenda_carregar', { p_token: token }));
