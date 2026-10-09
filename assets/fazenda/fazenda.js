@@ -61,6 +61,7 @@
         animal_invalido: 'Esse animal não está mais aqui.',
         limite_animais: 'Você já tem o máximo desse animal.',
         terreno_max: 'Você já comprou todos os terrenos.',
+        nivel_maximo: 'Esse ajudante já está no nível máximo.',
         limite_canteiros: 'Você já usou todos os seus canteiros. Suba de nível ou compre terrenos para ter mais.',
         limite_maquina: 'Você já tem essa máquina (uma basta para a fazenda toda).',
         alarme: 'O alarme disparou! Esse canteiro está protegido.',
@@ -219,12 +220,13 @@
     const NIVEL_MAX = 15;
     const presenteNivel = (n) => 50 * n;
     const limiteCanteirosNivel = (n) => Math.min(6 + (n - 1) * 2, 34);
-    const ORDEM_TIPO = { Terreno: 0, 'Máquina': 1, Animal: 2, Semente: 3, Casa: 4, Enfeite: 5 };
+    const ORDEM_TIPO = { Terreno: 0, Ajudante: 1, 'Máquina': 1, Animal: 2, Semente: 3, Casa: 4, Enfeite: 5 };
     function liberaNoNivel(n) {
         if (!S) return [];
         const r = [];
         for (const z of zonasVenda()) if (z.nivel === n) r.push({ html: spr(39, 24), nome: z.nome, tipo: 'Terreno' });
         for (const a of S.animais_tipos || []) if (a.nivel_min === n) r.push({ html: spr(A.ANIMAL[a.id], 24), nome: a.nome, tipo: 'Animal' });
+        for (const t of S.ajudantes_tipos || []) if (t.nivel_min === n) r.push({ html: retratoAjudante(t.id, 24), nome: `${t.nome} (${t.papel.toLowerCase()})`, tipo: 'Ajudante' });
         for (const k of S.culturas) if (k.tipo === 'cultura' && k.nivel_min === n) r.push({ html: itemDe(k, 24), nome: k.nome, tipo: 'Semente' });
         for (const i of S.itens || []) {
             if (i.nivel_min !== n) continue;
@@ -343,6 +345,43 @@
     const tipoItem = (id) => (id === 'canteiro' ? ITEM_CANTEIRO : S && S.itens && S.itens.find((t) => t.id === id));
     const meusAnimais = () => (visita ? visita.animais : S && S.animais) || [];
     const naCeleiro = (item) => (S && S.celeiro[item]) || 0;
+
+    /* ---------- Ajudantes: pessoas contratadas que trabalham sozinhas ---------- */
+    const tipoAjudante = (id) => S && (S.ajudantes_tipos || []).find((t) => t.id === id);
+    const meuAjudante = (id) => S && (S.ajudantes || []).find((h) => h.tipo === id);
+    const RITMO = [0, 4, 12, 36];                                  // tarefas por hora (igual a fazenda_ritmo)
+    const custoAjudante = (t, nivel) => t.custo * [1, 2, 4][nivel || 0];   // contratar, nível 2, nível 3
+    const retratoAjudante = (id, px) => {
+        const a = A.AJUDANTE_ARTE[id] || { p: 'factory', i: 120 };
+        return spr(a.i, px, a.p);
+    };
+    function areaAjudante(t) {
+        if (t.funcao !== 'animal') return 'campo';
+        return ['galinha', 'pato', 'coelho'].includes(t.alvo) ? 'galinheiro' : 'pasto';
+    }
+    function visualAjudantes() {
+        if (!S || visita) return [];
+        return (S.ajudantes || []).map((h) => {
+            const t = tipoAjudante(h.tipo);
+            return t ? { id: 'h:' + h.tipo, tipo: h.tipo, area: areaAjudante(t) } : null;
+        }).filter(Boolean);
+    }
+    function descreverAjudante(id) {
+        const t = tipoAjudante(id), h = meuAjudante(id);
+        if (!t || !h) return;
+        mostrarStatus(`${retratoAjudante(id, 22)} <b>${esc(t.nome)}</b>, ${esc(t.papel.toLowerCase())} nível ${h.nivel}: ${esc(t.descricao)} (${RITMO[h.nivel]} por hora)`);
+    }
+    // o que os ajudantes fizeram desde a última olhada (vem uma vez só do servidor)
+    function avisarAjudantes(estado) {
+        const UNIDADE = { colher: ['colheu', 'canteiros'], arar: ['arou', 'canteiros'], plantar: ['plantou', 'canteiros'], cuidar: ['resolveu', 'problemas'], animal: ['fez', 'tarefas'] };
+        const partes = (estado.ajudantes || []).filter((h) => h.relatorio > 0).map((h) => {
+            const t = (estado.ajudantes_tipos || []).find((x) => x.id === h.tipo);
+            if (!t) return '';
+            const [verbo, coisa] = UNIDADE[t.funcao];
+            return `${esc(t.nome)} ${verbo} ${h.relatorio} ${h.relatorio === 1 ? coisa.replace(/s$/, '') : coisa}`;
+        }).filter(Boolean);
+        if (partes.length) toast(`${retratoAjudante((estado.ajudantes.find((h) => h.relatorio > 0) || {}).tipo, 20)} Seus ajudantes trabalharam: ${partes.join(' · ')}`);
+    }
 
     /* ---------- Ração reservada no celeiro (o "vender" não leva) ---------- */
     const reservaDe = (item) => (S && S.reservas && S.reservas[item]) || 0;
@@ -492,6 +531,7 @@
     });
     cena.definirVisual(visualCanteiro);
     cena.definirAnimais(visualAnimais);
+    cena.definirAjudantes(visualAjudantes);
     cena.definirConstrucoes(visualConstrucoes);
     cena.definirCanteiros(() => ((visita || S) ? (visita || S).canteiros : DEMO_CANTEIROS));
 
@@ -801,6 +841,7 @@
     }
 
     function descreverAnimal(id) {
+        if (typeof id === 'string' && id.startsWith('h:')) return descreverAjudante(id.slice(2));
         const a = meusAnimais().find((x) => x.id === id);
         if (!a) return;
         const i = infoAnimal(a);
@@ -823,6 +864,7 @@
 
     function clicarAnimal(id) {
         if (!S || painelAtual || visita) return;
+        if (typeof id === 'string' && id.startsWith('h:')) return descreverAjudante(id.slice(2));
         descreverAnimal(id);
         const a = S.animais.find((x) => x.id === id);
         if (!a) return;
@@ -899,6 +941,7 @@
             else toast(`${ico('xp', 20)} Nível ${estado.jogador.nivel}! Toque no seu perfil (lá em cima) para ver o que liberou.`, 'festa');
         }
         avisarDiario();
+        avisarAjudantes(estado);
         atualizarTerreno();
         desenharHud();
         if (constr.ativo) desenharPaleta();
@@ -1240,11 +1283,12 @@
             if (!soAtualizar) tutorialEvento('loja');
             el.painelTitulo.innerHTML = `${spr(9, 32)} Loja`;
             const abas = `<div class="painel-abas" role="tablist">
-                ${[['sementes', 'Sementes'], ['animais', 'Animais'], ['terrenos', 'Terrenos']].map(([id, txt]) =>
+                ${[['sementes', 'Sementes'], ['animais', 'Animais'], ['ajudantes', 'Ajudantes'], ['terrenos', 'Terrenos']].map(([id, txt]) =>
                     `<button type="button" role="tab" data-aba-loja="${id}" class="${abaLoja === id ? 'ativa' : ''}">${txt}</button>`).join('')}
             </div>`;
             if (abaLoja === 'animais') corpo.innerHTML = abas + htmlLojaAnimais();
             else if (abaLoja === 'terrenos') corpo.innerHTML = abas + htmlLojaTerrenos();
+            else if (abaLoja === 'ajudantes') corpo.innerHTML = abas + htmlLojaAjudantes();
             else corpo.innerHTML = abas + htmlLojaSementes();
         } else if (nome === 'missoes') {
             el.painelTitulo.innerHTML = `${ico('missao', 26)} Missões do dia`;
@@ -1303,6 +1347,7 @@
                     <li>Os canteiros ficam onde você quiser: <b>Construir → Plantação</b> para colocar, <b>Mover</b> para mudar de lugar. Lado a lado eles viram fileiras.</li>
                     <li>Na loja, aba <b>Terrenos</b>, compre pedaços da mata em volta para a fazenda crescer (e ganhar +6 canteiros).</li>
                     <li>Todo item do Construir faz alguma coisa: evita seca, praga ou erva, adianta o crescimento, dá itens e XP extras, protege dos vizinhos ou aumenta a <b>beleza</b> (bônus nas vendas). Toque num item para ver o que ele faz.</li>
+                    <li>Na loja, aba <b>Ajudantes</b>: contrate pessoas que aram, plantam, cuidam, colhem e tratam dos animais sozinhas. Dá para evoluir cada uma até o nível 3.</li>
                     <li>A <b>amoreira</b> dá amoras sozinha: quando aparecer o balão, toque nela para colher.</li>
                     <li>Em <b>Construir → Máquinas</b>: irrigador, pulverizador e robô capinador evitam seca, pragas e ervas por perto; o alarme protege dos vizinhos; trator e colheitadeira ajudam na fazenda toda.</li>
                     <li>Na loja tem <b>animais</b>: dê ração (sai do celeiro) e colete ovos, leite e lã. No celeiro, <b>Reservar</b> guarda a ração deles para não ir junto no "Vender tudo".</li>
@@ -1468,6 +1513,29 @@
         }).join('') + '</div><p class="aviso">Toque no animal com fome para dar a ração (sai do seu celeiro) e volte para coletar o produto.</p>';
     }
 
+    function htmlLojaAjudantes() {
+        const tipos = S.ajudantes_tipos || [];
+        if (!tipos.length) return '<p class="vazio-msg">Os ajudantes chegam em breve.</p>';
+        return '<div class="lista">' + tipos.map((t) => {
+            const h = meuAjudante(t.id), nivel = h ? h.nivel : 0;
+            const travado = !h && t.nivel_min > S.jogador.nivel;
+            const estrelas = [1, 2, 3].map((n) => (n <= nivel ? '★' : '☆')).join('');
+            const ritmo = nivel ? `${RITMO[nivel]} por hora${nivel < 3 ? ` (nível ${nivel + 1}: ${RITMO[nivel + 1]})` : ''}` : `${RITMO[1]} por hora`;
+            const acao = travado ? `<span class="preco">Nível ${t.nivel_min}</span>`
+                : nivel >= 3 ? '<span class="preco">Nível máximo</span>'
+                : `<button type="button" class="botao pequeno verde" data-contratar="${esc(t.id)}">${nivel ? 'Evoluir' : 'Contratar'}<br>${ico('moeda', 14)} ${custoAjudante(t, nivel)}</button>`;
+            return `<div class="item${travado ? ' travada' : ''}">
+                <span class="ico">${travado ? ico('cadeado', 28) : retratoAjudante(t.id, 44)}</span>
+                <span>
+                    <span class="nome">${esc(t.nome)} <small class="qtd">${esc(t.papel)}</small></span>
+                    <span class="det"><span>${esc(t.descricao)}</span></span>
+                    <span class="det"><span class="estrelas">${nivel ? estrelas : ''}</span><span>${ritmo}</span></span>
+                </span>
+                ${acao}
+            </div>`;
+        }).join('') + '</div><p class="aviso">Ajudantes trabalham sozinhos, até com a fazenda fechada (guardam até 8 h de trabalho). Não dão XP: o XP é seu. Quem cuida de animais precisa de ração no celeiro.</p>';
+    }
+
     function htmlLojaTerrenos() {
         const lista = zonasVenda();
         if (!lista.length) return '<p class="vazio-msg">Os terrenos chegam em breve.</p>';
@@ -1611,6 +1679,22 @@
         if (abaL) {
             abaLoja = abaL.dataset.abaLoja;
             abrirPainel('loja', true);
+            return;
+        }
+        const contr = e.target.closest('[data-contratar]');
+        if (contr) {
+            const t = tipoAjudante(contr.dataset.contratar), h = meuAjudante(t.id);
+            if (S.jogador.moedas < custoAjudante(t, h ? h.nivel : 0)) return toast(ERROS.moedas_insuficientes, 'erro');
+            contr.disabled = true;
+            enfileirar([], async () => {
+                const r = await rpc('fazenda_contratar', { p_token: token, p_tipo: t.id });
+                aplicarEstado(r.estado);
+                toast(r.nivel === 1
+                    ? `${retratoAjudante(t.id, 22)} ${esc(t.nome)} começou a trabalhar na sua fazenda!`
+                    : `${retratoAjudante(t.id, 22)} ${esc(t.nome)} subiu para o nível ${r.nivel}: agora faz ${RITMO[r.nivel]} por hora.`, 'festa');
+                som.tocar('festa');
+                if (painelAtual === 'loja') abrirPainel('loja', true);
+            }).finally(() => { contr.disabled = false; });
             return;
         }
         const comp = e.target.closest('[data-comprar]');
