@@ -1851,3 +1851,15 @@ body.construindo .status {
 .convite-botoes a.botao {
     text-decoration: none;
 }
+
+/* ---------- A conta da semente (loja e celeiro) ---------- */
+.conta-semente {
+    display: block;
+    margin-top: 2px;
+    font-size: 13px;
+    color: var(--texto-suave);
+}
+
+.conta-semente b {
+    color: var(--grama-esc);
+}

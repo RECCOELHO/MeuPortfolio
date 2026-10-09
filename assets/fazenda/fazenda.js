@@ -1542,6 +1542,8 @@
 
     function executar(acao, posicoes, k) {
         return enfileirar(posicoes, async () => {
+            const antes = acao === 'colher' ? Object.fromEntries(posicoes.map((p) => [p, { ...canteiro(p) }])) : null;
+            let perdas = '';
             const r = await rpc('fazenda_acao', {
                 p_token: token,
                 p_acao: acao,
@@ -1549,11 +1551,13 @@
                 p_cultura: acao === 'plantar' ? k.id : null
             });
             if (acao === 'colher') {
+                const sol = climaAgora() === 'sol';
                 Object.entries(r.colhido).forEach(([pos, qtd], n) => {
                     const c = canteiro(Number(pos));
                     const kc = c && culturas[c.cultura];
-                    if (kc) flutuar(Number(pos), `+${qtd} ${itemDe(kc, 20)} +${kc.xp} ${ico('xp', 16)}`, n * 80);
+                    if (kc) flutuar(Number(pos), `+${qtd} ${itemDe(kc, 20)}${sol ? ` (+1 ${ico('sol', 14)})` : ''} +${kc.xp} ${ico('xp', 16)}`, n * 80);
                 });
+                perdas = textoPerdas(antes, r.colhido);
             } else if (r.feitos > 0) {
                 const fb = FEEDBACK[acao](k);
                 const feitos = posicoes.length === 1 ? posicoes : posicoes.filter((p) => !mesmoEstado(p, r.estado));
@@ -1562,10 +1566,29 @@
             if (r.feitos > 0 || Object.keys(r.colhido || {}).length) som.tocar(SOM_DA_ACAO[acao]);
             aplicarEstado(r.estado);
             tutorialEvento(acao);
-            if (posicoes.length > 1) resumoMassa(acao, r, k);
-            else descrever(posicoes[0]);
+            if (posicoes.length > 1) resumoMassa(acao, r, k, perdas);
+            else {
+                descrever(posicoes[0]);
+                if (perdas) toast(perdas);
+            }
             return r;
         });
+    }
+
+    // colheu menos que o normal? diz por quê (problemas deixados e o que vizinhos pegaram)
+    function textoPerdas(antes, colhido) {
+        let probs = 0, pegos = 0;
+        for (const pos of Object.keys(colhido || {})) {
+            const c = antes && antes[pos], kc = c && culturas[c.cultura];
+            if (!kc) continue;
+            const p = (c.erva ? 1 : 0) + (c.praga ? 1 : 0) + (c.seco ? 1 : 0);
+            const perdeu = Math.min(p + (c.roubado || 0), kc.rendimento - 1);   // sempre sobra 1
+            const doProb = Math.min(p, perdeu);
+            probs += doProb;
+            pegos += perdeu - doProb;
+        }
+        if (!probs && !pegos) return '';
+        return `Veio ${probs + pegos} a menos: ${[probs && `${probs} por erva, praga ou seca`, pegos && `${pegos} que vizinhos pegaram`].filter(Boolean).join(' e ')}.${probs ? ' Cuide dos canteiros antes de colher!' : ''}`;
     }
 
     function mesmoEstado(p, novo) {
@@ -1573,11 +1596,11 @@
         return a && b && a.estado === b.estado && a.cultura === b.cultura && a.erva === b.erva && a.praga === b.praga && a.seco === b.seco;
     }
 
-    function resumoMassa(acao, r, k) {
+    function resumoMassa(acao, r, k, perdas) {
         if (!r.feitos) return;
         if (acao === 'colher') {
             const total = Object.values(r.colhido).reduce((a, b) => a + b, 0);
-            toast(`${spr(35, 22)} Colheu ${total} itens de ${r.feitos} canteiro(s)!`);
+            toast(`${spr(35, 22)} Colheu ${total} itens de ${r.feitos} canteiro(s)!${perdas ? ' ' + perdas : ''}`);
         } else if (acao === 'plantar') {
             toast(`${itemDe(k)} Plantou ${r.feitos} × ${esc(k.nome.toLowerCase())}`);
         } else if (acao === 'arar') {
@@ -1786,6 +1809,7 @@
                         <span>
                             <span class="nome">${esc(k.nome)} × ${naCeleiro(k.id)}</span>
                             <span class="det"><span>${moeda(k.venda)} cada</span><span>${!reservaDe(k.id) ? `total ${moeda(livre * k.venda)}` : livre ? `vende ${livre}: ${moeda(livre * k.venda)}` : 'tudo guardado'}</span></span>
+                            ${k.tipo === 'cultura' ? `<span class="conta-semente">1 semente (${moeda(k.custo)}) rende ${k.rendimento} = ${moeda(k.rendimento * k.venda)}</span>` : ''}
                             ${come ? htmlReserva(k, come) : ''}
                         </span>
                         <button type="button" class="botao pequeno verde" data-vender="${esc(k.id)}"${livre ? '' : ' disabled'}>${livre || !naCeleiro(k.id) ? 'Vender' : 'Guardado'}</button>
@@ -1961,15 +1985,14 @@
                 <span>
                     <span class="nome">${esc(k.nome)}${k.estacao ? ` <small class="tag-estacao${daEstacao(k) ? ' agora' : temEstufa() ? ' estufa' : ''}">${daEstacao(k) ? 'da estação!' : temEstufa() ? 'só na estufa' : 'só ' + naEstacao(k.estacao) + (faltaParaEstacao(k.estacao) ? ' · em ' + fmtTempo(faltaParaEstacao(k.estacao)) : '')}</small>` : ''}</span>
                     <span class="det">
-                        <span>${fmtDuracao(k.tempo_seg)}</span>
-                        <span>colhe ${k.rendimento} × ${moeda(k.venda)}</span>
-                        <span>+${k.xp} ${ico('xp', 13)}</span>
-                        <span>lucro ${moeda(lucro)}</span>
+                        <span>cresce em ${fmtDuracao(k.tempo_seg)}</span>
+                        <span>+${k.xp} ${ico('xp', 13)} por colheita</span>
                     </span>
+                    <span class="conta-semente">1 semente (${moeda(k.custo)}) → colhe ${k.rendimento} × ${moeda(k.venda)} = ${moeda(k.rendimento * k.venda)} → <b>lucro +${lucro}</b></span>
                 </span>
                 <span class="preco">${k.nivel_min > S.jogador.nivel ? `Nível ${k.nivel_min}` : !podeEscolher(k) ? 'Fora de época' : `${ico('moeda', 16)} ${k.custo}`}</span>
             </button>`;
-        }).join('') + '</div><p class="aviso">Escolha uma semente e depois toque nos canteiros arados (ou em “Plantar tudo”).</p>';
+        }).join('') + '</div><p class="aviso">Uma semente planta um canteiro, que colhe vários. Cada erva, praga ou seca deixada no canteiro tira 1 da colheita. Escolha uma semente e toque nos canteiros arados (ou em “Plantar tudo”).</p>';
     }
 
     function htmlLojaAnimais() {
