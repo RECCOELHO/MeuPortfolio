@@ -62,6 +62,7 @@
         limite_animais: 'Você já tem o máximo desse animal.',
         terreno_max: 'Você já comprou todos os terrenos.',
         nivel_maximo: 'Esse ajudante já está no nível máximo.',
+        sem_ingredientes: 'Faltam ingredientes no celeiro (a ração reservada não entra na receita).',
         limite_canteiros: 'Você já usou todos os seus canteiros. Suba de nível ou compre terrenos para ter mais.',
         limite_maquina: 'Você já tem essa máquina (uma basta para a fazenda toda).',
         alarme: 'O alarme disparou! Esse canteiro está protegido.',
@@ -220,7 +221,7 @@
     const NIVEL_MAX = 15;
     const presenteNivel = (n) => 50 * n;
     const limiteCanteirosNivel = (n) => Math.min(6 + (n - 1) * 2, 34);
-    const ORDEM_TIPO = { Terreno: 0, Ajudante: 1, 'Máquina': 1, Animal: 2, Semente: 3, Casa: 4, Enfeite: 5 };
+    const ORDEM_TIPO = { Terreno: 0, Ajudante: 1, Oficina: 1, 'Máquina': 1, Animal: 2, Semente: 3, Casa: 4, Enfeite: 5 };
     function liberaNoNivel(n) {
         if (!S) return [];
         const r = [];
@@ -230,7 +231,7 @@
         for (const k of S.culturas) if (k.tipo === 'cultura' && k.nivel_min === n) r.push({ html: itemDe(k, 24), nome: k.nome, tipo: 'Semente' });
         for (const i of S.itens || []) {
             if (i.nivel_min !== n) continue;
-            const tipo = i.categoria === 'maquina' ? 'Máquina' : i.categoria === 'construcao' ? 'Casa' : 'Enfeite';
+            const tipo = i.categoria === 'maquina' ? 'Máquina' : i.categoria === 'oficina' ? 'Oficina' : i.categoria === 'construcao' ? 'Casa' : 'Enfeite';
             r.push({ html: A.htmlItem(i.id, 24), nome: i.nome, tipo });
         }
         return r.sort((a, b) => ORDEM_TIPO[a.tipo] - ORDEM_TIPO[b.tipo]);
@@ -449,14 +450,34 @@
     // item que produz sozinho (amoreira): pronto quando passou o tempo desde a última colheita
     function infoProducao(c) {
         const it = tipoItem(c.tipo);
-        if (!it || !it.produz) return null;
+        if (!it || !it.produz || it.entradas) return null;   // oficina tem regra própria
         const pronto = !c.colhido_em ? agora() : Date.parse(c.colhido_em) + it.produz_seg * 1000;
         return { it, falta: pronto - agora(), produto: culturas[it.produz] };
     }
+    /* ---------- Oficinas: transformam o que você colhe em produtos mais caros ---------- */
+    function infoOficina(c) {
+        const it = tipoItem(c.tipo);
+        if (!it || !it.entradas) return null;
+        const produto = culturas[it.produz] || { id: it.produz, nome: it.produz, xp: 0 };
+        if (!c.iniciado_em) return { it, produto, estado: 'parada' };
+        const falta = Date.parse(c.iniciado_em) + it.produz_seg * 1000 - agora();
+        if (falta <= 0) return { it, produto, estado: 'pronta' };
+        return { it, produto, estado: 'trabalhando', falta, progresso: 1 - falta / (it.produz_seg * 1000) };
+    }
+    // ingredientes que faltam (a ração reservada não conta)
+    const faltaParaReceita = (it) => Object.entries(it.entradas)
+        .map(([item, qtd]) => ({ item, falta: qtd - Math.max(0, naCeleiro(item) - reservaDe(item)) }))
+        .filter((f) => f.falta > 0);
+    const nomeItem = (id) => esc(((culturas[id] || {}).nome || id).toLowerCase());
+    const receitaHtml = (it) => Object.entries(it.entradas).map(([item, qtd]) => `${qtd} ${itemDe(culturas[item] || { id: item }, 16)}`).join(' + ') +
+        ` → ${itemDe(culturas[it.produz] || { id: it.produz }, 16)} (${fmtDuracao(it.produz_seg)})`;
+
     function visualConstrucoes() {
         if (!S) return DEMO_CONSTRUCOES;
         if (visita) return visita.construcoes || [];
         return (S.construcoes || []).map((c) => {
+            const o = infoOficina(c);
+            if (o) return { ...c, oficina: { estado: o.estado, progresso: o.progresso, produto: A.cultura(o.it.produz).item } };
             const p = infoProducao(c);
             return p && p.falta <= 0 ? { ...c, pronto: true, produto: A.cultura(p.it.produz).item } : c;
         });
@@ -478,8 +499,37 @@
         return [...vistos].map((e) => NOME_EFEITO[e]);
     }
 
+    function acaoOficina(c, o) {
+        if (o.estado === 'trabalhando') return;   // o status já mostra quanto falta
+        if (o.estado === 'parada') {
+            const falta = faltaParaReceita(o.it);
+            if (falta.length) return toast(`Faltam ingredientes: ${falta.map((f) => `${f.falta} ${nomeItem(f.item)}`).join(', ')}.`, 'erro');
+            // começa na hora; o servidor confirma
+            c.iniciado_em = new Date(agora()).toISOString();
+            Object.entries(o.it.entradas).forEach(([item, qtd]) => { S.celeiro[item] = naCeleiro(item) - qtd; });
+            som.tocar('construir');
+            enfileirar([], async () => {
+                const r = await rpc('fazenda_oficina', { p_token: token, p_x: c.x, p_y: c.y });
+                aplicarEstado(r.estado);
+                toast(`${A.htmlItem(c.tipo, 20)} ${esc(o.it.nome)} começou: ${nomeItem(o.it.produz)} pronto em ${fmtDuracao(o.it.produz_seg)}.`);
+                descreverConstrucao(c.x, c.y);
+            });
+            return;
+        }
+        c.iniciado_em = null;   // pronta: recolhe
+        som.tocar('colher');
+        enfileirar([], async () => {
+            const r = await rpc('fazenda_oficina', { p_token: token, p_x: c.x, p_y: c.y });
+            flutuarTile(c.x, c.y, `+${r.qtd} ${itemDe(o.produto, 20)} +${o.produto.xp} ${ico('xp', 14)}`);
+            aplicarEstado(r.estado);
+            descreverConstrucao(c.x, c.y);
+        });
+    }
+
     function coletarItem(x, y) {
         const c = (S.construcoes || []).find((k) => k.x === x && k.y === y);
+        const o = c && infoOficina(c);
+        if (o) return acaoOficina(c, o);
         const p = c && infoProducao(c);
         if (!p) return;
         if (p.falta > 0) return mostrarStatus(`${A.htmlItem(c.tipo, 22)} ${esc(p.it.nome)}: as próximas ${esc(p.produto.nome.toLowerCase())}s ficam prontas em ${fmtTempo(p.falta)}.`);
@@ -497,6 +547,15 @@
         const c = ((visita ? visita.construcoes : S.construcoes) || []).find((k) => k.x === x && k.y === y);
         const it = c && tipoItem(c.tipo);
         if (!it) return;
+        const o = !visita && infoOficina(c);
+        if (o) {
+            if (o.estado === 'pronta') return mostrarStatus(`${A.htmlItem(c.tipo, 22)} <b>${esc(it.nome)}</b>: ${nomeItem(o.it.produz)} pronto! Toque para pegar.`);
+            if (o.estado === 'trabalhando') return mostrarStatus(`${A.htmlItem(c.tipo, 22)} <b>${esc(it.nome)}</b>: ${nomeItem(o.it.produz)} pronto em ${fmtTempo(o.falta)}.`);
+            const falta = faltaParaReceita(o.it);
+            return mostrarStatus(`${A.htmlItem(c.tipo, 22)} <b>${esc(it.nome)}</b>: ${receitaHtml(o.it)}. ${falta.length
+                ? `Faltam ${falta.map((f) => `${f.falta} ${nomeItem(f.item)}`).join(', ')}.`
+                : 'Toque para começar.'}`);
+        }
         if (!visita) {
             const p = infoProducao(c);
             if (p) {
@@ -632,7 +691,7 @@
 
     function desenharPaleta() {
         if (!S || !S.itens) return;
-        const abas = [['plantacao', 'Plantação'], ['maquina', 'Máquinas'], ['caminho', 'Cercas e caminhos'], ['natureza', 'Natureza'], ['objeto', 'Objetos'], ['construcao', 'Casas']];
+        const abas = [['plantacao', 'Plantação'], ['oficina', 'Oficinas'], ['maquina', 'Máquinas'], ['caminho', 'Cercas e caminhos'], ['natureza', 'Natureza'], ['objeto', 'Objetos'], ['construcao', 'Casas']];
         el.constrAbas.innerHTML = abas.map(([id, txt]) =>
             `<button type="button" data-constr-aba="${id}" class="${constr.aba === id ? 'ativa' : ''}">${txt}</button>`).join('');
         const lista = constr.aba === 'plantacao' ? [ITEM_CANTEIRO] : S.itens.filter((i) => i.categoria === constr.aba);
@@ -1348,6 +1407,7 @@
                     <li>Na loja, aba <b>Terrenos</b>, compre pedaços da mata em volta para a fazenda crescer (e ganhar +6 canteiros).</li>
                     <li>Todo item do Construir faz alguma coisa: evita seca, praga ou erva, adianta o crescimento, dá itens e XP extras, protege dos vizinhos ou aumenta a <b>beleza</b> (bônus nas vendas). Toque num item para ver o que ele faz.</li>
                     <li>Na loja, aba <b>Ajudantes</b>: contrate pessoas que aram, plantam, cuidam, colhem e tratam dos animais sozinhas. Dá para evoluir cada uma até o nível 3.</li>
+                    <li>Em <b>Construir → Oficinas</b> tem padaria, queijaria, pipocaria e outras: toque nela para começar (gasta os ingredientes do celeiro) e de novo quando o produto ficar pronto. Produtos de oficina valem mais que os ingredientes.</li>
                     <li>A <b>amoreira</b> dá amoras sozinha: quando aparecer o balão, toque nela para colher.</li>
                     <li>Em <b>Construir → Máquinas</b>: irrigador, pulverizador e robô capinador evitam seca, pragas e ervas por perto; o alarme protege dos vizinhos; trator e colheitadeira ajudam na fazenda toda.</li>
                     <li>Na loja tem <b>animais</b>: dê ração (sai do celeiro) e colete ovos, leite e lã. No celeiro, <b>Reservar</b> guarda a ração deles para não ir junto no "Vender tudo".</li>
