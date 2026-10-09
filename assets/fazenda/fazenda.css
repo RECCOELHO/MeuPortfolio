@@ -1814,3 +1814,11 @@ body.construindo .status {
     font-size: 40px;
     font-weight: 900;
 }
+
+/* ---------- Balão de mensagem logo acima da barra de baixo ----------
+   A altura vem de ajustarMargens (fazenda.js): a barra do modo construir no celular é
+   bem mais alta que a normal, e um valor fixo deixava o texto escondido atrás dela. */
+.status,
+body.construindo .status {
+    bottom: var(--status-fundo, 96px);
+}

@@ -1062,13 +1062,26 @@
         }
     }
 
+    const barraDeBaixo = () => (!el.barraConstr.hidden ? el.barraConstr : el.barra.hidden ? null : el.barra);
+    const alturaDe = (barra) => (barra ? window.innerHeight - barra.getBoundingClientRect().top : 0);
     function ajustarMargens() {
         const topo = el.hud.hidden ? 24 : el.hud.getBoundingClientRect().bottom + 8;
-        const barra = !el.barraConstr.hidden ? el.barraConstr : el.barra.hidden ? null : el.barra;
-        const base = barra ? window.innerHeight - barra.getBoundingClientRect().top + 44 : 24;
-        cena.definirMargens(Math.round(topo), Math.round(base));
+        const barra = barraDeBaixo();
+        cena.definirMargens(Math.round(topo), Math.round(barra ? alturaDe(barra) + 44 : 24));
+        posicionarStatus();
+    }
+    // o balão de mensagem fica sempre logo acima da barra de baixo, seja qual for a altura dela
+    function posicionarStatus() {
+        const barra = barraDeBaixo();
+        document.documentElement.style.setProperty('--status-fundo', `${Math.round(barra ? alturaDe(barra) + 10 : 24)}px`);
     }
     window.addEventListener('resize', ajustarMargens);
+    // a barra muda de altura (abas que quebram linha, visita...): só o balão acompanha (a câmera fica)
+    if ('ResizeObserver' in window) {
+        const ro = new ResizeObserver(posicionarStatus);
+        ro.observe(el.barra);
+        ro.observe(el.barraConstr);
+    }
 
     /* ---------- HUD e status ---------- */
     function desenharHud() {
