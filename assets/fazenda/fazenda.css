@@ -1639,6 +1639,35 @@ body.construindo .status {
     display: none;
 }
 
+/* energia (nível 16+) */
+.hud-energia {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    padding: 6px 9px;
+    font-size: 15px;
+    color: var(--texto);
+    cursor: pointer;
+    border: 0;
+}
+
+.hud-energia small {
+    opacity: .6;
+}
+
+.hud-energia.vazia b {
+    color: #b13e53;
+}
+
+.hud-energia[hidden] {
+    display: none;
+}
+
+.tag-estacao.estufa {
+    color: #fff;
+    background: #6b2f74;
+}
+
 .tag-estacao {
     margin-left: 4px;
     padding: 0 5px;
@@ -1659,8 +1688,14 @@ body.construindo .status {
         padding: 6px 7px;
     }
 
-    .hud-clima span {
+    .hud-clima span,
+    .hud-energia small {
         display: none;
+    }
+
+    .hud-energia {
+        flex: none;
+        padding: 6px 7px;
     }
 
     .xp-txt {

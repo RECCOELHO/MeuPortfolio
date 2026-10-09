@@ -133,7 +133,9 @@
         X: '#d9452f', Z: '#9e2a1f', U: '#9b4ca3', V: '#6b2f74', B: '#79a7e8', c: '#f28462',
         b: '#c34b35', v: '#4e974c', h: '#84c669', n: '#b4673a',
         // plantas da estação
-        O: '#f0a04b', N: '#c96b28', L: '#3e8948', M: '#9fd06c', r: '#e8434a', s: '#fbe7a1', C: '#b9e08a', D: '#6aa84f'
+        O: '#f0a04b', N: '#c96b28', L: '#3e8948', M: '#9fd06c', r: '#e8434a', s: '#fbe7a1', C: '#b9e08a', D: '#6aa84f',
+        // máquinas elétricas
+        E: '#3b5dc9', F: '#29366f', K: '#566c86', W: '#a7f070'
     };
     const PROPRIA = [
         // 0 porco
@@ -187,7 +189,25 @@
         // 19 repolho (planta)
         ['................', '................', '................', '................', '.....aaaaaa.....', '...aaCCDCCCaa...', '..aCCDCCCDCCCa..', '.aCDCCCDDCCCDCa.', '.aCDCCDCCDCCDCa.', '.aDCCDCCCCDCCDa.', '..aDCDCCCCDCDa..', '..avvaaaaaavva..', '..avva....avva..', '...aa......aa...', '................', '................'],
         // 20 repolho
-        ['................', '................', '................', '................', '.....aaaaaa.....', '...aaCCDCCCaa...', '..aCCDCCCDCCCa..', '.aCDCCCDDCCCDCa.', '.aCDCCDCCDCCDCa.', '.aDCCDCCCCDCCDa.', '..aDCDCCCCDCDa..', '...aaDDDDDDaa...', '.....aaaaaa.....', '................', '................', '................']
+        ['................', '................', '................', '................', '.....aaaaaa.....', '...aaCCDCCCaa...', '..aCCDCCCDCCCa..', '.aCDCCCDDCCCDCa.', '.aCDCCDCCDCCDCa.', '.aDCCDCCCCDCCDa.', '..aDCDCCCCDCDa..', '...aaDDDDDDaa...', '.....aaaaaa.....', '................', '................', '................'],
+        // 21 painel solar
+        ['................', '................', '................', '.aaaaaaaaaaaaa..', '.aBBEFBBEFBBEa..', '.aBEEFBEEFBEEa..', '.aFFFFFFFFFFFa..', '.aBEEFBEEFBEEa..', '.aEEEFEEEFEEEa..', '.aaaaaaaaaaaaa..', '......aKa.......', '......aKa.......', '......aKa.......', '....aaaKaaa.....', '....aKKKKKa.....', '....aaaaaaa.....'],
+        // 22 turbina (torre)
+        ['......adfa......', '......adfa......', '......adfa......', '......adfa......', '......adfa......', '.....addfla.....', '.....addfla.....', '.....addfla.....', '.....addfla.....', '.....addfla.....', '.....addfla.....', '.....adeela.....', '.....adeela.....', '....aadddlaa....', '...alllllllla...', '...aaaaaaaaaa...'],
+        // 23 turbina (hélice 1)
+        ['......adda......', '......adda......', '......adda......', '......adda......', '......adda......', '......adda......', '......aKKa......', '....aadKKdaa....', '...adddddddda...', '.aadddadfadddaa.', 'adddaaadfaadddda', 'adaa..adfa.aadda', '.a....adfa...aa.', '......adfa......', '......adfa......', '......adfa......'],
+        // 24 turbina (hélice 2)
+        ['................', '................', '.aa..........aa.', 'addaa......aadda', 'adddda....adddda', '.aadddaaaadddaa.', '...adddKKddaa...', '....aadKKaa.....', '......adda......', '......adda......', '......adda......', '......adda......', '......adfa......', '......adfa......', '......adfa......', '......adfa......'],
+        // 25 estufa elétrica
+        ['................', '................', '................', '.....aaaaaa.....', '....adBGGBfa....', '...adfBBBBfBa...', '..aBdfBBBBfBBa..', '..adfffffffffa..', '.aBBBfBBBBfBBBa.', '.aBBvfBBvBfBvBa.', '.aBvhvBvhvfvhBa.', '.aBBBfhBBBhBBBa.', 'alllllllllllllla', 'aKKKKKKKKKKKKKKa', 'aKKKKKKKKKKKKKKa', '.aaaaaaaaaaaaaa.'],
+        // 26 reator (cima, esq.)
+        ['........dddddd..', '.......dffffddd.', '......ddddddddd.', '.....dddddfffff.', '......ffff.fff..', '..aaaaaffaaaaaaa', '.allllllllllllll', '..adddffffffflll', '..adddffffffflll', '...addffffffflll', '...allllllllllll', '...adddfffffllll', '....addfffffllla', '....addfffffllla', '.....adffffflla.', '.....adffffflla.'],
+        // 27 reator (cima, dir.)
+        ['................', '................', '................', '................', '................', 'aa..............', 'lla.............', 'la..............', 'la..............', 'a...............', 'a...............', 'a...............', '................', '.........a......', '......aaafaaa...', '.....adfffffla..'],
+        // 28 reator (baixo, esq.)
+        ['.....addfffflla.', '.....addfffflla.', '.....addfffflla.', '.....addfffflla.', '.....addfffflla.', '.....addfffflla.', '.....addfffflla.', '.....addfffflla.', '.....addfffflla.', '.....adffffflla.', '....addfffffllla', '...adddfffffflll', '...addffffffflll', '..adddffffffflll', '.adddfffffffffll', '..aaaaaaaaaaaaaa'],
+        // 29 reator (baixo, dir.)
+        ['....addffffflla.', '....affffffflla.', '...affffffffllla', '...affffffffllla', '...allllllllKKKa', '...allllllllKKKa', '...alWllggglKWKa', '...alWlgegegKWKa', '...alllggeggKKKa', '...alllgggggKKKa', '...allllgeglKKKa', 'a..allllllllKKKa', 'a..allllllllKKKa', 'la.aKKKKKKKKKKKa', 'llaaKKKKKKKKKKKa', 'aa..aaaaaaaaaaa.']
     ];
     const atlasProprio = document.createElement('canvas');
     atlasProprio.width = 12 * 16;
@@ -209,6 +229,8 @@
         semeadora: { ...MOCA, ferramenta: 10 }, patinheiro: { ...MOCO, ferramenta: 1003 },
         pastora: { ...MOCA, ferramenta: 74 }, porqueiro: { ...MOCO, ferramenta: 79 }
     };
+
+    let quadroHelice = 0;   // a turbina eólica gira (troca a cada poucos quadros)
 
     /* ---------- Arte dos itens construíveis ----------
        p = pacote, i = tile, topo = tile de cima (árvores altas), auto = encaixe automático */
@@ -259,6 +281,18 @@
             case 'robo_capina': return { p: 'factory', i: 110 };
             case 'trator': return { p: 'factory', i: 98 };
             case 'colheitadeira': return { p: 'factory', i: 100 };
+            // energia (nível 16+): arte própria e Tiny Factory
+            case 'painel_solar': return { p: 'farm', i: 1021 };
+            case 'bateria': return { p: 'factory', i: 84 };
+            case 'turbina': return { p: 'farm', i: 1022, topo: quadroHelice ? 1024 : 1023 };
+            case 'estufa': return { p: 'farm', i: 1025 };
+            case 'gerador_bio': return { p: 'factory', i: 75 };
+            case 'triturador': return { p: 'factory', i: 101 };
+            case 'supercap': return { p: 'factory', i: 86 };
+            case 'fabrica_auto': return { p: 'factory', w: 2, h: 2, grade: [[76, 77], [88, 89]] };
+            case 'robo_colheita': return { p: 'factory', i: 108 };
+            case 'aspersor': return { p: 'factory', i: 94 };
+            case 'reator': return { p: 'farm', w: 2, h: 2, grade: [[1026, 1027], [1028, 1029]] };
             default: return { p: 'farm', i: 89 };
         }
     }
@@ -303,6 +337,7 @@
         nuvem: ['....ooo....', '...owwwo...', '.oowwwwwoo.', 'owwwwwwwwso', 'owwwwwwwsso', '.ossssssso.', '..ooooooo..'],
         chuva: ['....ooo....', '...owwwo...', '.oowwwwwoo.', 'owwwwwwwsso', '.ossssssso.', '..ooooooo..', '..b..b..b..', '.b..b..b...'],
         vento: ['.....SSS...', 'SSSSSS..S..', '........S..', '.SSSSSSSS..', '...........', 'SSSSSSS....', '.......S...', '......S....'],
+        raio: ['...oooo', '..oyyyo', '..oyyo.', '.oyyo..', '.oyyyyo', 'oyyyyo.', 'ooyyo..', '..oyo..', '.oyo...', '.oo....'],
         coracao: ['.oo.oo.', 'orrorRo', 'orwrrRo', 'orrrrRo', '.orrRo.', '..oRo..', '...o...'],
         missao: ['ooooooo.', 'okkkkkko', 'okoooko.', 'okkkkkko', 'okoooko.', 'okkkkkko', 'okooko..', 'okkkkko.', 'oooooo..'],
         mover: ['....o....', '...oko...', '..okkko..', '....o....', 'oko.o.oko', 'okkoooko.', 'oko.o.oko', '....o....', '..okkko..', '...oko...', '....o....'],
@@ -996,6 +1031,7 @@
 
         function desenhar(tempo) {
             sincronizarAnimais();
+            quadroHelice = Math.floor(tempo / (clima === 'vento' ? 90 : 200)) % 2;   // venta mais, gira mais
             q.drawImage(fundo, 0, 0);
 
             const lista = construcoesFn() || [];
@@ -1046,6 +1082,17 @@
                 q.globalAlpha = 1;
                 if (of.estado === 'trabalhando') barraProgresso(bx + 4, by + 19, of.progresso || 0);
                 if (pronta && Math.floor(tempo / 300) % 3) icone(q, 'brilho', bx + 17, by - 3);
+            }
+            for (const c of lista) {
+                if (!c.ligado) continue;   // gerador a biomassa queimando milho: fumacinha
+                for (let k = 0; k < 3; k++) {
+                    const f = ((tempo / 900) + k / 3) % 1;
+                    q.globalAlpha = 0.85 * (1 - f);
+                    q.fillStyle = k === 1 ? '#8b9bb4' : '#c0cbdc';   // uma das bolinhas mais escura
+                    const tam = 3 + Math.round(f * 3);
+                    q.fillRect(Math.round(wx(c.x) + 9 + Math.sin(f * 6 + k) * 2), Math.round(wy(c.y) + 1 - f * 14), tam, tam);
+                }
+                q.globalAlpha = 1;
             }
             for (const c of lista) {
                 if (!c.pronto || c.produto == null) continue;
