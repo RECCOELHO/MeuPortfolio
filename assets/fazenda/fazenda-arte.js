@@ -885,6 +885,13 @@
             clara: { borda: '#cf8254', miolo: '#eaa56c', ponto: '#cf8254', brilho: '#fec99c' },
             arada: { borda: '#b86542', miolo: '#cf8254', ponto: '#b86542', brilho: '#eaa56c' }
         };
+        // . grama, b borda, c miolo (copiados das peças 60 e 62, encostados na borda do bloco)
+        const CANTOS = {
+            cimaEsq: ['....bb', '..bbbb', '.bbbcc', '.bbccc', 'bbbccc'],
+            cimaDir: ['bb....', 'bbbb..', 'ccbbb.', 'cccbb.', 'cccbbb'],
+            baixoEsq: ['bbbbcc', '.bbbbb', '.bbbbb', '..bbbb', '....bb'],
+            baixoDir: ['ccbbbb', 'bbbbb.', 'bbbbb.', 'bbbb..', 'bb....']
+        };
         function desenharTerra(c, escuro, mc) {
             const viz = (dx, dy) => mc.has((c.x + dx) + ',' + (c.y + dy));
             const cima = viz(0, -1), baixo = viz(0, 1), esq = viz(-1, 0), dir = viz(1, 0);
@@ -904,12 +911,15 @@
             const sorteia = (a, b) => { r = (r * 1103515245 + 12345) >>> 0; return a + (r >>> 8) % Math.max(1, b - a); };
             for (let k = 0; k < 3; k++) pinta(sorteia(m0 + 1, m1 - 2), sorteia(n0 + 1, n1 - 1), 2, 1, cor.ponto);
             pinta(sorteia(m0 + 1, m1 - 1), sorteia(n0 + 1, n1 - 1), 1, 1, cor.brilho);
-            // cantos de fora arredondados (3 pixels, como as pontas das tiras do pacote)
-            const canto = (px, py, sx, sy) => { grama(px, py, 2, 1); grama(sx > 0 ? px : px + 1, py + sy, 1, 1); };
-            if (!cima && !esq) canto(x0, y0, 1, 1);
-            if (!cima && !dir) canto(x1 - 2, y0, -1, 1);
-            if (!baixo && !esq) canto(x0, 15, 1, -1);
-            if (!baixo && !dir) canto(x1 - 2, 15, -1, -1);
+            // cantos de fora arredondados: o mesmo desenho das pontas das tiras do pacote (60 e 62)
+            const canto = (px, py, linhas) => linhas.forEach((l, dy) => [...l].forEach((ch, dx) => {
+                if (ch === '.') grama(px + dx, py + dy, 1, 1);
+                else pinta(px + dx, py + dy, 1, 1, ch === 'b' ? cor.borda : cor.miolo);
+            }));
+            if (!cima && !esq) canto(2, 4, CANTOS.cimaEsq);
+            if (!cima && !dir) canto(8, 4, CANTOS.cimaDir);
+            if (!baixo && !esq) canto(2, 11, CANTOS.baixoEsq);
+            if (!baixo && !dir) canto(8, 11, CANTOS.baixoDir);
             // cantos de dentro (vizinho dos dois lados, mas não na diagonal): a borda dobra
             if (cima && esq && !viz(-1, -1)) { grama(0, 0, 2, 4); pinta(2, 0, 3, 6, cor.borda); pinta(0, 4, 5, 2, cor.borda); }
             if (cima && dir && !viz(1, -1)) { grama(14, 0, 2, 4); pinta(11, 0, 3, 6, cor.borda); pinta(11, 4, 5, 2, cor.borda); }
