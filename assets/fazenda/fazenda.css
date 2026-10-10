@@ -1981,3 +1981,27 @@ body.construindo .status {
 .item.travado {
     opacity: .6;
 }
+
+/* ---------- Visita na porteira ---------- */
+.visita-topo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 18px;
+}
+
+.visita-topo small {
+    display: block;
+    font-size: 13px;
+    opacity: .75;
+}
+
+.fala {
+    position: relative;
+    margin: 12px 0;
+    padding: 10px 12px;
+    border: 2px solid var(--o);
+    border-radius: 8px;
+    background: #fff;
+    font-size: 16px;
+}

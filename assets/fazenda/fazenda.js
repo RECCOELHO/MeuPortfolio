@@ -68,6 +68,9 @@
         nivel_maximo: 'Esse ajudante já está no nível máximo.',
         sem_ingredientes: 'Faltam ingredientes no celeiro (a ração reservada não entra na receita).',
         estoque_cheio: 'O estoque dessa oficina está cheio (10 receitas).',
+        sem_visita: 'A visita já foi embora. Outra chega daqui a pouco.',
+        falta_pedido: 'Ainda não tem o bastante no celeiro para esse pedido.',
+        sem_canteiros_crescendo: 'Não tem canteiro crescendo para adubar: plante primeiro.',
         estoque_vazio: 'Não tem nada no estoque para tirar.',
         fora_de_estacao: 'Essa semente é de outra estação. Espere a época dela (ou plante perto de uma estufa elétrica).',
         sem_energia: 'Sem energia nas baterias. Construa geradores (painel solar, turbina...) e espere carregar.',
@@ -853,6 +856,86 @@
         for (const [tipo, alvos] of Object.entries(obras)) cena.ajudanteTrabalhou(tipo, alvos);
     }
 
+    /* ---------- Visitas na porteira: a cada 3 horas chega alguém (fazenda_visitante) ---------- */
+    const VISITAS = {
+        feirante: { nome: 'Seu Tonico', papel: 'o feirante', sprite: 40,
+            fala: (q, item, paga) => `Bom dia! Tô precisando de <b>${q} ${item}</b> pra banca da feira. Pago <b>${paga}</b>, bem mais que no celeiro!` },
+        doceira: { nome: 'Dona Benta', papel: 'a doceira', sprite: 41,
+            fala: (q, item, paga) => `Ô de casa! Vou fazer uma fornada e me faltam <b>${q} ${item}</b>. Te pago <b>${paga}</b>, combinado?` },
+        caminhoneiro: { nome: 'Zeca', papel: 'do caminhão', sprite: 42,
+            fala: (q, item, paga) => `E aí! O caminhão tá vazio: levo <b>${q} ${item}</b> de uma vez só. Pago <b>${paga}</b> e ainda dou um bônus de XP.` },
+        mascate: { nome: 'Dona Fia', papel: 'a mascate', sprite: 43 }
+    };
+    const visitaAgora = () => (!visita && S && S.visitante) || null;
+    const nomeQtd = (k, n) => { const nome = (k.nome || k.id).toLowerCase(); return n === 1 || /s$/.test(nome) ? nome : nome.replace(/(ão)$/, 'ões').replace(/([^s])$/, '$1s'); };
+    let visitaVista = null;
+    function atualizarVisitante() {
+        const v = visitaAgora();
+        cena.definirVisitante(v ? { tipo: v.tipo, item: v.item ? A.cultura(v.item).item : null } : null);
+        if (v && visitaVista !== null && visitaVista !== v.slot) {
+            const p = VISITAS[v.tipo];
+            toast(`${spr(1000 + p.sprite, 22)} Chegou visita na porteira: <b>${p.nome}</b>, ${p.papel}! Toque nela para conversar.`);
+        }
+        visitaVista = v ? v.slot : (visitaVista === null ? 0 : visitaVista);
+    }
+    function descreverVisitante() {
+        const v = visitaAgora();
+        if (!v) return;
+        const p = VISITAS[v.tipo], k = v.item && culturas[v.item];
+        mostrarStatus(`${spr(1000 + p.sprite, 22)} <b>${p.nome}</b>, ${p.papel}: ` + (v.tipo === 'mascate'
+            ? `vende adubo para ${v.canteiros} canteiros por ${moeda(v.preco)}.`
+            : `quer ${v.qtd} ${k ? itemDe(k, 16) + esc(nomeQtd(k, v.qtd)) : ''} e paga ${moeda(v.paga)}.`) + ' Toque para conversar.');
+    }
+    // canteiros que a mascate aduba agora (crescendo e ainda sem adubo)
+    const canteirosParaAdubo = () => (S.canteiros || []).filter((c) => !c.adubado && info(c).fase === 'crescendo').length;
+    function htmlVisitante(v) {
+        const p = VISITAS[v.tipo], ate = hora(v.ate);
+        const cabeca = `<div class="visita-topo">${spr(1000 + p.sprite, 64)}<div><b>${p.nome}</b>, ${p.papel}<small>fica até ${ate}</small></div></div>`;
+        if (v.tipo === 'mascate') {
+            const n = Math.min(v.canteiros, canteirosParaAdubo()), preco = Math.ceil(v.preco * n / v.canteiros);
+            return `${cabeca}
+                <p class="fala">Psiu! Adubo da boa, direto da serra: aduba até <b>${v.canteiros} canteiros</b> que estão crescendo, e cada um dá <b>+1 item</b> na colheita. Sai por <b>${v.preco}</b> ${ico('moeda', 14)} os ${v.canteiros}.</p>
+                <p class="det">${n ? `Agora dá para adubar ${n} canteiro(s): você paga ${moeda(preco)}.` : 'Você não tem canteiro crescendo sem adubo agora: plante e volte a falar com ela.'}</p>
+                <div class="rodape-painel">
+                    <button type="button" class="botao creme" data-atender="0">Agora não</button>
+                    <button type="button" class="botao verde" data-atender="1"${n && S.jogador.moedas >= preco ? '' : ' disabled'}>${spr(1044, 18)} Comprar adubo</button>
+                </div>`;
+        }
+        const k = culturas[v.item] || { id: v.item, nome: v.item, venda: 0 }, tem = Math.max(0, naCeleiro(v.item) - reservaDe(v.item));
+        const valeCeleiro = v.qtd * (k.venda || 0), mais = valeCeleiro ? Math.round((v.paga / valeCeleiro - 1) * 100) : 0;
+        return `${cabeca}
+            <p class="fala">${p.fala(v.qtd, `${itemDe(k, 18)} ${esc(nomeQtd(k, v.qtd))}`, `${v.paga} ${ico('moeda', 14)}`)}</p>
+            <div class="oficina-conta">
+                <span>No celeiro valeria ${moeda(valeCeleiro)}</span>
+                <span class="lucro">Paga ${moeda(v.paga)} (+${mais}%) e ${v.xp} ${ico('xp', 12)}</span>
+            </div>
+            <p class="det">Você tem ${tem} ${itemDe(k, 16)}${reservaDe(v.item) ? ' (fora o reservado para os bichos)' : ''}${tem < v.qtd ? `: faltam ${v.qtd - tem}.` : '.'}</p>
+            <div class="rodape-painel">
+                <button type="button" class="botao creme" data-atender="0">Agora não</button>
+                <button type="button" class="botao verde" data-atender="1"${tem >= v.qtd ? '' : ' disabled'}>Entregar ${v.qtd} ${itemDe(k, 18)}</button>
+            </div>`;
+    }
+    function atender(entregar) {
+        const v = visitaAgora();
+        if (!v) return fecharPainel();
+        fecharPainel();
+        S.visitante = null;        // ela já vai embora andando; o servidor confirma
+        atualizarVisitante();
+        enfileirar([], async () => {
+            const r = await rpc('fazenda_atender', { p_token: token, p_entregar: entregar });
+            const p = VISITAS[v.tipo];
+            if (r.resposta === 'entregou') {
+                som.tocar(v.tipo === 'mascate' ? 'cuidar' : 'moeda');
+                toast(v.tipo === 'mascate'
+                    ? `${spr(1044, 20)} ${p.nome} adubou ${r.adubados} canteiro(s): +1 item na colheita de cada.`
+                    : `${spr(1000 + p.sprite, 20)} ${p.nome} levou o pedido: +${v.paga} ${ico('moeda', 14)} +${v.xp} ${ico('xp', 14)}`, 'festa');
+            } else {
+                toast(`${spr(1000 + p.sprite, 20)} ${p.nome} foi embora. Daqui a pouco chega outra visita.`);
+            }
+            aplicarEstado(r.estado);
+        });
+    }
+
     /* ---------- Galinheiro: cresce com os bichos pequenos (igual a fazenda_galinheiro_linhas) ---------- */
     function linhasGalinheiro(fonte) {
         const n = (fonte.animais || []).filter((a) => ['galinha', 'pato', 'coelho'].includes(a.tipo)).length;
@@ -1160,6 +1243,7 @@
         aoCeleiro: () => { if (S && !painelAtual) abrirPainel('celeiro'); },
         aoVenda: () => { if (S && !painelAtual) { abaLoja = 'terrenos'; abrirPainel('loja'); } },
         aoLago: () => { if (S && !painelAtual && !visita) pescar(); },
+        aoVisitante: () => { if (S && !painelAtual && visitaAgora()) abrirPainel('visitante'); },
         aoConstrucao: (x, y) => {
             if (!S || painelAtual) return;
             descreverConstrucao(x, y);
@@ -1172,6 +1256,7 @@
             if (alvo === 'celeiro') mostrarStatus(`${spr(11, 22)} Celeiro: toque para ver e vender a colheita.`);
             else if (alvo === 'venda') descreverVenda();
             else if (alvo === 'lago') descreverLago();
+            else if (alvo === 'visitante') descreverVisitante();
             else if (typeof alvo === 'object' && alvo.construcao) descreverConstrucao(alvo.construcao.x, alvo.construcao.y);
             else if (typeof alvo === 'object' && 'tx' in alvo) descreverTile(alvo.tx, alvo.ty);
             else if (typeof alvo === 'object') descreverAnimal(alvo.animal);
@@ -1647,6 +1732,7 @@
         atualizarBotaoAnuncio();
         atualizarLago();
         atualizarGalinheiro();
+        atualizarVisitante();
         atualizarTerreno();
         desenharHud();
         if (constr.ativo) desenharPaleta();
@@ -1925,6 +2011,7 @@
         visita = v;
         atualizarTerreno();
         atualizarGalinheiro();
+        atualizarVisitante();
         offset = Date.parse(v.agora) - Date.now();
         document.body.classList.add('visitando');
         el.faixaVisita.hidden = false;
@@ -2102,6 +2189,11 @@
                     <a class="botao creme" href="indexversao2.html">Voltar ao portfólio</a>
                     <button type="button" class="botao vermelho" data-sair>Sair desta fazenda</button>`}
                 </div>`;
+        } else if (nome === 'visitante') {
+            const v = visitaAgora();
+            if (!v) { fecharPainel(); return; }
+            el.painelTitulo.innerHTML = `${spr(1000 + VISITAS[v.tipo].sprite, 32)} Visita na porteira`;
+            corpo.innerHTML = htmlVisitante(v);
         } else if (nome === 'oficina') {
             const c = oficinaDoPainel(), o = c && infoOficina(c);
             if (!o) { fecharPainel(); return; }
@@ -2134,6 +2226,7 @@
                     ${ANUNCIO.ligado || ehLocal ? `<li>Quando aparecer o botão <b>+30 min</b>, assista a um anúncio até o fim e tudo o que está em andamento (plantas, animais, oficinas, ajudantes e energia) adianta 30 minutos.</li>` : ''}
                     <li>No Perfil (ou em Vizinhos) tem o seu <b>link de convite</b>: quem criar uma fazenda por ele ganha moedas, e você também.</li>
                     <li>No <b>Vale do sudeste</b> (terreno 3) tem um lago: o pescador <b>Bira</b> tira um peixe a cada 30 minutos, até 16 no cesto. Toque no lago para pegar. Quanto mais raro, mais vale, e o lendário <b>Peixe do Velho Chico</b> sai em 1% das vezes (2% com a estátua do nível 30).</li>
+                    <li>A cada 3 horas chega uma <b>visita na porteira</b>, do lado da casa (do nível 3 em diante): o feirante, a doceira e o caminhoneiro compram algo da fazenda pagando bem mais que o celeiro, e a mascate vende adubo. Toque nela para conversar.</li>
                     <li>Cumpra as <b>missões do dia</b> para ganhar moedas e XP extras.</li>
                     <li>Cada nível libera coisas novas e dá um presente de moedas. Toque no seu nome, lá em cima, para abrir o <b>Perfil</b>: lá estão o <b>caminho dos níveis</b>, as conquistas e o seu convite.</li>
                     <li>Em <b>Vizinhos</b> você visita outras fazendas: <b>pega</b> um pouco da colheita madura ou <b>ajuda</b> com os problemas e ganha XP.</li>
@@ -2457,6 +2550,8 @@
             toast(`Semente escolhida: ${itemDe(k)} ${esc(k.nome)}`);
             return;
         }
+        const at = e.target.closest('[data-atender]');
+        if (at) { atender(at.dataset.atender === '1'); return; }
         const est = e.target.closest('[data-estoque]');
         if (est && oficinaAberta) {
             const n = Number(est.dataset.estoque);
