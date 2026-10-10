@@ -179,7 +179,7 @@ alter table public.fazenda_itens add column if not exists largura smallint not n
 alter table public.fazenda_itens add column if not exists altura smallint not null default 1;
 alter table public.fazenda_itens drop constraint if exists fazenda_itens_categoria_check;
 alter table public.fazenda_itens add constraint fazenda_itens_categoria_check
-  check (categoria in ('caminho', 'natureza', 'objeto', 'construcao', 'maquina', 'oficina', 'energia'));
+  check (categoria in ('caminho', 'natureza', 'objeto', 'construcao', 'maquina', 'oficina', 'energia', 'bichos'));
 -- Fase 5: máquinas. efeito = o que fazem; raio = alcance em quadrados (0 = fazenda toda);
 -- limite = quantas cada jogador pode ter (null = à vontade)
 alter table public.fazenda_itens add column if not exists efeito text;
@@ -423,12 +423,13 @@ on conflict (id) do update set
   xp = excluded.xp, nivel_min = excluded.nivel_min, ordem = excluded.ordem, tipo = excluded.tipo;
 
 insert into public.fazenda_animais_tipos (id, nome, custo, nivel_min, maximo, produto, tempo_seg, racao, racao_qtd, ordem) values
-  ('galinha', 'Galinha', 100, 2, 4, 'ovo',    3600, 'alface', 1, 1),
-  ('vaca',    'Vaca',    350, 5, 2, 'leite', 14400, 'batata', 2, 2),
-  ('ovelha',  'Ovelha',  600, 8, 2, 'la',    28800, 'abobora', 2, 3),
-  ('coelho',  'Coelho',  250, 6, 4, 'pelo',   7200, 'cenoura', 2, 4),
-  ('pato',    'Pato',    450, 11, 3, 'pena', 10800, 'alface', 2, 5),
-  ('porco',   'Porco',   900, 14, 2, 'trufa', 21600, 'milho', 2, 6)
+  -- até 5 de cada (cada um 50% mais caro que o anterior: fazenda_comprar); vaca: 3 h (era 4)
+  ('galinha', 'Galinha', 100, 2, 5, 'ovo',    3600, 'alface', 1, 1),
+  ('vaca',    'Vaca',    350, 5, 5, 'leite', 10800, 'batata', 2, 2),
+  ('ovelha',  'Ovelha',  600, 8, 5, 'la',    28800, 'abobora', 2, 3),
+  ('coelho',  'Coelho',  250, 6, 5, 'pelo',   7200, 'cenoura', 2, 4),
+  ('pato',    'Pato',    450, 11, 5, 'pena', 10800, 'alface', 2, 5),
+  ('porco',   'Porco',   900, 14, 5, 'trufa', 21600, 'milho', 2, 6)
 on conflict (id) do update set
   nome = excluded.nome, custo = excluded.custo, nivel_min = excluded.nivel_min, maximo = excluded.maximo,
   produto = excluded.produto, tempo_seg = excluded.tempo_seg, racao = excluded.racao,
@@ -511,6 +512,20 @@ on conflict (id) do update set
   nome = excluded.nome, categoria = excluded.categoria, custo = excluded.custo, nivel_min = excluded.nivel_min,
   ordem = excluded.ordem, largura = excluded.largura, altura = excluded.altura, produz = excluded.produz,
   produz_seg = excluded.produz_seg, produz_qtd = excluded.produz_qtd, entradas = excluded.entradas,
+  limite = excluded.limite, beleza = excluded.beleza, descricao = excluded.descricao;
+
+-- Fase 23: um cercado para cada bicho (Construir → Bichos). Os bichos daquela espécie moram nele
+-- (o desenho e o tamanho ficam em CERCADOS de fazenda-arte.js); sem cercado, ficam no galinheiro/pasto.
+insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem, largura, altura, efeito, limite, beleza, descricao) values
+  ('cercado_galinha', 'Cercado das galinhas', 'bichos', 200,  2, 100, 6, 4, 'cercado', 1, 3, 'Casa própria das galinhas: elas saem do galinheiro e vêm morar aqui, sem aperto.'),
+  ('cercado_vaca',    'Curral das vacas',     'bichos', 500,  5, 101, 7, 5, 'cercado', 1, 4, 'Casa própria das vacas, com cocho de água: elas saem do pasto e vêm morar aqui.'),
+  ('cercado_coelho',  'Cercado dos coelhos',  'bichos', 300,  6, 102, 6, 4, 'cercado', 1, 3, 'Casa própria dos coelhos: eles saem do galinheiro e vêm morar aqui.'),
+  ('cercado_ovelha',  'Cercado das ovelhas',  'bichos', 600,  8, 103, 7, 5, 'cercado', 1, 4, 'Casa própria das ovelhas: elas saem do pasto e vêm morar aqui.'),
+  ('cercado_pato',    'Lago dos patos',       'bichos', 400, 11, 104, 6, 4, 'cercado', 1, 5, 'Cercado com laguinho: os patos saem do galinheiro e vêm nadar aqui.'),
+  ('cercado_porco',   'Chiqueiro',            'bichos', 700, 14, 105, 6, 4, 'cercado', 1, 3, 'Cercado com lama: os porcos saem do pasto e vêm morar aqui.')
+on conflict (id) do update set
+  nome = excluded.nome, categoria = excluded.categoria, custo = excluded.custo, nivel_min = excluded.nivel_min,
+  ordem = excluded.ordem, largura = excluded.largura, altura = excluded.altura, efeito = excluded.efeito,
   limite = excluded.limite, beleza = excluded.beleza, descricao = excluded.descricao;
 
 -- Fase 16: a estátua dourada em homenagem ao Chico, nosso beta tester
@@ -2458,6 +2473,8 @@ declare
   v_id    uuid := fazenda_auth(p_token);
   j       record;
   a       record;
+  v_n     int;
+  v_preco int;
 begin
   select * into j from fazenda_jogadores where id = v_id for update;
 
@@ -2465,11 +2482,14 @@ begin
     select * into a from fazenda_animais_tipos where id = p_tipo;
     if not found then raise exception 'item_invalido'; end if;
     if fazenda_nivel(j.xp) < a.nivel_min then raise exception 'nivel_insuficiente'; end if;
-    if (select count(*) from fazenda_animais where jogador_id = v_id and tipo = a.id) >= a.maximo then
+    select count(*) into v_n from fazenda_animais where jogador_id = v_id and tipo = a.id;
+    if v_n >= a.maximo then
       raise exception 'limite_animais';
     end if;
-    if j.moedas < a.custo then raise exception 'moedas_insuficientes'; end if;
-    update fazenda_jogadores set moedas = moedas - a.custo where id = v_id;
+    -- cada bicho da mesma espécie sai 50% mais caro que o anterior (igual a precoAnimal em fazenda.js)
+    v_preco := round(a.custo * power(1.5::numeric, v_n))::int;
+    if j.moedas < v_preco then raise exception 'moedas_insuficientes'; end if;
+    update fazenda_jogadores set moedas = moedas - v_preco where id = v_id;
     insert into fazenda_animais (jogador_id, tipo) values (v_id, a.id);
 
   elsif p_categoria = 'terreno' then
@@ -2544,8 +2564,9 @@ $$;
 create or replace function public.fazenda_galinheiro_quer(p_jogador uuid)
 returns int language sql stable security definer set search_path = public, extensions as $$
   select case when n >= 9 then 4 when n >= 6 then 3 else 2 end
-    from (select count(*) as n from fazenda_animais
-           where jogador_id = p_jogador and tipo in ('galinha', 'pato', 'coelho')) x;
+    from (select count(*) as n from fazenda_animais a
+           where a.jogador_id = p_jogador and a.tipo in ('galinha', 'pato', 'coelho')
+             and not exists (select 1 from fazenda_construcoes c where c.jogador_id = p_jogador and c.tipo = 'cercado_' || a.tipo)) x;
 $$;
 
 create or replace function public.fazenda_galinheiro_linhas(p_jogador uuid)
