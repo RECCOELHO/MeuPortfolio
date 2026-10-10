@@ -2005,3 +2005,73 @@ body.construindo .status {
     background: #fff;
     font-size: 16px;
 }
+
+/* ---------- Avatar: perfil e editor ---------- */
+.hud-avatar {
+    display: inline-flex;
+    flex-shrink: 0;
+}
+
+.perfil-avatar {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.perfil-avatar p {
+    margin: 0 0 8px;
+}
+
+.av-preview {
+    display: grid;
+    place-items: center;
+    padding: 8px 0 4px;
+}
+
+.av-linha {
+    margin: 10px 0;
+}
+
+.av-titulo {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 800;
+}
+
+.av-opcoes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.av-op {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    min-width: 40px;
+    min-height: 40px;
+    padding: 4px;
+    border: 2px solid var(--o);
+    border-radius: 8px;
+    background: #fff;
+    cursor: pointer;
+    font: inherit;
+}
+
+.av-op.ativa {
+    background: #fff1c4;
+    box-shadow: 0 0 0 3px #fdbe53;
+}
+
+.av-op small {
+    font-size: 12px;
+}
+
+.av-cor {
+    display: block;
+    width: 26px;
+    height: 26px;
+    border: 2px solid var(--o);
+    border-radius: 50%;
+}

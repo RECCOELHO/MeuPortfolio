@@ -267,6 +267,51 @@
     }
     let urlPropria = null;
 
+    /* ---------- Avatar do fazendeiro ----------
+       O fazendeiro do pacote (Tiny Farm 109) em letras: a contorno, b/c chapéu, d detalhe
+       vermelho, e/g pele, f olhos, h camisa, i/k macacão, j botas, y cabelo. Sem escolha
+       nenhuma ele sai igualzinho ao do pacote. As linhas 0 a 6 (a cabeça) mudam com o chapéu. */
+    const AVATAR_BASE = ['....aaaaaaaa....', '...aaaaaaaaaa...', '.aaaabbccbbaaaa.', 'aaaaabbbbbbaaaaa', 'aacbaddddddabcaa',
+        'aacbbbbbbbbbbcaa', 'aaaccccccccccaaa', '.aaaeefeeefeaaa.', '..aaggfgggfgaa..', '..aaaggeeegaaa..', '.aaahijddjihaaa.',
+        'aaahhihhhhihhaaa', 'aaggdikiikidggaa', 'aaggaiiiiiiaggaa', 'aaaaaiiaaiiaaaaa', '.aaaajjaajjaaaa.'];
+    const AVATAR_CHAPEU = {
+        palha: null,
+        bone: ['................', '................', '....aaaaaaaa....', '...abbbbbbbba...', '..abbbcbbbbbba..',
+            '..abbbbbbbbbbaaa', '..aayyyyyybbbbba'],
+        lenco: ['................', '................', '....aaaaaaaa....', '...abbbbbbbba...', '..abbcbbbbcbba..',
+            '..abbbbbbbbbbaba', '.aaayyeeeeyyaaba'],
+        cabelo: ['................', '................', '....aaaaaaaa....', '...ayyyyyyyya...', '..ayyyyyyyyyya..',
+            '..ayyyyyyyyyya..', '.aaayyeeeeyyaaa.']
+    };
+    const AVATAR_CORES = {
+        cor_chapeu: [['#cf8254', '#fec99c'], ['#c34b35', '#f28462'], ['#3b5dc9', '#99d8f8'], ['#3e8948', '#a7f070'], ['#2a2a36', '#8b9bb4'], ['#d27688', '#ffd1dc']],
+        pele: [['#e19a65', '#f7c282'], ['#f0b98d', '#fde0c4'], ['#b9744a', '#d99a66'], ['#8a5236', '#ad6c45'], ['#5e3726', '#7d4c33']],
+        cabelo: ['#5a3424', '#2b1d1a', '#e8c25a', '#c2522d', '#c0c4cc'],
+        camisa: ['#f28462', '#c34b35', '#4f8fd8', '#6abe30', '#fdbe53', '#9b4ca3', '#eeeeee'],
+        macacao: [['#52607c', '#8c9cb5'], ['#3b5dc9', '#79a7e8'], ['#7a4a30', '#b4673a'], ['#3e7a3b', '#6aa84f'], ['#b05a85', '#e08cb5'], ['#2a2a36', '#6a6a7a']]
+    };
+    const cacheAvatar = new Map();
+    function avatarCanvas(cfg) {
+        cfg = cfg || {};
+        const chave = JSON.stringify([cfg.chapeu, cfg.cor_chapeu, cfg.pele, cfg.cabelo, cfg.camisa, cfg.macacao]);
+        if (cacheAvatar.has(chave)) return cacheAvatar.get(chave);
+        const cor = (lista, i) => lista[Math.max(0, Math.min(lista.length - 1, i | 0))];
+        const cabeca = AVATAR_CHAPEU[cfg.chapeu];
+        const linhas = AVATAR_BASE.map((l, y) => (cabeca && y < cabeca.length ? cabeca[y] : l));
+        const [b, c] = cor(AVATAR_CORES.cor_chapeu, cfg.cor_chapeu), [e, g] = cor(AVATAR_CORES.pele, cfg.pele), [i, k] = cor(AVATAR_CORES.macacao, cfg.macacao);
+        const pal = { a: '#3f2631', b, c, d: '#c34b35', e, f: '#262b44', g, h: cor(AVATAR_CORES.camisa, cfg.camisa), i, j: '#bd6c4a', k, y: cor(AVATAR_CORES.cabelo, cfg.cabelo) };
+        const cv = document.createElement('canvas');
+        cv.width = cv.height = 16;
+        const g2 = cv.getContext('2d');
+        linhas.forEach((l, yy) => [...l].forEach((ch, xx) => { if (pal[ch]) { g2.fillStyle = pal[ch]; g2.fillRect(xx, yy, 1, 1); } }));
+        cv.url = cv.toDataURL();
+        cacheAvatar.set(chave, cv);
+        return cv;
+    }
+    function htmlAvatar(cfg, px = 32) {
+        return `<span class="px-spr" style="background-image:url('${avatarCanvas(cfg).url}');width:${px}px;height:${px}px;background-size:${px}px ${px}px;background-position:0 0" aria-hidden="true"></span>`;
+    }
+
     // ajudantes: quem é (pessoa) e o que carrega (ferramenta) — tudo dos pacotes
     const MOCA = { p: 'farm', i: 108 }, MOCO = { p: 'factory', i: 120 };
     const AJUDANTE_ARTE = {
@@ -604,6 +649,7 @@
         let lago = null;                                   // { prontos, max } do seu lago, ou null
         // visita na porteira: { tipo, item (tile do balão), x, y, tx, ty, saindo }
         let visitante = null;
+        let avatarAtual = null;   // avatar do fazendeiro na tela (o seu, ou o do vizinho visitado)
         const VISITANTE_ARTE = { feirante: 1040, doceira: 1041, caminhoneiro: 1042, mascate: 1043 };
         const PORTEIRA = { x: 8, y: 2 };   // onde a visita para (do lado da casa)
         let hover = null;                                  // canteiro, 'celeiro', 'a:<id>' ou {tx, ty}
@@ -1352,13 +1398,18 @@
                 if (a.ferramenta != null) pe.push({ p: 'farm', i: a.ferramenta, x: a.x + (a.flip ? -7 : 7), y: a.y + 0.5, flip: a.flip, bob });
             }
             const andando = fazendeiro.passo > 0;
-            pe.push({ p: 'farm', i: 109, x: fazendeiro.x, y: fazendeiro.y, flip: fazendeiro.flip, bob: andando && Math.floor(tempo / 120) % 2 ? -1 : 0 });
+            pe.push({ img: avatarCanvas(avatarAtual), x: fazendeiro.x, y: fazendeiro.y, flip: fazendeiro.flip, bob: andando && Math.floor(tempo / 120) % 2 ? -1 : 0 });
             if (lago && lagoNaTela()) pe.push({ p: 'factory', i: 120, x: wx(LAGO.x) + 1, y: wy(LAGO.y + 2), flip: false, bob: Math.floor(tempo / 700) % 2 ? -1 : 0 });
             if (visitante) pe.push({ p: 'farm', i: VISITANTE_ARTE[visitante.tipo] || 1040, x: visitante.x, y: visitante.y, flip: visitante.flip, bob: visitante.andando && Math.floor(tempo / 140) % 2 ? -1 : 0 });
             pe.sort((a, b) => a.y - b.y).forEach((a) => {
                 const x = Math.round(a.x), y = Math.round(a.y) + a.bob;
                 if (a.grade) {
                     a.grade.forEach((linha, dy) => linha.forEach((i, dx) => tile(q, i, x + dx * T, a.gy + dy * T, false, a.p)));
+                    return;
+                }
+                if (a.img) {   // avatar (desenhado na hora, fora dos pacotes)
+                    if (a.flip) { q.save(); q.translate(x + T, y); q.scale(-1, 1); q.drawImage(a.img, 0, 0); q.restore(); }
+                    else q.drawImage(a.img, x, y);
                     return;
                 }
                 if (a.topo != null) tile(q, a.topo, x, y - T, a.flip, a.p);
@@ -1884,6 +1935,8 @@
             definirClima(c) { clima = c || null; precisaDesenhar = true; },
             // seu lago: { prontos, max } (null na visita ou sem o terreno 3)
             definirLago(l) { lago = l || null; },
+            // avatar do fazendeiro que anda na fazenda (null = o do pacote)
+            definirAvatar(cfg) { avatarAtual = cfg || null; },
             // visita na porteira ({ tipo, item }) ou null (ela vai embora andando)
             definirVisitante(v) {
                 if (!v) {
@@ -1950,6 +2003,8 @@
     }
 
     window.FazendaArte = {
+        htmlAvatar,
+        AVATAR_CORES,
         carregar,
         criarCena,
         htmlTile,

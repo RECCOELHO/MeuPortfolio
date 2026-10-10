@@ -69,6 +69,7 @@
         sem_ingredientes: 'Faltam ingredientes no celeiro (a ração reservada não entra na receita).',
         estoque_cheio: 'O estoque dessa oficina está cheio (10 receitas).',
         sem_visita: 'A visita já foi embora. Outra chega daqui a pouco.',
+        avatar_invalido: 'Não deu para salvar esse avatar.',
         falta_pedido: 'Ainda não tem o bastante no celeiro para esse pedido.',
         sem_canteiros_crescendo: 'Não tem canteiro crescendo para adubar: plante primeiro.',
         estoque_vazio: 'Não tem nada no estoque para tirar.',
@@ -856,6 +857,30 @@
         for (const [tipo, alvos] of Object.entries(obras)) cena.ajudanteTrabalhou(tipo, alvos);
     }
 
+    /* ---------- Avatar: chapéu e cores (fazenda_avatar); o desenho sai de A.htmlAvatar ---------- */
+    let rascunhoAvatar = null;
+    const NOME_CHAPEU = { palha: 'Palha', bone: 'Boné', lenco: 'Lenço', cabelo: 'Sem chapéu' };
+    function htmlEditorAvatar() {
+        const a = rascunhoAvatar, cores = A.AVATAR_CORES;
+        const bolinha = (cor) => `<span class="av-cor" style="background:${Array.isArray(cor) ? cor[0] : cor}"></span>`;
+        const linha = (titulo, chave, lista, cor) => `<div class="av-linha"><span class="av-titulo">${titulo}</span><div class="av-opcoes">${lista.map((c, i) =>
+            `<button type="button" class="av-op${(a[chave] | 0) === i ? ' ativa' : ''}" data-av="${chave}:${i}" aria-label="${titulo} ${i + 1}">${bolinha(cor ? cor(c) : c)}</button>`).join('')}</div></div>`;
+        return `
+            <div class="av-preview">${A.htmlAvatar(a, 112)}</div>
+            <div class="av-linha"><span class="av-titulo">Chapéu</span><div class="av-opcoes">${Object.keys(NOME_CHAPEU).map((c) =>
+                `<button type="button" class="av-op chapeu${a.chapeu === c ? ' ativa' : ''}" data-av="chapeu:${c}">${A.htmlAvatar({ ...a, chapeu: c }, 40)}<small>${NOME_CHAPEU[c]}</small></button>`).join('')}</div></div>
+            ${a.chapeu !== 'cabelo' ? linha('Cor do chapéu', 'cor_chapeu', cores.cor_chapeu) : ''}
+            ${linha('Pele', 'pele', cores.pele, (c) => c[1])}
+            ${a.chapeu !== 'palha' ? linha('Cabelo', 'cabelo', cores.cabelo) : ''}
+            ${linha('Camisa', 'camisa', cores.camisa)}
+            ${linha('Macacão', 'macacao', cores.macacao)}
+            <p class="det">Seus vizinhos veem esse avatar no ranking e quando visitam a sua fazenda.</p>
+            <div class="rodape-painel">
+                <button type="button" class="botao creme" data-painel-ir="conta">Cancelar</button>
+                <button type="button" class="botao verde" data-av-salvar>Salvar</button>
+            </div>`;
+    }
+
     /* ---------- Visitas na porteira: a cada 3 horas chega alguém (fazenda_visitante) ---------- */
     const VISITAS = {
         feirante: { nome: 'Seu Tonico', papel: 'o feirante', sprite: 40,
@@ -1528,6 +1553,8 @@
         el.xpBar.style.width = `${Math.min(100, prog * 100)}%`;
         el.xp.textContent = `${j.xp}/${j.xp_proximo}`;
         // a isca: o que vem no próximo nível fica sempre à vista, e a barra brilha quando falta pouco
+        const hudAvatar = document.getElementById('hudAvatar');
+        if (hudAvatar) hudAvatar.innerHTML = A.htmlAvatar(j.avatar, 40);
         const premio = j.nivel < NIVEL_MAX ? liberaNoNivel(j.nivel + 1)[0] : null;
         if (el.premio) {
             el.premio.hidden = !premio;
@@ -1733,6 +1760,7 @@
         atualizarLago();
         atualizarGalinheiro();
         atualizarVisitante();
+        if (!visita) cena.definirAvatar(estado.jogador.avatar);
         atualizarTerreno();
         desenharHud();
         if (constr.ativo) desenharPaleta();
@@ -2012,6 +2040,9 @@
         atualizarTerreno();
         atualizarGalinheiro();
         atualizarVisitante();
+        cena.definirAvatar(v.avatar);
+        const va = document.getElementById('visitaAvatar');
+        if (va) va.innerHTML = A.htmlAvatar(v.avatar, 28);
         offset = Date.parse(v.agora) - Date.now();
         document.body.classList.add('visitando');
         el.faixaVisita.hidden = false;
@@ -2041,6 +2072,7 @@
         visita = null;
         atualizarTerreno();
         atualizarGalinheiro();
+        if (S) cena.definirAvatar(S.jogador.avatar);
         document.body.classList.remove('visitando');
         el.faixaVisita.hidden = true;
         el.acoesVisita.hidden = true;
@@ -2161,11 +2193,17 @@
                     </div>`;
             }
         } else if (nome === 'conta') {
-            el.painelTitulo.innerHTML = boasVindas ? `${spr(83, 32)} Bem-vindo(a) à fazenda!` : `${spr(109, 32)} Perfil`;
+            el.painelTitulo.innerHTML = boasVindas ? `${spr(83, 32)} Bem-vindo(a) à fazenda!` : `${A.htmlAvatar(S.jogador.avatar, 32)} Perfil`;
             const codigo = store.get(LS.codigo);
             const minhas = (S.conquistas || []).map((c) => c.id);
             corpo.innerHTML = `
-                <p>Fazendeiro(a): <b>${esc(S.jogador.apelido)}</b> · Nível ${S.jogador.nivel}${S.criado_em ? ` · desde ${desde(S.criado_em)}` : ''}</p>
+                <div class="perfil-avatar">
+                    ${A.htmlAvatar(S.jogador.avatar, 64)}
+                    <div>
+                        <p>Fazendeiro(a): <b>${esc(S.jogador.apelido)}</b> · Nível ${S.jogador.nivel}${S.criado_em ? ` · desde ${desde(S.criado_em)}` : ''}</p>
+                        <button type="button" class="botao pequeno verde" data-avatar-editar>Personalizar avatar</button>
+                    </div>
+                </div>
                 ${boasVindas ? '' : `<p><button type="button" class="botao pequeno creme" data-painel-ir="niveis">${ico('xp', 14)} Ver o caminho dos níveis</button></p>
                 <p>${spr(83, 18)} Beleza da fazenda: <b>${S.jogador.beleza || 0}</b> · bônus nas vendas: <b>+${S.jogador.bonus_venda || 0}%</b></p>`}
                 ${boasVindas ? '' : `
@@ -2189,6 +2227,9 @@
                     <a class="botao creme" href="indexversao2.html">Voltar ao portfólio</a>
                     <button type="button" class="botao vermelho" data-sair>Sair desta fazenda</button>`}
                 </div>`;
+        } else if (nome === 'avatar') {
+            el.painelTitulo.innerHTML = `${A.htmlAvatar(rascunhoAvatar, 32)} Seu avatar`;
+            corpo.innerHTML = htmlEditorAvatar();
         } else if (nome === 'visitante') {
             const v = visitaAgora();
             if (!v) { fecharPainel(); return; }
@@ -2228,7 +2269,7 @@
                     <li>No <b>Vale do sudeste</b> (terreno 3) tem um lago: o pescador <b>Bira</b> tira um peixe a cada 30 minutos, até 16 no cesto. Toque no lago para pegar. Quanto mais raro, mais vale, e o lendário <b>Peixe do Velho Chico</b> sai em 1% das vezes (2% com a estátua do nível 30).</li>
                     <li>A cada 3 horas chega uma <b>visita na porteira</b>, do lado da casa (do nível 3 em diante): o feirante, a doceira e o caminhoneiro compram algo da fazenda pagando bem mais que o celeiro, e a mascate vende adubo. Toque nela para conversar.</li>
                     <li>Cumpra as <b>missões do dia</b> para ganhar moedas e XP extras.</li>
-                    <li>Cada nível libera coisas novas e dá um presente de moedas. Toque no seu nome, lá em cima, para abrir o <b>Perfil</b>: lá estão o <b>caminho dos níveis</b>, as conquistas e o seu convite.</li>
+                    <li>Cada nível libera coisas novas e dá um presente de moedas. Toque no seu nome, lá em cima, para abrir o <b>Perfil</b>: lá estão o <b>caminho dos níveis</b>, as conquistas, o seu convite e o botão de <b>personalizar o avatar</b> (chapéu, pele, cabelo, camisa e macacão).</li>
                     <li>Em <b>Vizinhos</b> você visita outras fazendas: <b>pega</b> um pouco da colheita madura ou <b>ajuda</b> com os problemas e ganha XP.</li>
                 </ul>
                 <div class="rodape-painel">
@@ -2294,7 +2335,7 @@
             });
         } else if (nome === 'perfilVizinho' && visita) {
             const p = visita.perfil || {};
-            el.painelTitulo.innerHTML = `${spr(108, 32)} ${esc(visita.apelido)}`;
+            el.painelTitulo.innerHTML = `${A.htmlAvatar(visita.avatar, 32)} ${esc(visita.apelido)}`;
             corpo.innerHTML = `
                 <p>Nível <b>${visita.nivel}</b>${p.criado_em ? ` · fazendeiro(a) desde ${desde(p.criado_em)}` : ''}</p>
                 <h3 class="secao-titulo">Conquistas (${(p.conquistas || []).length}/${(S.conquistas_tipos || []).length})</h3>
@@ -2520,7 +2561,7 @@
                     <div class="rank${j.eu ? ' eu' : ''}">
                         <span class="pos">${n + 1}º</span>
                         <span style="min-width:0">
-                            <span class="nome">${esc(j.apelido)}${j.eu ? ' (você)' : ''}</span>
+                            <span class="nome">${A.htmlAvatar(j.avatar, 24)} ${esc(j.apelido)}${j.eu ? ' (você)' : ''}</span>
                             <span class="det"><span>Nível ${j.nivel}</span><span>${j.xp} ${ico('xp', 13)}</span><span>${moeda(j.patrimonio)}</span></span>
                         </span>
                         ${j.eu ? '<span></span>' : `<button type="button" class="botao pequeno creme" data-visitar="${esc(j.id)}">Visitar</button>`}
@@ -2548,6 +2589,31 @@
             desenharHud();
             fecharPainel();
             toast(`Semente escolhida: ${itemDe(k)} ${esc(k.nome)}`);
+            return;
+        }
+        if (e.target.closest('[data-avatar-editar]')) {
+            rascunhoAvatar = { chapeu: 'palha', cor_chapeu: 0, pele: 0, cabelo: 0, camisa: 0, macacao: 0, ...(S.jogador.avatar || {}) };
+            abrirPainel('avatar');
+            return;
+        }
+        const av = e.target.closest('[data-av]');
+        if (av && rascunhoAvatar) {
+            const [chave, valor] = av.dataset.av.split(':');
+            rascunhoAvatar[chave] = chave === 'chapeu' ? valor : Number(valor);
+            abrirPainel('avatar', true);
+            return;
+        }
+        if (e.target.closest('[data-av-salvar]') && rascunhoAvatar) {
+            const novo = { ...rascunhoAvatar };
+            S.jogador.avatar = novo;       // aparece na hora; o servidor confirma
+            cena.definirAvatar(novo);
+            desenharHud();
+            abrirPainel('conta');
+            enfileirar([], async () => {
+                const r = await rpc('fazenda_avatar', { p_token: token, p_avatar: novo });
+                aplicarEstado(r.estado);
+                toast(`${A.htmlAvatar(novo, 22)} Avatar salvo! Os vizinhos já veem o novo visual.`);
+            });
             return;
         }
         const at = e.target.closest('[data-atender]');

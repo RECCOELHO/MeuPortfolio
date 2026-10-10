@@ -311,6 +311,9 @@ alter table public.fazenda_jogadores add column if not exists lago_em timestampt
 alter table public.fazenda_estatisticas add column if not exists peixes int not null default 0;
 alter table public.fazenda_estatisticas add column if not exists lendarios int not null default 0;
 
+-- Fase 22: avatar do fazendeiro ({"chapeu": "palha", "pele": 0, ...}); null = o de sempre
+alter table public.fazenda_jogadores add column if not exists avatar jsonb;
+
 -- Fase 21: visitas na porteira. A cada 3 horas chega alguém (fazenda_visitante): o feirante,
 -- a doceira e o caminhoneiro querem comprar algo pagando mais que o celeiro; a mascate vende
 -- adubo. Cada visita fica até o fim das 3 horas ou até você atender (entregar ou dispensar).
@@ -1053,6 +1056,7 @@ begin
     'jogador', jsonb_build_object(
       'id', j.id,
       'apelido', j.apelido,
+      'avatar', j.avatar,
       'moedas', j.moedas,
       'xp', j.xp,
       'nivel', v_nivel,
@@ -1994,6 +1998,7 @@ begin
     'agora', now(),
     'id', j.id,
     'apelido', j.apelido,
+    'avatar', j.avatar,
     'nivel', v_nivel,
     'max_canteiros', fazenda_max_canteiros(v_nivel),
     'zonas', j.zonas,
@@ -2149,7 +2154,7 @@ begin
     'total', (select count(*) from fazenda_jogadores),
     'ranking', coalesce((
       select jsonb_agg(jsonb_build_object(
-               'id', r.id, 'apelido', r.apelido, 'nivel', fazenda_nivel(r.xp), 'xp', r.xp,
+               'id', r.id, 'apelido', r.apelido, 'avatar', r.avatar, 'nivel', fazenda_nivel(r.xp), 'xp', r.xp,
                'patrimonio', r.moedas + coalesce((
                  select sum(ce.quantidade * k.venda)
                    from fazenda_celeiro ce join fazenda_culturas k on k.id = ce.item
@@ -2828,6 +2833,37 @@ begin
 end;
 $$;
 
+-- Salva o avatar: chapéu (palha | bone | lenco | cabelo) e o número de cada cor (as cores
+-- ficam no cliente, em AVATAR_CORES de fazenda-arte.js); o que faltar vira 0
+create or replace function public.fazenda_avatar(p_token text, p_avatar jsonb)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id uuid := fazenda_auth(p_token);
+  v    jsonb;
+  r    record;
+begin
+  if jsonb_typeof(p_avatar) is distinct from 'object' then raise exception 'avatar_invalido'; end if;
+  if coalesce(p_avatar->>'chapeu', 'palha') not in ('palha', 'bone', 'lenco', 'cabelo') then raise exception 'avatar_invalido'; end if;
+  v := jsonb_build_object('chapeu', coalesce(p_avatar->>'chapeu', 'palha'));
+  for r in select * from (values ('cor_chapeu', 6), ('pele', 5), ('cabelo', 5), ('camisa', 7), ('macacao', 6)) x(chave, n) loop
+    if p_avatar ? r.chave then
+      if jsonb_typeof(p_avatar->r.chave) <> 'number' or (p_avatar->>r.chave)::numeric % 1 <> 0
+         or (p_avatar->>r.chave)::numeric not between 0 and r.n - 1 then
+        raise exception 'avatar_invalido';
+      end if;
+      v := v || jsonb_build_object(r.chave, (p_avatar->>r.chave)::int);
+    else
+      v := v || jsonb_build_object(r.chave, 0);
+    end if;
+  end loop;
+  update fazenda_jogadores set avatar = v where id = v_id;
+  return jsonb_build_object('avatar', v, 'estado', fazenda_estado(v_id));
+end;
+$$;
+
 -- A visita de agora (null = já atendida, ou nível menor que 3). Tudo sai do md5 do jogador e
 -- do bloco de 3 horas: a mesma visita a cada carga, e outra no bloco seguinte.
 create or replace function public.fazenda_visitante(p_jogador uuid)
@@ -3200,6 +3236,7 @@ revoke execute on function
   public.fazenda_galinheiro_linhas(uuid),
   public.fazenda_visitante(uuid),
   public.fazenda_atender(text, boolean),
+  public.fazenda_avatar(text, jsonb),
   public.fazenda_checar_conquistas(uuid)
 from public, anon, authenticated;
 
@@ -3224,6 +3261,7 @@ grant execute on function
   public.fazenda_oficina(text, int, int),
   public.fazenda_estoque(text, int, int, int),
   public.fazenda_atender(text, boolean),
+  public.fazenda_avatar(text, jsonb),
   public.fazenda_gerador(text, int, int),
   public.fazenda_anuncio(text),
   public.fazenda_convite_info(text),
