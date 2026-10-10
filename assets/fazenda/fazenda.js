@@ -1949,7 +1949,7 @@
             return;
         }
         const acao = acaoPara(canteiro(p));
-        if (!acao) return;
+        if (!acao) return pedirParaArrancar(p);
         let k = null;
         if (acao === 'plantar') {
             k = validarPlantio();
@@ -1965,6 +1965,25 @@
         }
         cena.irAte(p);
         executar(acao, [p], k);
+    }
+
+    // canteiro crescendo e outra semente escolhida: o 1º toque pergunta, o 2º (em até 3 s) arranca e planta a nova
+    let arrancarPendente = null;
+    function pedirParaArrancar(p) {
+        const c = canteiro(p), i = info(c), k = culturas[semente];
+        if (i.fase !== 'crescendo' || !k || k.tipo !== 'cultura' || k.id === c.cultura) return;
+        if (!arrancarPendente || arrancarPendente.p !== p || agora() > arrancarPendente.ate) {
+            arrancarPendente = { p, ate: agora() + 3000 };
+            return mostrarStatus(`${itemDe(i.k)} ${esc(i.k.nome)} crescendo. <b>Toque de novo</b> para arrancar e plantar ${itemDe(k)} ${esc(k.nome.toLowerCase())} no lugar (o que está plantado se perde).`);
+        }
+        arrancarPendente = null;
+        const nova = validarPlantio();
+        if (!nova) return;
+        if (!daEstacao(nova) && !naEstufa(c)) return toast(`${esc(nova.nome)} está fora de época: só cresce perto da estufa elétrica.`, 'erro');
+        if (S.jogador.moedas < nova.custo) return toast(`Faltam moedas para ${esc(nova.nome.toLowerCase())}.`, 'erro');
+        cena.irAte(p);
+        som.tocar('cuidar');
+        executar('arrancar', [p]).then(() => executar('plantar', [p], nova));
     }
 
     function executar(acao, posicoes, k) {
@@ -2309,7 +2328,7 @@
             el.painelTitulo.innerHTML = `${ico('ajuda', 26)} Como jogar`;
             corpo.innerHTML = `
                 <ul class="ajuda">
-                    <li>Toque num canteiro e ele faz a ação certa: <b>arar</b>, <b>plantar</b>, <b>cuidar</b> ou <b>colher</b>.</li>
+                    <li>Toque num canteiro e ele faz a ação certa: <b>arar</b>, <b>plantar</b>, <b>cuidar</b> ou <b>colher</b>. Para trocar o que está crescendo, escolha outra semente e toque duas vezes no canteiro: ele arranca e planta a nova.</li>
                     <li>As plantas crescem em tempo real, mesmo com a página fechada.</li>
                     <li>Aparecem ${ico('erva', 14)} ervas, ${ico('praga', 14)} pragas e ${ico('seco', 12)} seca: cada problema deixado custa 1 item na colheita.</li>
                     <li>Depois de madura, a planta <b>murcha</b> se ficar tempo demais sem colher.</li>
@@ -2325,7 +2344,7 @@
                     <li>No botão <b>Construir</b> você coloca cercas, caminhos, árvores, flores e objetos onde quiser. Toque em <b>Pronto</b> para fechar.</li>
                     <li>Toque num item já colocado para ver o que ele faz; o <b>alcance</b> dele (irrigador, alarme, estufa...) aparece marcado no chão. <b>Segure o dedo 3 segundos</b> num item ou canteiro para pegar e levar para outro lugar.</li>
                     <li>A semana tem as 4 <b>estações</b> (42 horas cada), e cada uma muda a cara da fazenda (pétalas na primavera, grama quente no verão, folhas caindo no outono, neve no inverno) e tem uma semente só dela: morango, melancia, abóbora e repolho. O <b>clima</b> muda várias vezes por dia: sol dá +1 na colheita, chuva rega tudo, onda de calor seca mais, nublado não traz problema novo e ventania espalha pragas. Toque no clima, lá em cima, para ver até quando ele vai.</li>
-                    <li>No nível 16 chegam os <b>canos de vidro</b> (Construir → Energia): ligue uma oficina com canos a um canteiro, a um baú ou ao celeiro e ela busca os ingredientes sozinha (2 ⚡ por receita); dá para ver os itens passando dentro do cano.</li>
+                    <li>No nível 16 chegam os <b>canos de vidro</b> (Construir → Energia, 5 cada): ligue uma oficina com canos a um canteiro, a um baú ou ao celeiro e ela busca os ingredientes sozinha (2 ⚡ por receita); dá para ver os itens passando dentro do cano. O <b>baú</b> encostado num bloco de canteiros colhe sozinho o que amadurece, e encostado num cercado coleta e alimenta os bichos (1 ⚡ cada): com baú, canos e oficinas a produção fica toda automática.</li>
                     <li>Do nível 16 em diante vem a <b>energia</b> ${ico('raio', 14)}: painel solar, turbina, gerador a biomassa e reator enchem as baterias, e as máquinas elétricas (estufa, triturador, fábrica automática, robô, aspersor) trabalham sozinhas gastando energia. Toque no ${ico('raio', 12)} lá em cima (ou no botão abaixo) para ver o que cada uma faz.</li>
                     ${ANUNCIO.ligado || ehLocal ? `<li>Quando aparecer o botão <b>+30 min</b>, assista a um anúncio até o fim e tudo o que está em andamento (plantas, animais, oficinas, ajudantes e energia) adianta 30 minutos.</li>` : ''}
                     <li>No Perfil (ou em Vizinhos) tem o seu <b>link de convite</b>: quem criar uma fazenda por ele ganha moedas, e você também.</li>

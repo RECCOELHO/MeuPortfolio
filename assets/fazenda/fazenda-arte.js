@@ -1817,8 +1817,8 @@
                 if (Math.floor(tempo / 700) % 2) ret(lx + 5, ly + 2, 4, 1, '#ffffff');
                 else ret(lx + lw - 10, ly + lh - 3, 4, 1, '#ffffff');
             }
-            if (k.chao === 'cocho') tile(q, 110, x + T, y + T - 6);   // cocho de água no canto
             s.grade.forEach((linha, dy) => linha.forEach((i, dx) => { if (i != null) tile(q, i, x + dx * T, y + dy * T, false, s.p); }));
+            if (k.chao === 'cocho') tile(q, 110, x + T + 2, y + T - 3);   // cocho de água no canto, por cima da cerca (inteiro)
         }
 
         // o alcance de um item colocado (irrigador, alarme, estufa...): some sozinho em 5 s
