@@ -1923,3 +1923,61 @@ body.construindo .status {
         display: none;
     }
 }
+
+/* ---------- Painel da oficina: a conta do lucro e o estoque ---------- */
+.receita-linha {
+    font-weight: 800;
+    font-size: 17px;
+}
+
+.oficina-conta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+    align-items: center;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: #fff1c4;
+    border: 2px solid var(--o);
+}
+
+.oficina-conta .lucro {
+    color: #2f7d32;
+}
+
+.oficina-conta .prejuizo {
+    color: #b3261e;
+}
+
+.oficina-agora p {
+    margin: 4px 0;
+}
+
+.barrinha,
+.estoque-barra {
+    display: block;
+    height: 10px;
+    margin: 6px 0;
+    border: 2px solid var(--o);
+    border-radius: 6px;
+    background: #f3d9a4;
+    overflow: hidden;
+}
+
+.barrinha i,
+.estoque-barra i {
+    display: block;
+    height: 100%;
+    background: #6abe30;
+}
+
+.estoque-botoes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 8px 0;
+}
+
+.item.travado {
+    opacity: .6;
+}

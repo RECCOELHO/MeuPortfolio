@@ -67,6 +67,8 @@
         terreno_max: 'Você já comprou todos os terrenos.',
         nivel_maximo: 'Esse ajudante já está no nível máximo.',
         sem_ingredientes: 'Faltam ingredientes no celeiro (a ração reservada não entra na receita).',
+        estoque_cheio: 'O estoque dessa oficina está cheio (10 receitas).',
+        estoque_vazio: 'Não tem nada no estoque para tirar.',
         fora_de_estacao: 'Essa semente é de outra estação. Espere a época dela (ou plante perto de uma estufa elétrica).',
         sem_energia: 'Sem energia nas baterias. Construa geradores (painel solar, turbina...) e espere carregar.',
         sem_milho: 'O gerador a biomassa queima milho: colha milho e tente de novo.',
@@ -214,7 +216,10 @@
 
     function fmtDuracao(seg) {
         if (seg < 3600) return `${Math.round(seg / 60)} min`;
-        if (seg < 86400) return `${Math.round(seg / 3600)} h`;
+        if (seg < 86400) {
+            const h = Math.floor(seg / 3600), m = Math.round((seg % 3600) / 60);
+            return m ? `${h} h ${m} min` : `${h} h`;
+        }
         return `${Math.round(seg / 86400)} dia`;
     }
 
@@ -293,6 +298,7 @@
     }
     function descreverEnergia() {
         if (!temEletrico()) return;
+        if (!painelAtual) abrirPainel('energia');
         const ph = Math.round(Number(S.energia.por_hora));
         const temSol = (S.construcoes || []).some((c) => c.tipo === 'painel_solar');
         const h = new Date(agora()).getHours();
@@ -300,6 +306,32 @@
             (ph > 0 ? `Entrando ${ph} ⚡/h agora.` : `Nada entrando agora${temSol && (h < 6 || h >= 18) ? ' (o painel solar só gera de dia)' : ''}.`) +
             ' Baterias guardam mais; as máquinas elétricas gastam ao trabalhar.');
     }
+    // Energia e máquinas: o que você tem, quanto gera e gasta, e o que vem nos próximos níveis
+    function htmlEnergia() {
+        const itens = (S.itens || []).filter((i) => i.categoria === 'energia').sort((a, b) => a.nivel_min - b.nivel_min);
+        const tenho = (id) => (S.construcoes || []).filter((c) => c.tipo === id).length;
+        const gera = new Set(['solar', 'eolica', 'biomassa', 'reator']), guarda = new Set(['bateria']);
+        const linha = (i) => {
+            const n = tenho(i.id), trava = i.nivel_min > S.jogador.nivel;
+            return `<div class="item${trava ? ' travado' : ''}">
+                <span class="ico">${trava ? ico('cadeado', 26) : A.htmlItem(i.id, 40)}</span>
+                <span><span class="nome">${esc(i.nome)}${n ? ` <small>(você tem ${n})</small>` : ''}</span>
+                    <span class="det"><span>${esc(i.descricao || '')}</span></span>
+                    <span class="det"><span>Nível ${i.nivel_min} · ${moeda(i.custo)}${i.limite ? ` · até ${i.limite}` : ''}</span></span></span>
+            </div>`;
+        };
+        const grupo = (titulo, lista) => lista.length ? `<h3 class="secao-titulo">${titulo}</h3><div class="lista">${lista.map(linha).join('')}</div>` : '';
+        const en = S.energia || {}, carga = Math.floor(cargaAgora()), cap = en.capacidade || 50;
+        return `
+            ${temEletrico() ? `<p>${ico('raio', 16)} Agora: <b>${carga}</b> de ${cap} ⚡ · entrando <b>${Math.round(Number(en.por_hora) || 0)}</b> ⚡ por hora.</p>
+                <span class="estoque-barra"><i style="width:${Math.round(carga / cap * 100)}%"></i></span>` : ''}
+            <p class="aviso">Do nível 16 em diante a fazenda vira indústria: <b>geradores</b> enchem as <b>baterias</b>, e as <b>máquinas elétricas</b> gastam essa energia para trabalhar sozinhas por você. Sem energia elas só param; o resto da fazenda continua igual.</p>
+            ${grupo('Geram energia', itens.filter((i) => gera.has(i.efeito)))}
+            ${grupo('Guardam energia', itens.filter((i) => guarda.has(i.efeito)))}
+            ${grupo('Trabalham por você (gastam energia)', itens.filter((i) => !gera.has(i.efeito) && !guarda.has(i.efeito)))}
+            <div class="rodape-painel"><span></span><button type="button" class="botao verde" data-fechar>Entendi</button></div>`;
+    }
+
     function alternarGerador(c) {
         const ligar = !c.iniciado_em;
         if (ligar && naCeleiro('milho') - reservaDe('milho') < 1) return toast(ERROS.sem_milho, 'erro');
@@ -574,7 +606,11 @@
         for (const c of S.construcoes || []) {
             const it = tipoItem(c.tipo);
             if (!it || !it.produz) continue;
-            if (it.entradas && c.iniciado_em) ev.push({ quando: Date.parse(c.iniciado_em) + it.produz_seg * 1000, chave: 'o' + c.x + ',' + c.y + c.iniciado_em, texto: `${it.nome}: ${((culturas[it.produz] || {}).nome || 'produto').toLowerCase()} pronto` });
+            if (it.entradas && c.iniciado_em) {
+                const o = infoOficina(c);
+                const fim = o.termina || Date.parse(c.iniciado_em) + it.produz_seg * 1000;
+                ev.push({ quando: fim, chave: 'o' + c.x + ',' + c.y + c.iniciado_em + ':' + c.estoque, texto: `${it.nome} terminou o estoque` });
+            }
             if (!it.entradas && c.colhido_em) ev.push({ quando: Date.parse(c.colhido_em) + it.produz_seg * 1000, chave: 'p' + c.x + ',' + c.y + c.colhido_em, texto: `${it.nome} com frutas prontas` });
         }
         return ev.filter((e) => !jaAvisado.has(e.chave)).sort((a, b) => a.quando - b.quando);
@@ -854,14 +890,23 @@
         return { it, falta: pronto - agora(), produto: culturas[it.produz] };
     }
     /* ---------- Oficinas: transformam o que você colhe em produtos mais caros ---------- */
+    // Cada oficina guarda até 10 receitas no estoque e trabalha sozinha: termina uma, começa a
+    // próxima. O servidor só faz a conta quando a fazenda carrega; aqui ela anda até agora.
+    const temEfeito = (ef) => !!S && (S.construcoes || []).some((m) => (tipoItem(m.tipo) || {}).efeito === ef);
     function infoOficina(c) {
         const it = tipoItem(c.tipo);
         if (!it || !it.entradas) return null;
-        const produto = culturas[it.produz] || { id: it.produz, nome: it.produz, xp: 0 };
-        if (!c.iniciado_em) return { it, produto, estado: 'parada' };
-        const falta = Date.parse(c.iniciado_em) + it.produz_seg * 1000 - agora();
-        if (falta <= 0) return { it, produto, estado: 'pronta' };
-        return { it, produto, estado: 'trabalhando', falta, progresso: 1 - falta / (it.produz_seg * 1000) };
+        const produto = culturas[it.produz] || { id: it.produz, nome: it.produz, xp: 0, venda: 0 };
+        const dur = it.produz_seg * 1000, auto = temEfeito('automatico');
+        let t = c.iniciado_em ? Date.parse(c.iniciado_em) : null, estoque = c.estoque || 0, prontos = c.prontos || 0;
+        for (let n = 0; t != null && agora() >= t + dur && n < 48; n++) {
+            if (!auto) prontos += it.produz_qtd;   // com a fábrica automática vai direto para o celeiro
+            t = estoque > 0 ? (estoque--, t + dur) : null;
+        }
+        const base = { it, produto, estoque, prontos, auto };
+        if (t == null) return { ...base, estado: 'parada' };
+        const falta = t + dur - agora();
+        return { ...base, estado: 'trabalhando', falta, progresso: 1 - falta / dur, termina: t + dur + estoque * dur };
     }
     // ingredientes que faltam (a ração reservada não conta)
     const faltaParaReceita = (it) => Object.entries(it.entradas)
@@ -876,7 +921,7 @@
         if (visita) return visita.construcoes || [];
         return (S.construcoes || []).map((c) => {
             const o = infoOficina(c);
-            if (o) return { ...c, oficina: { estado: o.estado, progresso: o.progresso, produto: A.cultura(o.it.produz).item } };
+            if (o) return { ...c, oficina: { estado: o.prontos > 0 ? 'pronta' : o.estado, trabalhando: o.estado === 'trabalhando', progresso: o.progresso, produto: A.cultura(o.it.produz).item } };
             if (c.iniciado_em && (tipoItem(c.tipo) || {}).efeito === 'biomassa') return { ...c, ligado: true };
             const p = infoProducao(c);
             return p && p.falta <= 0 ? { ...c, pronto: true, produto: A.cultura(p.it.produz).item } : c;
@@ -900,31 +945,75 @@
         return [...vistos].map((e) => NOME_EFEITO[e]);
     }
 
+    let oficinaAberta = null;   // { x, y } da oficina com o painel aberto
+    const oficinaDoPainel = () => oficinaAberta && S && (S.construcoes || []).find((k) => k.x === oficinaAberta.x && k.y === oficinaAberta.y);
     function acaoOficina(c, o) {
-        if (o.estado === 'trabalhando') return;   // o status já mostra quanto falta
-        if (o.estado === 'parada') {
-            const falta = faltaParaReceita(o.it);
-            if (falta.length) return toast(`Faltam ingredientes: ${falta.map((f) => `${f.falta} ${nomeItem(f.item)}`).join(', ')}.`, 'erro');
-            // começa na hora; o servidor confirma
-            c.iniciado_em = new Date(agora()).toISOString();
-            Object.entries(o.it.entradas).forEach(([item, qtd]) => { S.celeiro[item] = naCeleiro(item) - qtd; });
-            som.tocar('construir');
-            enfileirar([], async () => {
-                const r = await rpc('fazenda_oficina', { p_token: token, p_x: c.x, p_y: c.y });
-                aplicarEstado(r.estado);
-                toast(`${A.htmlItem(c.tipo, 20)} ${esc(o.it.nome)} começou: ${nomeItem(o.it.produz)} pronto em ${fmtDuracao(o.it.produz_seg)}.`);
-                descreverConstrucao(c.x, c.y);
-            });
-            return;
-        }
-        c.iniciado_em = null;   // pronta: recolhe
+        oficinaAberta = { x: c.x, y: c.y };
+        if (o.prontos > 0) pegarOficina(c, o);
+        abrirPainel('oficina');
+    }
+    // leva os produtos prontos para o celeiro (o balão some na hora; o servidor confirma)
+    function pegarOficina(c, o) {
+        c.prontos = 0;
+        c.estoque = o.estoque;
+        c.iniciado_em = o.estado === 'trabalhando' ? new Date(agora() + o.falta - o.it.produz_seg * 1000).toISOString() : null;
         som.tocar('colher');
         enfileirar([], async () => {
             const r = await rpc('fazenda_oficina', { p_token: token, p_x: c.x, p_y: c.y });
-            flutuarTile(c.x, c.y, `+${r.qtd} ${itemDe(o.produto, 20)} +${o.produto.xp} ${ico('xp', 14)}`);
+            if (r.acao === 'coletou') flutuarTile(c.x, c.y, `+${r.qtd} ${itemDe(o.produto, 20)} +${r.xp} ${ico('xp', 14)}`);
             aplicarEstado(r.estado);
-            descreverConstrucao(c.x, c.y);
         });
+    }
+    // o painel da oficina: a receita, a conta do lucro, o que está fazendo, o estoque
+    const valorReceita = (it) => Object.entries(it.entradas).reduce((a, [item, qtd]) => a + qtd * ((culturas[item] || {}).venda || 0), 0);
+    function htmlOficinaAgora(o) {
+        const p = (n) => `${n} ${itemDe(o.produto, 18)}`;
+        const linhas = [];
+        if (o.prontos) linhas.push(`<b>${p(o.prontos)} pronto(s)</b> esperando você pegar.`);
+        if (o.estado === 'trabalhando') {
+            linhas.push(`Fazendo ${nomeItem(o.it.produz)}: pronto em <b>${fmtTempo(o.falta)}</b>
+                <span class="barrinha"><i style="width:${Math.round(o.progresso * 100)}%"></i></span>`);
+            linhas.push(o.estoque ? `Depois faz mais ${o.estoque} sozinha: termina tudo em ${fmtTempo(o.termina - agora())}.` : 'Depois dessa, para: o estoque está vazio.');
+        } else {
+            linhas.push(o.auto ? 'Parada: falta ingrediente no celeiro (ou energia para a fábrica automática).' : 'Parada: guarde ingredientes no estoque e ela começa na hora.');
+        }
+        return linhas.map((l) => `<p>${l}</p>`).join('');
+    }
+    function htmlOficina(c, o) {
+        const it = o.it, max = (S && S.estoque_max) || 10;
+        const entra = valorReceita(it), sai = it.produz_qtd * (o.produto.venda || 0), lucro = sai - entra;
+        const porDia = Math.floor(86400 / it.produz_seg);
+        const ocupado = o.estoque + (o.estado === 'trabalhando' ? 1 : 0);
+        const cabe = Math.max(0, max - ocupado);
+        const temNoCeleiro = Math.min(...Object.entries(it.entradas).map(([item, qtd]) => Math.floor(Math.max(0, naCeleiro(item) - reservaDe(item)) / qtd)));
+        const pode = Math.min(cabe, temNoCeleiro);
+        const falta = faltaParaReceita(it);
+        return `
+            <p class="receita-linha">${receitaHtml(it)}</p>
+            <div class="oficina-conta">
+                <span>Os ingredientes valem <b>${moeda(entra)}</b></span>
+                <span>${itemDe(o.produto, 18)} vale <b>${moeda(sai)}</b></span>
+                <span class="${lucro > 0 ? 'lucro' : 'prejuizo'}">Lucro: <b>${lucro > 0 ? '+' : ''}${lucro}</b> ${ico('moeda', 14)} por receita (${entra ? Math.round(lucro / entra * 100) : 0}%)</span>
+            </div>
+            <p class="det">Sem parar, faz até <b>${porDia * it.produz_qtd}</b> ${itemDe(o.produto, 16)} por dia: <b>+${lucro * porDia}</b> ${ico('moeda', 12)} a mais do que vender os ingredientes, e cada um ainda dá ${o.produto.xp || 0} ${ico('xp', 12)}.</p>
+            <h3 class="secao-titulo">Agora</h3>
+            <div class="oficina-agora" data-oficina-agora>${htmlOficinaAgora(o)}</div>
+            <h3 class="secao-titulo">Estoque: ${o.estoque} receita${o.estoque === 1 ? '' : 's'} guardada${o.estoque === 1 ? '' : 's'}${o.estado === 'trabalhando' ? ' + 1 fazendo' : ''} (cabem ${max})</h3>
+            <span class="estoque-barra"><i style="width:${Math.round(ocupado / max * 100)}%"></i></span>
+            <p class="det">Guardar tira os ingredientes do celeiro agora (a ração reservada fica). Ela trabalha sozinha até o estoque acabar.</p>
+            <div class="estoque-botoes">
+                <button type="button" class="botao pequeno creme" data-estoque="1"${pode >= 1 ? '' : ' disabled'}>+1</button>
+                <button type="button" class="botao pequeno creme" data-estoque="5"${pode >= 5 ? '' : ' disabled'}>+5</button>
+                <button type="button" class="botao pequeno verde" data-estoque="${pode}"${pode >= 1 ? '' : ' disabled'}>Encher${pode ? ` (+${pode})` : ''}</button>
+                <button type="button" class="botao pequeno creme" data-estoque="-${o.estoque}"${o.estoque ? '' : ' disabled'}>Tirar tudo</button>
+            </div>
+            ${!cabe ? '<p class="aviso">Estoque cheio.</p>'
+                : falta.length ? `<p class="aviso">Para mais uma receita faltam no celeiro: ${falta.map((f) => `${f.falta} ${itemDe(culturas[f.item] || { id: f.item }, 16)}`).join(', ')}.</p>` : ''}
+            ${o.auto ? `<p class="aviso">${A.htmlItem('fabrica_auto', 18)} Com a fábrica automática, quando o estoque acaba ela busca ingredientes no celeiro sozinha (8 ${ico('raio', 12)} por receita) e os produtos vão direto para o celeiro.</p>` : ''}
+            <div class="rodape-painel">
+                ${o.prontos ? `<button type="button" class="botao verde" data-oficina-pegar>Pegar ${o.prontos} ${itemDe(o.produto, 18)}</button>` : '<span></span>'}
+                <button type="button" class="botao creme" data-fechar>Fechar</button>
+            </div>`;
     }
 
     function coletarItem(x, y) {
@@ -982,12 +1071,11 @@
         if (!it) return;
         const o = !visita && infoOficina(c);
         if (o) {
-            if (o.estado === 'pronta') return mostrarStatus(`${A.htmlItem(c.tipo, 22)} <b>${esc(it.nome)}</b>: ${nomeItem(o.it.produz)} pronto! Toque para pegar.`);
-            if (o.estado === 'trabalhando') return mostrarStatus(`${A.htmlItem(c.tipo, 22)} <b>${esc(it.nome)}</b>: ${nomeItem(o.it.produz)} pronto em ${fmtTempo(o.falta)}.`);
-            const falta = faltaParaReceita(o.it);
-            return mostrarStatus(`${A.htmlItem(c.tipo, 22)} <b>${esc(it.nome)}</b>: ${receitaHtml(o.it)}. ${falta.length
-                ? `Faltam ${falta.map((f) => `${f.falta} ${nomeItem(f.item)}`).join(', ')}.`
-                : 'Toque para começar.'}`);
+            const partes = [];
+            if (o.prontos) partes.push(`${o.prontos} ${itemDe(o.produto, 16)} pronto(s)`);
+            partes.push(o.estado === 'trabalhando' ? `fazendo ${nomeItem(o.it.produz)} (pronto em ${fmtTempo(o.falta)})` : 'parada');
+            partes.push(`estoque: ${o.estoque} receita(s)`);
+            return mostrarStatus(`${A.htmlItem(c.tipo, 22)} <b>${esc(it.nome)}</b>: ${partes.join(' · ')}. Toque para abrir.`);
         }
         if (!visita) {
             const p = infoProducao(c);
@@ -1494,7 +1582,7 @@
         atualizarTerreno();
         desenharHud();
         if (constr.ativo) desenharPaleta();
-        if (['loja', 'celeiro', 'missoes'].includes(painelAtual)) abrirPainel(painelAtual, true);
+        if (['loja', 'celeiro', 'missoes', 'oficina', 'energia'].includes(painelAtual)) abrirPainel(painelAtual, true);
     }
 
     /* ---------- Diário: quem passou pela sua fazenda ---------- */
@@ -1944,6 +2032,14 @@
                     <a class="botao creme" href="indexversao2.html">Voltar ao portfólio</a>
                     <button type="button" class="botao vermelho" data-sair>Sair desta fazenda</button>`}
                 </div>`;
+        } else if (nome === 'oficina') {
+            const c = oficinaDoPainel(), o = c && infoOficina(c);
+            if (!o) { fecharPainel(); return; }
+            el.painelTitulo.innerHTML = `${A.htmlItem(c.tipo, 32)} ${esc(o.it.nome)}`;
+            corpo.innerHTML = htmlOficina(c, o);
+        } else if (nome === 'energia') {
+            el.painelTitulo.innerHTML = `${ico('raio', 26)} Energia e máquinas`;
+            corpo.innerHTML = htmlEnergia();
         } else if (nome === 'ajuda') {
             el.painelTitulo.innerHTML = `${ico('ajuda', 26)} Como jogar`;
             corpo.innerHTML = `
@@ -1957,14 +2053,14 @@
                     <li>Na loja, aba <b>Terrenos</b>, compre pedaços da mata em volta para a fazenda crescer (e ganhar +6 canteiros).</li>
                     <li>Todo item do Construir faz alguma coisa: evita seca, praga ou erva, adianta o crescimento, dá itens e XP extras, protege dos vizinhos ou aumenta a <b>beleza</b> (bônus nas vendas). Toque num item para ver o que ele faz.</li>
                     <li>Na loja, aba <b>Ajudantes</b>: contrate pessoas que aram, plantam, cuidam, colhem e tratam dos animais sozinhas. Dá para evoluir cada uma até o nível 3.</li>
-                    <li>Em <b>Construir → Oficinas</b> tem padaria, queijaria, pipocaria e outras: toque nela para começar (gasta os ingredientes do celeiro) e de novo quando o produto ficar pronto. Produtos de oficina valem mais que os ingredientes.</li>
+                    <li>Em <b>Construir → Oficinas</b> tem padaria, queijaria, pipocaria e outras. Toque nela para abrir o painel: guarde ingredientes no <b>estoque</b> (até 10 receitas) e ela trabalha sozinha, uma receita atrás da outra. O painel mostra quanto valem os ingredientes, quanto vale o produto e o <b>lucro</b>. Quando aparecer o balão, toque para pegar.</li>
                     <li>A <b>amoreira</b> dá amoras sozinha: quando aparecer o balão, toque nela para colher.</li>
                     <li>Em <b>Construir → Máquinas</b>: irrigador, pulverizador e robô capinador evitam seca, pragas e ervas por perto; o alarme protege dos vizinhos; trator e colheitadeira ajudam na fazenda toda.</li>
                     <li>Na loja tem <b>animais</b>: dê ração (sai do celeiro) e colete ovos, leite e lã. No celeiro, <b>Reservar</b> guarda a ração deles para não ir junto no "Vender tudo".</li>
                     <li>No botão <b>Construir</b> você coloca cercas, caminhos, árvores, flores e objetos onde quiser. Toque em <b>Pronto</b> para fechar.</li>
                     <li>Toque num item já colocado para ver o que ele faz; o <b>alcance</b> dele (irrigador, alarme, estufa...) aparece marcado no chão. <b>Segure o dedo 3 segundos</b> num item ou canteiro para pegar e levar para outro lugar.</li>
                     <li>A semana tem as 4 <b>estações</b> (42 horas cada), e cada uma tem uma semente só dela: morango, melancia, abóbora e repolho. O <b>clima</b> muda várias vezes por dia: sol dá +1 na colheita, chuva rega tudo, onda de calor seca mais, nublado não traz problema novo e ventania espalha pragas. Toque no clima, lá em cima, para ver até quando ele vai.</li>
-                    <li>Do nível 16 em diante vem a <b>energia</b> ${ico('raio', 14)}: painel solar, turbina, gerador a biomassa e reator enchem as baterias, e as máquinas elétricas (estufa, triturador, fábrica automática, robô, aspersor) trabalham sozinhas gastando energia.</li>
+                    <li>Do nível 16 em diante vem a <b>energia</b> ${ico('raio', 14)}: painel solar, turbina, gerador a biomassa e reator enchem as baterias, e as máquinas elétricas (estufa, triturador, fábrica automática, robô, aspersor) trabalham sozinhas gastando energia. Toque no ${ico('raio', 12)} lá em cima (ou no botão abaixo) para ver o que cada uma faz.</li>
                     ${ANUNCIO.ligado || ehLocal ? `<li>Quando aparecer o botão <b>+30 min</b>, assista a um anúncio até o fim e tudo o que está em andamento (plantas, animais, oficinas, ajudantes e energia) adianta 30 minutos.</li>` : ''}
                     <li>No Perfil (ou em Vizinhos) tem o seu <b>link de convite</b>: quem criar uma fazenda por ele ganha moedas, e você também.</li>
                     <li>No <b>Vale do sudeste</b> (terreno 3) tem um lago: o pescador <b>Bira</b> tira um peixe a cada 30 minutos, até 16 no cesto. Toque no lago para pegar. Quanto mais raro, mais vale, e o lendário <b>Peixe do Velho Chico</b> sai em 1% das vezes (2% com a estátua do nível 30).</li>
@@ -1974,6 +2070,7 @@
                 </ul>
                 <div class="rodape-painel">
                     <button type="button" class="botao creme" data-tutorial>Ver o tutorial</button>
+                    <button type="button" class="botao creme" data-painel-ir="energia">${ico('raio', 14)} Energia e máquinas</button>
                     <button type="button" class="botao verde" data-fechar>Entendi</button>
                 </div>`;
         } else if (nome === 'nivel' && nivelComemorar) {
@@ -2269,6 +2366,25 @@
             desenharHud();
             fecharPainel();
             toast(`Semente escolhida: ${itemDe(k)} ${esc(k.nome)}`);
+            return;
+        }
+        const est = e.target.closest('[data-estoque]');
+        if (est && oficinaAberta) {
+            const n = Number(est.dataset.estoque);
+            if (!n) return;
+            est.disabled = true;
+            const { x, y } = oficinaAberta;
+            enfileirar([], async () => {
+                const r = await rpc('fazenda_estoque', { p_token: token, p_x: x, p_y: y, p_receitas: n });
+                som.tocar(n > 0 ? 'construir' : 'moeda');
+                toast(r.receitas > 0 ? `Guardou ${r.receitas} receita(s) no estoque.` : `${-r.receitas} receita(s) voltaram para o celeiro.`);
+                aplicarEstado(r.estado);
+            });
+            return;
+        }
+        if (e.target.closest('[data-oficina-pegar]')) {
+            const c = oficinaDoPainel(), o = c && infoOficina(c);
+            if (o && o.prontos) pegarOficina(c, o);
             return;
         }
         const resv = e.target.closest('[data-reserva]');
@@ -2668,6 +2784,10 @@
         desenharEnergia();
         atualizarBotaoAnuncio();
         atualizarLago();
+        if (painelAtual === 'oficina') {
+            const c = oficinaDoPainel(), o = c && infoOficina(c), alvo = el.painelCorpo.querySelector('[data-oficina-agora]');
+            if (o && alvo) alvo.innerHTML = htmlOficinaAgora(o);
+        }
         if (document.visibilityState === 'visible' && Date.now() - ultimoPoll > POLL_MS) {
             ultimoPoll = Date.now();
             recarregar();

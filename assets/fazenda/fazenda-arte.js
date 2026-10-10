@@ -1212,6 +1212,21 @@
             for (const a of atores.values()) if (a.v) desenharSinalAnimal(a, tempo);
             if (lago && lagoNaTela()) desenharPescaria(tempo);
             for (const c of lista) {
+                // gerador a biomassa queimando milho e oficina trabalhando: fumacinha (a da oficina sai da chaminé, à direita)
+                const oficina = c.oficina && c.oficina.trabalhando;
+                if (!c.ligado && !oficina) continue;
+                const a = oficina ? arteItem(c.tipo, EST) : null;
+                const sx = oficina ? wx(c.x) + (a.w || 2) * T - 5 : wx(c.x) + 9, sy = oficina ? wy(c.y) + 3 : wy(c.y) + 1;
+                for (let k = 0; k < 3; k++) {
+                    const f = ((tempo / 900) + k / 3) % 1;
+                    q.globalAlpha = 0.85 * (1 - f);
+                    q.fillStyle = k === 1 ? '#8b9bb4' : '#c0cbdc';   // uma das bolinhas mais escura
+                    const tam = 3 + Math.round(f * 3);
+                    q.fillRect(Math.round(sx + Math.sin(f * 6 + k) * 2 + (oficina ? f * 5 : 0)), Math.round(sy - f * 14), tam, tam);
+                }
+                q.globalAlpha = 1;
+            }
+            for (const c of lista) {
                 const of = c.oficina;
                 if (!of) continue;
                 const a = arteItem(c.tipo, EST);
@@ -1222,19 +1237,8 @@
                 q.globalAlpha = of.estado === 'parada' ? 0.4 : pronta ? 1 : 0.7;
                 tile(q, of.produto, bx + 2, by + 1);
                 q.globalAlpha = 1;
-                if (of.estado === 'trabalhando') barraProgresso(bx + 4, by + 19, of.progresso || 0);
+                if (of.trabalhando) barraProgresso(bx + 4, by + 19, of.progresso || 0);
                 if (pronta && Math.floor(tempo / 300) % 3) icone(q, 'brilho', bx + 17, by - 3);
-            }
-            for (const c of lista) {
-                if (!c.ligado) continue;   // gerador a biomassa queimando milho: fumacinha
-                for (let k = 0; k < 3; k++) {
-                    const f = ((tempo / 900) + k / 3) % 1;
-                    q.globalAlpha = 0.85 * (1 - f);
-                    q.fillStyle = k === 1 ? '#8b9bb4' : '#c0cbdc';   // uma das bolinhas mais escura
-                    const tam = 3 + Math.round(f * 3);
-                    q.fillRect(Math.round(wx(c.x) + 9 + Math.sin(f * 6 + k) * 2), Math.round(wy(c.y) + 1 - f * 14), tam, tam);
-                }
-                q.globalAlpha = 1;
             }
             for (const c of lista) {
                 if (!c.pronto || c.produto == null) continue;
