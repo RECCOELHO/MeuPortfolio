@@ -8,6 +8,7 @@
    até 32 x 20 com os terrenos comprados (ZONAS). Os canteiros têm
    lugar livre (x, y) e se emendam em fileiras quando ficam lado a lado.
    Máquinas: pacote "Tiny Factory" do Kenney (CC0).
+   Visitas na porteira: personagens do pacote "Tiny Dungeon" do Kenney (CC0).
 
    Expõe window.FazendaArte com:
      carregar()                → Promise quando a arte estiver pronta
@@ -245,15 +246,7 @@
         ['affffffffffffffa', 'alllllllllllllla', '.aafllllllllKaa.', '..afllllllllKa..', '..aflHHHHHHlKa..', '..aflHggggHlKa..', '..aflHgGGGHlKa..', '..aflHGGGgHlKa..', '..aflHgggGHlKa..', '..aflHHHHHHlKa..', '..afllllllllKa..', '..afllllllllKa..', '.aafllllllllKaa.', 'alllllllllllllla', 'aKKKKKKKKKKKKKKa', '.aaaaaaaaaaaaaa.'],
         // 39 estátua do Velho Chico (metade de cima: cabeça e o peixe erguido)
         ['.............a..', '............aga.', '...d.......aggga', '..d.d.....agdHGa', '...d......agdgGg', '..........aHggGH', '..........agHHGg', '..........agggGa', '....aaaaaaaaggga', '...aHHHHHHHagaga', '..aHHggHHHHHaaag', '..aHHHHHgHHHGGGa', '..aHHHHHHHHHgGGg', '..aHHGHGHGHHaGGa', '..aHGGGGGGGHaGGa', '..aHGHGGHGGaaGGa'],
-        // 40
-        ['................', '.....aaaaaa.....', '....agGGGGga....', '..aaagggggggaa..', '.agggggggggggga.', '..aaakkkkkkaaa..', '....akakkakka...', '....akkkkkkka...', '....akyyyykka...', '.....akkkkka....', '...aaddvvvddaa..', '..akaddvvvddaka.', '..akadvvvvvdaka.', '...aavvvvvvvaa..', '....ayya.ayya...', '....aaaa.aaaa...'],
-        // 41
-        ['................', '.....aaaaaa.....', '....aXXdXXXa....', '...aXXXXXdXXa...', '...aXjjjjjjXa...', '...aXjajjajXa...', '....ajjjjjja....', '....ajjmmjja....', '.....ajjjja.....', '....aQmmmmQa....', '...aQmddddmQa...', '..ajQmddddmQja..', '..ajmmddddmmja..', '...ammmmmmmma...', '.....aj..ja.....', '....aaa..aaa....'],
-        // 42
-        ['................', '................', '.....aaaaaa.....', '....aXXXXXXa....', '....aXXdXXXXaa..', '....aZZZZZZZZZa.', '....akkkkkkka...', '....akakkakka...', '....ayykkkyya...', '....ayyyyyyya...', '.....ayyyyya....', '...aaXBBBBBXaa..', '..akaXBEEEBXaka.', '..akaBBBBBBBaka.', '....aBBa.aBBa...', '....aaaa.aaaa...'],
-        // 43
-        ['................', '.......aaa......', '......afffa.....', '....aaffffaa....', '...afffffffla...', '...afkkkkkkfa...', '...akakkkakka...', '....akkkkkka....', '.....akmmka.....', '....aUUUUUUaaa..', '...aUVUUUUVUyna.', '..akUUVVVVUUyna.', '..akaUUUUUUayya.', '...aUUUUUUUaaa..', '....aUUa.aUUa...', '....aaaa.aaaa...'],
-        // 44
+        // 40 saco de adubo (o que a mascate vende)
         ['................', '................', '.......aa.......', '......aDLa......', '.....aaDDaa.....', '....anyyyyna....', '...anyyyyyyna...', '...ayyDDDDyya...', '...ayDLLLLDya...', '...ayyDDDDyya...', '...ayyyyyyyya...', '...anyyyyyyna...', '....annnnnna....', '.....aaaaaa.....', '................', '................']
     ];
     const atlasProprio = document.createElement('canvas');
@@ -473,7 +466,7 @@
         return `<img class="px-ico" src="${iconeURL(nome)}" width="${px}" height="${h}" alt="">`;
     }
 
-    const ARQUIVOS = { farm: 'tiny-farm.png', town: 'tiny-town.png', ski: 'tiny-ski.png', factory: 'tiny-factory.png' };
+    const ARQUIVOS = { farm: 'tiny-farm.png', town: 'tiny-town.png', ski: 'tiny-ski.png', factory: 'tiny-factory.png', dungeon: 'tiny-dungeon.png' };
     const VERSAO_ARTE = '2';   // troque se as imagens dos pacotes mudarem (cache de 4 h do Cloudflare)
     function htmlTile(i, px = 32, pacote = 'farm') {
         if (i >= 1000) { i -= 1000; pacote = 'propria'; }
@@ -498,7 +491,7 @@
     }
 
     /* ---------- Atlas ---------- */
-    const atlas = { farm: new Image(), town: new Image(), ski: new Image(), factory: new Image() };
+    const atlas = { farm: new Image(), town: new Image(), ski: new Image(), factory: new Image(), dungeon: new Image() };
     let atlasPronto = null;
     function carregar() {
         if (!atlasPronto) {
@@ -650,7 +643,7 @@
         // visita na porteira: { tipo, item (tile do balão), x, y, tx, ty, saindo }
         let visitante = null;
         let avatarAtual = null;   // avatar do fazendeiro na tela (o seu, ou o do vizinho visitado)
-        const VISITANTE_ARTE = { feirante: 1040, doceira: 1041, caminhoneiro: 1042, mascate: 1043 };
+        const VISITANTE_ARTE = { feirante: 86, doceira: 99, caminhoneiro: 112, mascate: 100 };   // Tiny Dungeon
         const PORTEIRA = { x: 8, y: 2 };   // onde a visita para (do lado da casa)
         let hover = null;                                  // canteiro, 'celeiro', 'a:<id>' ou {tx, ty}
         let alcance = null;                                // alcance de um item tocado: { x, y, raio, ate }
@@ -1400,7 +1393,7 @@
             const andando = fazendeiro.passo > 0;
             pe.push({ img: avatarCanvas(avatarAtual), x: fazendeiro.x, y: fazendeiro.y, flip: fazendeiro.flip, bob: andando && Math.floor(tempo / 120) % 2 ? -1 : 0 });
             if (lago && lagoNaTela()) pe.push({ p: 'factory', i: 120, x: wx(LAGO.x) + 1, y: wy(LAGO.y + 2), flip: false, bob: Math.floor(tempo / 700) % 2 ? -1 : 0 });
-            if (visitante) pe.push({ p: 'farm', i: VISITANTE_ARTE[visitante.tipo] || 1040, x: visitante.x, y: visitante.y, flip: visitante.flip, bob: visitante.andando && Math.floor(tempo / 140) % 2 ? -1 : 0 });
+            if (visitante) pe.push({ p: 'dungeon', i: VISITANTE_ARTE[visitante.tipo] || 86, x: visitante.x, y: visitante.y, flip: visitante.flip, bob: visitante.andando && Math.floor(tempo / 140) % 2 ? -1 : 0 });
             pe.sort((a, b) => a.y - b.y).forEach((a) => {
                 const x = Math.round(a.x), y = Math.round(a.y) + a.bob;
                 if (a.grade) {
@@ -1421,7 +1414,7 @@
             if (visitante && !visitante.andando && !visitante.saindo) {   // balão com o pedido, pulando
                 const bx = Math.round(visitante.x) - 2, by = Math.round(visitante.y) - 21 + (Math.floor(tempo / 350) % 2);
                 balao(bx, by, 20, 18);
-                tile(q, visitante.item != null ? visitante.item : 1044, bx + 2, by + 1);
+                tile(q, visitante.item != null ? visitante.item : 1040, bx + 2, by + 1);
                 if (Math.floor(tempo / 300) % 3) icone(q, 'brilho', bx + 15, by - 3);
             }
             for (const a of atores.values()) if (a.v) desenharSinalAnimal(a, tempo);

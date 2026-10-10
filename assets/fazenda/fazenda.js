@@ -883,13 +883,13 @@
 
     /* ---------- Visitas na porteira: a cada 3 horas chega alguém (fazenda_visitante) ---------- */
     const VISITAS = {
-        feirante: { nome: 'Seu Tonico', papel: 'o feirante', sprite: 40,
+        feirante: { nome: 'Seu Tonico', papel: 'o feirante', sprite: 86,
             fala: (q, item, paga) => `Bom dia! Tô precisando de <b>${q} ${item}</b> pra banca da feira. Pago <b>${paga}</b>, bem mais que no celeiro!` },
-        doceira: { nome: 'Dona Benta', papel: 'a doceira', sprite: 41,
+        doceira: { nome: 'Dona Benta', papel: 'a doceira', sprite: 99,
             fala: (q, item, paga) => `Ô de casa! Vou fazer uma fornada e me faltam <b>${q} ${item}</b>. Te pago <b>${paga}</b>, combinado?` },
-        caminhoneiro: { nome: 'Zeca', papel: 'do caminhão', sprite: 42,
+        caminhoneiro: { nome: 'Zeca', papel: 'do caminhão', sprite: 112,
             fala: (q, item, paga) => `E aí! O caminhão tá vazio: levo <b>${q} ${item}</b> de uma vez só. Pago <b>${paga}</b> e ainda dou um bônus de XP.` },
-        mascate: { nome: 'Dona Fia', papel: 'a mascate', sprite: 43 }
+        mascate: { nome: 'Dona Fia', papel: 'a mascate', sprite: 100 }
     };
     const visitaAgora = () => (!visita && S && S.visitante) || null;
     const nomeQtd = (k, n) => { const nome = (k.nome || k.id).toLowerCase(); return n === 1 || /s$/.test(nome) ? nome : nome.replace(/(ão)$/, 'ões').replace(/([^s])$/, '$1s'); };
@@ -899,7 +899,7 @@
         cena.definirVisitante(v ? { tipo: v.tipo, item: v.item ? A.cultura(v.item).item : null } : null);
         if (v && visitaVista !== null && visitaVista !== v.slot) {
             const p = VISITAS[v.tipo];
-            toast(`${spr(1000 + p.sprite, 22)} Chegou visita na porteira: <b>${p.nome}</b>, ${p.papel}! Toque nela para conversar.`);
+            toast(`${spr(p.sprite, 22, 'dungeon')} Chegou visita na porteira: <b>${p.nome}</b>, ${p.papel}! Toque nela para conversar.`);
         }
         visitaVista = v ? v.slot : (visitaVista === null ? 0 : visitaVista);
     }
@@ -907,7 +907,7 @@
         const v = visitaAgora();
         if (!v) return;
         const p = VISITAS[v.tipo], k = v.item && culturas[v.item];
-        mostrarStatus(`${spr(1000 + p.sprite, 22)} <b>${p.nome}</b>, ${p.papel}: ` + (v.tipo === 'mascate'
+        mostrarStatus(`${spr(p.sprite, 22, 'dungeon')} <b>${p.nome}</b>, ${p.papel}: ` + (v.tipo === 'mascate'
             ? `vende adubo para ${v.canteiros} canteiros por ${moeda(v.preco)}.`
             : `quer ${v.qtd} ${k ? itemDe(k, 16) + esc(nomeQtd(k, v.qtd)) : ''} e paga ${moeda(v.paga)}.`) + ' Toque para conversar.');
     }
@@ -915,7 +915,7 @@
     const canteirosParaAdubo = () => (S.canteiros || []).filter((c) => !c.adubado && info(c).fase === 'crescendo').length;
     function htmlVisitante(v) {
         const p = VISITAS[v.tipo], ate = hora(v.ate);
-        const cabeca = `<div class="visita-topo">${spr(1000 + p.sprite, 64)}<div><b>${p.nome}</b>, ${p.papel}<small>fica até ${ate}</small></div></div>`;
+        const cabeca = `<div class="visita-topo">${spr(p.sprite, 64, 'dungeon')}<div><b>${p.nome}</b>, ${p.papel}<small>fica até ${ate}</small></div></div>`;
         if (v.tipo === 'mascate') {
             const n = Math.min(v.canteiros, canteirosParaAdubo()), preco = Math.ceil(v.preco * n / v.canteiros);
             return `${cabeca}
@@ -923,7 +923,7 @@
                 <p class="det">${n ? `Agora dá para adubar ${n} canteiro(s): você paga ${moeda(preco)}.` : 'Você não tem canteiro crescendo sem adubo agora: plante e volte a falar com ela.'}</p>
                 <div class="rodape-painel">
                     <button type="button" class="botao creme" data-atender="0">Agora não</button>
-                    <button type="button" class="botao verde" data-atender="1"${n && S.jogador.moedas >= preco ? '' : ' disabled'}>${spr(1044, 18)} Comprar adubo</button>
+                    <button type="button" class="botao verde" data-atender="1"${n && S.jogador.moedas >= preco ? '' : ' disabled'}>${spr(1040, 18)} Comprar adubo</button>
                 </div>`;
         }
         const k = culturas[v.item] || { id: v.item, nome: v.item, venda: 0 }, tem = Math.max(0, naCeleiro(v.item) - reservaDe(v.item));
@@ -952,10 +952,10 @@
             if (r.resposta === 'entregou') {
                 som.tocar(v.tipo === 'mascate' ? 'cuidar' : 'moeda');
                 toast(v.tipo === 'mascate'
-                    ? `${spr(1044, 20)} ${p.nome} adubou ${r.adubados} canteiro(s): +1 item na colheita de cada.`
-                    : `${spr(1000 + p.sprite, 20)} ${p.nome} levou o pedido: +${v.paga} ${ico('moeda', 14)} +${v.xp} ${ico('xp', 14)}`, 'festa');
+                    ? `${spr(1040, 20)} ${p.nome} adubou ${r.adubados} canteiro(s): +1 item na colheita de cada.`
+                    : `${spr(p.sprite, 20, 'dungeon')} ${p.nome} levou o pedido: +${v.paga} ${ico('moeda', 14)} +${v.xp} ${ico('xp', 14)}`, 'festa');
             } else {
-                toast(`${spr(1000 + p.sprite, 20)} ${p.nome} foi embora. Daqui a pouco chega outra visita.`);
+                toast(`${spr(p.sprite, 20, 'dungeon')} ${p.nome} foi embora. Daqui a pouco chega outra visita.`);
             }
             aplicarEstado(r.estado);
         });
@@ -2233,7 +2233,7 @@
         } else if (nome === 'visitante') {
             const v = visitaAgora();
             if (!v) { fecharPainel(); return; }
-            el.painelTitulo.innerHTML = `${spr(1000 + VISITAS[v.tipo].sprite, 32)} Visita na porteira`;
+            el.painelTitulo.innerHTML = `${spr(VISITAS[v.tipo].sprite, 32, 'dungeon')} Visita na porteira`;
             corpo.innerHTML = htmlVisitante(v);
         } else if (nome === 'oficina') {
             const c = oficinaDoPainel(), o = c && infoOficina(c);
