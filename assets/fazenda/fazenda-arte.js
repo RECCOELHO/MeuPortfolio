@@ -47,10 +47,12 @@
         // o lago (terreno 3, Vale do sudeste): o tanque e a grama do pescador, à esquerda; igual a fazenda_livre no SQL
         lago: { x: 24, y: 14, w: 6, h: 5 },
         reservas: [
-            { x: 1, y: 1, w: 3, h: 6 }, { x: 5, y: 1, w: 3, h: 3 }, { x: 0, y: 7, w: 7, h: 2 },
+            { x: 1, y: 1, w: 3, h: 6 }, { x: 5, y: 1, w: 3, h: 3 }, null,
             { x: 16, y: 0, w: 6, h: 7 }, { x: 24, y: 14, w: 6, h: 5 }
         ]
     };
+    // o galinheiro cresce com os bichos (definirGalinheiro): a reserva é o mesmo objeto
+    MAPA.reservas[2] = MAPA.galinheiro;
     const MARGEM = 9;   // quadrados de mata em volta do terreno
 
     /* ---------- Terrenos: começa com BASE e compra as ZONAS em ordem ----------
@@ -860,7 +862,14 @@
                 if (!a || a.tipo !== v.tipo) {
                     const area = areaDe(v.tipo);
                     const r = rng(hash(v.id));
-                    const x = area.x0 + r() * (area.x1 - area.x0), y = area.y0 + r() * (area.y1 - area.y0);
+                    // nasce no lugar mais longe dos outros bichos (com fome eles ficam parados: nada de balão em cima de balão)
+                    let x = 0, y = 0, folga = -1;
+                    for (let k = 0; k < 10; k++) {
+                        const cx = area.x0 + r() * (area.x1 - area.x0), cy = area.y0 + r() * (area.y1 - area.y0);
+                        let perto = Infinity;
+                        for (const b of atores.values()) if (!b.ajudante && b.v) perto = Math.min(perto, Math.hypot((cx - b.x) * 0.8, cy - b.y));
+                        if (perto > folga) { folga = perto; x = cx; y = cy; }
+                    }
                     a = {
                         id: v.id, tipo: v.tipo, i: ANIMAL[v.tipo] || 122, area, x, y, tx: x, ty: y,
                         flip: r() < 0.5, espera: r() * 2500, vel: PEQUENOS.includes(v.tipo) ? 10 : 4
@@ -882,6 +891,21 @@
                 });
             }
             for (const id of [...atores.keys()]) if (!vistos.has(id)) atores.delete(id);
+        }
+
+        // sorteia uns lugares na área do bicho e fica com o mais longe dos outros (ninguém amontoado)
+        function lugarLivre(a) {
+            let melhor = null, folga = -1;
+            for (let k = 0; k < (a.ajudante ? 1 : 6); k++) {
+                const x = a.area.x0 + Math.random() * (a.area.x1 - a.area.x0), y = a.area.y0 + Math.random() * (a.area.y1 - a.area.y0);
+                let perto = Infinity;
+                for (const b of atores.values()) {
+                    if (b === a || b.ajudante || !b.v) continue;
+                    perto = Math.min(perto, Math.hypot(x - b.tx, y - b.ty), Math.hypot(x - b.x, y - b.y));
+                }
+                if (perto > folga) { folga = perto; melhor = { x, y }; }
+            }
+            return melhor;
         }
 
         function mover(dt) {
@@ -911,8 +935,9 @@
                 }
                 if (d < 0.5) {
                     a.espera = 800 + Math.random() * 3500;
-                    a.tx = a.area.x0 + Math.random() * (a.area.x1 - a.area.x0);
-                    a.ty = a.area.y0 + Math.random() * (a.area.y1 - a.area.y0);
+                    const p = lugarLivre(a);
+                    a.tx = p.x;
+                    a.ty = p.y;
                     continue;
                 }
                 const passo = Math.min(d, a.vel * dt / 1000);
@@ -1632,6 +1657,15 @@
             definirClima(c) { clima = c || null; precisaDesenhar = true; },
             // seu lago: { prontos, max } (null na visita ou sem o terreno 3)
             definirLago(l) { lago = l || null; },
+            // fileiras do galinheiro (2 a 4): refaz o chão e os bichos pequenos se espalham no espaço novo
+            definirGalinheiro(linhas) {
+                const h = Math.max(2, Math.min(4, linhas || 2));
+                if (h === MAPA.galinheiro.h) return;
+                MAPA.galinheiro.h = h;
+                for (const [id, a] of atores) if (!a.ajudante) atores.delete(id);
+                montarFundo();
+                precisaDesenhar = true;
+            },
             // estação nova: refaz o chão (neve, folhas, flores) e a arte das árvores
             definirEstacao(e) {
                 estacaoServidor = e || null;

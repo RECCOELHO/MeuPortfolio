@@ -848,6 +848,32 @@
         for (const [tipo, alvos] of Object.entries(obras)) cena.ajudanteTrabalhou(tipo, alvos);
     }
 
+    /* ---------- Galinheiro: cresce com os bichos pequenos (igual a fazenda_galinheiro_linhas) ---------- */
+    function linhasGalinheiro(fonte) {
+        const n = (fonte.animais || []).filter((a) => ['galinha', 'pato', 'coelho'].includes(a.tipo)).length;
+        const quer = n >= 9 ? 4 : n >= 6 ? 3 : 2;
+        let linhas = 2;
+        while (linhas < quer) {
+            const y = 7 + linhas;
+            const ocupado = (fonte.canteiros || []).some((c) => c.y === y && c.x >= 0 && c.x <= 6)
+                || (fonte.construcoes || []).some((c) => { const t = tamanhoItem(c.tipo); return c.x <= 6 && c.x + t.w > 0 && c.y <= y && c.y + t.h > y; });
+            if (ocupado) break;
+            linhas++;
+        }
+        return { linhas, quer };
+    }
+    let avisouGalinheiro = false;
+    function atualizarGalinheiro() {
+        const fonte = visita || S;
+        if (!fonte) return;
+        const g = !visita && S.galinheiro ? S.galinheiro : linhasGalinheiro(fonte);
+        cena.definirGalinheiro(g.linhas);
+        if (!visita && g.quer > g.linhas && !avisouGalinheiro) {
+            avisouGalinheiro = true;
+            toast(`${spr(A.ANIMAL.galinha, 20)} Os bichos pequenos precisam de mais espaço: deixe livre a fileira logo abaixo do galinheiro (até 7 quadrados da esquerda) e ele cresce sozinho.`);
+        }
+    }
+
     /* ---------- Ração reservada no celeiro (o "vender" não leva) ---------- */
     const reservaDe = (item) => (S && S.reservas && S.reservas[item]) || 0;
     const MAX_REFEICOES = 10;
@@ -1518,7 +1544,8 @@
         } else if (i.estado === 'pronto') {
             mostrarStatus(`${spr(A.ANIMAL[a.tipo], 22)} ${produto ? itemDe(produto, 18) + esc(produto.nome) : ''} pronto! Toque para coletar.`);
         } else {
-            mostrarStatus(`${spr(A.ANIMAL[a.tipo], 22)} ${nome} produzindo ${produto ? esc(produto.nome.toLowerCase()) : ''} · pronto em ${fmtTempo(i.resta)}.`);
+            const res = reservaDe(i.t.racao);
+            mostrarStatus(`${spr(A.ANIMAL[a.tipo], 22)} ${nome} produzindo ${produto ? esc(produto.nome.toLowerCase()) : ''} · pronto em ${fmtTempo(i.resta)}. Come ${i.t.racao_qtd} ${racao ? itemDe(racao, 16) + esc(nomeRacao(racao, i.t.racao_qtd)) : ''}${res ? ` (guardando ${res})` : ' (reserve na Loja → Animais)'}.`);
         }
     }
 
@@ -1614,6 +1641,7 @@
         desenharEnergia();
         atualizarBotaoAnuncio();
         atualizarLago();
+        atualizarGalinheiro();
         atualizarTerreno();
         desenharHud();
         if (constr.ativo) desenharPaleta();
@@ -1891,6 +1919,7 @@
         if (constr.ativo) fecharConstrucao();
         visita = v;
         atualizarTerreno();
+        atualizarGalinheiro();
         offset = Date.parse(v.agora) - Date.now();
         document.body.classList.add('visitando');
         el.faixaVisita.hidden = false;
@@ -1919,6 +1948,7 @@
     function voltarCasa() {
         visita = null;
         atualizarTerreno();
+        atualizarGalinheiro();
         document.body.classList.remove('visitando');
         el.faixaVisita.hidden = true;
         el.acoesVisita.hidden = true;
@@ -2254,7 +2284,7 @@
                 <span>
                     <span class="nome">${esc(t.nome)} <small class="qtd">${tem}/${t.maximo}</small></span>
                     <span class="det">
-                        <span>come ${t.racao_qtd} ${racao ? itemDe(racao, 16) : ''}</span>
+                        <span>come ${t.racao_qtd} ${racao ? itemDe(racao, 16) + esc(nomeRacao(racao, t.racao_qtd)) : ''}</span>
                         <span>dá ${produto ? itemDe(produto, 16) + esc(produto.nome.toLowerCase()) : ''} a cada ${fmtDuracao(t.tempo_seg)}</span>
                         <span>vende ${moeda(produto ? produto.venda : 0)}</span>
                     </span>
@@ -2263,7 +2293,26 @@
                     : cheio ? '<span class="preco">Completo</span>'
                     : `<button type="button" class="botao pequeno verde" data-comprar="animal:${esc(t.id)}">${ico('moeda', 14)} ${t.custo}</button>`}
             </div>`;
-        }).join('') + '</div><p class="aviso">Toque no animal com fome para dar a ração (sai do seu celeiro) e volte para coletar o produto.</p>';
+        }).join('') + '</div>' + htmlRacoes() + '<p class="aviso">Toque no animal com fome para dar a ração (sai do seu celeiro) e volte para coletar o produto. Os bichos pequenos ficam no galinheiro, que cresce conforme você compra mais deles.</p>';
+    }
+    // "1 alface", "2 alfaces", "2 beterrabas"...
+    const nomeRacao = (k, n) => { const nome = k.nome.toLowerCase(); return n === 1 || /s$/.test(nome) ? nome : nome + 's'; };
+    // a comida dos seus bichos: quanto tem no celeiro e quanto está guardado só para eles
+    function htmlRacoes() {
+        const itens = [...new Set((S.animais_tipos || []).filter((t) => S.animais.some((a) => a.tipo === t.id)).map((t) => t.racao))];
+        if (!itens.length) return '';
+        return `<h3 class="secao-titulo">Comida dos seus bichos</h3>
+            <p class="det">Reservar guarda a comida no celeiro só para eles: o "Vender tudo" e as oficinas não levam.</p>
+            <div class="lista">${itens.map((id) => {
+                const k = culturas[id], come = quemCome(id);
+                if (!k || !come) return '';
+                return `<div class="item">
+                    <span class="ico">${spr(A.cultura(id).item, 40)}</span>
+                    <span><span class="nome">${esc(k.nome)} <small class="qtd">${naCeleiro(id)} no celeiro</small></span>
+                        <span class="det"><span>${esc(come.nomes)} ${/^1 /.test(come.nomes) && !come.nomes.includes(' e ') ? 'come' : 'comem'} ${come.porRefeicao} por refeição</span></span>
+                        ${htmlReserva(k, come)}</span>
+                </div>`;
+            }).join('')}</div>`;
     }
 
     function htmlLojaAjudantes() {
@@ -2430,7 +2479,7 @@
             // aparece na hora; o servidor confirma
             S.reservas = { ...(S.reservas || {}), [item]: qtd };
             if (!qtd) delete S.reservas[item];
-            abrirPainel('celeiro', true);
+            abrirPainel(painelAtual || 'celeiro', true);
             enfileirar([], async () => {
                 const r = await rpc('fazenda_reservar', { p_token: token, p_item: item, p_quantidade: qtd });
                 aplicarEstado(r.estado);

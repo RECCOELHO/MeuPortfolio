@@ -1049,6 +1049,7 @@ begin
       'bonus_venda', fazenda_bonus_venda(p_jogador)
     ),
     'zonas_venda', fazenda_zonas(),
+    'galinheiro', jsonb_build_object('linhas', fazenda_galinheiro_linhas(p_jogador), 'quer', fazenda_galinheiro_quer(p_jogador)),
     -- o lago (só com o terreno 3): desde quando o cesto enche, o ritmo, o máximo e as chances
     'lago', case when j.zonas >= 3 then jsonb_build_object(
       'desde', j.lago_em, 'intervalo', 1800, 'max', 16,
@@ -2510,6 +2511,38 @@ returns boolean language sql immutable as $$
      and not (p_x between 24 and 29 and p_y between 14 and 18); -- lago
 $$;
 
+-- Fase 19: o galinheiro cresce com os bichos pequenos (galinha, pato, coelho): 2 fileiras
+-- (y 7 e 8) até 5 bichos, 3 de 6 a 8 e 4 a partir de 9 — para baixo (y 9 e 10), e só ocupa
+-- uma fileira nova se ela estiver livre (nada construído nem canteiro em x 0..6). Igual a
+-- linhasGalinheiro em fazenda.js.
+create or replace function public.fazenda_galinheiro_quer(p_jogador uuid)
+returns int language sql stable security definer set search_path = public, extensions as $$
+  select case when n >= 9 then 4 when n >= 6 then 3 else 2 end
+    from (select count(*) as n from fazenda_animais
+           where jogador_id = p_jogador and tipo in ('galinha', 'pato', 'coelho')) x;
+$$;
+
+create or replace function public.fazenda_galinheiro_linhas(p_jogador uuid)
+returns int
+language plpgsql stable security definer
+set search_path = public, extensions
+as $$
+declare
+  v_quer   int := fazenda_galinheiro_quer(p_jogador);
+  v_linhas int := 2;
+begin
+  while v_linhas < v_quer loop
+    exit when exists (select 1 from fazenda_canteiros
+                       where jogador_id = p_jogador and y = 7 + v_linhas and x between 0 and 6)
+           or exists (select 1 from fazenda_construcoes c join fazenda_itens i on i.id = c.tipo
+                       where c.jogador_id = p_jogador and c.x <= 6 and c.x + i.largura > 0
+                         and c.y <= 7 + v_linhas and c.y + i.altura > 7 + v_linhas);
+    v_linhas := v_linhas + 1;
+  end loop;
+  return v_linhas;
+end;
+$$;
+
 -- Confere se dá para pôr algo de p_w x p_h em (p_x, p_y): dentro do terreno, fora
 -- das áreas fixas e sem bater em construções ou canteiros (menos o que está sendo movido)
 create or replace function public.fazenda_checar_lugar(p_jogador uuid, p_zonas int, p_x int, p_y int, p_w int, p_h int,
@@ -2522,6 +2555,10 @@ as $$
 begin
   if exists (select 1 from generate_series(p_x, p_x + p_w - 1) gx, generate_series(p_y, p_y + p_h - 1) gy
               where not fazenda_livre(gx, gy) or not fazenda_no_terreno(p_zonas, gx, gy)) then
+    raise exception 'lugar_reservado';
+  end if;
+  -- o galinheiro que cresceu (fileiras 9 e 10) também é reservado
+  if p_x <= 6 and p_y + p_h - 1 >= 9 and p_y <= 6 + fazenda_galinheiro_linhas(p_jogador) then
     raise exception 'lugar_reservado';
   end if;
   if exists (select 1 from fazenda_construcoes c join fazenda_itens k on k.id = c.tipo
@@ -3036,6 +3073,8 @@ revoke execute on function
   public.fazenda_abastecer(uuid, jsonb, int),
   public.fazenda_oficinas_andar(uuid),
   public.fazenda_estoque(text, int, int, int),
+  public.fazenda_galinheiro_quer(uuid),
+  public.fazenda_galinheiro_linhas(uuid),
   public.fazenda_checar_conquistas(uuid)
 from public, anon, authenticated;
 
