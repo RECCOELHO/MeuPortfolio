@@ -467,7 +467,7 @@ insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem) 
   ('arvore',        'Árvore',              'natureza',  60, 3, 14),
   ('arvore_outono', 'Árvore de outono',    'natureza',  70, 6, 15),
   ('pinheiro',      'Pinheiro',            'natureza',  80, 7, 16),
-  ('amoreira',      'Amoreira',            'natureza', 800, 9, 17),
+  ('amoreira',      'Amoreira',            'natureza', 1000, 9, 17),
   ('pedras',        'Pedras',              'objeto',    20, 2, 20),
   ('tora',          'Tora de madeira',     'objeto',    25, 3, 21),
   ('placa',         'Placa',               'objeto',    20, 1, 22),
@@ -631,7 +631,7 @@ update public.fazenda_itens i
     ('arvore',        'seco',         1,  4, 'Sombra: sem seca nos canteiros encostados.', null, null, null),
     ('arvore_outono', 'crescer',      1,  4, 'Folhas viram adubo: plantas encostadas crescem 10% mais rápido.', null, null, null),
     ('pinheiro',      'praga',        2,  4, 'Passarinhos: sem pragas em volta (2 quadrados).', null, null, null),
-    ('amoreira',      null,           0,  3, 'Dá 8 amoras a cada 5 horas: toque nela para colher. É o único jeito de ter amoras (até 4 pés).', 'morango', 18000, 8),
+    ('amoreira',      null,           0,  3, 'Dá 4 amoras a cada 5 horas: toque nela para colher. É o único jeito de ter amoras.', 'morango', 18000, 4),
     ('pedras',        'erva',         1,  1, 'Cobertura de pedras: sem erva daninha nos canteiros encostados.', null, null, null),
     ('tora',          'crescer',      1,  2, 'Minhocas: plantas encostadas crescem 10% mais rápido.', null, null, null),
     ('placa',         'cerca',        2,  1, '"Proibido pegar": vizinhos pegam no máximo 1 item em volta (2 quadrados).', null, null, null),
@@ -647,8 +647,8 @@ update public.fazenda_itens i
   ) v(id, efeito, raio, beleza, descricao, produz, produz_seg, produz_qtd)
  where i.id = v.id;
 
--- Fase 25: amoreira rende muito (8 amoras a cada 5 h): no máximo 4 pés
-update public.fazenda_itens set limite = 4 where id = 'amoreira';
+-- Fase 25: amoreira sem limite de pés (o preço subiu para 1.000 e ela dá 4 amoras a cada 5 h)
+update public.fazenda_itens set limite = null where id = 'amoreira';
 
 -- Beleza da fazenda (soma dos itens construídos)
 create or replace function public.fazenda_beleza(p_jogador uuid)
