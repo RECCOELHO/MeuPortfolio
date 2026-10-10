@@ -582,6 +582,7 @@ on conflict (id) do update set
 -- baterias e as máquinas elétricas gastam. Os números ficam nas funções fazenda_capacidade,
 -- fazenda_energia_taxa e nos gastos de cada máquina; as descrições aparecem no jogo.
 insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem, efeito, raio, limite, descricao) values
+  ('cano',          'Cano de vidro',      'energia',    15, 16, 79, 'cano',       0, null, 'Ligue uma oficina com canos a um canteiro, ao celeiro ou a um baú: quando o estoque acaba, ela busca os ingredientes sozinha (2 ⚡ por receita) e os produtos voltam pelo cano.'),
   ('painel_solar',  'Painel solar',       'energia',  2500, 16, 80, 'solar',      0, 6, 'Gera até 12 ⚡/h de dia (sol forte: 14; nublado: 5; chuva: 3). À noite, nada.'),
   ('bateria',       'Banco de baterias',  'energia',  2000, 16, 81, 'bateria',    0, 4, 'Guarda mais 100 ⚡ (sem bateria, a caixa de luz guarda só 50).'),
   ('turbina',       'Turbina eólica',     'energia',  4000, 17, 82, 'eolica',     0, 4, 'Gera 8 ⚡/h de dia e de noite; 30 ⚡/h na ventania e 14 na chuva.'),
@@ -1605,6 +1606,29 @@ begin
 end;
 $$;
 
+-- Fase 27: canos de vidro. A oficina está ligada se um cano encostado nela leva (por canos
+-- encostados uns nos outros) a um canteiro, a um baú ou ao celeiro. Igual a redeCanos em fazenda.js.
+create or replace function public.fazenda_oficina_ligada(p_jogador uuid, p_x int, p_y int, p_w int, p_h int)
+returns boolean
+language sql stable security definer
+set search_path = public, extensions
+as $$
+  with recursive canos as (
+    select x, y from fazenda_construcoes where jogador_id = p_jogador and tipo = 'cano'),
+  rede(x, y) as (
+    select c.x, c.y from canos c
+     where ((c.x = p_x - 1 or c.x = p_x + p_w) and c.y between p_y and p_y + p_h - 1)
+        or ((c.y = p_y - 1 or c.y = p_y + p_h) and c.x between p_x and p_x + p_w - 1)
+    union
+    select c.x, c.y from canos c join rede r on abs(c.x - r.x) + abs(c.y - r.y) = 1)
+  select exists (
+    select 1 from rede r
+     where exists (select 1 from fazenda_canteiros k where k.jogador_id = p_jogador and abs(k.x - r.x) + abs(k.y - r.y) = 1)
+        or exists (select 1 from fazenda_construcoes b where b.jogador_id = p_jogador and b.tipo = 'bau' and abs(b.x - r.x) + abs(b.y - r.y) = 1)
+        or ((r.x = 0 or r.x = 4) and r.y between 1 and 6)      -- encostado no celeiro (x 1..3, y 1..6)
+        or ((r.y = 0 or r.y = 7) and r.x between 1 and 3));
+$$;
+
 -- Faz as oficinas andarem até agora (roda ao carregar a fazenda e antes de mexer numa oficina)
 create or replace function public.fazenda_oficinas_andar(p_jogador uuid)
 returns void
@@ -1622,14 +1646,20 @@ declare
   v_cel  int;
   v_n    int;
   v_qtd  int;
+  v_liga boolean;
+  v_gasto int;
 begin
   for o in
-    select c.x, c.y, c.iniciado_em, c.estoque, c.prontos, i.produz, i.produz_seg, i.produz_qtd, i.entradas
+    select c.x, c.y, c.iniciado_em, c.estoque, c.prontos, i.produz, i.produz_seg, i.produz_qtd, i.entradas, i.largura, i.altura
       from fazenda_construcoes c join fazenda_itens i on i.id = c.tipo
      where c.jogador_id = p_jogador and i.entradas is not null
        for update of c
   loop
     v_t := o.iniciado_em; v_est := o.estoque; v_pr := o.prontos; v_cel := 0; v_fim := null; v_n := 0;
+    -- ligada por cano (2 ⚡ por receita) ou pela fábrica automática (8 ⚡): busca no celeiro e devolve lá
+    v_liga := fazenda_oficina_ligada(p_jogador, o.x, o.y, o.largura, o.altura);
+    v_gasto := case when v_liga then 2 else 8 end;
+    v_liga := v_liga or v_auto;
     loop
       exit when v_n >= 48;
       v_n := v_n + 1;
@@ -1637,14 +1667,14 @@ begin
         exit when now() < v_t + make_interval(secs => o.produz_seg);   -- ainda trabalhando
         v_qtd := o.produz_qtd;
         if v_tri and fazenda_gastar_energia(p_jogador, 10) then v_qtd := v_qtd * 2; end if;   -- triturador
-        if v_auto then v_cel := v_cel + v_qtd; else v_pr := v_pr + v_qtd; end if;
+        if v_liga then v_cel := v_cel + v_qtd; else v_pr := v_pr + v_qtd; end if;
         v_fim := v_t + make_interval(secs => o.produz_seg);
         v_t := null;
       end if;
-      -- estoque vazio com a fábrica automática: busca uma receita no celeiro (8 ⚡)
-      if v_est <= 0 and v_auto and fazenda_energia_atualizar(p_jogador) >= 8 then
+      -- estoque vazio e ligada (cano: 2 ⚡; fábrica automática: 8 ⚡): busca uma receita no celeiro
+      if v_est <= 0 and v_liga and fazenda_energia_atualizar(p_jogador) >= v_gasto then
         v_est := fazenda_abastecer(p_jogador, o.entradas, 1);
-        if v_est > 0 then perform fazenda_gastar_energia(p_jogador, 8); end if;
+        if v_est > 0 then perform fazenda_gastar_energia(p_jogador, v_gasto); end if;
       end if;
       exit when v_est <= 0;
       v_est := v_est - 1;
@@ -3322,6 +3352,7 @@ revoke execute on function
   public.fazenda_estoque_max(),
   public.fazenda_abastecer(uuid, jsonb, int),
   public.fazenda_oficinas_andar(uuid),
+  public.fazenda_oficina_ligada(uuid, int, int, int, int),
   public.fazenda_estoque(text, int, int, int),
   public.fazenda_galinheiro_quer(uuid),
   public.fazenda_galinheiro_linhas(uuid),

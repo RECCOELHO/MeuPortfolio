@@ -1069,13 +1069,13 @@
         const it = tipoItem(c.tipo);
         if (!it || !it.entradas) return null;
         const produto = culturas[it.produz] || { id: it.produz, nome: it.produz, xp: 0, venda: 0 };
-        const dur = it.produz_seg * 1000, auto = temEfeito('automatico');
+        const dur = it.produz_seg * 1000, ligada = oficinaLigada(c), auto = temEfeito('automatico') || ligada;
         let t = c.iniciado_em ? Date.parse(c.iniciado_em) : null, estoque = c.estoque || 0, prontos = c.prontos || 0;
         for (let n = 0; t != null && agora() >= t + dur && n < 48; n++) {
             if (!auto) prontos += it.produz_qtd;   // com a fábrica automática vai direto para o celeiro
             t = estoque > 0 ? (estoque--, t + dur) : null;
         }
-        const base = { it, produto, estoque, prontos, auto };
+        const base = { it, produto, estoque, prontos, auto, ligada };
         if (t == null) return { ...base, estado: 'parada' };
         const falta = t + dur - agora();
         return { ...base, estado: 'trabalhando', falta, progresso: 1 - falta / dur, termina: t + dur + estoque * dur };
@@ -1093,7 +1093,12 @@
         if (visita) return visita.construcoes || [];
         return (S.construcoes || []).map((c) => {
             const o = infoOficina(c);
-            if (o) return { ...c, oficina: { estado: o.prontos > 0 ? 'pronta' : o.estado, trabalhando: o.estado === 'trabalhando', progresso: o.progresso, produto: A.cultura(o.it.produz).item } };
+            if (o) {
+                const cam = o.ligada && o.estado === 'trabalhando' && redeCanos().caminhos.get(c.x + ',' + c.y);
+                const fluxo = cam ? { caminho: cam, entra: A.cultura(Object.keys(o.it.entradas)[0]).item, sai: A.cultura(o.it.produz).item } : null;
+                return { ...c, oficina: { estado: o.prontos > 0 ? 'pronta' : o.estado, trabalhando: o.estado === 'trabalhando', progresso: o.progresso, produto: A.cultura(o.it.produz).item, fluxo } };
+            }
+            if (c.tipo === 'cano') return { ...c, cano: redeCanos().lados.get(c.x + ',' + c.y) };
             if (c.iniciado_em && (tipoItem(c.tipo) || {}).efeito === 'biomassa') return { ...c, ligado: true };
             const p = infoProducao(c);
             return p && p.falta <= 0 ? { ...c, pronto: true, produto: A.cultura(p.it.produz).item } : c;
@@ -1116,6 +1121,52 @@
         }
         return [...vistos].map((e) => NOME_EFEITO[e]);
     }
+
+    /* ---------- Canos de vidro: ligam oficinas a canteiros, a um baú ou ao celeiro ----------
+       (igual a fazenda_oficina_ligada no SQL). Guarda a rede até as construções ou os canteiros mudarem. */
+    const VIZINHOS = [[1, 0], [-1, 0], [0, 1], [0, -1]];   // leste, oeste, sul, norte
+    let cacheCanos = {};
+    function redeCanos() {
+        const cons = (S && S.construcoes) || [], cant = (S && S.canteiros) || [];
+        if (cacheCanos.cons === cons && cacheCanos.cant === cant) return cacheCanos;
+        const canos = new Set(cons.filter((c) => c.tipo === 'cano').map((c) => c.x + ',' + c.y));
+        const fonte = (x, y) => (x >= 1 && x <= 3 && y >= 1 && y <= 6) || cant.some((k) => k.x === x && k.y === y)
+            || cons.some((c) => c.tipo === 'bau' && c.x === x && c.y === y);
+        const oficinas = cons.filter((c) => (tipoItem(c.tipo) || {}).entradas);
+        const naOficina = (x, y) => oficinas.some((o) => { const t = tamanhoItem(o.tipo); return x >= o.x && y >= o.y && x < o.x + t.w && y < o.y + t.h; });
+        const lados = new Map();
+        for (const k of canos) {
+            const [x, y] = k.split(',').map(Number);
+            lados.set(k, VIZINHOS.map(([dx, dy]) => canos.has((x + dx) + ',' + (y + dy)) || naOficina(x + dx, y + dy) || fonte(x + dx, y + dy)));
+        }
+        const caminhos = new Map();   // oficina → canos da oficina até a fonte
+        for (const o of oficinas) {
+            const t = tamanhoItem(o.tipo);
+            const inicio = [...canos].filter((k) => {
+                const [x, y] = k.split(',').map(Number);
+                return ((x === o.x - 1 || x === o.x + t.w) && y >= o.y && y < o.y + t.h) || ((y === o.y - 1 || y === o.y + t.h) && x >= o.x && x < o.x + t.w);
+            });
+            const veio = new Map(inicio.map((k) => [k, null]));
+            const fila = [...inicio];
+            let achou = null;
+            while (fila.length) {
+                const k = fila.shift(), [x, y] = k.split(',').map(Number);
+                if (VIZINHOS.some(([dx, dy]) => fonte(x + dx, y + dy))) { achou = k; break; }
+                for (const [dx, dy] of VIZINHOS) {
+                    const v = (x + dx) + ',' + (y + dy);
+                    if (canos.has(v) && !veio.has(v)) { veio.set(v, k); fila.push(v); }
+                }
+            }
+            if (achou) {
+                const cam = [];
+                for (let k = achou; k; k = veio.get(k)) cam.push(k.split(',').map(Number));
+                caminhos.set(o.x + ',' + o.y, cam.reverse());
+            }
+        }
+        cacheCanos = { cons, cant, lados, caminhos };
+        return cacheCanos;
+    }
+    const oficinaLigada = (c) => !!S && redeCanos().caminhos.has(c.x + ',' + c.y);
 
     let oficinaAberta = null;   // { x, y } da oficina com o painel aberto
     const oficinaDoPainel = () => oficinaAberta && S && (S.construcoes || []).find((k) => k.x === oficinaAberta.x && k.y === oficinaAberta.y);
@@ -1181,7 +1232,9 @@
             </div>
             ${!cabe ? '<p class="aviso">Estoque cheio.</p>'
                 : falta.length ? `<p class="aviso">Para mais uma receita faltam no celeiro: ${falta.map((f) => `${f.falta} ${itemDe(culturas[f.item] || { id: f.item }, 16)}`).join(', ')}.</p>` : ''}
-            ${o.auto ? `<p class="aviso">${A.htmlItem('fabrica_auto', 18)} Com a fábrica automática, quando o estoque acaba ela busca ingredientes no celeiro sozinha (8 ${ico('raio', 12)} por receita) e os produtos vão direto para o celeiro.</p>` : ''}
+            ${o.ligada ? `<p class="aviso">${A.htmlItem('cano', 18)} Ligada por cano: quando o estoque acaba, ela busca os ingredientes no celeiro sozinha (2 ${ico('raio', 12)} por receita) e os produtos voltam pelo cano direto para o celeiro.</p>`
+                : o.auto ? `<p class="aviso">${A.htmlItem('fabrica_auto', 18)} Com a fábrica automática, quando o estoque acaba ela busca ingredientes no celeiro sozinha (8 ${ico('raio', 12)} por receita) e os produtos vão direto para o celeiro.</p>`
+                : S.jogador.nivel >= 16 ? `<p class="det">${A.htmlItem('cano', 16)} Dica: ligue esta oficina com <b>canos de vidro</b> (Construir → Energia) a um canteiro, a um baú ou ao celeiro, e ela se abastece sozinha.</p>` : ''}
             <div class="rodape-painel">
                 ${o.prontos ? `<button type="button" class="botao verde" data-oficina-pegar>Pegar ${o.prontos} ${itemDe(o.produto, 18)}</button>` : '<span></span>'}
                 <button type="button" class="botao creme" data-fechar>Fechar</button>
@@ -2272,6 +2325,7 @@
                     <li>No botão <b>Construir</b> você coloca cercas, caminhos, árvores, flores e objetos onde quiser. Toque em <b>Pronto</b> para fechar.</li>
                     <li>Toque num item já colocado para ver o que ele faz; o <b>alcance</b> dele (irrigador, alarme, estufa...) aparece marcado no chão. <b>Segure o dedo 3 segundos</b> num item ou canteiro para pegar e levar para outro lugar.</li>
                     <li>A semana tem as 4 <b>estações</b> (42 horas cada), e cada uma muda a cara da fazenda (pétalas na primavera, grama quente no verão, folhas caindo no outono, neve no inverno) e tem uma semente só dela: morango, melancia, abóbora e repolho. O <b>clima</b> muda várias vezes por dia: sol dá +1 na colheita, chuva rega tudo, onda de calor seca mais, nublado não traz problema novo e ventania espalha pragas. Toque no clima, lá em cima, para ver até quando ele vai.</li>
+                    <li>No nível 16 chegam os <b>canos de vidro</b> (Construir → Energia): ligue uma oficina com canos a um canteiro, a um baú ou ao celeiro e ela busca os ingredientes sozinha (2 ⚡ por receita); dá para ver os itens passando dentro do cano.</li>
                     <li>Do nível 16 em diante vem a <b>energia</b> ${ico('raio', 14)}: painel solar, turbina, gerador a biomassa e reator enchem as baterias, e as máquinas elétricas (estufa, triturador, fábrica automática, robô, aspersor) trabalham sozinhas gastando energia. Toque no ${ico('raio', 12)} lá em cima (ou no botão abaixo) para ver o que cada uma faz.</li>
                     ${ANUNCIO.ligado || ehLocal ? `<li>Quando aparecer o botão <b>+30 min</b>, assista a um anúncio até o fim e tudo o que está em andamento (plantas, animais, oficinas, ajudantes e energia) adianta 30 minutos.</li>` : ''}
                     <li>No Perfil (ou em Vizinhos) tem o seu <b>link de convite</b>: quem criar uma fazenda por ele ganha moedas, e você também.</li>
