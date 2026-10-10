@@ -311,7 +311,7 @@ alter table public.fazenda_jogadores add column if not exists lago_em timestampt
 alter table public.fazenda_estatisticas add column if not exists peixes int not null default 0;
 alter table public.fazenda_estatisticas add column if not exists lendarios int not null default 0;
 
--- Fase 22: avatar do fazendeiro ({"chapeu": "palha", "pele": 0, ...}); null = o de sempre
+-- Fase 22: avatar do fazendeiro ({"tipo": "fazendeira", "pele": 0, ...}); null = o de sempre
 alter table public.fazenda_jogadores add column if not exists avatar jsonb;
 
 -- Fase 21: visitas na porteira. A cada 3 horas chega alguém (fazenda_visitante): o feirante,
@@ -2833,8 +2833,8 @@ begin
 end;
 $$;
 
--- Salva o avatar: chapéu (palha | bone | lenco | cabelo) e o número de cada cor (as cores
--- ficam no cliente, em AVATAR_CORES de fazenda-arte.js); o que faltar vira 0
+-- Salva o avatar: o personagem (tipo) e o número de cada cor (0 = a cor original do personagem;
+-- as cores ficam no cliente, em AVATAR_CORES de fazenda-arte.js). O que faltar vira 0.
 create or replace function public.fazenda_avatar(p_token text, p_avatar jsonb)
 returns jsonb
 language plpgsql security definer
@@ -2846,9 +2846,11 @@ declare
   r    record;
 begin
   if jsonb_typeof(p_avatar) is distinct from 'object' then raise exception 'avatar_invalido'; end if;
-  if coalesce(p_avatar->>'chapeu', 'palha') not in ('palha', 'bone', 'lenco', 'cabelo') then raise exception 'avatar_invalido'; end if;
-  v := jsonb_build_object('chapeu', coalesce(p_avatar->>'chapeu', 'palha'));
-  for r in select * from (values ('cor_chapeu', 6), ('pele', 5), ('cabelo', 5), ('camisa', 7), ('macacao', 6)) x(chave, n) loop
+  if coalesce(p_avatar->>'tipo', 'fazendeiro') not in ('fazendeiro', 'fazendeira', 'rapaz', 'mago', 'viking', 'cavaleiro') then
+    raise exception 'avatar_invalido';
+  end if;
+  v := jsonb_build_object('tipo', coalesce(p_avatar->>'tipo', 'fazendeiro'));
+  for r in select * from (values ('pele', 5), ('cabelo', 6), ('roupa', 8), ('calca', 6), ('chapeu', 6)) x(chave, n) loop
     if p_avatar ? r.chave then
       if jsonb_typeof(p_avatar->r.chave) <> 'number' or (p_avatar->>r.chave)::numeric % 1 <> 0
          or (p_avatar->>r.chave)::numeric not between 0 and r.n - 1 then
