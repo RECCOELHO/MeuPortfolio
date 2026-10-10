@@ -81,6 +81,7 @@
         cesto_vazio: 'O cesto ainda está vazio: o Bira tira um peixe a cada 30 minutos.',
         limite_canteiros: 'Você já usou todos os seus canteiros. Suba de nível ou compre terrenos para ter mais.',
         limite_maquina: 'Você já tem essa máquina (uma basta para a fazenda toda).',
+        limite_terreno: 'Chegou no limite desse item: compre outro terreno para colocar mais (4 por terreno).',
         alarme: 'O alarme disparou! Esse canteiro está protegido.',
         item_invalido: 'Item inválido.',
         lugar_reservado: 'Esse lugar é reservado (celeiro, casa, pasto, galinheiro) ou fica na mata fora do seu terreno.',
@@ -1340,6 +1341,8 @@
         }
         return true;
     }
+    // quantos dá para ter: limite fixo, ou por terreno (amoreira: 4 na fazenda inicial + 4 por terreno comprado)
+    const maxItem = (it) => it.limite || (it.por_terreno ? it.por_terreno * (1 + ((S && S.jogador.zonas) || 0)) : null);
     const descricaoItem = (it) => (it.id === 'canteiro'
         ? `Lugar de plantar. Você tem ${S.canteiros.length} de ${S.jogador.max_canteiros}.`
         : it.descricao || '');
@@ -1404,9 +1407,9 @@
         el.constrItens.innerHTML = lista.map((i) => {
             const travado = i.nivel_min > S.jogador.nivel;
             const sel = constr.modo === 'colocar' && constr.tipo === i.id;
-            const tem = i.limite ? S.construcoes.filter((c) => c.tipo === i.id).length : 0;
+            const max = maxItem(i), tem = max ? S.construcoes.filter((c) => c.tipo === i.id).length : 0;
             const preco = i.id === 'canteiro' ? `${S.canteiros.length}/${S.jogador.max_canteiros}`
-                : i.limite && tem >= i.limite ? 'Já tem' : `${ico('moeda', 11)}${i.custo}`;
+                : max && tem >= max ? (i.por_terreno ? `${tem}/${max}` : 'Já tem') : `${ico('moeda', 11)}${i.custo}`;
             return `<button type="button" class="paleta-item${sel ? ' selecionado' : ''}${travado ? ' travado' : ''}" data-item="${esc(i.id)}" title="${esc(i.nome)}${i.descricao ? ': ' + esc(i.descricao) : ''}">
                 ${travado ? ico('cadeado', 18) : A.htmlItem(i.id, 32)}
                 <small>${travado ? `Nv ${i.nivel_min}` : preco}</small>
@@ -1450,7 +1453,8 @@
         if (constr.modo === 'colocar') {
             const it = tipoItem(constr.tipo);
             if (!it) return toast('Escolha um item na barra de baixo.');
-            if (it.limite && S.construcoes.filter((c) => c.tipo === it.id).length >= it.limite) return toast(ERROS.limite_maquina, 'erro');
+            const max = maxItem(it), tem = S.construcoes.filter((c) => c.tipo === it.id).length;
+            if (max && tem >= max) return toast(it.por_terreno ? `Você já tem ${tem} ${esc(it.nome.toLowerCase())}s: compre outro terreno (Loja → Terrenos) para colocar mais. São ${it.por_terreno} por terreno.` : ERROS.limite_maquina, 'erro');
             const tam = tamanhoItem(it.id);
             if (!cabeAqui(x, y, tam.w, tam.h)) {
                 return toast(tam.w > 1 ? `Não cabe aqui: ${esc(it.nome.toLowerCase())} precisa de ${tam.w}×${tam.h} quadrados livres.` : ERROS.lugar_ocupado, 'erro');
@@ -2260,7 +2264,7 @@
                     <li>Todo item do Construir faz alguma coisa: evita seca, praga ou erva, adianta o crescimento, dá itens e XP extras, protege dos vizinhos ou aumenta a <b>beleza</b> (bônus nas vendas). Toque num item para ver o que ele faz.</li>
                     <li>Na loja, aba <b>Ajudantes</b>: contrate pessoas que aram, plantam, cuidam, colhem e tratam dos animais sozinhas (12 tarefas por hora no nível 1, 30 no 2 e 90 no 3). O <b>Seu Zé</b> também aduba os canteiros crescendo: +1 item na colheita. Com a fazenda aberta, dá para ver cada um indo até onde trabalhou.</li>
                     <li>Em <b>Construir → Oficinas</b> tem padaria, queijaria, pipocaria e outras. Toque nela para abrir o painel: guarde ingredientes no <b>estoque</b> (até 10 receitas) e ela trabalha sozinha, uma receita atrás da outra. O painel mostra quanto valem os ingredientes, quanto vale o produto e o <b>lucro</b>. Quando aparecer o balão, toque para pegar.</li>
-                    <li>Amora só dá no pé: a <b>amoreira</b> (Construir → Natureza) dá 4 amoras a cada 5 horas. Quando aparecer o balão, toque nela para colher.</li>
+                    <li>Amora só dá no pé: a <b>amoreira</b> (Construir → Natureza) dá 4 amoras a cada 5 horas. Dá para ter 4 pés por terreno: quanto mais terreno, mais amoreiras. Quando aparecer o balão, toque nela para colher.</li>
                     <li>Em <b>Construir → Máquinas</b>: irrigador, pulverizador e robô capinador evitam seca, pragas e ervas por perto; o alarme protege dos vizinhos; trator e colheitadeira ajudam na fazenda toda.</li>
                     <li>Na loja tem <b>animais</b> (até 5 de cada; cada um sai 50% mais caro que o anterior). Em <b>Construir → Bichos</b> tem um cercado para cada espécie: coloque onde quiser e eles se mudam para lá. Dê ração (sai do celeiro) e colete ovos, leite e lã. No celeiro, <b>Reservar</b> guarda a ração deles para não ir junto no "Vender tudo".</li>
                     <li>No botão <b>Construir</b> você coloca cercas, caminhos, árvores, flores e objetos onde quiser. Toque em <b>Pronto</b> para fechar.</li>
