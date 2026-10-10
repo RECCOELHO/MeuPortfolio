@@ -276,6 +276,11 @@ create table if not exists public.fazenda_ajudantes (
 );
 -- Fase 18: canteiro adubado pelo Seu Zé (+1 item na colheita; sai na colheita ou ao arar)
 alter table public.fazenda_canteiros add column if not exists adubado boolean not null default false;
+-- Fase 29: as 3 últimas sementes diferentes que o jogador plantou (a Dona Rosa faz rodízio entre elas)
+-- e quando ele carregou a fazenda (agora e na vez anterior): com ele na fazenda, ela descansa
+alter table public.fazenda_jogadores add column if not exists ultimas_sementes text[] not null default '{}';
+alter table public.fazenda_jogadores add column if not exists carregado_em timestamptz;
+alter table public.fazenda_jogadores add column if not exists carregado_antes timestamptz;
 -- última semente que o jogador plantou (a semeadora usa a mesma)
 alter table public.fazenda_jogadores add column if not exists semente text references public.fazenda_culturas(id);
 
@@ -451,7 +456,7 @@ insert into public.fazenda_ajudantes_tipos (id, nome, papel, funcao, alvo, custo
   ('coelheira',  'Nina',      'Cuidadora de coelhos','animal', 'coelho',  2000,  8, 'Dá a ração e coleta o pelo dos coelhos.', 4),
   ('vaqueiro',   'Bento',     'Vaqueiro',           'animal',  'vaca',    3000,  9, 'Dá a ração e tira o leite das vacas.', 5),
   ('colhedor',   'Juca',      'Colhedor',           'colher',  null,      4000, 10, 'Colhe tudo o que estiver maduro, antes de murchar.', 6),
-  ('semeadora',  'Dona Rosa', 'Semeadora',          'plantar', null,      4000, 11, 'Planta a última semente que você usou nos canteiros arados (paga com suas moedas). Se ela estiver fora de época, planta a semente da estação.', 7),
+  ('semeadora',  'Dona Rosa', 'Semeadora',          'plantar', null,      4000, 11, 'Quando você está fora, planta os canteiros arados fazendo rodízio entre as 3 últimas sementes que você usou (paga com suas moedas; fora de época, usa a semente da estação). Com você na fazenda, ela descansa: quem escolhe é você.', 7),
   ('patinheiro', 'Pedrinho',  'Cuidador de patos',  'animal',  'pato',    3000, 12, 'Dá a ração e junta as penas dos patos.', 8),
   ('pastora',    'Lia',       'Pastora',            'animal',  'ovelha',  4000, 13, 'Dá a ração e tosquia a lã das ovelhas.', 9),
   ('porqueiro',  'Tonho',     'Porqueiro',          'animal',  'porco',   5000, 15, 'Dá a ração e acha as trufas dos porcos.', 10)
@@ -582,7 +587,7 @@ on conflict (id) do update set
 -- baterias e as máquinas elétricas gastam. Os números ficam nas funções fazenda_capacidade,
 -- fazenda_energia_taxa e nos gastos de cada máquina; as descrições aparecem no jogo.
 insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem, efeito, raio, limite, descricao) values
-  ('cano',          'Cano de vidro',      'energia',    15, 16, 79, 'cano',       0, null, 'Ligue uma oficina com canos a um canteiro, ao celeiro ou a um baú: quando o estoque acaba, ela busca os ingredientes sozinha (2 ⚡ por receita) e os produtos voltam pelo cano.'),
+  ('cano',          'Cano de vidro',      'energia',     5, 16, 79, 'cano',       0, null, 'Ligue uma oficina com canos a um canteiro, ao celeiro ou a um baú: quando o estoque acaba, ela busca os ingredientes sozinha (2 ⚡ por receita) e os produtos voltam pelo cano.'),
   ('painel_solar',  'Painel solar',       'energia',  2500, 16, 80, 'solar',      0, 6, 'Gera até 12 ⚡/h de dia (sol forte: 14; nublado: 5; chuva: 3). À noite, nada.'),
   ('bateria',       'Banco de baterias',  'energia',  2000, 16, 81, 'bateria',    0, 4, 'Guarda mais 100 ⚡ (sem bateria, a caixa de luz guarda só 50).'),
   ('turbina',       'Turbina eólica',     'energia',  4000, 17, 82, 'eolica',     0, 4, 'Gera 8 ⚡/h de dia e de noite; 30 ⚡/h na ventania e 14 na chuva.'),
@@ -646,7 +651,7 @@ update public.fazenda_itens i
     ('alvo',          'sorte',        2,  2, 'Sorte: 15% de chance de colheita em dobro em volta (2 quadrados).', null, null, null),
     ('caixote',       'venda',        0,  2, '+10% no preço de venda (fazenda toda, não acumula).', null, null, null),
     ('colmeia',       'adubo',        2,  3, 'Abelhas: +1 item na colheita em volta (2 quadrados).', null, null, null),
-    ('bau',           'missao',       0,  3, '+25% de moedas nas missões (fazenda toda, não acumula).', null, null, null),
+    ('bau',           'missao',       0,  3, '+25% de moedas nas missões. Com energia: encostado num bloco de canteiros, colhe sozinho o que amadurece; encostado num cercado, coleta e alimenta os bichos (1 ⚡ cada). Com canos, leva tudo para as oficinas.', null, null, null),
     ('casa_vermelha', null,           0, 20, 'Casinha: +20 de beleza (beleza dá bônus nas vendas).', null, null, null),
     ('casa_azul',     null,           0, 30, 'Casinha: +30 de beleza (beleza dá bônus nas vendas).', null, null, null)
   ) v(id, efeito, raio, beleza, descricao, produz, produz_seg, produz_qtd)
@@ -1291,6 +1296,14 @@ begin
      where jogador_id = p_jogador and posicao = p_posicao;
     if not p_bot then update fazenda_jogadores set xp = xp + 1 where id = p_jogador; end if;
 
+  elsif p_acao = 'arrancar' then   -- o jogador tira o que está plantado (perde a planta) para plantar outra coisa
+    if p_bot then raise exception 'acao_invalida'; end if;
+    if c.estado <> 'plantado' then raise exception 'nada_a_fazer'; end if;
+    update fazenda_canteiros
+       set estado = 'arado', cultura = null, plantado_em = null,
+           erva = false, praga = false, seco = false, roubado = 0, prox_evento = null, adubado = false
+     where jogador_id = p_jogador and posicao = p_posicao;
+
   elsif p_acao = 'adubar' then   -- só o Seu Zé (ajudante): +1 item na colheita desse plantio
     if not p_bot then raise exception 'acao_invalida'; end if;
     if c.estado <> 'plantado' or now() >= v_maduro or c.adubado then
@@ -1335,7 +1348,10 @@ begin
      where jogador_id = p_jogador and posicao = p_posicao;
     if not p_bot then
       perform fazenda_missao(p_jogador, 'plantar', 1);
-      update fazenda_jogadores set semente = k.id where id = p_jogador;   -- a semeadora usa a mesma
+      update fazenda_jogadores
+         set semente = k.id,   -- a semeadora usa as últimas 3, em rodízio
+             ultimas_sementes = (array_prepend(k.id, array_remove(ultimas_sementes, k.id)))[1:3]
+       where id = p_jogador;
     end if;
 
   elsif p_acao in ('erva', 'praga', 'seco') then
@@ -1710,6 +1726,67 @@ begin
 end;
 $$;
 
+-- Fase 29: baú coletor (precisa de energia). Encostado num bloco de canteiros (os canteiros
+-- encostados uns nos outros), colhe sozinho o que amadurece; encostado num cercado, coleta o
+-- produto e alimenta os bichos daquela espécie. 1 ⚡ por colheita, coleta ou ração.
+create or replace function public.fazenda_baus(p_jogador uuid)
+returns void
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  b  record;
+  k  record;
+  m  record;
+begin
+  for b in select x, y from fazenda_construcoes where jogador_id = p_jogador and tipo = 'bau' loop
+    for k in
+      with recursive bloco(posicao, x, y) as (
+        select c.posicao, c.x, c.y from fazenda_canteiros c
+         where c.jogador_id = p_jogador and abs(c.x - b.x) + abs(c.y - b.y) = 1
+        union
+        select c.posicao, c.x, c.y from fazenda_canteiros c join bloco o on abs(c.x - o.x) + abs(c.y - o.y) = 1
+         where c.jogador_id = p_jogador)
+      select c.posicao from bloco o
+        join fazenda_canteiros c on c.jogador_id = p_jogador and c.posicao = o.posicao
+        join fazenda_culturas u on u.id = c.cultura
+       where c.estado = 'plantado'
+         and now() >= c.plantado_em + make_interval(secs => u.tempo_seg)
+         and now() < c.plantado_em + make_interval(secs => u.tempo_seg + greatest(u.tempo_seg * 2, 3600))
+    loop
+      exit when not fazenda_gastar_energia(p_jogador, 1);
+      begin perform fazenda_aplicar(p_jogador, 'colher', k.posicao, null, true);
+      exception when others then null; end;
+    end loop;
+
+    for m in
+      select a.id, a.alimentado_em, t.tempo_seg from fazenda_animais a join fazenda_animais_tipos t on t.id = a.tipo
+       where a.jogador_id = p_jogador and exists (
+         select 1 from fazenda_construcoes p join fazenda_itens i on i.id = p.tipo
+          where p.jogador_id = p_jogador and p.tipo = 'cercado_' || a.tipo
+            and (((b.x = p.x - 1 or b.x = p.x + i.largura) and b.y between p.y and p.y + i.altura - 1)
+              or ((b.y = p.y - 1 or b.y = p.y + i.altura) and b.x between p.x and p.x + i.largura - 1)))
+    loop
+      begin
+        if m.alimentado_em is not null and now() >= m.alimentado_em + make_interval(secs => m.tempo_seg)
+           and fazenda_gastar_energia(p_jogador, 1) then
+          perform fazenda_animal_um(p_jogador, m.id, 'coletar', true);
+          m.alimentado_em := null;
+        end if;
+      exception when others then null;
+      end;
+      begin
+        if m.alimentado_em is null and fazenda_energia_atualizar(p_jogador) >= 1 then
+          perform fazenda_animal_um(p_jogador, m.id, 'alimentar', true);   -- sem ração no celeiro: pula
+          perform fazenda_gastar_energia(p_jogador, 1);
+        end if;
+      exception when others then null;
+      end;
+    end loop;
+  end loop;
+end;
+$$;
+
 -- As máquinas elétricas trabalham sozinhas (roda ao carregar a fazenda, como os ajudantes):
 -- as oficinas andam (fábrica automática incluída); os robôs colhem e replantam.
 create or replace function public.fazenda_industria(p_jogador uuid)
@@ -1720,9 +1797,11 @@ as $$
 declare
   r     record;
   cc    record;
+  m     record;
   v_sem text;
 begin
   perform fazenda_energia_atualizar(p_jogador);
+  perform fazenda_baus(p_jogador);   -- baús: colhem os canteiros e cuidam dos cercados encostados (antes das oficinas)
   perform fazenda_oficinas_andar(p_jogador);   -- oficinas: estoque, prontos e a fábrica automática
 
   select semente into v_sem from fazenda_jogadores where id = p_jogador;
@@ -1789,6 +1868,7 @@ declare
   v_feito int;
   v_sem   text;
   v_est   text;
+  v_lista text[];
 begin
   for a in
     select h.tipo, h.nivel, h.credito, h.atualizado_em, t.funcao, t.alvo
@@ -1838,8 +1918,14 @@ begin
         end loop;
       end if;
 
+    elsif a.funcao = 'plantar' and coalesce((select carregado_antes > now() - interval '2 minutes' from fazenda_jogadores where id = p_jogador), false) then
+      -- com o jogador na fazenda ela descansa (o tempo online não conta para ela)
+      update fazenda_ajudantes set atualizado_em = now() where jogador_id = p_jogador and tipo = a.tipo;
+      continue;
+
     elsif v_n > 0 and a.funcao = 'plantar' then
-      select coalesce(semente, 'alface') into v_sem from fazenda_jogadores where id = p_jogador;
+      select coalesce(semente, 'alface'), ultimas_sementes into v_sem, v_lista from fazenda_jogadores where id = p_jogador;
+      if coalesce(array_length(v_lista, 1), 0) = 0 then v_lista := array[v_sem]; end if;
       -- se a última semente estiver fora de época: a melhor semente da estação que o nível deixa
       select k.id into v_est from fazenda_culturas k
        where k.tipo = 'cultura' and k.estacao = fazenda_estacao_em(now())
@@ -1849,6 +1935,7 @@ begin
         select posicao from fazenda_canteiros
          where jogador_id = p_jogador and estado = 'arado' order by posicao limit v_n
       loop
+        v_sem := v_lista[1 + v_feito % array_length(v_lista, 1)];   -- rodízio: cada canteiro uma das últimas
         begin
           perform fazenda_aplicar(p_jogador, 'plantar', c.posicao, v_sem, true); v_feito := v_feito + 1;
         exception when others then
@@ -1918,8 +2005,10 @@ language plpgsql security definer
 set search_path = public, extensions
 as $$
 declare
-  v_id uuid := fazenda_auth(p_token);
+  v_id    uuid := fazenda_auth(p_token);
 begin
+  -- carregado_antes = o carregar anterior: se foi há menos de 2 minutos, a fazenda está aberta (a Dona Rosa descansa)
+  update fazenda_jogadores set carregado_antes = carregado_em, carregado_em = now() where id = v_id;
   perform fazenda_tick(v_id);
   perform fazenda_trabalhar(v_id);
   perform fazenda_industria(v_id);
@@ -3372,6 +3461,7 @@ revoke execute on function
   public.fazenda_abastecer(uuid, jsonb, int),
   public.fazenda_oficinas_andar(uuid),
   public.fazenda_oficina_ligada(uuid, int, int, int, int),
+  public.fazenda_baus(uuid),
   public.fazenda_estoque(text, int, int, int),
   public.fazenda_galinheiro_quer(uuid),
   public.fazenda_galinheiro_linhas(uuid),
