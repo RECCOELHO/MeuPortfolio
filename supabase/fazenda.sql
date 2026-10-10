@@ -195,7 +195,7 @@ alter table public.fazenda_itens add column if not exists produz_qtd int;
 alter table public.fazenda_construcoes add column if not exists colhido_em timestamptz;
 -- Fase 25: por_terreno = quantas dá para ter a cada terreno (a fazenda inicial conta como um)
 alter table public.fazenda_itens add column if not exists por_terreno smallint;
--- Fase 26: itens do mesmo grupo dividem o limite por terreno (pomar: 4 árvores frutíferas por terreno, de qualquer tipo)
+-- Fase 26: itens do mesmo grupo dividem o limite por terreno (pomar: 2 árvores frutíferas por terreno, de qualquer tipo)
 alter table public.fazenda_itens add column if not exists grupo text;
 -- Fase 9: oficinas. entradas = ingredientes de uma receita ({"trigo": 3, "ovo": 1});
 -- a receita leva produz_seg e rende produz_qtd de produz. iniciado_em null = parada.
@@ -636,7 +636,7 @@ update public.fazenda_itens i
     ('arvore',        'seco',         1,  4, 'Sombra: sem seca nos canteiros encostados.', null, null, null),
     ('arvore_outono', 'crescer',      1,  4, 'Folhas viram adubo: plantas encostadas crescem 10% mais rápido.', null, null, null),
     ('pinheiro',      'praga',        2,  4, 'Passarinhos: sem pragas em volta (2 quadrados).', null, null, null),
-    ('amoreira',      null,           0,  3, 'Dá 4 amoras a cada 5 horas: toque nela para colher. Pomar: 4 árvores frutíferas por terreno.', 'morango', 18000, 4),
+    ('amoreira',      null,           0,  3, 'Dá 4 amoras a cada 5 horas: toque nela para colher. Pomar: 2 árvores frutíferas por terreno.', 'morango', 18000, 4),
     ('pedras',        'erva',         1,  1, 'Cobertura de pedras: sem erva daninha nos canteiros encostados.', null, null, null),
     ('tora',          'crescer',      1,  2, 'Minhocas: plantas encostadas crescem 10% mais rápido.', null, null, null),
     ('placa',         'cerca',        2,  1, '"Proibido pegar": vizinhos pegam no máximo 1 item em volta (2 quadrados).', null, null, null),
@@ -654,7 +654,7 @@ update public.fazenda_itens i
 
 -- Fase 26: o pomar — fruta só dá no pé. Árvores frutíferas: 4 por terreno no total (fazenda inicial
 -- + cada terreno comprado), de qualquer tipo, contando a amoreira. Algumas ficam depois do nível 25.
-update public.fazenda_itens set limite = null, por_terreno = 4, grupo = 'pomar' where id = 'amoreira';
+update public.fazenda_itens set limite = null, por_terreno = 2, grupo = 'pomar' where id = 'amoreira';
 insert into public.fazenda_culturas (id, nome, emoji, tempo_seg, custo, venda, rendimento, xp, nivel_min, ordem, tipo) values
   ('laranja', 'Laranja', '🍊', 1, 0, 15, 1, 3, 5, 50, 'produto'),
   ('limao', 'Limão', '🍊', 1, 0, 14, 1, 3, 8, 51, 'produto'),
@@ -666,17 +666,36 @@ insert into public.fazenda_culturas (id, nome, emoji, tempo_seg, custo, venda, r
 on conflict (id) do update set
   nome = excluded.nome, venda = excluded.venda, xp = excluded.xp, nivel_min = excluded.nivel_min, ordem = excluded.ordem, tipo = excluded.tipo;
 insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem, beleza, produz, produz_seg, produz_qtd, por_terreno, grupo, descricao) values
-  ('laranjeira', 'Laranjeira', 'pomar', 300, 5, 110, 3, 'laranja', 14400, 4, 4, 'pomar', 'Dá 4 laranjas a cada 4 horas: toque nela para colher. Pomar: 4 árvores frutíferas por terreno.'),
-  ('limoeiro', 'Limoeiro', 'pomar', 450, 8, 111, 3, 'limao', 21600, 6, 4, 'pomar', 'Dá 6 limões a cada 6 horas: toque nela para colher. Pomar: 4 árvores frutíferas por terreno.'),
-  ('goiabeira', 'Goiabeira', 'pomar', 700, 12, 112, 3, 'goiaba', 18000, 4, 4, 'pomar', 'Dá 4 goiabas a cada 5 horas: toque nela para colher. Pomar: 4 árvores frutíferas por terreno.'),
-  ('mangueira', 'Mangueira', 'pomar', 3000, 26, 113, 3, 'manga', 18000, 5, 4, 'pomar', 'Dá 5 mangas a cada 5 horas: toque nela para colher. Pomar: 4 árvores frutíferas por terreno.'),
-  ('abacateiro', 'Abacateiro', 'pomar', 4000, 27, 114, 3, 'abacate', 21600, 4, 4, 'pomar', 'Dá 4 abacates a cada 6 horas: toque nela para colher. Pomar: 4 árvores frutíferas por terreno.'),
-  ('cacaueiro', 'Cacaueiro', 'pomar', 5000, 28, 115, 3, 'cacau', 21600, 6, 4, 'pomar', 'Dá 6 cacaus a cada 6 horas: toque nela para colher. Pomar: 4 árvores frutíferas por terreno.'),
-  ('jabuticabeira', 'Jabuticabeira', 'pomar', 6000, 29, 116, 3, 'jabuticaba', 28800, 12, 4, 'pomar', 'Dá 12 jabuticabas a cada 8 horas: toque nela para colher. Pomar: 4 árvores frutíferas por terreno.')
+  ('laranjeira', 'Laranjeira', 'pomar', 300, 5, 110, 3, 'laranja', 14400, 4, 2, 'pomar', 'Dá 4 laranjas a cada 4 horas: toque nela para colher. Pomar: 2 árvores frutíferas por terreno.'),
+  ('limoeiro', 'Limoeiro', 'pomar', 450, 8, 111, 3, 'limao', 21600, 6, 2, 'pomar', 'Dá 6 limões a cada 6 horas: toque nela para colher. Pomar: 2 árvores frutíferas por terreno.'),
+  ('goiabeira', 'Goiabeira', 'pomar', 700, 12, 112, 3, 'goiaba', 18000, 4, 2, 'pomar', 'Dá 4 goiabas a cada 5 horas: toque nela para colher. Pomar: 2 árvores frutíferas por terreno.'),
+  ('mangueira', 'Mangueira', 'pomar', 3000, 26, 113, 3, 'manga', 18000, 5, 2, 'pomar', 'Dá 5 mangas a cada 5 horas: toque nela para colher. Pomar: 2 árvores frutíferas por terreno.'),
+  ('abacateiro', 'Abacateiro', 'pomar', 4000, 27, 114, 3, 'abacate', 21600, 4, 2, 'pomar', 'Dá 4 abacates a cada 6 horas: toque nela para colher. Pomar: 2 árvores frutíferas por terreno.'),
+  ('cacaueiro', 'Cacaueiro', 'pomar', 5000, 28, 115, 3, 'cacau', 21600, 6, 2, 'pomar', 'Dá 6 cacaus a cada 6 horas: toque nela para colher. Pomar: 2 árvores frutíferas por terreno.'),
+  ('jabuticabeira', 'Jabuticabeira', 'pomar', 6000, 29, 116, 3, 'jabuticaba', 28800, 12, 2, 'pomar', 'Dá 12 jabuticabas a cada 8 horas: toque nela para colher. Pomar: 2 árvores frutíferas por terreno.')
 on conflict (id) do update set
   nome = excluded.nome, categoria = excluded.categoria, custo = excluded.custo, nivel_min = excluded.nivel_min, ordem = excluded.ordem,
   beleza = excluded.beleza, produz = excluded.produz, produz_seg = excluded.produz_seg, produz_qtd = excluded.produz_qtd,
   por_terreno = excluded.por_terreno, grupo = excluded.grupo, descricao = excluded.descricao;
+
+-- Fase 28: pomar menor (2 árvores frutíferas por terreno; antes 4). Quem passou do limite novo fica
+-- com as árvores mais caras; as que sobram saem e o preço inteiro delas volta em moedas.
+with arv as (
+  select c.jogador_id, c.x, c.y, i.custo,
+         row_number() over (partition by c.jogador_id order by i.custo desc, c.x, c.y) as n,
+         i.por_terreno * (1 + j.zonas) as max
+    from public.fazenda_construcoes c
+    join public.fazenda_itens i on i.id = c.tipo
+    join public.fazenda_jogadores j on j.id = c.jogador_id
+   where i.grupo = 'pomar'),
+sobra as (select * from arv where n > max),
+volta as (
+  update public.fazenda_jogadores j set moedas = moedas + d.total
+    from (select jogador_id, sum(custo)::int as total from sobra group by jogador_id) d
+   where j.id = d.jogador_id
+  returning j.id)
+delete from public.fazenda_construcoes c using sobra s
+ where c.jogador_id = s.jogador_id and c.x = s.x and c.y = s.y;
 
 -- Beleza da fazenda (soma dos itens construídos)
 create or replace function public.fazenda_beleza(p_jogador uuid)
