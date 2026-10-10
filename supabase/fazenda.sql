@@ -97,7 +97,7 @@ alter table public.fazenda_jogadores add column if not exists nivel_premiado int
 update public.fazenda_jogadores set nivel_premiado = floor(sqrt(greatest(xp, 0) / 25.0))::int + 1 where nivel_premiado is null;
 alter table public.fazenda_jogadores alter column nivel_premiado set default 1;
 alter table public.fazenda_jogadores drop constraint if exists fazenda_jogadores_zonas_check;
-alter table public.fazenda_jogadores add constraint fazenda_jogadores_zonas_check check (zonas between 0 and 3);
+alter table public.fazenda_jogadores add constraint fazenda_jogadores_zonas_check check (zonas between 0 and 6);   -- fase 24: 6 terrenos
 -- quem comprou fileiras na versão 1 recebe as moedas de volta (e fica com os canteiros)
 update public.fazenda_jogadores
    set moedas = moedas + case terrenos when 1 then 400 when 2 then 1600 else 4600 end, terrenos = 0
@@ -822,12 +822,16 @@ $$;
 drop function if exists public.fazenda_terrenos_venda();
 
 -- Terrenos à venda: áreas de mata em volta da fazenda (22 x 13), compradas em ordem.
--- Precisa bater com ZONAS em assets/fazenda/fazenda-arte.js.
+-- Precisa bater com ZONAS em assets/fazenda/fazenda-arte.js. canteiros = quanto o limite sobe.
+-- Fase 24: mais 3 terrenos grandes (leste, sul e sudeste): o mapa vai até 48 x 32.
 create or replace function public.fazenda_zonas()
 returns jsonb language sql immutable as $$
-  select '[{"n":1,"nome":"Campo do sul","x":0,"y":13,"w":22,"h":7,"custo":500,"nivel":4},
-           {"n":2,"nome":"Mata do leste","x":22,"y":0,"w":10,"h":13,"custo":1500,"nivel":7},
-           {"n":3,"nome":"Vale do sudeste","x":22,"y":13,"w":10,"h":7,"custo":3500,"nivel":10,"lago":true}]'::jsonb;
+  select '[{"n":1,"nome":"Campo do sul","x":0,"y":13,"w":22,"h":7,"custo":500,"nivel":4,"canteiros":6},
+           {"n":2,"nome":"Mata do leste","x":22,"y":0,"w":10,"h":13,"custo":1500,"nivel":7,"canteiros":6},
+           {"n":3,"nome":"Vale do sudeste","x":22,"y":13,"w":10,"h":7,"custo":3500,"nivel":10,"lago":true,"canteiros":6},
+           {"n":4,"nome":"Chapada do leste","x":32,"y":0,"w":16,"h":20,"custo":8000,"nivel":13,"canteiros":10},
+           {"n":5,"nome":"Várzea do sul","x":0,"y":20,"w":32,"h":12,"custo":18000,"nivel":16,"canteiros":12},
+           {"n":6,"nome":"Sertão do sudeste","x":32,"y":20,"w":16,"h":12,"custo":35000,"nivel":20,"canteiros":10}]'::jsonb;
 $$;
 
 -- (x, y) fica dentro do terreno de quem já comprou p_zonas terrenos?
@@ -840,11 +844,13 @@ returns boolean language sql immutable as $$
                     and p_y >= (z->>'y')::int and p_y < (z->>'y')::int + (z->>'h')::int);
 $$;
 
--- Quantos canteiros o jogador pode ter: +2 por nível até o 25 e +6 por terreno
--- (igual a limiteCanteirosNivel em fazenda.js)
+-- Quantos canteiros o jogador pode ter: +2 por nível até o 25 e o que cada terreno comprado dá
+-- (6 nos três primeiros, 10 a 12 nos grandes; igual a limiteCanteirosNivel em fazenda.js)
 create or replace function public.fazenda_limite_canteiros(p_nivel int, p_zonas int)
 returns int language sql immutable as $$
-  select least(6 + (p_nivel - 1) * 2, 54) + 6 * p_zonas;
+  select least(6 + (p_nivel - 1) * 2, 54)
+       + coalesce((select sum(coalesce((z->>'canteiros')::int, 6))::int from jsonb_array_elements(fazenda_zonas()) z
+                    where (z->>'n')::int <= p_zonas), 0);
 $$;
 
 -- Presente de moedas ao chegar no nível n: 50·n até o 10 e o dobro depois, que custa mais
@@ -2494,7 +2500,7 @@ begin
 
   elsif p_categoria = 'terreno' then
     -- sempre o próximo terreno da fila (p_tipo é ignorado)
-    if j.zonas >= 3 then raise exception 'terreno_max'; end if;
+    if j.zonas >= jsonb_array_length(fazenda_zonas()) then raise exception 'terreno_max'; end if;
     select (z->>'custo')::int as custo, (z->>'nivel')::int as nivel into a
       from jsonb_array_elements(fazenda_zonas()) z
      where (z->>'n')::int = j.zonas + 1;
@@ -2549,7 +2555,7 @@ $$;
      campo x9..14 y3..6 · pasto x16..21 y0..6 · lago x24..29 y14..18 (terreno 3) */
 create or replace function public.fazenda_livre(p_x int, p_y int)
 returns boolean language sql immutable as $$
-  select p_x between 0 and 31 and p_y between 0 and 19
+  select p_x between 0 and 47 and p_y between 0 and 31
      and not (p_x between 1 and 3  and p_y between 1 and 6)     -- celeiro
      and not (p_x between 5 and 7  and p_y between 1 and 3)     -- casa
      and not (p_x between 0 and 6  and p_y between 7 and 8)     -- galinheiro

@@ -1302,7 +1302,7 @@
         if (!z) return;
         mostrarStatus(S.jogador.nivel < z.nivel
             ? `${ico('cadeado', 12)} ${esc(z.nome)}: terreno à venda a partir do nível ${z.nivel}.`
-            : `${ico('moeda', 14)} ${esc(z.nome)} à venda por ${moeda(z.custo)}: mais espaço e +6 canteiros${z.lago ? ', e um lago com o Bira pescando para você' : ''}. Toque para ver.`);
+            : `${ico('moeda', 14)} ${esc(z.nome)} à venda por ${moeda(z.custo)}: ${z.w}×${z.h} quadrados e +${z.canteiros || 6} canteiros${z.lago ? ', e um lago com o Bira pescando para você' : ''}. Toque para ver.`);
     }
 
     /* ---------- Modo construir (abre e fecha pelo botão) ---------- */
@@ -2256,7 +2256,7 @@
                     <li>Depois de madura, a planta <b>murcha</b> se ficar tempo demais sem colher.</li>
                     <li>Toque no <b>celeiro</b> para vender a colheita, compre sementes melhores e suba de nível para ganhar canteiros.</li>
                     <li>Os canteiros ficam onde você quiser: <b>Construir → Plantação</b> para colocar, <b>Mover</b> para mudar de lugar. Lado a lado eles viram fileiras.</li>
-                    <li>Na loja, aba <b>Terrenos</b>, compre pedaços da mata em volta para a fazenda crescer (e ganhar +6 canteiros).</li>
+                    <li>Na loja, aba <b>Terrenos</b>, compre pedaços da mata em volta para a fazenda crescer (e ganhar mais canteiros). São 6 terrenos, e os três últimos são grandes.</li>
                     <li>Todo item do Construir faz alguma coisa: evita seca, praga ou erva, adianta o crescimento, dá itens e XP extras, protege dos vizinhos ou aumenta a <b>beleza</b> (bônus nas vendas). Toque num item para ver o que ele faz.</li>
                     <li>Na loja, aba <b>Ajudantes</b>: contrate pessoas que aram, plantam, cuidam, colhem e tratam dos animais sozinhas (12 tarefas por hora no nível 1, 30 no 2 e 90 no 3). O <b>Seu Zé</b> também aduba os canteiros crescendo: +1 item na colheita. Com a fazenda aberta, dá para ver cada um indo até onde trabalhou.</li>
                     <li>Em <b>Construir → Oficinas</b> tem padaria, queijaria, pipocaria e outras. Toque nela para abrir o painel: guarde ingredientes no <b>estoque</b> (até 10 receitas) e ela trabalha sozinha, uma receita atrás da outra. O painel mostra quanto valem os ingredientes, quanto vale o produto e o <b>lucro</b>. Quando aparecer o balão, toque para pegar.</li>
@@ -2497,14 +2497,14 @@
                 <span class="ico">${travado ? ico('cadeado', 28) : spr(comprado ? 1 : 39, 44)}</span>
                 <span>
                     <span class="nome">${esc(z.nome)}</span>
-                    <span class="det"><span>${z.w}×${z.h} quadrados</span><span>+6 canteiros</span>${z.lago ? '<span>com lago e pescador!</span>' : ''}</span>
+                    <span class="det"><span>${z.w}×${z.h} quadrados</span><span>+${z.canteiros || 6} canteiros</span>${z.lago ? '<span>com lago e pescador!</span>' : ''}</span>
                 </span>
                 ${comprado ? '<span class="preco">Comprado</span>'
                     : !proximo ? `<span class="preco">Depois do ${z.n - 1}</span>`
                     : S.jogador.nivel < z.nivel ? `<span class="preco">Nível ${z.nivel}</span>`
                     : `<button type="button" class="botao pequeno verde" data-comprar="terreno:${z.n}">${ico('moeda', 14)} ${z.custo}</button>`}
             </div>`;
-        }).join('') + '</div><p class="aviso">Cada terreno abre um pedaço da mata em volta: mais espaço para canteiros, máquinas e enfeites, e +6 canteiros no seu limite. Também dá para tocar na placa no mapa.</p>';
+        }).join('') + '</div><p class="aviso">Cada terreno abre um pedaço da mata em volta: mais espaço para canteiros, cercados, máquinas e enfeites, e mais canteiros no seu limite. Os três últimos são grandes. Também dá para tocar na placa no mapa.</p>';
     }
 
     const TEXTO_MISSAO = {
@@ -2707,7 +2707,7 @@
                 if (categoria === 'terreno') {
                     const z = A.ZONAS.find((k) => k.n === Number(tipo));
                     const nome = (zonasVenda().find((k) => k.n === Number(tipo)) || {}).nome || 'Terreno novo';
-                    toast(`${spr(39, 22)} ${esc(nome)} é seu! A fazenda cresceu e ganhou +6 canteiros.`, 'festa');
+                    toast(`${spr(39, 22)} ${esc(nome)} é seu! A fazenda cresceu e ganhou +${(zonasVenda().find((k) => k.n === Number(tipo)) || {}).canteiros || 6} canteiros.`, 'festa');
                     som.tocar('festa');
                     fecharPainel();
                     if (z) cena.focarTile(z.x + Math.floor(z.w / 2), z.y + Math.floor(z.h / 2));

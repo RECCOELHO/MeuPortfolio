@@ -5,7 +5,7 @@
    (moeda, XP, praga...) são desenhados aqui, na mesma paleta.
 
    A fazenda começa com 22 x 13 quadrados cercados de mata e cresce
-   até 32 x 20 com os terrenos comprados (ZONAS). Os canteiros têm
+   até 48 x 32 com os terrenos comprados (ZONAS). Os canteiros têm
    lugar livre (x, y) e se emendam em fileiras quando ficam lado a lado.
    Máquinas: pacote "Tiny Factory" do Kenney (CC0).
    Visitas na porteira: personagens do pacote "Tiny Dungeon" do Kenney (CC0).
@@ -45,7 +45,7 @@
 
     /* ---------- Mapa da fazenda (precisa bater com fazenda_livre no SQL) ---------- */
     const MAPA = {
-        w: 32, h: 20,                                // tamanho máximo, com todos os terrenos
+        w: 48, h: 32,                                // tamanho máximo, com todos os terrenos
         celeiro: { x: 1, y: 1 },                     // 3 x 6
         casa: { x: 5, y: 1 },                        // 3 x 3
         campo: { x: 9, y: 4 },                       // onde os 6 primeiros canteiros nascem
@@ -72,7 +72,11 @@
     const ZONAS = [
         { n: 1, x: 0, y: 13, w: 22, h: 7, placa: { x: 10, y: 13 } },
         { n: 2, x: 22, y: 0, w: 10, h: 13, placa: { x: 22, y: 9 } },
-        { n: 3, x: 22, y: 13, w: 10, h: 7, placa: { x: 23, y: 14 } }
+        { n: 3, x: 22, y: 13, w: 10, h: 7, placa: { x: 23, y: 14 } },
+        // terrenos grandes (fase 24)
+        { n: 4, x: 32, y: 0, w: 16, h: 20, placa: { x: 32, y: 9 } },
+        { n: 5, x: 0, y: 20, w: 32, h: 12, placa: { x: 15, y: 20 } },
+        { n: 6, x: 32, y: 20, w: 16, h: 12, placa: { x: 33, y: 21 } }
     ];
     let zonasAtuais = 0;   // terrenos da fazenda que está na tela (a sua ou a do vizinho)
     const dentroRet = (r, x, y) => x >= r.x && y >= r.y && x < r.x + r.w && y < r.y + r.h;
