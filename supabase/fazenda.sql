@@ -383,6 +383,10 @@ on conflict (id) do update set
   custo = excluded.custo, venda = excluded.venda, rendimento = excluded.rendimento,
   xp = excluded.xp, nivel_min = excluded.nivel_min, ordem = excluded.ordem;
 
+-- Fase 25: amora não tem mais semente — só dá no pé (amoreira). Vira produto (como ovo e leite):
+-- não aparece na loja de sementes nem dá para plantar; o que já estava plantado termina normal.
+update public.fazenda_culturas set tipo = 'produto' where id = 'morango';
+
 -- Sementes da estação (fase 10): só dá para plantar na estação delas, e rendem bem
 insert into public.fazenda_culturas (id, nome, emoji, tempo_seg, custo, venda, rendimento, xp, nivel_min, ordem, estacao) values
   ('moranguinho', 'Morango',  '🍓', 10800, 40, 14, 8, 14, 3,  9, 'primavera'),
@@ -463,7 +467,7 @@ insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem) 
   ('arvore',        'Árvore',              'natureza',  60, 3, 14),
   ('arvore_outono', 'Árvore de outono',    'natureza',  70, 6, 15),
   ('pinheiro',      'Pinheiro',            'natureza',  80, 7, 16),
-  ('amoreira',      'Amoreira',            'natureza',  90, 9, 17),
+  ('amoreira',      'Amoreira',            'natureza', 800, 9, 17),
   ('pedras',        'Pedras',              'objeto',    20, 2, 20),
   ('tora',          'Tora de madeira',     'objeto',    25, 3, 21),
   ('placa',         'Placa',               'objeto',    20, 1, 22),
@@ -627,7 +631,7 @@ update public.fazenda_itens i
     ('arvore',        'seco',         1,  4, 'Sombra: sem seca nos canteiros encostados.', null, null, null),
     ('arvore_outono', 'crescer',      1,  4, 'Folhas viram adubo: plantas encostadas crescem 10% mais rápido.', null, null, null),
     ('pinheiro',      'praga',        2,  4, 'Passarinhos: sem pragas em volta (2 quadrados).', null, null, null),
-    ('amoreira',      null,           0,  3, 'Dá 2 amoras a cada 6 horas: toque nela para colher.', 'morango', 21600, 2),
+    ('amoreira',      null,           0,  3, 'Dá 8 amoras a cada 5 horas: toque nela para colher. É o único jeito de ter amoras (até 4 pés).', 'morango', 18000, 8),
     ('pedras',        'erva',         1,  1, 'Cobertura de pedras: sem erva daninha nos canteiros encostados.', null, null, null),
     ('tora',          'crescer',      1,  2, 'Minhocas: plantas encostadas crescem 10% mais rápido.', null, null, null),
     ('placa',         'cerca',        2,  1, '"Proibido pegar": vizinhos pegam no máximo 1 item em volta (2 quadrados).', null, null, null),
@@ -642,6 +646,9 @@ update public.fazenda_itens i
     ('casa_azul',     null,           0, 30, 'Casinha: +30 de beleza (beleza dá bônus nas vendas).', null, null, null)
   ) v(id, efeito, raio, beleza, descricao, produz, produz_seg, produz_qtd)
  where i.id = v.id;
+
+-- Fase 25: amoreira rende muito (8 amoras a cada 5 h): no máximo 4 pés
+update public.fazenda_itens set limite = 4 where id = 'amoreira';
 
 -- Beleza da fazenda (soma dos itens construídos)
 create or replace function public.fazenda_beleza(p_jogador uuid)
