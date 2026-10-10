@@ -276,9 +276,9 @@ create table if not exists public.fazenda_ajudantes (
 );
 -- Fase 18: canteiro adubado pelo Seu Zé (+1 item na colheita; sai na colheita ou ao arar)
 alter table public.fazenda_canteiros add column if not exists adubado boolean not null default false;
--- Fase 29: as 3 últimas sementes diferentes que o jogador plantou (a Dona Rosa faz rodízio entre elas)
--- e quando ele carregou a fazenda (agora e na vez anterior): com ele na fazenda, ela descansa
-alter table public.fazenda_jogadores add column if not exists ultimas_sementes text[] not null default '{}';
+-- Fase 29: quando o jogador carregou a fazenda (agora e na vez anterior): com ele na fazenda, a Dona Rosa descansa
+-- Fase 30: ela passou a fazer rodízio com todas as sementes, então a lista das 3 últimas saiu
+alter table public.fazenda_jogadores drop column if exists ultimas_sementes;
 alter table public.fazenda_jogadores add column if not exists carregado_em timestamptz;
 alter table public.fazenda_jogadores add column if not exists carregado_antes timestamptz;
 -- última semente que o jogador plantou (a semeadora usa a mesma)
@@ -456,7 +456,7 @@ insert into public.fazenda_ajudantes_tipos (id, nome, papel, funcao, alvo, custo
   ('coelheira',  'Nina',      'Cuidadora de coelhos','animal', 'coelho',  2000,  8, 'Dá a ração e coleta o pelo dos coelhos.', 4),
   ('vaqueiro',   'Bento',     'Vaqueiro',           'animal',  'vaca',    3000,  9, 'Dá a ração e tira o leite das vacas.', 5),
   ('colhedor',   'Juca',      'Colhedor',           'colher',  null,      4000, 10, 'Colhe tudo o que estiver maduro, antes de murchar.', 6),
-  ('semeadora',  'Dona Rosa', 'Semeadora',          'plantar', null,      4000, 11, 'Quando você está fora, planta os canteiros arados fazendo rodízio entre as 3 últimas sementes que você usou (paga com suas moedas; fora de época, usa a semente da estação). Com você na fazenda, ela descansa: quem escolhe é você.', 7),
+  ('semeadora',  'Dona Rosa', 'Semeadora',          'plantar', null,      4000, 11, 'Quando você está fora, planta os canteiros arados em rodízio com todas as sementes da estação que o seu nível libera, a menos plantada primeiro. Paga com suas moedas e pula as que o dinheiro não dá. Com você na fazenda, ela descansa: quem escolhe é você.', 7),
   ('patinheiro', 'Pedrinho',  'Cuidador de patos',  'animal',  'pato',    3000, 12, 'Dá a ração e junta as penas dos patos.', 8),
   ('pastora',    'Lia',       'Pastora',            'animal',  'ovelha',  4000, 13, 'Dá a ração e tosquia a lã das ovelhas.', 9),
   ('porqueiro',  'Tonho',     'Porqueiro',          'animal',  'porco',   5000, 15, 'Dá a ração e acha as trufas dos porcos.', 10)
@@ -1348,10 +1348,7 @@ begin
      where jogador_id = p_jogador and posicao = p_posicao;
     if not p_bot then
       perform fazenda_missao(p_jogador, 'plantar', 1);
-      update fazenda_jogadores
-         set semente = k.id,   -- a semeadora usa as últimas 3, em rodízio
-             ultimas_sementes = (array_prepend(k.id, array_remove(ultimas_sementes, k.id)))[1:3]
-       where id = p_jogador;
+      update fazenda_jogadores set semente = k.id where id = p_jogador;
     end if;
 
   elsif p_acao in ('erva', 'praga', 'seco') then
@@ -1867,8 +1864,8 @@ declare
   v_n     int;
   v_feito int;
   v_sem   text;
-  v_est   text;
-  v_lista text[];
+  v_nivel int;
+  v_ok    boolean;
 begin
   for a in
     select h.tipo, h.nivel, h.credito, h.atualizado_em, t.funcao, t.alvo
@@ -1924,31 +1921,30 @@ begin
       continue;
 
     elsif v_n > 0 and a.funcao = 'plantar' then
-      select coalesce(semente, 'alface'), ultimas_sementes into v_sem, v_lista from fazenda_jogadores where id = p_jogador;
-      if coalesce(array_length(v_lista, 1), 0) = 0 then v_lista := array[v_sem]; end if;
-      -- se a última semente estiver fora de época: a melhor semente da estação que o nível deixa
-      select k.id into v_est from fazenda_culturas k
-       where k.tipo = 'cultura' and k.estacao = fazenda_estacao_em(now())
-         and k.nivel_min <= fazenda_nivel((select xp from fazenda_jogadores where id = p_jogador))
-       order by k.nivel_min desc limit 1;
+      v_nivel := fazenda_nivel((select xp from fazenda_jogadores where id = p_jogador));
       for c in
         select posicao from fazenda_canteiros
          where jogador_id = p_jogador and estado = 'arado' order by posicao limit v_n
       loop
-        v_sem := v_lista[1 + v_feito % array_length(v_lista, 1)];   -- rodízio: cada canteiro uma das últimas
-        begin
-          perform fazenda_aplicar(p_jogador, 'plantar', c.posicao, v_sem, true); v_feito := v_feito + 1;
-        exception when others then
-          exit when sqlerrm = 'moedas_insuficientes';   -- acabou o dinheiro: para
+        -- rodízio com todas as sementes da estação que o nível libera: a menos plantada primeiro,
+        -- pulando as que o dinheiro não paga
+        v_ok := false;
+        for v_sem in
+          select k.id from fazenda_culturas k
+           where k.tipo = 'cultura' and k.nivel_min <= v_nivel
+             and (k.estacao is null or k.estacao = fazenda_estacao_em(now()))
+             and k.custo <= (select moedas from fazenda_jogadores where id = p_jogador)
+           order by (select count(*) from fazenda_canteiros cc
+                      where cc.jogador_id = p_jogador and cc.estado = 'plantado' and cc.cultura = k.id), k.ordem
+        loop
           begin
-            perform fazenda_aplicar(p_jogador, 'plantar', c.posicao, coalesce(v_est, 'alface'), true); v_feito := v_feito + 1;
-          exception when others then
-            begin
-              perform fazenda_aplicar(p_jogador, 'plantar', c.posicao, 'alface', true); v_feito := v_feito + 1;
-            exception when others then exit;
-            end;
+            perform fazenda_aplicar(p_jogador, 'plantar', c.posicao, v_sem, true);
+            v_feito := v_feito + 1; v_ok := true;
+            exit;
+          exception when others then null;
           end;
-        end;
+        end loop;
+        exit when not v_ok;   -- nenhuma semente que o dinheiro pague: para
       end loop;
 
     elsif v_n > 0 and a.funcao = 'cuidar' then
