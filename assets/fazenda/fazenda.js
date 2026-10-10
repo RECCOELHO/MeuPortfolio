@@ -945,6 +945,37 @@
         });   // erro (ex.: ainda não está pronta) vai para tratarErro, que recarrega
     }
 
+    // o alcance de um item colocado aparece marcado no chão por uns segundos
+    function mostrarAlcanceDe(x, y) {
+        const c = ((visita ? visita.construcoes : S.construcoes) || []).find((k) => k.x === x && k.y === y);
+        const it = c && tipoItem(c.tipo);
+        cena.mostrarAlcance(it && it.raio > 0 ? { x: c.x, y: c.y, raio: it.raio } : null);
+    }
+    const dicaItem = (it) => (it.raio > 0 ? ' O alcance aparece marcado no chão.' : '') + (visita ? '' : ' Segure 3 s para mudar de lugar.');
+
+    // segurar 3 s num item ou canteiro (fora do modo construir): já pega para levar a outro lugar
+    function segurarParaMover(alvo) {
+        if (!S || visita || painelAtual || constr.ativo) return;
+        let pego = null;
+        if (typeof alvo === 'number') {
+            const c = S.canteiros.find((k) => k.posicao === alvo);
+            if (c) pego = { x: c.x, y: c.y, tipo: 'canteiro', w: 1, h: 1 };
+        } else if (alvo && alvo.construcao) {
+            const c = construcaoEm(alvo.construcao.x, alvo.construcao.y);
+            if (c) pego = { x: c.x, y: c.y, tipo: c.tipo, ...tamanhoItem(c.tipo) };
+        }
+        if (!pego) return;
+        if (navigator.vibrate) navigator.vibrate(30);
+        abrirConstrucao();
+        constr.modo = 'mover';
+        constr.rapido = true;   // depois de soltar no lugar novo, o modo construir fecha sozinho
+        constr.movendo = pego;
+        desenharPaleta();
+        atualizarModo();
+        som.tocar('construir');
+        mostrarStatus(`${A.htmlItem(pego.tipo, 22)} Pegou! Agora toque no lugar novo (ou no mesmo lugar para desistir).`);
+    }
+
     function descreverConstrucao(x, y) {
         const c = ((visita ? visita.construcoes : S.construcoes) || []).find((k) => k.x === x && k.y === y);
         const it = c && tipoItem(c.tipo);
@@ -969,9 +1000,9 @@
         if (!visita && it.categoria === 'energia') {
             const extra = it.efeito === 'biomassa' ? (c.iniciado_em ? ' <b>Ligado.</b> Toque para desligar.' : ' <b>Desligado.</b> Toque para ligar.')
                 : it.efeito === 'bateria' ? ` Agora: ${Math.floor(cargaAgora())} de ${S.energia.capacidade} ⚡.` : '';
-            return mostrarStatus(`${A.htmlItem(c.tipo, 22)} <b>${esc(it.nome)}</b>: ${esc(it.descricao)}${extra}`);
+            return mostrarStatus(`${A.htmlItem(c.tipo, 22)} <b>${esc(it.nome)}</b>: ${esc(it.descricao)}${extra}${dicaItem(it)}`);
         }
-        mostrarStatus(`${A.htmlItem(c.tipo, 22)} <b>${esc(it.nome)}</b>${it.descricao ? ': ' + esc(it.descricao) : ''}`);
+        mostrarStatus(`${A.htmlItem(c.tipo, 22)} <b>${esc(it.nome)}</b>${it.descricao ? ': ' + esc(it.descricao) : ''}${dicaItem(it)}`);
     }
 
     const cena = A.criarCena(el.canvas, {
@@ -984,8 +1015,10 @@
         aoConstrucao: (x, y) => {
             if (!S || painelAtual) return;
             descreverConstrucao(x, y);
+            mostrarAlcanceDe(x, y);
             if (!visita) coletarItem(x, y);
         },
+        aoSegurar: (alvo) => segurarParaMover(alvo),
         aoPassar: (alvo) => {
             if (!S || alvo == null) return;
             if (alvo === 'celeiro') mostrarStatus(`${spr(11, 22)} Celeiro: toque para ver e vender a colheita.`);
@@ -1079,24 +1112,26 @@
         constr.ativo = true;
         constr.modo = 'colocar';
         constr.movendo = null;
+        constr.rapido = false;
         document.body.classList.add('construindo');
         el.barraConstr.hidden = false;
         el.barra.hidden = true;
         desenharPaleta();
         atualizarModo();
         mostrarStatus('Modo construir: escolha um item e toque nos quadrados livres. Arraste para ver o terreno.');
-        ajustarMargens();
+        ajustarMargens(true);
     }
 
-    function fecharConstrucao() {
+    function fecharConstrucao(msg) {
         constr.ativo = false;
         constr.movendo = null;
+        constr.rapido = false;
         document.body.classList.remove('construindo');
         el.barraConstr.hidden = true;
         el.barra.hidden = false;
         atualizarModo();
-        mostrarStatus('Fazenda salva do seu jeito!');
-        ajustarMargens();
+        mostrarStatus(typeof msg === 'string' ? msg : 'Fazenda salva do seu jeito!');
+        ajustarMargens(true);
     }
 
     function desenharPaleta() {
@@ -1184,12 +1219,20 @@
                 return mostrarStatus('Agora toque no lugar novo.');
             }
             const de = constr.movendo;
+            const c = de.tipo === 'canteiro' ? canteiroEm(de.x, de.y) : construcaoEm(de.x, de.y);
+            if (de.x === x && de.y === y) {
+                constr.movendo = null;
+                if (constr.rapido) return fecharConstrucao('Ficou no mesmo lugar.');
+                return atualizarModo();
+            }
+            if (!cabeAqui(x, y, de.w, de.h, c)) {
+                if (!constr.rapido) { constr.movendo = null; atualizarModo(); }   // no rápido continua na mão
+                return toast(ERROS.lugar_ocupado, 'erro');
+            }
             constr.movendo = null;
             atualizarModo();
-            if (de.x === x && de.y === y) return;
-            const c = de.tipo === 'canteiro' ? canteiroEm(de.x, de.y) : construcaoEm(de.x, de.y);
-            if (!cabeAqui(x, y, de.w, de.h, c)) return toast(ERROS.lugar_ocupado, 'erro');
             if (c) { c.x = x; c.y = y; }
+            if (constr.rapido) fecharConstrucao(`${A.htmlItem(de.tipo, 22)} Mudou de lugar!`);
             som.tocar('construir');
             enfileirar([], async () => {
                 const r = await rpc('fazenda_mover', { p_token: token, p_x: de.x, p_y: de.y, p_nx: x, p_ny: y });
@@ -1218,10 +1261,10 @@
 
     const barraDeBaixo = () => (!el.barraConstr.hidden ? el.barraConstr : el.barra.hidden ? null : el.barra);
     const alturaDe = (barra) => (barra ? window.innerHeight - barra.getBoundingClientRect().top : 0);
-    function ajustarMargens() {
+    function ajustarMargens(manter) {
         const topo = el.hud.hidden ? 24 : el.hud.getBoundingClientRect().bottom + 8;
         const barra = barraDeBaixo();
-        cena.definirMargens(Math.round(topo), Math.round(barra ? alturaDe(barra) + 44 : 24));
+        cena.definirMargens(Math.round(topo), Math.round(barra ? alturaDe(barra) + 44 : 24), manter === true);
         posicionarStatus();
     }
     // o balão de mensagem fica sempre logo acima da barra de baixo, seja qual for a altura dela
@@ -1261,8 +1304,8 @@
         if (el.hudPerfil) {
             const prox = j.nivel < NIVEL_MAX ? liberaNoNivel(j.nivel + 1).slice(0, 3).map((x) => x.nome).join(', ') : '';
             el.hudPerfil.title = j.nivel < NIVEL_MAX
-                ? `Faltam ${j.xp_proximo - j.xp} XP para o nível ${j.nivel + 1}${prox ? ': ' + prox : ''}. Toque para ver o caminho dos níveis.`
-                : 'Nível máximo! Toque para ver o caminho dos níveis.';
+                ? `Faltam ${j.xp_proximo - j.xp} XP para o nível ${j.nivel + 1}${prox ? ': ' + prox : ''}. Toque para abrir o seu perfil.`
+                : 'Nível máximo! Toque para abrir o seu perfil.';
         }
         if (el.moedas.textContent !== String(j.moedas)) {
             el.moedas.textContent = j.moedas;
@@ -1891,8 +1934,19 @@
                 ${htmlInstalar()}
                 ${boasVindas ? '' : htmlAvisos()}
                 ${boasVindas ? '' : htmlConvite()}
+                ${boasVindas ? `<p class="aviso">${ico('ajuda', 14)} Ficou com dúvida? No menu tem <b>Ajuda</b>, com tudo o que dá para fazer na fazenda.</p>` : ''}
                 <p class="aviso"><a href="privacidade.html" target="_blank" rel="noopener">Política de privacidade</a>: o que a fazenda guarda e como funcionam os anúncios.</p>
-                <h3 class="secao-titulo">Como jogar</h3>
+                <div class="rodape-painel">
+                    ${boasVindas
+                        ? '<span></span><button type="button" class="botao verde" data-fechar>Começar a jogar</button>'
+                        : `<button type="button" class="botao creme" data-painel-ir="ajuda">${ico('ajuda', 16)} Como jogar</button>
+                    <button type="button" class="botao creme" data-som>${som.mudo ? 'Ligar sons' : 'Desligar sons'}</button>
+                    <a class="botao creme" href="indexversao2.html">Voltar ao portfólio</a>
+                    <button type="button" class="botao vermelho" data-sair>Sair desta fazenda</button>`}
+                </div>`;
+        } else if (nome === 'ajuda') {
+            el.painelTitulo.innerHTML = `${ico('ajuda', 26)} Como jogar`;
+            corpo.innerHTML = `
                 <ul class="ajuda">
                     <li>Toque num canteiro e ele faz a ação certa: <b>arar</b>, <b>plantar</b>, <b>cuidar</b> ou <b>colher</b>.</li>
                     <li>As plantas crescem em tempo real, mesmo com a página fechada.</li>
@@ -1908,22 +1962,19 @@
                     <li>Em <b>Construir → Máquinas</b>: irrigador, pulverizador e robô capinador evitam seca, pragas e ervas por perto; o alarme protege dos vizinhos; trator e colheitadeira ajudam na fazenda toda.</li>
                     <li>Na loja tem <b>animais</b>: dê ração (sai do celeiro) e colete ovos, leite e lã. No celeiro, <b>Reservar</b> guarda a ração deles para não ir junto no "Vender tudo".</li>
                     <li>No botão <b>Construir</b> você coloca cercas, caminhos, árvores, flores e objetos onde quiser. Toque em <b>Pronto</b> para fechar.</li>
+                    <li>Toque num item já colocado para ver o que ele faz; o <b>alcance</b> dele (irrigador, alarme, estufa...) aparece marcado no chão. <b>Segure o dedo 3 segundos</b> num item ou canteiro para pegar e levar para outro lugar.</li>
                     <li>A semana tem as 4 <b>estações</b> (42 horas cada), e cada uma tem uma semente só dela: morango, melancia, abóbora e repolho. O <b>clima</b> muda várias vezes por dia: sol dá +1 na colheita, chuva rega tudo, onda de calor seca mais, nublado não traz problema novo e ventania espalha pragas. Toque no clima, lá em cima, para ver até quando ele vai.</li>
                     <li>Do nível 16 em diante vem a <b>energia</b> ${ico('raio', 14)}: painel solar, turbina, gerador a biomassa e reator enchem as baterias, e as máquinas elétricas (estufa, triturador, fábrica automática, robô, aspersor) trabalham sozinhas gastando energia.</li>
                     ${ANUNCIO.ligado || ehLocal ? `<li>Quando aparecer o botão <b>+30 min</b>, assista a um anúncio até o fim e tudo o que está em andamento (plantas, animais, oficinas, ajudantes e energia) adianta 30 minutos.</li>` : ''}
                     <li>No Perfil (ou em Vizinhos) tem o seu <b>link de convite</b>: quem criar uma fazenda por ele ganha moedas, e você também.</li>
                     <li>No <b>Vale do sudeste</b> (terreno 3) tem um lago: o pescador <b>Bira</b> tira um peixe a cada 30 minutos, até 16 no cesto. Toque no lago para pegar. Quanto mais raro, mais vale, e o lendário <b>Peixe do Velho Chico</b> sai em 1% das vezes (2% com a estátua do nível 30).</li>
                     <li>Cumpra as <b>missões do dia</b> para ganhar moedas e XP extras.</li>
-                    <li>Cada nível libera coisas novas e dá um presente de moedas. Toque no seu nome, lá em cima, para ver o <b>caminho dos níveis</b>.</li>
+                    <li>Cada nível libera coisas novas e dá um presente de moedas. Toque no seu nome, lá em cima, para abrir o <b>Perfil</b>: lá estão o <b>caminho dos níveis</b>, as conquistas e o seu convite.</li>
                     <li>Em <b>Vizinhos</b> você visita outras fazendas: <b>pega</b> um pouco da colheita madura ou <b>ajuda</b> com os problemas e ganha XP.</li>
                 </ul>
                 <div class="rodape-painel">
-                    ${boasVindas
-                        ? '<span></span><button type="button" class="botao verde" data-fechar>Começar a jogar</button>'
-                        : `<button type="button" class="botao creme" data-tutorial>Ver o tutorial</button>
-                    <button type="button" class="botao creme" data-som>${som.mudo ? 'Ligar sons' : 'Desligar sons'}</button>
-                    <a class="botao creme" href="indexversao2.html">Voltar ao portfólio</a>
-                    <button type="button" class="botao vermelho" data-sair>Sair desta fazenda</button>`}
+                    <button type="button" class="botao creme" data-tutorial>Ver o tutorial</button>
+                    <button type="button" class="botao verde" data-fechar>Entendi</button>
                 </div>`;
         } else if (nome === 'nivel' && nivelComemorar) {
             const { de, ate } = nivelComemorar;
@@ -2489,9 +2540,9 @@
     if (el.energia) el.energia.addEventListener('click', descreverEnergia);
     if (el.anuncio) el.anuncio.addEventListener('click', assistirAnuncio);
     if (el.hudPerfil) {
-        const abrirCaminho = () => { if (S && !painelAtual) abrirPainel('niveis'); };
-        el.hudPerfil.addEventListener('click', abrirCaminho);
-        el.hudPerfil.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrirCaminho(); } });
+        const abrirPerfil = () => { if (S && !painelAtual) abrirPainel('conta'); };
+        el.hudPerfil.addEventListener('click', abrirPerfil);
+        el.hudPerfil.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrirPerfil(); } });
     }
     el.barraConstr.addEventListener('click', (e) => {
         const aba = e.target.closest('[data-constr-aba]');

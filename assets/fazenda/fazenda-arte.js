@@ -346,6 +346,7 @@
     /* ---------- Ícones pixel (mesma paleta) ---------- */
     const ICONES = {
         moeda: ['..oooo..', '.oyyyyo.', 'oywyyyYo', 'oywyYyYo', 'oyyyYyYo', 'oyyyyYYo', '.oYYYYo.', '..oooo..'],
+        ajuda: ['.ooooooo.', 'owwwwwwwo', 'owwooowwo', 'owowwwowo', 'owwwwowwo', 'owwwowwwo', 'owwwwwwwo', 'owwwowwwo', '.oooooooo', '.....oo..'],
         xp: ['....o....', '...oyo...', '..oywyo..', 'oooywyooo', 'oyyyyyyYo', '.oyyyyYo.', '.oyyoyYo.', 'oyYo.oYYo', 'ooo...ooo'],
         praga: ['.o.....o.', '..o...o..', '..ooooo..', '.oPwpPPo.', 'oPpPPPpPo', 'oPPPPPPPo', '.oPPpPPo.', '..ooooo..'],
         seco: ['...o...', '..obo..', '..obo..', '.obbbo.', 'obwbbbo', 'obwbbBo', 'obbbbBo', '.oBBBo.', '..ooo..'],
@@ -521,6 +522,10 @@
         let clima = null;                                  // sol | nublado | chuva | calor | vento
         let lago = null;                                   // { prontos, max } do seu lago, ou null
         let hover = null;                                  // canteiro, 'celeiro', 'a:<id>' ou {tx, ty}
+        let alcance = null;                                // alcance de um item tocado: { x, y, raio, ate }
+        const SEGURAR_MS = 3000;                           // segurar 3 s num item: pega para mudar de lugar
+        let segurando = null;                              // { alvo, t0, cx, cy, id, timer }
+        let ignorarCliqueAte = 0;                          // o clique que vem depois de segurar não vale
         const atores = new Map();
         const fazendeiro = { x: 0, y: 0, tx: 0, ty: 0, flip: false, passo: 0 };
         const t0 = performance.now();
@@ -1239,6 +1244,9 @@
                 if (Math.floor(tempo / 300) % 3) icone(q, 'brilho', x + 15, by - 3);
             }
 
+            if (!construcao.ativo && alcance) desenharAlcance();
+            if (segurando) desenharSegurar(lista);
+
             if (construcao.ativo) {
                 desenharGrade(m, tempo);
             } else if (typeof hover === 'number') {
@@ -1267,6 +1275,40 @@
             const k = escala * dpr;
             ctx.drawImage(mundo, 0, 0, MW, MH, -Math.round(cam.x * k), -Math.round(cam.y * k), MW * k, MH * k);
             desenharClima(tempo, k);
+        }
+
+        // o alcance de um item colocado (irrigador, alarme, estufa...): some sozinho em 5 s
+        function desenharAlcance() {
+            const resta = alcance.ate - performance.now();
+            if (resta <= 0) { alcance = null; return; }
+            const r = alcance.raio, rx = wx(alcance.x - r), ry = wy(alcance.y - r), lado = (r * 2 + 1) * T;
+            q.globalAlpha = Math.min(1, resta / 600);
+            q.fillStyle = 'rgba(153,216,248,.25)';
+            q.fillRect(rx, ry, lado, lado);
+            moldura(rx, ry, lado, lado, PAL.b);
+            q.globalAlpha = 1;
+        }
+
+        // segurando o dedo num item: moldura amarela e a barrinha enchendo até os 3 s
+        function desenharSegurar(lista) {
+            const p = (performance.now() - segurando.t0) / SEGURAR_MS;
+            if (p < 0.08) return;
+            let x, y, w = T, h = T, alto = 0;
+            if (typeof segurando.alvo === 'number') {
+                ({ x, y } = posCanteiro(segurando.alvo));
+            } else {
+                const [cx, cy] = segurando.alvo.slice(2).split(',').map(Number);
+                const c = lista.find((k) => k.x === cx && k.y === cy);
+                if (!c) return;
+                const a = arteItem(c.tipo, EST);
+                x = wx(cx); y = wy(cy); w = T * (a.w || 1); h = T * (a.h || 1);
+                alto = a.topo2 != null ? 2 * T : a.topo != null ? T : 0;
+            }
+            moldura(x, y, w, h, PAL.y);
+            const bw = Math.max(14, w - 4), bx = x + Math.round((w - bw) / 2), by = y - alto - 7;
+            q.fillStyle = PAL.o; q.fillRect(bx, by, bw, 4);
+            q.fillStyle = PAL.d; q.fillRect(bx + 1, by + 1, bw - 2, 2);
+            q.fillStyle = PAL.y; q.fillRect(bx + 1, by + 1, Math.max(1, Math.round((bw - 2) * Math.min(1, p))), 2);
         }
 
         // vara, linha e boia do Bira; balão com peixe quando tem peixe no cesto
@@ -1363,15 +1405,52 @@
             return a === b;
         }
 
+        /* ---- segurar 3 s num item ou canteiro (fora do modo construir): pega para mover ---- */
+        function comecarSegurar(e) {
+            pararSegurar();
+            if (construcao.ativo || !cb.aoSegurar) return;
+            const bruto = alvoEm(e.clientX, e.clientY);
+            if (!(typeof bruto === 'number' || (typeof bruto === 'string' && bruto.startsWith('c:')))) return;
+            segurando = { alvo: bruto, t0: performance.now(), cx: e.clientX, cy: e.clientY, id: e.pointerId };
+            segurando.timer = setTimeout(() => {
+                const s = segurando;
+                segurando = null;
+                ignorarCliqueAte = Infinity;   // até soltar o dedo
+                if (toque) toque.segurou = true;
+                cb.aoSegurar(traduzir(s.alvo));
+            }, SEGURAR_MS);
+        }
+        function pararSegurar() {
+            if (segurando) clearTimeout(segurando.timer);
+            segurando = null;
+        }
+        function moverSegurar(e) {
+            if (segurando && e.pointerId === segurando.id && Math.hypot(e.clientX - segurando.cx, e.clientY - segurando.cy) > 10) pararSegurar();
+        }
+        function soltarSegurar() {
+            pararSegurar();
+            if (ignorarCliqueAte === Infinity) ignorarCliqueAte = performance.now() + 500;
+        }
+        if (rolagem) {   // celular: os toques caem na camada de rolagem
+            rolagem.addEventListener('pointerdown', comecarSegurar);
+            rolagem.addEventListener('pointermove', moverSegurar);
+            rolagem.addEventListener('pointerup', soltarSegurar);
+            rolagem.addEventListener('pointercancel', soltarSegurar);
+            rolagem.addEventListener('scroll', pararSegurar, { passive: true });
+            rolagem.addEventListener('contextmenu', (e) => e.preventDefault());
+        }
+
         let toque = null;   // { id, x, y, camX, camY, arrastou, ultX, ultY, ultT }
         canvas.addEventListener('pointerdown', (e) => {
             if (toque) return;   // ignora o segundo dedo
             inercia.vx = inercia.vy = 0;
+            comecarSegurar(e);
             toque = { id: e.pointerId, x: e.clientX, y: e.clientY, camX: cam.x, camY: cam.y, arrastou: false,
                       ultX: e.clientX, ultY: e.clientY, ultT: performance.now() };
             if (e.pointerType !== 'mouse') { try { canvas.setPointerCapture(e.pointerId); } catch { /* ignora */ } }
         });
         canvas.addEventListener('pointermove', (e) => {
+            moverSegurar(e);
             if (toque && toque.id === e.pointerId) {
                 const dx = e.clientX - toque.x, dy = e.clientY - toque.y;
                 if (!toque.arrastou && Math.hypot(dx, dy) > 8) {
@@ -1400,6 +1479,7 @@
         });
         const soltar = (e) => {
             if (!toque || toque.id !== e.pointerId) return;
+            soltarSegurar();
             const arrastou = toque.arrastou;
             if (!arrastou || performance.now() - toque.ultT > 80) inercia.vx = inercia.vy = 0;
             toque = null;
@@ -1409,6 +1489,7 @@
         };
         // um toque/clique sem arrastar: aciona o que estiver embaixo
         function acionar(clientX, clientY) {
+            if (performance.now() < ignorarCliqueAte) return;   // acabou de segurar um item
             const bruto = alvoEm(clientX, clientY);
             const alvo = traduzir(bruto);
             hover = bruto;
@@ -1481,10 +1562,14 @@
                 redimensionar();
                 requestAnimationFrame(quadroAnim);
             },
-            definirMargens(topo, base) {
+            // manter = a câmera e o zoom ficam onde estão (abrir/fechar o construir não pula a fazenda)
+            definirMargens(topo, base, manter) {
                 if (topo === margem.topo && base === margem.base) return;
                 margem = { topo, base };
-                redimensionar();
+                if (!manter) return redimensionar();
+                limitarCamera();
+                sincronizarRolagem();
+                precisaDesenhar = true;
             },
             definirVisual(fn) { visual = fn; },
             definirAnimais(fn) { animaisFn = fn; },
@@ -1518,6 +1603,8 @@
                 precisaDesenhar = true;
             },
             definirModoConstrucao(estado) { construcao = estado || { ativo: false }; },
+            // marca no chão o alcance de um item colocado ({ x, y, raio }) por 5 s; null apaga
+            mostrarAlcance(a) { alcance = a ? { ...a, ate: performance.now() + 5000 } : null; },
             irAte(p) {
                 const { x, y } = posCanteiro(p);
                 fazendeiro.tx = x;
