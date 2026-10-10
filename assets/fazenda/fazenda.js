@@ -859,6 +859,8 @@
 
     /* ---------- Avatar: chapéu e cores (fazenda_avatar); o desenho sai de A.htmlAvatar ---------- */
     let rascunhoAvatar = null;
+    const precoAvatar = (tipo) => ((S.jogador.avatar_precos || {})[tipo]) || 0;
+    const temAvatar = (tipo) => !precoAvatar(tipo) || (S.jogador.avatares || []).includes(tipo);
     function htmlEditorAvatar() {
         const a = rascunhoAvatar, tipo = A.AVATAR_TIPOS[a.tipo], cores = A.AVATAR_CORES;
         const bolinha = (cor) => `<span class="av-cor" style="background:${cor}"></span>`;
@@ -871,12 +873,14 @@
         return `
             <div class="av-preview">${A.htmlAvatar(a, 112)}</div>
             <div class="av-linha"><span class="av-titulo">Personagem</span><div class="av-opcoes">${Object.entries(A.AVATAR_TIPOS).map(([id, t]) =>
-                `<button type="button" class="av-op chapeu${a.tipo === id ? ' ativa' : ''}" data-av="tipo:${id}">${A.htmlAvatar({ ...a, tipo: id }, 40)}<small>${t.nome}</small></button>`).join('')}</div></div>
+                `<button type="button" class="av-op chapeu${a.tipo === id ? ' ativa' : ''}" data-av="tipo:${id}">${A.htmlAvatar({ ...a, tipo: id }, 40)}<small>${t.nome}</small><small class="av-preco">${temAvatar(id) ? (precoAvatar(id) ? 'seu' : 'grátis') : `${ico('moeda', 11)} ${precoAvatar(id).toLocaleString('pt-BR')}`}</small></button>`).join('')}</div></div>
             ${['chapeu', 'cabelo', 'pele', 'roupa', 'calca'].filter((r) => tipo.regioes[r]).map(linha).join('')}
             <p class="det">A primeira bolinha de cada linha é a cor original do personagem. Seus vizinhos veem esse avatar no ranking e quando visitam a sua fazenda.</p>
             <div class="rodape-painel">
                 <button type="button" class="botao creme" data-painel-ir="conta">Cancelar</button>
-                <button type="button" class="botao verde" data-av-salvar>Salvar</button>
+                ${temAvatar(a.tipo)
+                    ? '<button type="button" class="botao verde" data-av-salvar>Salvar</button>'
+                    : `<button type="button" class="botao verde" data-av-salvar${S.jogador.moedas >= precoAvatar(a.tipo) ? '' : ' disabled'}>Comprar ${esc(tipo.nome.toLowerCase())} por ${ico('moeda', 14)} ${precoAvatar(a.tipo).toLocaleString('pt-BR')}</button>`}
             </div>`;
     }
 
@@ -2604,6 +2608,9 @@
         }
         if (e.target.closest('[data-av-salvar]') && rascunhoAvatar) {
             const novo = { ...rascunhoAvatar };
+            const preco = temAvatar(novo.tipo) ? 0 : precoAvatar(novo.tipo);
+            if (preco > S.jogador.moedas) return toast(ERROS.moedas_insuficientes, 'erro');
+            if (preco) { S.jogador.moedas -= preco; S.jogador.avatares = [...(S.jogador.avatares || []), novo.tipo]; som.tocar('moeda'); }
             S.jogador.avatar = novo;       // aparece na hora; o servidor confirma
             cena.definirAvatar(novo);
             desenharHud();
@@ -2611,7 +2618,7 @@
             enfileirar([], async () => {
                 const r = await rpc('fazenda_avatar', { p_token: token, p_avatar: novo });
                 aplicarEstado(r.estado);
-                toast(`${A.htmlAvatar(novo, 22)} Avatar salvo! Os vizinhos já veem o novo visual.`);
+                toast(r.pagou ? `${A.htmlAvatar(novo, 22)} Comprou o personagem por ${ico('moeda', 14)} ${r.pagou.toLocaleString('pt-BR')}! Agora ele é seu para sempre.` : `${A.htmlAvatar(novo, 22)} Avatar salvo! Os vizinhos já veem o novo visual.`, r.pagou ? 'festa' : undefined);
             });
             return;
         }

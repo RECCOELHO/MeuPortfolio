@@ -2075,3 +2075,8 @@ body.construindo .status {
     border: 2px solid var(--o);
     border-radius: 50%;
 }
+
+.av-op .av-preco {
+    font-weight: 800;
+    font-size: 11px;
+}
