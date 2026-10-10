@@ -261,48 +261,101 @@
     let urlPropria = null;
 
     /* ---------- Avatar do fazendeiro ----------
-       O fazendeiro do pacote (Tiny Farm 109) em letras: a contorno, b/c chapéu, d detalhe
-       vermelho, e/g pele, f olhos, h camisa, i/k macacão, j botas, y cabelo. Sem escolha
-       nenhuma ele sai igualzinho ao do pacote. As linhas 0 a 6 (a cabeça) mudam com o chapéu. */
-    const AVATAR_BASE = ['....aaaaaaaa....', '...aaaaaaaaaa...', '.aaaabbccbbaaaa.', 'aaaaabbbbbbaaaaa', 'aacbaddddddabcaa',
-        'aacbbbbbbbbbbcaa', 'aaaccccccccccaaa', '.aaaeefeeefeaaa.', '..aaggfgggfgaa..', '..aaaggeeegaaa..', '.aaahijddjihaaa.',
-        'aaahhihhhhihhaaa', 'aaggdikiikidggaa', 'aaggaiiiiiiaggaa', 'aaaaaiiaaiiaaaaa', '.aaaajjaajjaaaa.'];
-    const AVATAR_CHAPEU = {
-        palha: null,
-        bone: ['................', '................', '....aaaaaaaa....', '...abbbbbbbba...', '..abbbcbbbbbba..',
-            '..abbbbbbbbbbaaa', '..aayyyyyybbbbba'],
-        lenco: ['................', '................', '....aaaaaaaa....', '...abbbbbbbba...', '..abbcbbbbcbba..',
-            '..abbbbbbbbbbaba', '.aaayyeeeeyyaaba'],
-        cabelo: ['................', '................', '....aaaaaaaa....', '...ayyyyyyyya...', '..ayyyyyyyyyya..',
-            '..ayyyyyyyyyya..', '.aaayyeeeeyyaaa.']
+       O avatar é um personagem pronto do Kenney (Tiny Farm e Tiny Dungeon, que usam a mesma
+       paleta) com as cores trocadas por região: cada região diz quais cores do desenho são dela,
+       em que linhas (e colunas) e em que tom (0 escuro, 1 médio, 2 claro). A cor 0 de cada
+       região é sempre a original do personagem; as outras vêm de AVATAR_CORES, em três tons,
+       então o sombreado continua certo em qualquer cor. */
+    const AVATAR_TIPOS = {
+        fazendeiro: { nome: 'Fazendeiro', p: 'farm', i: 109, regioes: {
+            chapeu: { nome: 'Chapéu', cores: { '#cf8254': 1, '#fec99c': 2 }, y: [0, 7] },
+            pele: { cores: { '#e19a65': 0, '#f7c282': 1 }, y: [6, 16] },
+            roupa: { nome: 'Camisa', cores: { '#f28462': 1 }, y: [9, 16] },
+            calca: { nome: 'Macacão', cores: { '#52607c': 1, '#8c9cb5': 2 }, y: [9, 16] } } },
+        fazendeira: { nome: 'Fazendeira', p: 'farm', i: 108, regioes: {
+            cabelo: { nome: 'Cabelo', cores: { '#763b36': 1, '#bd6c4a': 2 }, y: [0, 10] },
+            pele: { cores: { '#e19a65': 0, '#f7c282': 1 }, y: [4, 16] },
+            roupa: { nome: 'Blusa', cores: { '#f28462': 1, '#c34b35': 0 }, y: [10, 14] },   // os punhos acompanham a blusa
+            calca: { nome: 'Macacão', cores: { '#52607c': 1 }, y: [10, 16] } } },
+        rapaz: { nome: 'Rapaz', p: 'dungeon', i: 85, regioes: {
+            cabelo: { nome: 'Cabelo', cores: { '#763b36': 1, '#bd6c4a': 2 }, y: [0, 10] },
+            pele: { cores: { '#e19a65': 0, '#f7c282': 1 }, y: [4, 16] },
+            roupa: { nome: 'Camisa', cores: { '#8b9bb4': 1, '#c0cbdc': 2 }, y: [10, 13] },
+            calca: { nome: 'Calça', cores: { '#bd6c4a': 2, '#763b36': 1 }, y: [13, 15] } } },
+        mago: { nome: 'Mago', p: 'dungeon', i: 84, regioes: {
+            roupa: { nome: 'Manto e chapéu', cores: { '#9b4ca3': 1, '#d176d0': 2 }, y: [0, 16] },
+            cabelo: { nome: 'Barba', cores: { '#8b9bb4': 1, '#aab7cc': 2, '#c0cbdc': 2 }, y: [5, 16] },
+            pele: { cores: { '#f7c282': 1 }, y: [0, 16] } } },
+        viking: { nome: 'Viking', p: 'dungeon', i: 87, regioes: {
+            chapeu: { nome: 'Capacete', cores: { '#8b9bb4': 1, '#c0cbdc': 2 }, y: [0, 9] },
+            cabelo: { nome: 'Barba', cores: { '#bd6c4a': 1 }, y: [9, 13], x: [4, 12] },
+            pele: { cores: { '#e19a65': 0, '#f7c282': 1 }, y: [0, 16] },
+            roupa: { nome: 'Armadura', cores: { '#8b9bb4': 1, '#c0cbdc': 2 }, y: [9, 14] },
+            calca: { nome: 'Calça', cores: { '#52607c': 1 }, y: [14, 15] } } },
+        cavaleiro: { nome: 'Cavaleiro', p: 'dungeon', i: 97, regioes: {
+            roupa: { nome: 'Armadura', cores: { '#52607c': 0, '#8b9bb4': 1, '#c0cbdc': 2 }, y: [0, 16] },
+            pele: { cores: { '#e19a65': 0, '#f7c282': 1 }, y: [0, 16] } } }
+    };
+    // cores à escolha (a 0, "original", não está aqui): [escuro, médio, claro]
+    const TONS = {
+        vermelho: ['#7a2420', '#c34b35', '#f28462'], azul: ['#29366f', '#3b5dc9', '#79a7e8'], verde: ['#2d5a32', '#3e8948', '#6abe30'],
+        amarelo: ['#b0631e', '#e38628', '#fdbe53'], roxo: ['#5a2a6a', '#9b4ca3', '#d176d0'], branco: ['#8b9bb4', '#c0cbdc', '#f4f6fa'],
+        preto: ['#1a1c2c', '#333c57', '#566c86'], marrom: ['#4d2a24', '#763b36', '#bd6c4a'], rosa: ['#8a3a5a', '#d27688', '#f5a3b0']
     };
     const AVATAR_CORES = {
-        cor_chapeu: [['#cf8254', '#fec99c'], ['#c34b35', '#f28462'], ['#3b5dc9', '#99d8f8'], ['#3e8948', '#a7f070'], ['#2a2a36', '#8b9bb4'], ['#d27688', '#ffd1dc']],
-        pele: [['#e19a65', '#f7c282'], ['#f0b98d', '#fde0c4'], ['#b9744a', '#d99a66'], ['#8a5236', '#ad6c45'], ['#5e3726', '#7d4c33']],
-        cabelo: ['#5a3424', '#2b1d1a', '#e8c25a', '#c2522d', '#c0c4cc'],
-        camisa: ['#f28462', '#c34b35', '#4f8fd8', '#6abe30', '#fdbe53', '#9b4ca3', '#eeeeee'],
-        macacao: [['#52607c', '#8c9cb5'], ['#3b5dc9', '#79a7e8'], ['#7a4a30', '#b4673a'], ['#3e7a3b', '#6aa84f'], ['#b05a85', '#e08cb5'], ['#2a2a36', '#6a6a7a']]
+        pele: [['#eaa56c', '#fde0c4'], ['#b9744a', '#d99a66'], ['#8a5236', '#ad6c45'], ['#5e3726', '#7d4c33']],   // [sombra, luz]
+        cabelo: [['#3f2631', '#763b36', '#bd6c4a'], ['#1a1c2c', '#262b44', '#3f3f5f'], ['#9a6b22', '#d9a43a', '#f2d06b'], ['#6e2516', '#9e3a1f', '#e2683a'], ['#566c86', '#8b9bb4', '#c0cbdc']],
+        roupa: [TONS.vermelho, TONS.azul, TONS.verde, TONS.amarelo, TONS.roxo, TONS.branco, TONS.preto],
+        calca: [TONS.azul, TONS.marrom, TONS.verde, TONS.preto, TONS.rosa],
+        chapeu: [TONS.vermelho, TONS.azul, TONS.verde, TONS.preto, TONS.roxo]
     };
+    const NOME_REGIAO = { pele: 'Pele', cabelo: 'Cabelo', roupa: 'Roupa', calca: 'Calça', chapeu: 'Chapéu' };
+    // avatar salvo na primeira versão ({ chapeu: 'palha', ... }): vira o fazendeiro com a mesma pele
+    function normalizarAvatar(cfg) {
+        cfg = cfg || {};
+        if (!AVATAR_TIPOS[cfg.tipo]) cfg = { tipo: 'fazendeiro', pele: typeof cfg.chapeu === 'string' ? cfg.pele | 0 : 0 };
+        return cfg;
+    }
     const cacheAvatar = new Map();
     function avatarCanvas(cfg) {
-        cfg = cfg || {};
-        const chave = JSON.stringify([cfg.chapeu, cfg.cor_chapeu, cfg.pele, cfg.cabelo, cfg.camisa, cfg.macacao]);
+        cfg = normalizarAvatar(cfg);
+        const tipo = AVATAR_TIPOS[cfg.tipo], img = atlas[tipo.p];
+        const chave = JSON.stringify([cfg.tipo, cfg.pele, cfg.cabelo, cfg.roupa, cfg.calca, cfg.chapeu]);
         if (cacheAvatar.has(chave)) return cacheAvatar.get(chave);
-        const cor = (lista, i) => lista[Math.max(0, Math.min(lista.length - 1, i | 0))];
-        const cabeca = AVATAR_CHAPEU[cfg.chapeu];
-        const linhas = AVATAR_BASE.map((l, y) => (cabeca && y < cabeca.length ? cabeca[y] : l));
-        const [b, c] = cor(AVATAR_CORES.cor_chapeu, cfg.cor_chapeu), [e, g] = cor(AVATAR_CORES.pele, cfg.pele), [i, k] = cor(AVATAR_CORES.macacao, cfg.macacao);
-        const pal = { a: '#3f2631', b, c, d: '#c34b35', e, f: '#262b44', g, h: cor(AVATAR_CORES.camisa, cfg.camisa), i, j: '#bd6c4a', k, y: cor(AVATAR_CORES.cabelo, cfg.cabelo) };
         const cv = document.createElement('canvas');
         cv.width = cv.height = 16;
-        const g2 = cv.getContext('2d');
-        linhas.forEach((l, yy) => [...l].forEach((ch, xx) => { if (pal[ch]) { g2.fillStyle = pal[ch]; g2.fillRect(xx, yy, 1, 1); } }));
+        const g = cv.getContext('2d');
+        if (!img.complete || !img.naturalWidth) { cv.url = cv.toDataURL(); return cv; }   // a arte ainda não carregou
+        g.drawImage(img, (tipo.i % COLS) * T, Math.floor(tipo.i / COLS) * T, T, T, 0, 0, T, T);
+        const dados = g.getImageData(0, 0, T, T), d = dados.data;
+        for (const [regiao, r] of Object.entries(tipo.regioes)) {
+            const n = cfg[regiao] | 0;
+            const tons = n > 0 && AVATAR_CORES[regiao][n - 1];
+            if (!tons) continue;
+            const alvo = Object.fromEntries(Object.entries(r.cores).map(([hex, tom]) => [hex.slice(1), rgbDe(tons[tom])]));
+            for (let y = r.y[0]; y < r.y[1]; y++) {
+                for (let x = r.x ? r.x[0] : 0; x < (r.x ? r.x[1] : T); x++) {
+                    const k = (y * T + x) * 4;
+                    if (d[k + 3] < 128) continue;
+                    const novo = alvo[((d[k] << 16) | (d[k + 1] << 8) | d[k + 2]).toString(16).padStart(6, '0')];
+                    if (novo) { d[k] = novo[0]; d[k + 1] = novo[1]; d[k + 2] = novo[2]; }
+                }
+            }
+        }
+        g.putImageData(dados, 0, 0);
         cv.url = cv.toDataURL();
         cacheAvatar.set(chave, cv);
         return cv;
     }
     function htmlAvatar(cfg, px = 32) {
         return `<span class="px-spr" style="background-image:url('${avatarCanvas(cfg).url}');width:${px}px;height:${px}px;background-size:${px}px ${px}px;background-position:0 0" aria-hidden="true"></span>`;
+    }
+    // a cor original de uma região (para a bolinha da opção 0 no editor)
+    function corOriginal(tipo, regiao) {
+        const r = (AVATAR_TIPOS[tipo] || {}).regioes && AVATAR_TIPOS[tipo].regioes[regiao];
+        if (!r) return null;
+        const [hex] = Object.entries(r.cores).sort((a, b) => Math.abs(a[1] - 1) - Math.abs(b[1] - 1))[0];
+        return hex;
     }
 
     // ajudantes: quem é (pessoa) e o que carrega (ferramenta) — tudo dos pacotes
@@ -1998,6 +2051,10 @@
     window.FazendaArte = {
         htmlAvatar,
         AVATAR_CORES,
+        AVATAR_TIPOS,
+        NOME_REGIAO,
+        corOriginal,
+        normalizarAvatar,
         carregar,
         criarCena,
         htmlTile,

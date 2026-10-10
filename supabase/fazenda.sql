@@ -311,8 +311,10 @@ alter table public.fazenda_jogadores add column if not exists lago_em timestampt
 alter table public.fazenda_estatisticas add column if not exists peixes int not null default 0;
 alter table public.fazenda_estatisticas add column if not exists lendarios int not null default 0;
 
--- Fase 22: avatar do fazendeiro ({"chapeu": "palha", "pele": 0, ...}); null = o de sempre
+-- Fase 22: avatar do fazendeiro ({"tipo": "fazendeira", "pele": 0, ...}); null = o de sempre
 alter table public.fazenda_jogadores add column if not exists avatar jsonb;
+-- personagens do avatar que o jogador já comprou (fazendeiro e fazendeira são de graça)
+alter table public.fazenda_jogadores add column if not exists avatares text[] not null default '{}';
 
 -- Fase 21: visitas na porteira. A cada 3 horas chega alguém (fazenda_visitante): o feirante,
 -- a doceira e o caminhoneiro querem comprar algo pagando mais que o celeiro; a mascate vende
@@ -1057,6 +1059,8 @@ begin
       'id', j.id,
       'apelido', j.apelido,
       'avatar', j.avatar,
+      'avatares', j.avatares,
+      'avatar_precos', fazenda_avatar_precos(),
       'moedas', j.moedas,
       'xp', j.xp,
       'nivel', v_nivel,
@@ -2833,22 +2837,32 @@ begin
 end;
 $$;
 
--- Salva o avatar: chapéu (palha | bone | lenco | cabelo) e o número de cada cor (as cores
--- ficam no cliente, em AVATAR_CORES de fazenda-arte.js); o que faltar vira 0
+-- Preço de cada personagem do avatar: quanto mais legal, mais caro (paga uma vez, fica seu)
+create or replace function public.fazenda_avatar_precos()
+returns jsonb language sql immutable as $$
+  select '{"fazendeiro": 0, "fazendeira": 0, "rapaz": 3000, "mago": 20000, "viking": 35000, "cavaleiro": 50000}'::jsonb;
+$$;
+
+-- Salva o avatar: o personagem (tipo) e o número de cada cor (0 = a cor original do personagem;
+-- as cores ficam no cliente, em AVATAR_CORES de fazenda-arte.js). O que faltar vira 0.
 create or replace function public.fazenda_avatar(p_token text, p_avatar jsonb)
 returns jsonb
 language plpgsql security definer
 set search_path = public, extensions
 as $$
 declare
-  v_id uuid := fazenda_auth(p_token);
-  v    jsonb;
-  r    record;
+  v_id    uuid := fazenda_auth(p_token);
+  v       jsonb;
+  r       record;
+  j       record;
+  v_preco int;
 begin
   if jsonb_typeof(p_avatar) is distinct from 'object' then raise exception 'avatar_invalido'; end if;
-  if coalesce(p_avatar->>'chapeu', 'palha') not in ('palha', 'bone', 'lenco', 'cabelo') then raise exception 'avatar_invalido'; end if;
-  v := jsonb_build_object('chapeu', coalesce(p_avatar->>'chapeu', 'palha'));
-  for r in select * from (values ('cor_chapeu', 6), ('pele', 5), ('cabelo', 5), ('camisa', 7), ('macacao', 6)) x(chave, n) loop
+  if coalesce(p_avatar->>'tipo', 'fazendeiro') not in ('fazendeiro', 'fazendeira', 'rapaz', 'mago', 'viking', 'cavaleiro') then
+    raise exception 'avatar_invalido';
+  end if;
+  v := jsonb_build_object('tipo', coalesce(p_avatar->>'tipo', 'fazendeiro'));
+  for r in select * from (values ('pele', 5), ('cabelo', 6), ('roupa', 8), ('calca', 6), ('chapeu', 6)) x(chave, n) loop
     if p_avatar ? r.chave then
       if jsonb_typeof(p_avatar->r.chave) <> 'number' or (p_avatar->>r.chave)::numeric % 1 <> 0
          or (p_avatar->>r.chave)::numeric not between 0 and r.n - 1 then
@@ -2859,8 +2873,17 @@ begin
       v := v || jsonb_build_object(r.chave, 0);
     end if;
   end loop;
+  -- personagem que ainda não é seu: compra agora (se tiver moedas)
+  select * into j from fazenda_jogadores where id = v_id for update;
+  v_preco := (fazenda_avatar_precos()->>(v->>'tipo'))::int;
+  if v_preco > 0 and not (v->>'tipo') = any(j.avatares) then
+    if j.moedas < v_preco then raise exception 'moedas_insuficientes'; end if;
+    update fazenda_jogadores set moedas = moedas - v_preco, avatares = array_append(avatares, v->>'tipo') where id = v_id;
+  else
+    v_preco := 0;
+  end if;
   update fazenda_jogadores set avatar = v where id = v_id;
-  return jsonb_build_object('avatar', v, 'estado', fazenda_estado(v_id));
+  return jsonb_build_object('avatar', v, 'pagou', v_preco, 'estado', fazenda_estado(v_id));
 end;
 $$;
 
@@ -3237,6 +3260,7 @@ revoke execute on function
   public.fazenda_visitante(uuid),
   public.fazenda_atender(text, boolean),
   public.fazenda_avatar(text, jsonb),
+  public.fazenda_avatar_precos(),
   public.fazenda_checar_conquistas(uuid)
 from public, anon, authenticated;
 
