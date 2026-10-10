@@ -32,6 +32,16 @@
         P: '#9b4ca3', s: '#c0cbdc', S: '#8b9bb4', k: '#fec99c', t: '#eaa56c', d: '#cf8254', n: '#763b36'
     };
 
+    /* ---------- O chão de cada estação (como no The Sims: o mapa todo muda) ----------
+       grama = fundo; tufo = tufinhos; ponto = pontinhos; mancha = manchas grandes no chão
+       (grama aparecendo na neve, grama seca, folhas amontoadas) */
+    const CHAO = {
+        primavera: { grama: '#84c669', tufo: '#4e974c', ponto: '#c6e58d', mancha: '#9ad57a', flores: 0.32 },
+        verao: { grama: '#97c95c', tufo: '#5f9a41', ponto: '#e3d77a', mancha: '#bcc865', flores: 0.12 },
+        outono: { grama: '#adb35c', tufo: '#7b8a3d', ponto: '#e38628', mancha: '#c9924a', flores: 0.03 },
+        inverno: { grama: '#eef3f8', tufo: '#c9d6e3', ponto: '#ffffff', mancha: '#b4cfa2', flores: 0 }
+    };
+
     /* ---------- Mapa da fazenda (precisa bater com fazenda_livre no SQL) ---------- */
     const MAPA = {
         w: 32, h: 20,                                // tamanho máximo, com todos os terrenos
@@ -446,9 +456,68 @@
         return atlasPronto;
     }
 
+    /* ---- grama pintada dentro das peças dos pacotes: troca pela grama da estação ----
+       Só a grama ligada à borda da peça (preenchimento a partir das bordas): o que está
+       dentro do contorno (telhado verde do celeiro, folhas) continua igual. */
+    const GRAMA_PECA = { '84c669': 'grama', '65a556': 'tufo', '8bd87d': 'ponto', 'c6e58d': 'ponto', '4e974c': 'tufo', '479f4a': 'tufo' };
+    const PECAS_COM_GRAMA = { town: [0, 1, 2, 12, 13, 14, 24, 25, 26, 36, 37, 38, 39, 40, 41, 42, 43], farm: [83], factory: [99, 100, 101] };
+    let atlasDaEstacao = null, estacaoDoAtlas = 'primavera';
+    const rgbDe = (hex) => [1, 3, 5].map((k) => parseInt(hex.slice(k, k + 2), 16));
+    function pintarGrama(dados, x0, y0, w, h, chao) {
+        const W = dados.width, d = dados.data, novo = {};
+        for (const [hex, papel] of Object.entries(GRAMA_PECA)) novo[hex] = rgbDe(chao[papel]);
+        const visto = new Uint8Array(w * h), fila = [];
+        for (let x = 0; x < w; x++) fila.push(x, 0, x, h - 1);
+        for (let y = 0; y < h; y++) fila.push(0, y, w - 1, y);
+        while (fila.length) {
+            const y = fila.pop(), x = fila.pop();
+            if (x < 0 || y < 0 || x >= w || y >= h || visto[y * w + x]) continue;
+            visto[y * w + x] = 1;
+            const k = ((y0 + y) * W + x0 + x) * 4;
+            if (d[k + 3] < 200) continue;
+            const n = novo[((d[k] << 16) | (d[k + 1] << 8) | d[k + 2]).toString(16).padStart(6, '0')];
+            if (!n) continue;
+            d[k] = n[0]; d[k + 1] = n[1]; d[k + 2] = n[2];
+            fila.push(x + 1, y, x - 1, y, x, y + 1, x, y - 1);
+        }
+    }
+    // inverno: neve em cima dos telhados (as peças de cima das casas e oficinas do Tiny Town)
+    const TELHADOS = [48, 49, 51, 52, 53, 55];
+    function nevarTelhado(dados, x0, y0) {
+        const W = dados.width, d = dados.data;
+        for (let x = 0; x < T; x++) {
+            let y = 0;
+            while (y < T && d[((y0 + y) * W + x0 + x) * 4 + 3] < 200) y++;
+            for (let k = 1; k <= 4 && y + k < T - 4; k++) {
+                const i = ((y0 + y + k) * W + x0 + x) * 4;
+                if (d[i + 3] < 200 || (d[i] < 90 && d[i + 1] < 70)) continue;   // não pinta o contorno escuro
+                const cor = k < 4 ? [255, 255, 255] : [214, 226, 238];
+                d[i] = cor[0]; d[i + 1] = cor[1]; d[i + 2] = cor[2];
+            }
+        }
+    }
+    function prepararAtlasDaEstacao(est) {
+        if (est === estacaoDoAtlas) return;
+        estacaoDoAtlas = est;
+        if (est === 'primavera') { atlasDaEstacao = null; return; }   // a grama original já é a da primavera
+        const chao = CHAO[est], novo = {};
+        for (const [p, lista] of Object.entries({ ...PECAS_COM_GRAMA, town: [...PECAS_COM_GRAMA.town] })) {
+            const img = atlas[p], c = document.createElement('canvas');
+            c.width = img.width; c.height = img.height;
+            const g = c.getContext('2d');
+            g.drawImage(img, 0, 0);
+            const dados = g.getImageData(0, 0, c.width, c.height);
+            for (const i of lista) pintarGrama(dados, (i % COLS) * T, Math.floor(i / COLS) * T, T, T, chao);
+            if (est === 'inverno' && p === 'town') for (const i of TELHADOS) nevarTelhado(dados, (i % COLS) * T, Math.floor(i / COLS) * T);
+            g.putImageData(dados, 0, 0);
+            novo[p] = c;
+        }
+        atlasDaEstacao = novo;
+    }
+
     function tile(ctx, i, x, y, flip, pacote = 'farm') {
         if (i >= 1000) { i -= 1000; pacote = 'propria'; }
-        const img = pacote === 'propria' ? atlasProprio : atlas[pacote];
+        const img = pacote === 'propria' ? atlasProprio : (atlasDaEstacao && atlasDaEstacao[pacote]) || atlas[pacote];
         const sx = (i % COLS) * T, sy = Math.floor(i / COLS) * T;
         if (flip) {
             ctx.save();
@@ -679,44 +748,42 @@
 
         function montarFundo() {
             const r = rng(20261007);
-            const corGrama = EST === 'inverno' ? '#9fcf86' : PAL.g;
-            f.fillStyle = corGrama;
+            const chao = CHAO[EST] || CHAO.primavera;
+            prepararAtlasDaEstacao(EST);
+            f.fillStyle = chao.grama;
             f.fillRect(0, 0, MW, MH);
 
-            // neve fora do terreno no inverno, com borda irregular
-            if (EST === 'inverno') {
-                const img = f.getImageData(0, 0, MW, MH);
-                const rets = areasDoTerreno().map((a) => ({ x0: wx(a.x), y0: wy(a.y), x1: wx(a.x + a.w), y1: wy(a.y + a.h) }));
-                for (let y = 0; y < MH; y++) {
-                    for (let x = 0; x < MW; x++) {
-                        let dist = Infinity;
-                        for (const a of rets) dist = Math.min(dist, Math.max(a.x0 - x, x - a.x1, a.y0 - y, y - a.y1, 0));
-                        const ruido = (Math.sin(x * 0.37) + Math.sin(y * 0.29) + Math.sin((x + y) * 0.11)) * 2 + 6;
-                        if (dist > ruido) {
-                            const k = (y * MW + x) * 4;
-                            const brilho = r() < 0.02;
-                            img.data[k] = brilho ? 255 : 236; img.data[k + 1] = brilho ? 255 : 244; img.data[k + 2] = 255;
-                        }
+            // manchas grandes e irregulares: grama aparecendo na neve, grama seca no verão,
+            // folhas amontoadas no outono, grama mais viçosa na primavera
+            const manchas = EST === 'inverno' ? 70 : EST === 'outono' ? 90 : 45;
+            for (let n = 0; n < manchas; n++) {
+                const cx = r() * MW, cy = r() * MH, raio = 3 + r() * (EST === 'inverno' ? 5 : 7);
+                f.fillStyle = EST === 'outono' && r() < 0.35 ? '#b8643a' : chao.mancha;
+                for (let yy = -raio; yy <= raio; yy++) {
+                    for (let xx = -raio; xx <= raio; xx++) {
+                        const d = Math.hypot(xx, yy * 1.3) / raio;
+                        if (d < 1 && r() > d * d * 0.9) f.fillRect(Math.round(cx + xx), Math.round(cy + yy), 1, 1);
                     }
                 }
-                f.putImageData(img, 0, 0);
+            }
+            // sombrinhas azuladas na neve
+            if (EST === 'inverno') {
+                f.fillStyle = '#d6e2ee';
+                for (let n = 0; n < (MW * MH) / 90; n++) f.fillRect(Math.floor(r() * MW), Math.floor(r() * MH), 2 + Math.floor(r() * 3), 1);
             }
 
-            // textura: tufos, pontinhos e flores (mais flores na primavera, folhas no outono)
-            const flores = { primavera: 0.3, verao: 0.14, outono: 0.04, inverno: 0.02 }[EST];
+            // textura: tufos, pontinhos e flores (muitas na primavera, folhas no outono)
             for (let n = 0; n < (MW * MH) / 60; n++) {
                 const x = Math.floor(r() * MW), y = Math.floor(r() * MH);
-                const tx = Math.floor(x / T) - MARGEM, ty = Math.floor(y / T) - MARGEM;
-                if (EST === 'inverno' && !dentroTerreno(tx, ty)) continue;
                 const v = r();
                 if (v < 0.5) {
-                    f.fillStyle = PAL.G;
+                    f.fillStyle = chao.tufo;
                     f.fillRect(x, y, 1, 1); f.fillRect(x + 2, y, 1, 1); f.fillRect(x + 1, y + 1, 1, 1);
-                } else if (v < 0.5 + (EST === 'outono' ? 0.3 : 0.2)) {
-                    f.fillStyle = EST === 'outono' ? (r() < 0.5 ? PAL.Y : PAL.y) : EST === 'inverno' ? PAL.w : PAL.l;
+                } else if (v < 0.5 + (EST === 'outono' ? 0.35 : 0.2)) {
+                    f.fillStyle = EST === 'outono' ? ['#e38628', '#c34b35', '#fdbe53', '#aa2c23'][Math.floor(r() * 4)] : chao.ponto;
                     f.fillRect(x, y, 1, 1);
-                    if (EST === 'outono') f.fillRect(x + 1, y, 1, 1);
-                } else if (r() < flores * 3) {
+                    if (EST === 'outono') f.fillRect(x + 1, y, 1, 1);   // folhinha deitada
+                } else if (r() < chao.flores * 3) {
                     f.fillStyle = r() < 0.4 ? PAL.y : r() < 0.5 ? PAL.w : PAL.p;
                     f.fillRect(x, y - 1, 1, 1); f.fillRect(x - 1, y, 3, 1); f.fillRect(x, y + 1, 1, 1);
                     f.fillStyle = PAL.Y;
@@ -766,6 +833,19 @@
                 (Array.isArray(cel) ? cel : [cel]).forEach((i) => tile(f, i, c.x + xx * T, c.y + yy * T));
             }));
             CASA.forEach((linha, yy) => linha.forEach((i, xx) => tile(f, i, wx(MAPA.casa.x + xx), wy(MAPA.casa.y + yy), false, 'town')));
+            // o celeiro é uma peça grande (3 x 6): a grama em volta é trocada a partir da borda dele todo
+            if (EST !== 'primavera') {
+                const dados = f.getImageData(c.x, c.y, c.w, c.h);
+                pintarGrama(dados, 0, 0, c.w, c.h, chao);
+                if (EST === 'inverno') {   // telhado verde coberto de neve
+                    const d = dados.data, neve = { '84c669': [238, 243, 248], '4e974c': [201, 214, 227], 'c6e58d': [255, 255, 255] };
+                    for (let k = 0; k < d.length; k += 4) {
+                        const n = neve[((d[k] << 16) | (d[k + 1] << 8) | d[k + 2]).toString(16).padStart(6, '0')];
+                        if (n && d[k + 3] > 200) { d[k] = n[0]; d[k + 1] = n[1]; d[k + 2] = n[2]; }
+                    }
+                }
+                f.putImageData(dados, c.x, c.y);
+            }
 
             // pasto cercado com porteira
             const pa = MAPA.pasto;
@@ -1230,7 +1310,7 @@
                 const s = spritesDe(c.tipo, c.x, c.y, m);
                 if (s.chao) tile(q, s.i, wx(c.x), wy(c.y), false, s.p);   // caminho/flores: chão
                 else if (s.grade) pe.push({ ...s, x: wx(c.x), y: wy(c.y + s.h - 1), gy: wy(c.y), flip: false, bob: 0 });
-                else pe.push({ ...s, x: wx(c.x), y: wy(c.y), flip: false, bob: 0 });
+                else pe.push({ ...s, x: wx(c.x), y: wy(c.y), flip: false, bob: ANIMA[c.tipo] === 'robo' && Math.floor((tempo + c.x * 97) / 380) % 2 ? -1 : 0 });
             }
 
             const canteiros = listaCanteiros(), mc = mapaCanteiros(canteiros);
@@ -1259,6 +1339,7 @@
                 tile(q, a.i, x, y, a.flip, a.p);
             });
 
+            desenharMaquinas(lista, tempo);
             for (const a of atores.values()) if (a.v) desenharSinalAnimal(a, tempo);
             for (const a of atores.values()) {
                 if (a.brilho && performance.now() < a.brilho) icone(q, 'brilho', Math.round(a.x) + (a.flip ? -3 : 11), Math.round(a.y) - 5 - (Math.floor(tempo / 150) % 2));
@@ -1327,11 +1408,90 @@
 
             // recorte da câmera ampliado para a tela
             ctx.imageSmoothingEnabled = false;
-            ctx.fillStyle = PAL.g;
+            ctx.fillStyle = (CHAO[EST] || CHAO.primavera).grama;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             const k = escala * dpr;
             ctx.drawImage(mundo, 0, 0, MW, MH, -Math.round(cam.x * k), -Math.round(cam.y * k), MW * k, MH * k);
             desenharClima(tempo, k);
+        }
+
+        /* ---- máquinas se mexendo: água, névoa, luz, fumaça, brilho, carga ---- */
+        const ANIMA = {
+            irrigador: 'agua', aspersor: 'agua', pulverizador: 'nevoa', alarme: 'luz', robo_capina: 'robo', robo_colheita: 'robo',
+            trator: 'fumaca', colheitadeira: 'fumaca', fabrica_auto: 'fabrica', triturador: 'po', painel_solar: 'reflexo',
+            bateria: 'carga', supercap: 'carga', estufa: 'estufa', reator: 'reator'
+        };
+        let energiaFrac = 0;   // 0..1, para as luzinhas das baterias
+        function desenharMaquinas(lista, tempo) {
+            const px = (x, y, cor, w = 1, h = 1) => { q.fillStyle = cor; q.fillRect(Math.round(x), Math.round(y), w, h); };
+            for (const c of lista) {
+                const tipo = ANIMA[c.tipo];
+                if (!tipo) continue;
+                const x = wx(c.x), y = wy(c.y), t = tempo + (c.x * 137 + c.y * 61) % 997;   // cada uma no seu ritmo
+                if (tipo === 'agua') {
+                    const alcance = c.tipo === 'aspersor' ? 12 : 9;
+                    for (let k = 0; k < 6; k++) {
+                        const f = (t / 1100 + k / 6) % 1, dir = k % 2 ? 1 : -1, lado = Math.floor(k / 2) - 1;
+                        q.globalAlpha = 1 - f * 0.8;
+                        px(x + 8 + dir * f * alcance + lado * f * 3, y + 3 - Math.sin(f * Math.PI) * 7 + f * 6, k % 3 ? PAL.b : PAL.w);
+                    }
+                    q.globalAlpha = 1;
+                } else if (tipo === 'nevoa') {
+                    for (let k = 0; k < 3; k++) {
+                        const f = (t / 1400 + k / 3) % 1;
+                        q.globalAlpha = 0.55 * (1 - f);
+                        const tam = 2 + Math.round(f * 3);
+                        px(x + 7 + Math.sin(f * 5 + k * 2) * 3 - tam / 2, y + 2 - f * 10, '#dff3d4', tam, tam);
+                    }
+                    q.globalAlpha = 1;
+                } else if (tipo === 'luz') {
+                    if (Math.floor(t / 450) % 2) {
+                        q.globalAlpha = 0.35; px(x + 5, y - 1, '#ff6b5a', 6, 4); q.globalAlpha = 1;
+                        px(x + 7, y, '#ff3b2f', 2, 2);
+                    }
+                } else if (tipo === 'robo') {
+                    if (Math.floor(t / 700) % 3 === 0) px(x + 8, y + 1, '#7dff6a', 1, 1);   // luzinha da antena piscando
+                } else if (tipo === 'fumaca' || tipo === 'fabrica') {
+                    const sx = tipo === 'fabrica' ? x + 26 : x + 4, sy = tipo === 'fabrica' ? y + 2 : y + 3;
+                    for (let k = 0; k < 2; k++) {
+                        const f = (t / 1300 + k / 2) % 1;
+                        q.globalAlpha = 0.7 * (1 - f);
+                        const tam = 2 + Math.round(f * 2);
+                        px(sx + Math.sin(f * 6 + k) * 1.5 + f * 3, sy - f * 10, k ? '#8b9bb4' : '#c0cbdc', tam, tam);
+                    }
+                    q.globalAlpha = 1;
+                } else if (tipo === 'po') {
+                    for (let k = 0; k < 3; k++) {
+                        const f = (t / 600 + k / 3) % 1;
+                        q.globalAlpha = 1 - f;
+                        px(x + 3 + k * 5 + Math.sin(t / 90 + k) , y + 12 + f * 4, '#c9a46a');
+                    }
+                    q.globalAlpha = 1;
+                } else if (tipo === 'reflexo') {
+                    const ciclo = (t % 3200) / 3200, h = new Date().getHours();
+                    if (h >= 6 && h < 18 && ciclo < 0.35) {
+                        const p = ciclo / 0.35;
+                        q.globalAlpha = 0.8;
+                        for (let d = 0; d < 6; d++) px(x + 2 + p * 14 - d * 0.5, y + 3 + d, PAL.w);
+                        q.globalAlpha = 1;
+                    }
+                } else if (tipo === 'carga') {
+                    const acesas = Math.round(energiaFrac * 3);
+                    for (let k = 0; k < 3; k++) {
+                        const ligada = k < acesas || (k === acesas && Math.floor(t / 500) % 2);
+                        px(x + 12, y + 11 - k * 3, ligada ? (acesas <= 1 ? '#fdbe53' : '#6abe30') : '#3f2631', 2, 2);
+                    }
+                } else if (tipo === 'estufa') {
+                    q.globalAlpha = 0.12 + 0.1 * Math.sin(t / 600);
+                    px(x + 2, y + 4, '#fff3a0', 12, 9);
+                    q.globalAlpha = 1;
+                } else if (tipo === 'reator') {
+                    q.globalAlpha = 0.18 + 0.14 * Math.sin(t / 450);
+                    px(x + 8, y + 8, '#7dff6a', 16, 16);
+                    q.globalAlpha = 1;
+                    if (Math.floor(t / 250) % 6 === 0) icone(q, 'brilho', x + 20, y + 2);
+                }
+            }
         }
 
         // o alcance de um item colocado (irrigador, alarme, estufa...): some sozinho em 5 s
@@ -1389,8 +1549,38 @@
         }
 
         /* ---- clima por cima de tudo (na tela, não no mundo) ---- */
+        function desenharEstacao(tempo, k) {
+            const W = canvas.width, H = canvas.height, passo = Math.max(2, Math.round(k));
+            const neve = EST === 'inverno', outono = EST === 'outono', primavera = EST === 'primavera';
+            if (!neve && !outono && !primavera) return;
+            const forte = neve && clima === 'chuva';
+            const lado = forte ? 42 : 105;
+            const n = neve ? Math.round((W * H) / (lado * lado * dpr * dpr)) : outono ? 12 : 8;
+            for (let i = 0; i < n; i++) {
+                const vel = neve ? (forte ? 0.05 : 0.022) * (0.7 + (i % 5) * 0.12) : outono ? 0.028 : 0.018;
+                const y = (((i * 211) % H) + tempo * vel * passo) % (H + 20) - 10;
+                const balanco = Math.sin(tempo / (neve ? 900 : 650) + i * 1.7) * passo * (neve ? 3 : 9);
+                const x = ((((i * 97) % W) + balanco + (neve ? 0 : tempo * 0.012 * passo)) % W + W) % W;
+                if (neve) {
+                    ctx.fillStyle = 'rgba(255,255,255,.9)';
+                    const g = i % 4 === 0 ? 2 : 1;
+                    ctx.fillRect(Math.round(x), Math.round(y), passo * g, passo * g);
+                } else {
+                    ctx.fillStyle = outono ? ['#e38628', '#c34b35', '#fdbe53'][i % 3] : ['#f4b4d8', '#ffffff', '#f7a1c4'][i % 3];
+                    const vira = Math.floor(tempo / 280 + i) % 2;   // girando no ar: deitada, em pé
+                    ctx.fillRect(Math.round(x), Math.round(y), passo * (vira ? 2 : 1), passo * (vira ? 1 : 2));
+                }
+            }
+        }
+
         function desenharClima(tempo, k) {
             const W = canvas.width, H = canvas.height;
+            desenharEstacao(tempo, k);
+            if (clima === 'chuva' && EST === 'inverno') {   // no inverno a chuva vira neve (desenhada acima)
+                ctx.fillStyle = 'rgba(70, 80, 100, .12)';
+                ctx.fillRect(0, 0, W, H);
+                return;
+            }
             if (clima === 'nublado') {
                 ctx.fillStyle = 'rgba(70, 80, 100, .12)';
                 ctx.fillRect(0, 0, W, H);
@@ -1657,6 +1847,8 @@
             definirClima(c) { clima = c || null; precisaDesenhar = true; },
             // seu lago: { prontos, max } (null na visita ou sem o terreno 3)
             definirLago(l) { lago = l || null; },
+            // quanto as baterias têm (0..1): as luzinhas delas acendem conforme a carga
+            definirEnergia(frac) { energiaFrac = Math.max(0, Math.min(1, frac || 0)); },
             // fileiras do galinheiro (2 a 4): refaz o chão e os bichos pequenos se espalham no espaço novo
             definirGalinheiro(linhas) {
                 const h = Math.max(2, Math.min(4, linhas || 2));
