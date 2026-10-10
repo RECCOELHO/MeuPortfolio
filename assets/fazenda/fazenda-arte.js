@@ -244,7 +244,17 @@
         // 38 estátua do Velho Chico (pedestal)
         ['affffffffffffffa', 'alllllllllllllla', '.aafllllllllKaa.', '..afllllllllKa..', '..aflHHHHHHlKa..', '..aflHggggHlKa..', '..aflHgGGGHlKa..', '..aflHGGGgHlKa..', '..aflHgggGHlKa..', '..aflHHHHHHlKa..', '..afllllllllKa..', '..afllllllllKa..', '.aafllllllllKaa.', 'alllllllllllllla', 'aKKKKKKKKKKKKKKa', '.aaaaaaaaaaaaaa.'],
         // 39 estátua do Velho Chico (metade de cima: cabeça e o peixe erguido)
-        ['.............a..', '............aga.', '...d.......aggga', '..d.d.....agdHGa', '...d......agdgGg', '..........aHggGH', '..........agHHGg', '..........agggGa', '....aaaaaaaaggga', '...aHHHHHHHagaga', '..aHHggHHHHHaaag', '..aHHHHHgHHHGGGa', '..aHHHHHHHHHgGGg', '..aHHGHGHGHHaGGa', '..aHGGGGGGGHaGGa', '..aHGHGGHGGaaGGa']
+        ['.............a..', '............aga.', '...d.......aggga', '..d.d.....agdHGa', '...d......agdgGg', '..........aHggGH', '..........agHHGg', '..........agggGa', '....aaaaaaaaggga', '...aHHHHHHHagaga', '..aHHggHHHHHaaag', '..aHHHHHgHHHGGGa', '..aHHHHHHHHHgGGg', '..aHHGHGHGHHaGGa', '..aHGGGGGGGHaGGa', '..aHGHGGHGGaaGGa'],
+        // 40
+        ['................', '.....aaaaaa.....', '....agGGGGga....', '..aaagggggggaa..', '.agggggggggggga.', '..aaakkkkkkaaa..', '....akakkakka...', '....akkkkkkka...', '....akyyyykka...', '.....akkkkka....', '...aaddvvvddaa..', '..akaddvvvddaka.', '..akadvvvvvdaka.', '...aavvvvvvvaa..', '....ayya.ayya...', '....aaaa.aaaa...'],
+        // 41
+        ['................', '.....aaaaaa.....', '....aXXdXXXa....', '...aXXXXXdXXa...', '...aXjjjjjjXa...', '...aXjajjajXa...', '....ajjjjjja....', '....ajjmmjja....', '.....ajjjja.....', '....aQmmmmQa....', '...aQmddddmQa...', '..ajQmddddmQja..', '..ajmmddddmmja..', '...ammmmmmmma...', '.....aj..ja.....', '....aaa..aaa....'],
+        // 42
+        ['................', '................', '.....aaaaaa.....', '....aXXXXXXa....', '....aXXdXXXXaa..', '....aZZZZZZZZZa.', '....akkkkkkka...', '....akakkakka...', '....ayykkkyya...', '....ayyyyyyya...', '.....ayyyyya....', '...aaXBBBBBXaa..', '..akaXBEEEBXaka.', '..akaBBBBBBBaka.', '....aBBa.aBBa...', '....aaaa.aaaa...'],
+        // 43
+        ['................', '.......aaa......', '......afffa.....', '....aaffffaa....', '...afffffffla...', '...afkkkkkkfa...', '...akakkkakka...', '....akkkkkka....', '.....akmmka.....', '....aUUUUUUaaa..', '...aUVUUUUVUyna.', '..akUUVVVVUUyna.', '..akaUUUUUUayya.', '...aUUUUUUUaaa..', '....aUUa.aUUa...', '....aaaa.aaaa...'],
+        // 44
+        ['................', '................', '.......aa.......', '......aDLa......', '.....aaDDaa.....', '....anyyyyna....', '...anyyyyyyna...', '...ayyDDDDyya...', '...ayDLLLLDya...', '...ayyDDDDyya...', '...ayyyyyyyya...', '...anyyyyyyna...', '....annnnnna....', '.....aaaaaa.....', '................', '................']
     ];
     const atlasProprio = document.createElement('canvas');
     atlasProprio.width = 12 * 16;
@@ -592,6 +602,10 @@
         let zonaVenda = null;                              // próximo terreno à venda (ZONAS) ou null
         let clima = null;                                  // sol | nublado | chuva | calor | vento
         let lago = null;                                   // { prontos, max } do seu lago, ou null
+        // visita na porteira: { tipo, item (tile do balão), x, y, tx, ty, saindo }
+        let visitante = null;
+        const VISITANTE_ARTE = { feirante: 1040, doceira: 1041, caminhoneiro: 1042, mascate: 1043 };
+        const PORTEIRA = { x: 8, y: 2 };   // onde a visita para (do lado da casa)
         let hover = null;                                  // canteiro, 'celeiro', 'a:<id>' ou {tx, ty}
         let alcance = null;                                // alcance de um item tocado: { x, y, raio, ate }
         const SEGURAR_MS = 3000;                           // segurar 3 s num item: pega para mudar de lugar
@@ -1025,6 +1039,18 @@
                 // os sprites do pacote olham para a direita: espelha quando anda para a esquerda
                 if (Math.abs(dx) > 0.2) a.flip = dx < 0;
             }
+            if (visitante) {
+                const vx = visitante.tx - visitante.x, vy = visitante.ty - visitante.y, vd = Math.hypot(vx, vy);
+                if (vd > 0.5) {
+                    const passo = Math.min(vd, 24 * dt / 1000);
+                    visitante.x += vx / vd * passo; visitante.y += vy / vd * passo;
+                    if (Math.abs(vx) > 0.2) visitante.flip = vx < 0;
+                    visitante.andando = true;
+                } else {
+                    visitante.andando = false;
+                    if (visitante.saindo) visitante = null;
+                }
+            }
             const dx = fazendeiro.tx - fazendeiro.x, dy = fazendeiro.ty - fazendeiro.y, d = Math.hypot(dx, dy);
             if (d > 0.5) {
                 const passo = Math.min(d, 56 * dt / 1000);
@@ -1328,6 +1354,7 @@
             const andando = fazendeiro.passo > 0;
             pe.push({ p: 'farm', i: 109, x: fazendeiro.x, y: fazendeiro.y, flip: fazendeiro.flip, bob: andando && Math.floor(tempo / 120) % 2 ? -1 : 0 });
             if (lago && lagoNaTela()) pe.push({ p: 'factory', i: 120, x: wx(LAGO.x) + 1, y: wy(LAGO.y + 2), flip: false, bob: Math.floor(tempo / 700) % 2 ? -1 : 0 });
+            if (visitante) pe.push({ p: 'farm', i: VISITANTE_ARTE[visitante.tipo] || 1040, x: visitante.x, y: visitante.y, flip: visitante.flip, bob: visitante.andando && Math.floor(tempo / 140) % 2 ? -1 : 0 });
             pe.sort((a, b) => a.y - b.y).forEach((a) => {
                 const x = Math.round(a.x), y = Math.round(a.y) + a.bob;
                 if (a.grade) {
@@ -1340,6 +1367,12 @@
             });
 
             desenharMaquinas(lista, tempo);
+            if (visitante && !visitante.andando && !visitante.saindo) {   // balão com o pedido, pulando
+                const bx = Math.round(visitante.x) - 2, by = Math.round(visitante.y) - 21 + (Math.floor(tempo / 350) % 2);
+                balao(bx, by, 20, 18);
+                tile(q, visitante.item != null ? visitante.item : 1044, bx + 2, by + 1);
+                if (Math.floor(tempo / 300) % 3) icone(q, 'brilho', bx + 15, by - 3);
+            }
             for (const a of atores.values()) if (a.v) desenharSinalAnimal(a, tempo);
             for (const a of atores.values()) {
                 if (a.brilho && performance.now() < a.brilho) icone(q, 'brilho', Math.round(a.x) + (a.flip ? -3 : 11), Math.round(a.y) - 5 - (Math.floor(tempo / 150) % 2));
@@ -1396,6 +1429,8 @@
                 const [hx, hy] = hover.slice(2).split(',').map(Number);
                 const c = lista.find((k) => k.x === hx && k.y === hy);
                 if (c) { const a = arteItem(c.tipo, EST); moldura(wx(hx), wy(hy), T * (a.w || 1), T * (a.h || 1)); }
+            } else if (hover === 'visitante' && visitante) {
+                moldura(Math.round(visitante.x), Math.round(visitante.y), T, T);
             } else if (hover === 'lago' && lagoNaTela()) {
                 moldura(wx(LAGO.x), wy(LAGO.y), LAGO.w * T, LAGO.h * T);
             } else if (hover === 'celeiro') {
@@ -1618,6 +1653,7 @@
             const { x: px, y: py } = paraMundo(clientX, clientY);
             const tx = Math.floor(px / T) - MARGEM, ty = Math.floor(py / T) - MARGEM;
             if (construcao.ativo) return dentroTerreno(tx, ty) ? { tx, ty } : null;
+            if (visitante && !visitante.saindo && px >= visitante.x - 2 && px < visitante.x + T + 2 && py >= visitante.y - 22 && py < visitante.y + T) return 'visitante';
             const lista = [...atores.values()].sort((a, b) => b.y - a.y);
             for (const a of lista) {
                 const topo = a.v && a.v.estado !== 'produzindo' ? a.y - 22 : a.y;
@@ -1746,6 +1782,7 @@
             else if (alvo === 'celeiro') { if (cb.aoCeleiro) cb.aoCeleiro(); }
             else if (alvo === 'venda') { if (cb.aoVenda) cb.aoVenda(); }
             else if (alvo === 'lago') { if (cb.aoLago) cb.aoLago(); }
+            else if (alvo === 'visitante') { if (cb.aoVisitante) cb.aoVisitante(); }
             else if (typeof alvo === 'object' && alvo.construcao) { if (cb.aoConstrucao) cb.aoConstrucao(alvo.construcao.x, alvo.construcao.y); }
             else if (typeof alvo === 'object') { if (cb.aoAnimal) cb.aoAnimal(alvo.animal); }
             else if (cb.aoCanteiro) cb.aoCanteiro(alvo);
@@ -1847,6 +1884,19 @@
             definirClima(c) { clima = c || null; precisaDesenhar = true; },
             // seu lago: { prontos, max } (null na visita ou sem o terreno 3)
             definirLago(l) { lago = l || null; },
+            // visita na porteira ({ tipo, item }) ou null (ela vai embora andando)
+            definirVisitante(v) {
+                if (!v) {
+                    if (visitante && !visitante.saindo) { visitante.saindo = true; visitante.tx = wx(PORTEIRA.x); visitante.ty = wy(-3); }
+                    return;
+                }
+                if (!visitante || visitante.saindo || visitante.tipo !== v.tipo) {
+                    visitante = { tipo: v.tipo, item: v.item, x: wx(PORTEIRA.x), y: wy(-3), tx: wx(PORTEIRA.x), ty: wy(PORTEIRA.y), flip: false };
+                } else {
+                    visitante.item = v.item;
+                }
+            },
+            telaDoVisitante() { return visitante ? { x: (visitante.x + T / 2 - cam.x) * escala, y: (visitante.y - 4 - cam.y) * escala } : null; },
             // quanto as baterias têm (0..1): as luzinhas delas acendem conforme a carga
             definirEnergia(frac) { energiaFrac = Math.max(0, Math.min(1, frac || 0)); },
             // fileiras do galinheiro (2 a 4): refaz o chão e os bichos pequenos se espalham no espaço novo

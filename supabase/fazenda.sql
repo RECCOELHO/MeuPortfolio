@@ -311,6 +311,20 @@ alter table public.fazenda_jogadores add column if not exists lago_em timestampt
 alter table public.fazenda_estatisticas add column if not exists peixes int not null default 0;
 alter table public.fazenda_estatisticas add column if not exists lendarios int not null default 0;
 
+-- Fase 21: visitas na porteira. A cada 3 horas chega alguém (fazenda_visitante): o feirante,
+-- a doceira e o caminhoneiro querem comprar algo pagando mais que o celeiro; a mascate vende
+-- adubo. Cada visita fica até o fim das 3 horas ou até você atender (entregar ou dispensar).
+create table if not exists public.fazenda_visitas_npc (
+  jogador_id uuid not null references public.fazenda_jogadores(id) on delete cascade,
+  slot       bigint not null,                 -- floor(epoch / 10800): o bloco de 3 horas
+  resposta   text not null check (resposta in ('entregou', 'dispensou')),
+  em         timestamptz not null default now(),
+  primary key (jogador_id, slot)
+);
+alter table public.fazenda_visitas_npc enable row level security;
+revoke all on public.fazenda_visitas_npc from anon, authenticated;
+alter table public.fazenda_estatisticas add column if not exists pedidos int not null default 0;
+
 -- Fase 7: ração reservada para os animais (fica no celeiro, o "vender" não leva)
 create table if not exists public.fazenda_reservas (
   jogador_id  uuid not null references public.fazenda_jogadores(id) on delete cascade,
@@ -642,7 +656,8 @@ insert into public.fazenda_conquistas_tipos (id, nome, descricao, medida, meta, 
   ('nivel_25',          'Fazenda industrial',  'Chegue ao nível 25',              'nivel',        25, 5000, 17),
   ('popular',           'Fazendeiro popular',  'Traga 3 amigos pelo seu convite', 'convites',      3,  500, 18),
   ('pescador',          'Pescador',            'Tire 100 peixes do cesto do lago', 'peixes',      100,  300, 19),
-  ('velho_chico',       'Lenda do Velho Chico', 'Pesque o Peixe do Velho Chico',   'lendarios',     1, 1000, 20)
+  ('velho_chico',       'Lenda do Velho Chico', 'Pesque o Peixe do Velho Chico',   'lendarios',     1, 1000, 20),
+  ('freguesia',         'Freguesia fiel',      'Atenda 10 visitas na porteira',    'pedidos',      10,  400, 21)
 on conflict (id) do update set
   nome = excluded.nome, descricao = excluded.descricao, medida = excluded.medida,
   meta = excluded.meta, recompensa = excluded.recompensa, ordem = excluded.ordem;
@@ -1050,6 +1065,7 @@ begin
     ),
     'zonas_venda', fazenda_zonas(),
     'galinheiro', jsonb_build_object('linhas', fazenda_galinheiro_linhas(p_jogador), 'quer', fazenda_galinheiro_quer(p_jogador)),
+    'visitante', fazenda_visitante(p_jogador),
     -- o lago (só com o terreno 3): desde quando o cesto enche, o ritmo, o máximo e as chances
     'lago', case when j.zonas >= 3 then jsonb_build_object(
       'desde', j.lago_em, 'intervalo', 1800, 'max', 16,
@@ -2353,6 +2369,7 @@ begin
       when 'convites' then v_conv
       when 'peixes' then s.peixes
       when 'lendarios' then s.lendarios
+      when 'pedidos' then s.pedidos
       else 0
     end;
     if v_valor >= r.meta then
@@ -2811,6 +2828,112 @@ begin
 end;
 $$;
 
+-- A visita de agora (null = já atendida, ou nível menor que 3). Tudo sai do md5 do jogador e
+-- do bloco de 3 horas: a mesma visita a cada carga, e outra no bloco seguinte.
+create or replace function public.fazenda_visitante(p_jogador uuid)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_slot  bigint := floor(extract(epoch from now()) / 10800);
+  v_h     text := md5(p_jogador::text || ':' || floor(extract(epoch from now()) / 10800)::bigint);
+  v_tipo  text;
+  v_nivel int;
+  k       record;
+  v_qtd   int;
+  v_alvo  int;
+begin
+  if exists (select 1 from fazenda_visitas_npc where jogador_id = p_jogador and slot = v_slot) then return null; end if;
+  select fazenda_nivel(xp) into v_nivel from fazenda_jogadores where id = p_jogador;
+  if v_nivel < 3 then return null; end if;
+  v_tipo := (array['feirante', 'doceira', 'caminhoneiro', 'mascate'])[1 + (('x' || substr(v_h, 1, 4))::bit(16)::int % 4)];
+  if v_tipo = 'caminhoneiro' and v_nivel < 8 then v_tipo := 'feirante'; end if;
+  if v_tipo = 'mascate' then
+    return jsonb_build_object('slot', v_slot, 'tipo', v_tipo, 'ate', to_timestamp((v_slot + 1) * 10800),
+                              'canteiros', 8, 'preco', 40 + 10 * v_nivel);
+  end if;
+  -- a doceira quer o que seus bichos ou suas oficinas fazem; os outros, o que você planta
+  if v_tipo = 'doceira' then
+    select c.* into k from fazenda_culturas c
+     where c.tipo = 'produto' and c.ordem < 40 and (
+           c.id in (select t.produto from fazenda_animais a join fazenda_animais_tipos t on t.id = a.tipo where a.jogador_id = p_jogador)
+        or c.id in (select i.produz from fazenda_construcoes x join fazenda_itens i on i.id = x.tipo
+                     where x.jogador_id = p_jogador and i.entradas is not null))
+     order by md5(v_h || c.id) limit 1;
+    if not found then v_tipo := 'feirante'; end if;
+  end if;
+  if v_tipo <> 'doceira' then   -- uma das 5 melhores sementes que você já tem (nada de 70 alfaces no nível 20)
+    select x.* into k from (
+      select c.* from fazenda_culturas c
+       where c.tipo = 'cultura' and c.nivel_min <= v_nivel and (c.estacao is null or c.estacao = fazenda_estacao_em(now()))
+       order by c.nivel_min desc limit 5) x
+     order by md5(v_h || x.id) limit 1;
+  end if;
+  v_alvo := (60 + 20 * v_nivel) * case when v_tipo = 'caminhoneiro' then 3 else 1 end;
+  v_qtd := greatest(2, least(80, round(v_alvo::numeric / k.venda)::int));
+  return jsonb_build_object('slot', v_slot, 'tipo', v_tipo, 'ate', to_timestamp((v_slot + 1) * 10800),
+    'item', k.id, 'qtd', v_qtd,
+    'paga', round(v_qtd * k.venda * case v_tipo when 'feirante' then 1.5 when 'doceira' then 1.6 else 1.4 end)::int,
+    -- XP de quanto você ganharia colhendo isso (o caminhoneiro dá o dobro)
+    'xp', greatest(1, v_qtd * k.xp * case when v_tipo = 'caminhoneiro' then 2 else 1 end / greatest(k.rendimento, 1)));
+end;
+$$;
+
+-- Atende a visita: entregar (vende o pedido pelo preço dela, ou compra o adubo da mascate) ou
+-- dispensar (ela vai embora e volta outra pessoa no próximo bloco de 3 horas)
+create or replace function public.fazenda_atender(p_token text, p_entregar boolean)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id    uuid := fazenda_auth(p_token);
+  v       jsonb := fazenda_visitante(v_id);
+  v_tem   int;
+  v_n     int := 0;
+  v_preco int := 0;
+begin
+  if v is null then raise exception 'sem_visita'; end if;
+  perform 1 from fazenda_jogadores where id = v_id for update;
+  if not coalesce(p_entregar, false) then
+    insert into fazenda_visitas_npc (jogador_id, slot, resposta) values (v_id, (v->>'slot')::bigint, 'dispensou');
+    return jsonb_build_object('resposta', 'dispensou', 'estado', fazenda_estado(v_id));
+  end if;
+
+  if v->>'tipo' = 'mascate' then
+    -- adubo: os canteiros crescendo, até 8; paga só pelos que adubou
+    with alvo as (
+      select cc.posicao from fazenda_canteiros cc join fazenda_culturas k on k.id = cc.cultura
+       where cc.jogador_id = v_id and cc.estado = 'plantado' and not cc.adubado
+         and now() < cc.plantado_em + make_interval(secs => k.tempo_seg)
+       order by cc.plantado_em limit (v->>'canteiros')::int)
+    select count(*) into v_n from alvo;
+    if v_n = 0 then raise exception 'sem_canteiros_crescendo'; end if;
+    v_preco := ceil((v->>'preco')::numeric * v_n / (v->>'canteiros')::int);
+    if (select moedas from fazenda_jogadores where id = v_id) < v_preco then raise exception 'moedas_insuficientes'; end if;
+    update fazenda_canteiros c set adubado = true
+      from (select cc.posicao from fazenda_canteiros cc join fazenda_culturas k on k.id = cc.cultura
+             where cc.jogador_id = v_id and cc.estado = 'plantado' and not cc.adubado
+               and now() < cc.plantado_em + make_interval(secs => k.tempo_seg)
+             order by cc.plantado_em limit (v->>'canteiros')::int) alvo
+     where c.jogador_id = v_id and c.posicao = alvo.posicao;
+    update fazenda_jogadores set moedas = moedas - v_preco where id = v_id;
+  else
+    select ce.quantidade - coalesce((select quantidade from fazenda_reservas where jogador_id = v_id and item = ce.item), 0)
+      into v_tem from fazenda_celeiro ce where ce.jogador_id = v_id and ce.item = v->>'item' for update;
+    if coalesce(v_tem, 0) < (v->>'qtd')::int then raise exception 'falta_pedido'; end if;
+    update fazenda_celeiro set quantidade = quantidade - (v->>'qtd')::int where jogador_id = v_id and item = v->>'item';
+    update fazenda_jogadores set moedas = moedas + (v->>'paga')::int, xp = xp + (v->>'xp')::int where id = v_id;
+    perform fazenda_missao(v_id, 'vender', (v->>'paga')::int);
+  end if;
+  insert into fazenda_visitas_npc (jogador_id, slot, resposta) values (v_id, (v->>'slot')::bigint, 'entregou');
+  insert into fazenda_estatisticas (jogador_id) values (v_id) on conflict do nothing;
+  update fazenda_estatisticas set pedidos = pedidos + 1 where jogador_id = v_id;
+  return jsonb_build_object('resposta', 'entregou', 'visita', v, 'adubados', v_n, 'pagou', v_preco, 'estado', fazenda_estado(v_id));
+end;
+$$;
+
 -- Tira os peixes do cesto do Bira: 1 a cada 30 min desde lago_em, até 16 (o que passar disso
 -- se perde: o cesto estava cheio). Cada peixe é sorteado pela chance (fazenda_peixes).
 create or replace function public.fazenda_pescar(p_token text)
@@ -3075,6 +3198,8 @@ revoke execute on function
   public.fazenda_estoque(text, int, int, int),
   public.fazenda_galinheiro_quer(uuid),
   public.fazenda_galinheiro_linhas(uuid),
+  public.fazenda_visitante(uuid),
+  public.fazenda_atender(text, boolean),
   public.fazenda_checar_conquistas(uuid)
 from public, anon, authenticated;
 
@@ -3098,6 +3223,7 @@ grant execute on function
   public.fazenda_contratar(text, text),
   public.fazenda_oficina(text, int, int),
   public.fazenda_estoque(text, int, int, int),
+  public.fazenda_atender(text, boolean),
   public.fazenda_gerador(text, int, int),
   public.fazenda_anuncio(text),
   public.fazenda_convite_info(text),
