@@ -122,6 +122,8 @@
         pena:     { fases: [1003, 1003, 1003], murcho: 1003, item: 1003, semente: 1003 },
         trufa:    { fases: [79, 79, 79], murcho: 79, item: 79, semente: 79 },
         // peixes do lago (arte própria 1030..1036)
+        laranja: { item: 1041 }, limao: { item: 1042 }, goiaba: { item: 1043 }, manga: { item: 1044 },
+        abacate: { item: 1045 }, cacau: { item: 1046 }, jabuticaba: { item: 1047 },
         lambari: { item: 1030 }, tilapia: { item: 1031 }, piau: { item: 1032 }, curimata: { item: 1033 },
         tucunare: { item: 1034 }, surubim: { item: 1035 }, velho_chico: { item: 1036 },
         // sementes da estação (broto e meio do pacote; madura e fruta próprias)
@@ -251,7 +253,21 @@
         // 39 estátua do Velho Chico (metade de cima: cabeça e o peixe erguido)
         ['.............a..', '............aga.', '...d.......aggga', '..d.d.....agdHGa', '...d......agdgGg', '..........aHggGH', '..........agHHGg', '..........agggGa', '....aaaaaaaaggga', '...aHHHHHHHagaga', '..aHHggHHHHHaaag', '..aHHHHHgHHHGGGa', '..aHHHHHHHHHgGGg', '..aHHGHGHGHHaGGa', '..aHGGGGGGGHaGGa', '..aHGHGGHGGaaGGa'],
         // 40 saco de adubo (o que a mascate vende)
-        ['................', '................', '.......aa.......', '......aDLa......', '.....aaDDaa.....', '....anyyyyna....', '...anyyyyyyna...', '...ayyDDDDyya...', '...ayDLLLLDya...', '...ayyDDDDyya...', '...ayyyyyyyya...', '...anyyyyyyna...', '....annnnnna....', '.....aaaaaa.....', '................', '................']
+        ['................', '................', '.......aa.......', '......aDLa......', '.....aaDDaa.....', '....anyyyyna....', '...anyyyyyyna...', '...ayyDDDDyya...', '...ayDLLLLDya...', '...ayyDDDDyya...', '...ayyyyyyyya...', '...anyyyyyyna...', '....annnnnna....', '.....aaaaaa.....', '................', '................'],
+        // 41 laranja
+        ['................', '................', '........aa......', '.......aLDa.....', '.....aaaLaa.....', '....agiiiiia....', '...agGiiiiiia...', '...agiiiiiiia...', '...aiiiiiiiNa...', '...aiiiiiiiNa...', '...aiiiiiiNNa...', '....aiiiNNNa....', '.....aaaaaa.....', '................', '................', '................'],
+        // 42 limao
+        ['................', '................', '................', '................', '................', '......aaaa......', '....aaCCMMaa....', '...aCCMMMMMDa...', '..aCMMMMMMMMDa..', '..aMMMMMMMMDDa..', '...aMMMMMMDDa...', '....aaDDDDaa....', '......aaaa......', '................', '................', '................'],
+        // 43 goiaba
+        ['................', '................', '................', '.......aa.......', '......aDDa......', '.....aaaaaa.....', '....aCCMMMMa....', '...aCCMMMMMMa...', '...aCMMMMPPMa...', '...aMMMMMPPDa...', '...aMMMMMMDDa...', '....aMMMDDDa....', '.....aaaaaa.....', '................', '................', '................'],
+        // 44 manga
+        ['................', '................', '................', '................', '.......aaaa.....', '.....aaXXOOaa...', '....aXXXOOOOga..', '...aXXXOOOOggga.', '...aXXOOOOOggga.', '...aZXOOOOOOgga.', '....aZXOOOOOga..', '.....aZZXOOaa...', '.......aaaa.....', '................', '................', '................'],
+        // 45 abacate
+        ['................', '................', '.......aa.......', '......aDDa......', '.....aDMDDa.....', '.....aMMDDa.....', '....aDMDDDLa....', '...aDMDDDDDLa...', '...aMDDDDDDLa...', '...aDDDDDDLLa...', '...aDDDDDDLLa...', '....aDDDLLLa....', '.....aaaaaa.....', '................', '................', '................'],
+        // 46 cacau
+        ['................', '................', '.......aa.......', '......aNNa......', '.....aONONa.....', '....aOgONONa....', '....aOgONONa....', '....aOgONONa....', '....aOOONONa....', '....aOOONONa....', '.....aOONNa.....', '......aNNa......', '.......aa.......', '................', '................', '................'],
+        // 47 jabuticaba
+        ['................', '................', '................', '................', '......aaaa......', '.....aVUVVa.....', '.....aVdVVa.....', '.....aVVVea.....', '...aaaaeeaaaa...', '..aVUVVaaVUVVa..', '..aVdVVaaVdVVa..', '..aVVVeaaVVVea..', '...aaaa..aaaa...', '................', '................', '................']
     ];
     const atlasProprio = document.createElement('canvas');
     atlasProprio.width = 12 * 16;
@@ -412,6 +428,9 @@
             case 'arvore_outono': return inv ? { p: 'ski', i: 19, topo: 7 } : { p: 'town', i: 15, topo: 3 };
             case 'pinheiro': return inv ? { p: 'ski', i: 18, topo: 6 } : { p: 'farm', i: 15, topo: 3 };
             case 'amoreira': return { p: 'farm', i: 78 };
+            case 'laranjeira': case 'limoeiro': case 'goiabeira': case 'mangueira':
+            case 'abacateiro': case 'cacaueiro': case 'jabuticabeira':
+                return { p: 'pomar', i: 2 * POMAR[id].n + 1, topo: 2 * POMAR[id].n };
             case 'pedras': return { p: 'farm', i: 89 };
             case 'tora': return { p: 'town', i: 106 };
             case 'placa': return { p: 'town', i: 83 };
@@ -551,7 +570,9 @@
         if (i >= 1000) { i -= 1000; pacote = 'propria'; }
         const c = i % COLS, l = Math.floor(i / COLS);
         if (pacote === 'propria' && !urlPropria) urlPropria = atlasProprio.toDataURL();
+        if (pacote === 'pomar' && !urlPomar && atlas.pomar) urlPomar = atlas.pomar.toDataURL();
         const img = pacote === 'farm' ? '' : pacote === 'propria' ? `background-image:url('${urlPropria}');`
+            : pacote === 'pomar' ? `background-image:url('${urlPomar}');`
             : `background-image:url('assets/fazenda/${ARQUIVOS[pacote]}');`;
         return `<span class="px-spr" style="${img}width:${px}px;height:${px}px;background-size:${COLS * px}px ${LINHAS * px}px;background-position:-${c * px}px -${l * px}px" aria-hidden="true"></span>`;
     }
@@ -571,6 +592,56 @@
 
     /* ---------- Atlas ---------- */
     const atlas = { farm: new Image(), town: new Image(), ski: new Image(), factory: new Image(), dungeon: new Image() };
+    /* ---- pomar: cada árvore frutífera é a árvore redonda do Tiny Town (copa 4 + tronco 16) com as
+       frutas pintadas em cima da copa (ou no tronco: cacau, jabuticaba). Peças 2k (copa) e 2k+1 (tronco). */
+    const POMAR = {
+        laranjeira: { n: 0, cores: ['#e38628', '#fdbe53'], onde: 'copa' },
+        limoeiro: { n: 1, cores: ['#d9c22e', '#fff27a'], onde: 'copa' },
+        goiabeira: { n: 2, cores: ['#c9d65a', '#f5a3b0'], onde: 'copa' },
+        mangueira: { n: 3, cores: ['#d9452f', '#fdbe53'], onde: 'copa' },
+        abacateiro: { n: 4, cores: ['#1e2a1a', '#5a7a3a'], onde: 'copa' },
+        cacaueiro: { n: 5, cores: ['#c96b28', '#f0a04b'], onde: 'tronco' },
+        jabuticabeira: { n: 6, cores: ['#262b44', '#6b2f74'], onde: 'tronco' }
+    };
+    let urlPomar = null;
+    function montarPomar() {
+        const c = document.createElement('canvas');
+        c.width = 12 * 16; c.height = LINHAS * 16;
+        const g = c.getContext('2d');
+        const t = document.createElement('canvas');
+        t.width = 16; t.height = 32;
+        const tg = t.getContext('2d');
+        for (const p of Object.values(POMAR)) {
+            tg.clearRect(0, 0, 16, 32);
+            // tronco curto (no contorno do pacote) e a copa redonda do Tiny Town (o arbusto 5) por cima
+            tg.fillStyle = '#3f2631'; tg.fillRect(5, 20, 6, 11);
+            tg.fillStyle = '#8a4a2b'; tg.fillRect(6, 20, 4, 10);
+            tg.fillStyle = '#b4673a'; tg.fillRect(7, 20, 1, 10);
+            tg.fillStyle = '#3f2631'; tg.fillRect(4, 30, 8, 1);
+            tg.drawImage(atlas.town, (5 % COLS) * 16, Math.floor(5 / COLS) * 16, 16, 16, 0, 7, 16, 16);
+            const d = tg.getImageData(0, 0, 16, 32).data;
+            const folha = (x, y) => { const k = (y * 16 + x) * 4; return d[k + 3] > 200 && d[k + 1] > d[k] + 20 && d[k + 1] > d[k + 2]; };
+            const tronco = (x, y) => { const k = (y * 16 + x) * 4; return d[k + 3] > 200 && d[k] > d[k + 1] + 20; };
+            const r = rng(p.n * 977 + 13);
+            let postas = 0;
+            const lugares = [];
+            for (let tentativa = 0; tentativa < 400 && postas < (p.onde === 'tronco' ? 6 : 7); tentativa++) {
+                const x = 2 + Math.floor(r() * 11), y = (p.onde === 'tronco' ? 16 : 8) + Math.floor(r() * (p.onde === 'tronco' ? 13 : 14));
+                const serve = p.onde === 'tronco' ? (tronco(x, y) || folha(x, y)) && (tronco(x + 1, y) || folha(x + 1, y)) : folha(x, y) && folha(x + 1, y + 1) && folha(x, y + 1) && folha(x + 1, y);
+                if (!serve || lugares.some(([a, b]) => Math.abs(a - x) < 3 && Math.abs(b - y) < 3)) continue;
+                lugares.push([x, y]);
+                postas++;
+            }
+            for (const [x, y] of lugares) {
+                tg.fillStyle = p.cores[0]; tg.fillRect(x, y, 2, 2);
+                tg.fillStyle = p.cores[1]; tg.fillRect(x, y, 1, 1);
+            }
+            g.drawImage(t, 0, 0, 16, 16, ((2 * p.n) % COLS) * 16, Math.floor((2 * p.n) / COLS) * 16, 16, 16);
+            g.drawImage(t, 0, 16, 16, 16, ((2 * p.n + 1) % COLS) * 16, Math.floor((2 * p.n + 1) / COLS) * 16, 16, 16);
+        }
+        atlas.pomar = c;
+        urlPomar = null;
+    }
     let atlasPronto = null;
     function carregar() {
         if (!atlasPronto) {
@@ -578,7 +649,7 @@
                 img.onload = ok;
                 img.onerror = () => erro(new Error('Não deu para carregar a arte da fazenda.'));
                 img.src = 'assets/fazenda/' + ARQUIVOS[p] + '?v=' + VERSAO_ARTE;
-            })));
+            }))).then(() => montarPomar());
         }
         return atlasPronto;
     }
