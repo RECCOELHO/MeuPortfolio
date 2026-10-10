@@ -267,7 +267,9 @@
         // 46 cacau
         ['................', '................', '.......aa.......', '......aNNa......', '.....aONONa.....', '....aOgONONa....', '....aOgONONa....', '....aOgONONa....', '....aOOONONa....', '....aOOONONa....', '.....aOONNa.....', '......aNNa......', '.......aa.......', '................', '................', '................'],
         // 47 jabuticaba
-        ['................', '................', '................', '................', '......aaaa......', '.....aVUVVa.....', '.....aVdVVa.....', '.....aVVVea.....', '...aaaaeeaaaa...', '..aVUVVaaVUVVa..', '..aVdVVaaVdVVa..', '..aVVVeaaVVVea..', '...aaaa..aaaa...', '................', '................', '................']
+        ['................', '................', '................', '................', '......aaaa......', '.....aVUVVa.....', '.....aVdVVa.....', '.....aVVVea.....', '...aaaaeeaaaa...', '..aVUVVaaVUVVa..', '..aVdVVaaVdVVa..', '..aVVVeaaVVVea..', '...aaaa..aaaa...', '................', '................', '................'],
+        // 48 cano de vidro (ícone do Construir; no mapa o cano é desenhado na hora, transparente)
+        ['................', '................', '................', '................', '................', 'aaaaaaaaaaaaaaaa', 'dddddddddddddddd', 'ffffffiiifffffff', 'fffffiiiiiffffff', 'ffffffiiifffffff', 'llllllllllllllll', 'aaaaaaaaaaaaaaaa', '................', '................', '................', '................']
     ];
     const atlasProprio = document.createElement('canvas');
     atlasProprio.width = 12 * 16;
@@ -457,6 +459,7 @@
             case 'cercado_galinha': case 'cercado_coelho': case 'cercado_pato':
             case 'cercado_vaca': case 'cercado_ovelha': case 'cercado_porco':
                 return { p: 'town', w: CERCADOS[id].w, h: CERCADOS[id].h, grade: gradeCercado(id), cercado: CERCADOS[id] };
+            case 'cano': return { p: 'farm', i: 1048, cano: true };
             case 'irrigador': return { p: 'factory', i: 91 };
             case 'pulverizador': return { p: 'factory', i: 126 };
             case 'alarme': return { p: 'factory', i: 129 };
@@ -1537,6 +1540,7 @@
             for (const c of lista) {
                 const s = spritesDe(c.tipo, c.x, c.y, m);
                 if (s.cercado) { desenharCercado(c, s, tempo); continue; }
+                if (s.cano) { desenharCano(c); continue; }
                 if (s.chao) tile(q, s.i, wx(c.x), wy(c.y), false, s.p);   // caminho/flores: chão
                 else if (s.grade) pe.push({ ...s, x: wx(c.x), y: wy(c.y + s.h - 1), gy: wy(c.y), flip: false, bob: 0 });
                 else pe.push({ ...s, x: wx(c.x), y: wy(c.y), flip: false, bob: ANIMA[c.tipo] === 'robo' && Math.floor((tempo + c.x * 97) / 380) % 2 ? -1 : 0 });
@@ -1544,6 +1548,7 @@
 
             const canteiros = listaCanteiros(), mc = mapaCanteiros(canteiros);
             for (const c of canteiros) desenharCanteiro(c, tempo, mc);
+            desenharFluxos(lista, tempo);
             if (zonaVenda) desenharPlacaVenda(tempo);
 
             for (const a of atores.values()) {
@@ -1733,6 +1738,56 @@
                     px(x + 8, y + 8, '#7dff6a', 16, 16);
                     q.globalAlpha = 1;
                     if (Math.floor(t / 250) % 6 === 0) icone(q, 'brilho', x + 20, y + 2);
+                }
+            }
+        }
+
+        /* ---- canos de vidro: braços para os lados ligados (outro cano, oficina, canteiro, baú,
+           celeiro), um anel de metal no meio e os itens passando por dentro ---- */
+        function desenharCano(c) {
+            const x = wx(c.x), y = wy(c.y), l = c.cano || [false, false, false, false];   // leste, oeste, sul, norte
+            const vidro = 'rgba(214,236,255,.5)', borda = 'rgba(63,38,49,.65)', brilho = 'rgba(255,255,255,.85)';
+            const braco = (x0, y0, w, h, deitado) => {
+                q.fillStyle = borda; q.fillRect(x0, y0, w, h);
+                q.fillStyle = vidro;
+                if (deitado) q.fillRect(x0, y0 + 1, w, h - 2); else q.fillRect(x0 + 1, y0, w - 2, h);
+                q.fillStyle = brilho;
+                if (deitado) q.fillRect(x0, y0 + 1, w, 1); else q.fillRect(x0 + 1, y0, 1, h);
+            };
+            if (l[0]) braco(x + 8, y + 5, 8, 6, true);
+            if (l[1]) braco(x, y + 5, 8, 6, true);
+            if (l[2]) braco(x + 5, y + 8, 6, 8, false);
+            if (l[3]) braco(x + 5, y, 6, 8, false);
+            q.fillStyle = '#566c86'; q.fillRect(x + 4, y + 4, 8, 8);
+            q.fillStyle = '#8b9bb4'; q.fillRect(x + 5, y + 5, 6, 6);
+            q.fillStyle = 'rgba(214,236,255,.85)'; q.fillRect(x + 6, y + 6, 4, 4);
+        }
+        // itens pequenos (8 px) andando dentro dos canos: ingrediente da fonte para a oficina, produto de volta
+        function miniTile(i, x, y) {
+            if (i == null) return;
+            let pacote = 'farm';
+            if (i >= 1000) { i -= 1000; pacote = 'propria'; }
+            const img = pacote === 'propria' ? atlasProprio : (atlasDaEstacao && atlasDaEstacao.farm) || atlas.farm;
+            q.drawImage(img, (i % COLS) * T, Math.floor(i / COLS) * T, T, T, Math.round(x), Math.round(y), 8, 8);
+        }
+        function desenharFluxos(lista, tempo) {
+            for (const c of lista) {
+                const f = c.oficina && c.oficina.fluxo;
+                if (!f || !f.caminho || !f.caminho.length) continue;
+                const cam = f.caminho, n = cam.length;
+                const ponto = (p) => {   // 0 = encostado na oficina, 1 = encostado na fonte
+                    const pos = p * (n - 1), i = Math.min(n - 1, Math.floor(pos)), t = pos - i;
+                    const [ax, ay] = cam[i], [bx, by] = cam[Math.min(n - 1, i + 1)];
+                    return [wx(ax + (bx - ax) * t) + 8, wy(ay + (by - ay) * t) + 8];
+                };
+                const vel = 1400 + n * 450;
+                for (let k = 0; k < 2; k++) {
+                    const [ix, iy] = ponto(1 - (((tempo / vel) + k / 2 + c.x * 0.13) % 1));
+                    miniTile(f.entra, ix - 4, iy - 4);
+                }
+                if (f.sai != null) {
+                    const [ox, oy] = ponto(((tempo / vel) + 0.25 + c.y * 0.07) % 1);
+                    miniTile(f.sai, ox - 4, oy - 4);
                 }
             }
         }
