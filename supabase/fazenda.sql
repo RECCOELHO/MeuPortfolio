@@ -197,6 +197,11 @@ alter table public.fazenda_construcoes add column if not exists colhido_em times
 -- a receita leva produz_seg e rende produz_qtd de produz. iniciado_em null = parada.
 alter table public.fazenda_itens add column if not exists entradas jsonb;
 alter table public.fazenda_construcoes add column if not exists iniciado_em timestamptz;
+-- Fase 17: oficinas com estoque. estoque = receitas guardadas na oficina (os ingredientes já
+-- saíram do celeiro); prontos = produtos feitos esperando você pegar. Ela trabalha sozinha
+-- enquanto tiver estoque; iniciado_em = começo da receita em andamento (null = parada).
+alter table public.fazenda_construcoes add column if not exists estoque smallint not null default 0;
+alter table public.fazenda_construcoes add column if not exists prontos smallint not null default 0;
 
 -- Fase 4: números de cada jogador (para conquistas e perfil)
 create table if not exists public.fazenda_estatisticas (
@@ -472,14 +477,15 @@ on conflict (id) do update set
 -- Oficinas — fase 9: casinhas que fazem produtos com o que você planta e cria
 insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem, largura, altura,
                                   produz, produz_seg, produz_qtd, entradas, limite, beleza, descricao) values
-  ('saladeira',   'Barraca de saladas', 'oficina',  300,  3, 60, 2, 3, 'salada', 1200,  1, '{"alface": 2, "cenoura": 1}', 2, 5, '2 alfaces + 1 cenoura → salada (20 min).'),
-  ('pipocaria',   'Pipocaria',          'oficina',  500,  4, 61, 2, 3, 'pipoca', 1800,  1, '{"milho": 3}', 2, 5, '3 milhos → pipoca (30 min).'),
-  ('fabrica_molho','Fábrica de molho',  'oficina',  700,  5, 62, 2, 3, 'molho',  3600,  1, '{"tomate": 4}', 2, 5, '4 tomates → molho de tomate (1 h).'),
-  ('queijaria',   'Queijaria',          'oficina', 1200,  6, 63, 2, 3, 'queijo', 10800, 1, '{"leite": 2}', 2, 5, '2 leites → queijo (3 h).'),
-  ('padaria',     'Padaria',            'oficina', 1200,  7, 64, 2, 3, 'pao',    7200,  1, '{"abobora": 3, "ovo": 1}', 2, 5, '3 trigos + 1 ovo → pão (2 h).'),
-  ('confeitaria', 'Confeitaria',        'oficina', 1500,  9, 65, 2, 3, 'bolo',   7200,  1, '{"cenoura": 3, "ovo": 2, "abobora": 1}', 2, 5, '3 cenouras + 2 ovos + 1 trigo → bolo de cenoura (2 h).'),
-  ('tecelagem',   'Tecelagem',          'oficina', 2500, 10, 66, 2, 3, 'tecido', 14400, 1, '{"la": 2}', 2, 5, '2 lãs → tecido (4 h).'),
-  ('casa_geleia', 'Casa de geleias',    'oficina', 1800, 11, 67, 2, 3, 'geleia', 7200,  1, '{"morango": 3}', 2, 5, '3 amoras → geleia de amora (2 h).')
+  -- fase 17: tempos 29% menores que os de antes (20 min → 14, 2 h → 1 h 25...)
+  ('saladeira',   'Barraca de saladas', 'oficina',  300,  3, 60, 2, 3, 'salada',  840,  1, '{"alface": 2, "cenoura": 1}', 2, 5, '2 alfaces + 1 cenoura → salada.'),
+  ('pipocaria',   'Pipocaria',          'oficina',  500,  4, 61, 2, 3, 'pipoca', 1260,  1, '{"milho": 3}', 2, 5, '3 milhos → pipoca.'),
+  ('fabrica_molho','Fábrica de molho',  'oficina',  700,  5, 62, 2, 3, 'molho',  2580,  1, '{"tomate": 4}', 2, 5, '4 tomates → molho de tomate.'),
+  ('queijaria',   'Queijaria',          'oficina', 1200,  6, 63, 2, 3, 'queijo', 7680,  1, '{"leite": 2}', 2, 5, '2 leites → queijo.'),
+  ('padaria',     'Padaria',            'oficina', 1200,  7, 64, 2, 3, 'pao',    5100,  1, '{"abobora": 3, "ovo": 1}', 2, 5, '3 trigos + 1 ovo → pão.'),
+  ('confeitaria', 'Confeitaria',        'oficina', 1500,  9, 65, 2, 3, 'bolo',   5100,  1, '{"cenoura": 3, "ovo": 2, "abobora": 1}', 2, 5, '3 cenouras + 2 ovos + 1 trigo → bolo de cenoura.'),
+  ('tecelagem',   'Tecelagem',          'oficina', 2500, 10, 66, 2, 3, 'tecido', 10200, 1, '{"la": 2}', 2, 5, '2 lãs → tecido.'),
+  ('casa_geleia', 'Casa de geleias',    'oficina', 1800, 11, 67, 2, 3, 'geleia', 5100,  1, '{"morango": 3}', 2, 5, '3 amoras → geleia de amora.')
 on conflict (id) do update set
   nome = excluded.nome, categoria = excluded.categoria, custo = excluded.custo, nivel_min = excluded.nivel_min,
   ordem = excluded.ordem, largura = excluded.largura, altura = excluded.altura, produz = excluded.produz,
@@ -539,7 +545,7 @@ insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem, 
   ('gerador_bio',   'Gerador a biomassa', 'energia',  6000, 19, 84, 'biomassa',   0, 2, 'Ligado, queima 1 milho a cada 30 min: 50 ⚡/h. Toque nele para ligar ou desligar.'),
   ('triturador',    'Triturador',         'energia',  8000, 20, 85, 'triturar',   0, 1, 'As oficinas rendem 2 produtos por receita. Gasta 10 ⚡ por receita.'),
   ('supercap',      'Supercapacitor',     'energia',  9000, 21, 86, 'bateria',    0, 2, 'Guarda mais 500 ⚡.'),
-  ('fabrica_auto',  'Fábrica automática', 'energia', 12000, 22, 87, 'automatico', 0, 1, 'As oficinas recolhem o produto e começam de novo sozinhas, se tiver ingredientes. Gasta 8 ⚡ por receita.'),
+  ('fabrica_auto',  'Fábrica automática', 'energia', 12000, 22, 87, 'automatico', 0, 1, 'Liga as oficinas ao celeiro: quando o estoque acaba, elas buscam ingredientes sozinhas (sem mexer na ração reservada) e os produtos vão direto para o celeiro. Gasta 8 ⚡ por receita.'),
   ('robo_colheita', 'Robô colheitador',   'energia', 14000, 23, 88, 'robo',       3, 2, 'Colhe, ara e replanta sozinho os canteiros em volta (3). Gasta 3 ⚡ por colheita e 1 por plantio.'),
   ('aspersor',      'Aspersor elétrico',  'energia', 10000, 24, 89, 'aspersor',   3, 4, 'Nenhuma erva, praga ou seca nos canteiros em volta (3). Gasta 1 ⚡ por problema evitado.'),
   ('reator',        'Reator nuclear',     'energia', 30000, 25, 90, 'reator',     0, 1, 'Gera 120 ⚡/h sem parar, de dia e de noite (80 na onda de calor, para não esquentar).')
@@ -1106,8 +1112,10 @@ begin
     'animais_tipos', (
       select jsonb_agg(to_jsonb(t) order by t.ordem) from fazenda_animais_tipos t),
     'construcoes', coalesce((
-      select jsonb_agg(jsonb_build_object('x', x, 'y', y, 'tipo', tipo, 'colhido_em', colhido_em, 'iniciado_em', iniciado_em))
+      select jsonb_agg(jsonb_build_object('x', x, 'y', y, 'tipo', tipo, 'colhido_em', colhido_em, 'iniciado_em', iniciado_em,
+                                          'estoque', estoque, 'prontos', prontos))
         from fazenda_construcoes where jogador_id = p_jogador), '[]'::jsonb),
+    'estoque_max', fazenda_estoque_max(),
     'itens', (
       select jsonb_agg(to_jsonb(t) order by t.ordem) from fazenda_itens t),
     'estatisticas', (select to_jsonb(e) - 'jogador_id' from fazenda_estatisticas e where e.jogador_id = p_jogador),
@@ -1475,70 +1483,108 @@ begin
 end;
 $$;
 
+-- Oficinas: até 10 receitas no estoque de cada uma (os ingredientes saem do celeiro na hora de
+-- guardar). Ela trabalha sozinha: termina uma receita, começa a próxima na hora, e o que fica
+-- pronto espera em "prontos" até você tocar nela. Com a fábrica automática (energia), o estoque
+-- vazio busca ingredientes no celeiro (8 ⚡ por receita) e os produtos vão direto para o celeiro.
+create or replace function public.fazenda_estoque_max()
+returns int language sql immutable as $$ select 10 $$;
+
+-- Tira do celeiro os ingredientes de até p_max receitas (a ração reservada fica); devolve quantas
+create or replace function public.fazenda_abastecer(p_jogador uuid, p_entradas jsonb, p_max int)
+returns int
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  e   record;
+  v_n int := p_max;
+begin
+  if p_max <= 0 then return 0; end if;
+  for e in select key as item, value::int as qtd from jsonb_each_text(p_entradas) loop
+    v_n := least(v_n, (coalesce((select quantidade from fazenda_celeiro where jogador_id = p_jogador and item = e.item), 0)
+                     - coalesce((select quantidade from fazenda_reservas where jogador_id = p_jogador and item = e.item), 0)) / e.qtd);
+  end loop;
+  v_n := greatest(v_n, 0);
+  if v_n > 0 then
+    for e in select key as item, value::int as qtd from jsonb_each_text(p_entradas) loop
+      update fazenda_celeiro set quantidade = quantidade - e.qtd * v_n where jogador_id = p_jogador and item = e.item;
+    end loop;
+  end if;
+  return v_n;
+end;
+$$;
+
+-- Faz as oficinas andarem até agora (roda ao carregar a fazenda e antes de mexer numa oficina)
+create or replace function public.fazenda_oficinas_andar(p_jogador uuid)
+returns void
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  o      record;
+  v_auto boolean := fazenda_tem_efeito(p_jogador, 'automatico');
+  v_tri  boolean := fazenda_tem_efeito(p_jogador, 'triturar');
+  v_t    timestamptz;
+  v_fim  timestamptz;
+  v_est  int;
+  v_pr   int;
+  v_cel  int;
+  v_n    int;
+  v_qtd  int;
+begin
+  for o in
+    select c.x, c.y, c.iniciado_em, c.estoque, c.prontos, i.produz, i.produz_seg, i.produz_qtd, i.entradas
+      from fazenda_construcoes c join fazenda_itens i on i.id = c.tipo
+     where c.jogador_id = p_jogador and i.entradas is not null
+       for update of c
+  loop
+    v_t := o.iniciado_em; v_est := o.estoque; v_pr := o.prontos; v_cel := 0; v_fim := null; v_n := 0;
+    loop
+      exit when v_n >= 48;
+      v_n := v_n + 1;
+      if v_t is not null then
+        exit when now() < v_t + make_interval(secs => o.produz_seg);   -- ainda trabalhando
+        v_qtd := o.produz_qtd;
+        if v_tri and fazenda_gastar_energia(p_jogador, 10) then v_qtd := v_qtd * 2; end if;   -- triturador
+        if v_auto then v_cel := v_cel + v_qtd; else v_pr := v_pr + v_qtd; end if;
+        v_fim := v_t + make_interval(secs => o.produz_seg);
+        v_t := null;
+      end if;
+      -- estoque vazio com a fábrica automática: busca uma receita no celeiro (8 ⚡)
+      if v_est <= 0 and v_auto and fazenda_energia_atualizar(p_jogador) >= 8 then
+        v_est := fazenda_abastecer(p_jogador, o.entradas, 1);
+        if v_est > 0 then perform fazenda_gastar_energia(p_jogador, 8); end if;
+      end if;
+      exit when v_est <= 0;
+      v_est := v_est - 1;
+      -- emenda na receita anterior (o tempo fora vale, até 12 horas)
+      v_t := greatest(coalesce(v_fim, now()), now() - interval '12 hours');
+    end loop;
+    if v_cel > 0 then
+      insert into fazenda_celeiro (jogador_id, item, quantidade) values (p_jogador, o.produz, v_cel)
+      on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
+    end if;
+    update fazenda_construcoes set iniciado_em = v_t, estoque = v_est, prontos = least(v_pr, 32000)
+     where jogador_id = p_jogador and x = o.x and y = o.y;
+  end loop;
+end;
+$$;
+
 -- As máquinas elétricas trabalham sozinhas (roda ao carregar a fazenda, como os ajudantes):
--- a fábrica automática recolhe e recomeça as oficinas; os robôs colhem e replantam.
+-- as oficinas andam (fábrica automática incluída); os robôs colhem e replantam.
 create or replace function public.fazenda_industria(p_jogador uuid)
 returns void
 language plpgsql security definer
 set search_path = public, extensions
 as $$
 declare
-  o     record;
-  e     record;
   r     record;
   cc    record;
-  v_t   timestamptz;
-  v_fim timestamptz;
-  v_qtd int;
-  v_n   int;
-  v_ok  boolean;
   v_sem text;
 begin
   perform fazenda_energia_atualizar(p_jogador);
-
-  if fazenda_tem_efeito(p_jogador, 'automatico') then
-    for o in
-      select c.x, c.y, c.iniciado_em, i.produz, i.produz_seg, i.produz_qtd, i.entradas
-        from fazenda_construcoes c join fazenda_itens i on i.id = c.tipo
-       where c.jogador_id = p_jogador and i.entradas is not null
-         for update of c
-    loop
-      v_t := o.iniciado_em;
-      v_fim := null;
-      v_n := 0;
-      loop
-        exit when v_n >= 24;
-        if v_t is not null then
-          exit when now() < v_t + make_interval(secs => o.produz_seg);   -- ainda trabalhando
-          v_qtd := o.produz_qtd;
-          if fazenda_tem_efeito(p_jogador, 'triturar') then
-            if fazenda_gastar_energia(p_jogador, 10) then v_qtd := v_qtd * 2; end if;
-          end if;
-          insert into fazenda_celeiro (jogador_id, item, quantidade) values (p_jogador, o.produz, v_qtd)
-          on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
-          v_fim := v_t + make_interval(secs => o.produz_seg);
-          v_t := null;
-        end if;
-        -- recomeça se tiver os ingredientes (a ração reservada não entra) e energia
-        v_ok := true;
-        for e in select key as item, value::int as qtd from jsonb_each_text(o.entradas) loop
-          if coalesce((select quantidade from fazenda_celeiro where jogador_id = p_jogador and item = e.item), 0)
-             - coalesce((select quantidade from fazenda_reservas where jogador_id = p_jogador and item = e.item), 0) < e.qtd then
-            v_ok := false;
-          end if;
-        end loop;
-        exit when not v_ok;
-        exit when not fazenda_gastar_energia(p_jogador, 8);
-        for e in select key as item, value::int as qtd from jsonb_each_text(o.entradas) loop
-          update fazenda_celeiro set quantidade = quantidade - e.qtd where jogador_id = p_jogador and item = e.item;
-        end loop;
-        -- emenda na receita anterior (vale o tempo fora, até 12 horas)
-        v_t := greatest(coalesce(v_fim, now()), now() - interval '12 hours');
-        v_n := v_n + 1;
-      end loop;
-      update fazenda_construcoes set iniciado_em = v_t where jogador_id = p_jogador and x = o.x and y = o.y;
-    end loop;
-  end if;
+  perform fazenda_oficinas_andar(p_jogador);   -- oficinas: estoque, prontos e a fábrica automática
 
   select semente into v_sem from fazenda_jogadores where id = p_jogador;
   for r in
@@ -2552,6 +2598,20 @@ begin
     return jsonb_build_object('devolvido', 0, 'estado', fazenda_estado(v_id));
   end if;
 
+  -- oficina: o estoque (ingredientes) e os produtos prontos voltam para o celeiro
+  perform fazenda_oficinas_andar(v_id);
+  insert into fazenda_celeiro (jogador_id, item, quantidade)
+  select v_id, x.item, sum(x.qtd)::int from (
+    select e.key as item, e.value::int * (oc.estoque + case when oc.iniciado_em is null then 0 else 1 end) as qtd
+      from fazenda_construcoes oc join fazenda_itens oi on oi.id = oc.tipo, jsonb_each_text(oi.entradas) e
+     where oc.jogador_id = v_id and oc.x = p_x and oc.y = p_y and oi.entradas is not null
+    union all
+    select oi.produz, oc.prontos
+      from fazenda_construcoes oc join fazenda_itens oi on oi.id = oc.tipo
+     where oc.jogador_id = v_id and oc.x = p_x and oc.y = p_y and oi.entradas is not null and oc.prontos > 0
+  ) x where x.qtd > 0 group by x.item
+  on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
+
   delete from fazenda_construcoes where jogador_id = v_id and x = p_x and y = p_y
   returning tipo into v_tipo;
   if v_tipo is null then raise exception 'item_invalido'; end if;
@@ -2594,8 +2654,8 @@ begin
 end;
 $$;
 
--- Oficina: parada → começa (gasta os ingredientes do celeiro, sem mexer na ração
--- reservada); pronta → o produto vai para o celeiro e ela fica parada de novo.
+-- Oficina (fase 17): tocar nela pega os produtos prontos. Sem nada pronto, parada e sem estoque,
+-- guarda uma receita e começa (é o que a versão anterior do jogo fazia ao tocar).
 create or replace function public.fazenda_oficina(p_token text, p_x int, p_y int)
 returns jsonb
 language plpgsql security definer
@@ -2604,43 +2664,75 @@ as $$
 declare
   v_id  uuid := fazenda_auth(p_token);
   r     record;
-  e     record;
   k     record;
-  v_tem int;
-  v_qtd int;
 begin
-  select c.iniciado_em, i.produz, i.produz_seg, i.produz_qtd, i.entradas into r
+  perform fazenda_oficinas_andar(v_id);
+  select c.iniciado_em, c.estoque, c.prontos, i.produz, i.entradas into r
     from fazenda_construcoes c join fazenda_itens i on i.id = c.tipo
    where c.jogador_id = v_id and c.x = p_x and c.y = p_y
      for update of c;
   if not found or r.entradas is null then raise exception 'item_invalido'; end if;
 
-  if r.iniciado_em is null then
-    for e in select key as item, value::int as qtd from jsonb_each_text(r.entradas) loop
-      v_tem := coalesce((select quantidade from fazenda_celeiro where jogador_id = v_id and item = e.item), 0)
-             - coalesce((select quantidade from fazenda_reservas where jogador_id = v_id and item = e.item), 0);
-      if v_tem < e.qtd then raise exception 'sem_ingredientes'; end if;
-    end loop;
-    for e in select key as item, value::int as qtd from jsonb_each_text(r.entradas) loop
-      update fazenda_celeiro set quantidade = quantidade - e.qtd where jogador_id = v_id and item = e.item;
-    end loop;
+  if r.prontos > 0 then
+    select * into k from fazenda_culturas where id = r.produz;
+    insert into fazenda_celeiro (jogador_id, item, quantidade) values (v_id, r.produz, r.prontos)
+    on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
+    update fazenda_jogadores set xp = xp + k.xp * r.prontos where id = v_id;
+    update fazenda_construcoes set prontos = 0 where jogador_id = v_id and x = p_x and y = p_y;
+    return jsonb_build_object('acao', 'coletou', 'qtd', r.prontos, 'item', r.produz, 'xp', k.xp * r.prontos,
+                              'estado', fazenda_estado(v_id));
+  end if;
+
+  if r.iniciado_em is null and r.estoque = 0 then
+    if fazenda_abastecer(v_id, r.entradas, 1) = 0 then raise exception 'sem_ingredientes'; end if;
     update fazenda_construcoes set iniciado_em = now() where jogador_id = v_id and x = p_x and y = p_y;
     return jsonb_build_object('acao', 'iniciou', 'estado', fazenda_estado(v_id));
   end if;
+  return jsonb_build_object('acao', 'nada', 'estado', fazenda_estado(v_id));
+end;
+$$;
 
-  if now() < r.iniciado_em + make_interval(secs => r.produz_seg) then raise exception 'nao_pronto'; end if;
-  select * into k from fazenda_culturas where id = r.produz;
-  v_qtd := r.produz_qtd;
-  if fazenda_tem_efeito(v_id, 'triturar') then          -- triturador: rende em dobro (10 ⚡)
-    if fazenda_gastar_energia(v_id, 10) then v_qtd := v_qtd * 2; end if;
+-- Guarda (p_receitas > 0) ou tira (< 0) receitas do estoque de uma oficina. Guardar tira os
+-- ingredientes do celeiro na hora (sem mexer na ração reservada), até 10 receitas no estoque;
+-- tirar devolve os ingredientes. Parada e com estoque, ela já começa.
+create or replace function public.fazenda_estoque(p_token text, p_x int, p_y int, p_receitas int)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id uuid := fazenda_auth(p_token);
+  r    record;
+  e    record;
+  v_n  int;
+begin
+  if p_receitas is null or p_receitas = 0 or abs(p_receitas) > 100 then raise exception 'quantidade_invalida'; end if;
+  perform fazenda_oficinas_andar(v_id);
+  select c.iniciado_em, c.estoque, i.entradas into r
+    from fazenda_construcoes c join fazenda_itens i on i.id = c.tipo
+   where c.jogador_id = v_id and c.x = p_x and c.y = p_y
+     for update of c;
+  if not found or r.entradas is null then raise exception 'item_invalido'; end if;
+
+  if p_receitas > 0 then
+    -- a receita em andamento também ocupa um lugar
+    v_n := least(p_receitas, fazenda_estoque_max() - r.estoque - (case when r.iniciado_em is null then 0 else 1 end));
+    if v_n <= 0 then raise exception 'estoque_cheio'; end if;
+    v_n := fazenda_abastecer(v_id, r.entradas, v_n);
+    if v_n = 0 then raise exception 'sem_ingredientes'; end if;
+    update fazenda_construcoes set estoque = estoque + v_n where jogador_id = v_id and x = p_x and y = p_y;
+  else
+    v_n := least(-p_receitas, r.estoque);
+    if v_n <= 0 then raise exception 'estoque_vazio'; end if;
+    for e in select key as item, value::int as qtd from jsonb_each_text(r.entradas) loop
+      insert into fazenda_celeiro (jogador_id, item, quantidade) values (v_id, e.item, e.qtd * v_n)
+      on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
+    end loop;
+    update fazenda_construcoes set estoque = estoque - v_n where jogador_id = v_id and x = p_x and y = p_y;
+    v_n := -v_n;
   end if;
-  insert into fazenda_celeiro (jogador_id, item, quantidade)
-  values (v_id, r.produz, v_qtd)
-  on conflict (jogador_id, item)
-  do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
-  update fazenda_jogadores set xp = xp + k.xp where id = v_id;
-  update fazenda_construcoes set iniciado_em = null where jogador_id = v_id and x = p_x and y = p_y;
-  return jsonb_build_object('acao', 'coletou', 'qtd', v_qtd, 'item', r.produz, 'estado', fazenda_estado(v_id));
+  perform fazenda_oficinas_andar(v_id);   -- parada com estoque: começa agora
+  return jsonb_build_object('receitas', v_n, 'estado', fazenda_estado(v_id));
 end;
 $$;
 
@@ -2902,6 +2994,10 @@ revoke execute on function
   public.fazenda_reservar(text, text, int),
   public.fazenda_contratar(text, text),
   public.fazenda_oficina(text, int, int),
+  public.fazenda_estoque_max(),
+  public.fazenda_abastecer(uuid, jsonb, int),
+  public.fazenda_oficinas_andar(uuid),
+  public.fazenda_estoque(text, int, int, int),
   public.fazenda_checar_conquistas(uuid)
 from public, anon, authenticated;
 
@@ -2924,6 +3020,7 @@ grant execute on function
   public.fazenda_reservar(text, text, int),
   public.fazenda_contratar(text, text),
   public.fazenda_oficina(text, int, int),
+  public.fazenda_estoque(text, int, int, int),
   public.fazenda_gerador(text, int, int),
   public.fazenda_anuncio(text),
   public.fazenda_convite_info(text),
