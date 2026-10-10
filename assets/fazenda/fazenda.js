@@ -760,7 +760,7 @@
         if (i.fase === 'bloqueado') return null;
         if (i.fase === 'vazio' || i.fase === 'arado') return { solo: i.fase, pendente };
         const arte = A.cultura(i.k.id);
-        const v = { solo: 'arado', seco: c.seco && i.fase !== 'murcho', pendente };
+        const v = { solo: 'arado', seco: c.seco && i.fase !== 'murcho', adubado: !!c.adubado && i.fase !== 'murcho', pendente };
         if (i.fase === 'murcho') {
             v.planta = arte.murcho;
         } else {
@@ -785,7 +785,7 @@
     /* ---------- Ajudantes: pessoas contratadas que trabalham sozinhas ---------- */
     const tipoAjudante = (id) => S && (S.ajudantes_tipos || []).find((t) => t.id === id);
     const meuAjudante = (id) => S && (S.ajudantes || []).find((h) => h.tipo === id);
-    const RITMO = [0, 4, 12, 36];                                  // tarefas por hora (igual a fazenda_ritmo)
+    const RITMO = [0, 12, 30, 90];                                 // tarefas por hora (igual a fazenda_ritmo)
     const custoAjudante = (t, nivel) => t.custo * [1, 2, 4][nivel || 0];   // contratar, nível 2, nível 3
     const retratoAjudante = (id, px) => {
         const a = A.AJUDANTE_ARTE[id] || { p: 'factory', i: 120 };
@@ -809,7 +809,7 @@
     }
     // o que os ajudantes fizeram desde a última olhada (vem uma vez só do servidor)
     function avisarAjudantes(estado) {
-        const UNIDADE = { colher: ['colheu', 'canteiros'], arar: ['arou', 'canteiros'], plantar: ['plantou', 'canteiros'], cuidar: ['resolveu', 'problemas'], animal: ['fez', 'tarefas'] };
+        const UNIDADE = { colher: ['colheu', 'canteiros'], arar: ['arou ou adubou', 'canteiros'], plantar: ['plantou', 'canteiros'], cuidar: ['resolveu', 'problemas'], animal: ['fez', 'tarefas'] };
         const partes = (estado.ajudantes || []).filter((h) => h.relatorio > 0).map((h) => {
             const t = (estado.ajudantes_tipos || []).find((x) => x.id === h.tipo);
             if (!t) return '';
@@ -817,6 +817,35 @@
             return `${esc(t.nome)} ${verbo} ${h.relatorio} ${h.relatorio === 1 ? coisa.replace(/s$/, '') : coisa}`;
         }).filter(Boolean);
         if (partes.length) toast(`${retratoAjudante((estado.ajudantes.find((h) => h.relatorio > 0) || {}).tipo, 20)} Seus ajudantes trabalharam: ${partes.join(' · ')}`);
+    }
+
+    // compara o estado antigo com o novo e manda cada ajudante até o que mudou por conta dele
+    function trabalhoDosAjudantes(antes, novo) {
+        if (!antes || visita || !(novo.ajudantes || []).length) return;
+        const quem = (funcao, alvo) => (novo.ajudantes || []).find((h) => {
+            const t = (novo.ajudantes_tipos || []).find((x) => x.id === h.tipo);
+            return t && t.funcao === funcao && (!alvo || t.alvo === alvo);
+        });
+        const obras = {};
+        const anotar = (h, alvo) => { if (h) (obras[h.tipo] = obras[h.tipo] || []).push(alvo); };
+        const velhos = new Map((antes.canteiros || []).map((c) => [c.posicao, c]));
+        for (const c of novo.canteiros || []) {
+            const a = velhos.get(c.posicao);
+            if (!a) continue;
+            let f = null;
+            if (a.estado === 'plantado' && c.estado !== 'plantado') f = info(a).fase === 'murcho' ? 'arar' : 'colher';
+            else if (a.estado === 'vazio' && c.estado === 'arado') f = 'arar';
+            else if (a.estado === 'arado' && c.estado === 'plantado') f = 'plantar';
+            else if (c.estado === 'plantado' && a.estado === 'plantado' && ['erva', 'praga', 'seco'].some((p) => a[p] && !c[p])) f = 'cuidar';
+            else if (c.adubado && !a.adubado) f = 'arar';
+            if (f) anotar(quem(f), { x: c.x, y: c.y });
+        }
+        const bichos = new Map((antes.animais || []).map((b) => [b.id, b]));
+        for (const b of novo.animais || []) {
+            const a = bichos.get(b.id);
+            if (a && a.alimentado_em !== b.alimentado_em) anotar(quem('animal', b.tipo), { animal: b.id });
+        }
+        for (const [tipo, alvos] of Object.entries(obras)) cena.ajudanteTrabalhou(tipo, alvos);
     }
 
     /* ---------- Ração reservada no celeiro (o "vender" não leva) ---------- */
@@ -1466,6 +1495,7 @@
             txt += ` Cuide de ${probsHtml(i.probs)} (−1 cada na colheita).`;
         }
         const bonus = bonusDoCanteiro(c, S);
+        if (c.adubado && i.fase !== 'murcho') bonus.push('adubado pelo Seu Zé: +1 item');
         if (bonus.length) txt += ` <span class="bonus-txt">✦ ${bonus.join(' · ')}</span>`;
         mostrarStatus(txt);
     }
@@ -1544,8 +1574,12 @@
     }
 
     /* ---------- Estado vindo do servidor ---------- */
+    let ultimoEstadoEm = 0;
     function aplicarEstado(estado) {
         const antes = S;
+        // longe = primeira carga ou voltou depois de um tempo: aí o relatório dos ajudantes vira aviso
+        const longe = !antes || Date.now() - ultimoEstadoEm > 5 * 60 * 1000;
+        ultimoEstadoEm = Date.now();
         if (!estado.diario) estado.diario = []; // banco ainda sem o SQL da fase 2
         if (!estado.construcoes) estado.construcoes = [];
         S = estado;
@@ -1571,7 +1605,8 @@
             else toast(`${ico('xp', 20)} Nível ${estado.jogador.nivel}! Toque no seu perfil (lá em cima) para ver o que liberou.`, 'festa');
         }
         avisarDiario();
-        avisarAjudantes(estado);
+        if (longe) avisarAjudantes(estado);
+        else trabalhoDosAjudantes(antes, estado);
         avisarConvites(estado);
         desenharClima();
         agendarAvisos();
@@ -2052,7 +2087,7 @@
                     <li>Os canteiros ficam onde você quiser: <b>Construir → Plantação</b> para colocar, <b>Mover</b> para mudar de lugar. Lado a lado eles viram fileiras.</li>
                     <li>Na loja, aba <b>Terrenos</b>, compre pedaços da mata em volta para a fazenda crescer (e ganhar +6 canteiros).</li>
                     <li>Todo item do Construir faz alguma coisa: evita seca, praga ou erva, adianta o crescimento, dá itens e XP extras, protege dos vizinhos ou aumenta a <b>beleza</b> (bônus nas vendas). Toque num item para ver o que ele faz.</li>
-                    <li>Na loja, aba <b>Ajudantes</b>: contrate pessoas que aram, plantam, cuidam, colhem e tratam dos animais sozinhas. Dá para evoluir cada uma até o nível 3.</li>
+                    <li>Na loja, aba <b>Ajudantes</b>: contrate pessoas que aram, plantam, cuidam, colhem e tratam dos animais sozinhas (12 tarefas por hora no nível 1, 30 no 2 e 90 no 3). O <b>Seu Zé</b> também aduba os canteiros crescendo: +1 item na colheita. Com a fazenda aberta, dá para ver cada um indo até onde trabalhou.</li>
                     <li>Em <b>Construir → Oficinas</b> tem padaria, queijaria, pipocaria e outras. Toque nela para abrir o painel: guarde ingredientes no <b>estoque</b> (até 10 receitas) e ela trabalha sozinha, uma receita atrás da outra. O painel mostra quanto valem os ingredientes, quanto vale o produto e o <b>lucro</b>. Quando aparecer o balão, toque para pegar.</li>
                     <li>A <b>amoreira</b> dá amoras sozinha: quando aparecer o balão, toque nela para colher.</li>
                     <li>Em <b>Construir → Máquinas</b>: irrigador, pulverizador e robô capinador evitam seca, pragas e ervas por perto; o alarme protege dos vizinhos; trator e colheitadeira ajudam na fazenda toda.</li>
