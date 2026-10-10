@@ -270,6 +270,8 @@ create table if not exists public.fazenda_ajudantes (
   relatorio      int not null default 0,                  -- tarefas feitas desde a última olhada
   primary key (jogador_id, tipo)
 );
+-- Fase 18: canteiro adubado pelo Seu Zé (+1 item na colheita; sai na colheita ou ao arar)
+alter table public.fazenda_canteiros add column if not exists adubado boolean not null default false;
 -- última semente que o jogador plantou (a semeadora usa a mesma)
 alter table public.fazenda_jogadores add column if not exists semente text references public.fazenda_culturas(id);
 
@@ -416,12 +418,12 @@ on conflict (id) do update set
 -- Ajudantes (fase 8): um por função e um por animal. Caros de contratar e de evoluir.
 insert into public.fazenda_ajudantes_tipos (id, nome, papel, funcao, alvo, custo, nivel_min, descricao, ordem) values
   ('granjeira',  'Dona Cida', 'Granjeira',          'animal',  'galinha', 1500,  5, 'Dá a ração e coleta os ovos das galinhas.', 1),
-  ('lavrador',   'Seu Zé',    'Lavrador',           'arar',    null,      2000,  6, 'Ara os canteiros vazios e limpa os murchos.', 2),
+  ('lavrador',   'Seu Zé',    'Lavrador',           'arar',    null,      2000,  6, 'Ara os canteiros vazios, limpa os murchos e, com o tempo que sobra, aduba os que estão crescendo: +1 item na colheita de cada um.', 2),
   ('jardineiro', 'Tião',      'Jardineiro',         'cuidar',  null,      2500,  7, 'Tira erva daninha, praga e seca dos canteiros.', 3),
   ('coelheira',  'Nina',      'Cuidadora de coelhos','animal', 'coelho',  2000,  8, 'Dá a ração e coleta o pelo dos coelhos.', 4),
   ('vaqueiro',   'Bento',     'Vaqueiro',           'animal',  'vaca',    3000,  9, 'Dá a ração e tira o leite das vacas.', 5),
   ('colhedor',   'Juca',      'Colhedor',           'colher',  null,      4000, 10, 'Colhe tudo o que estiver maduro, antes de murchar.', 6),
-  ('semeadora',  'Dona Rosa', 'Semeadora',          'plantar', null,      4000, 11, 'Planta a última semente que você usou nos canteiros arados (paga com suas moedas).', 7),
+  ('semeadora',  'Dona Rosa', 'Semeadora',          'plantar', null,      4000, 11, 'Planta a última semente que você usou nos canteiros arados (paga com suas moedas). Se ela estiver fora de época, planta a semente da estação.', 7),
   ('patinheiro', 'Pedrinho',  'Cuidador de patos',  'animal',  'pato',    3000, 12, 'Dá a ração e junta as penas dos patos.', 8),
   ('pastora',    'Lia',       'Pastora',            'animal',  'ovelha',  4000, 13, 'Dá a ração e tosquia a lã das ovelhas.', 9),
   ('porqueiro',  'Tonho',     'Porqueiro',          'animal',  'porco',   5000, 15, 'Dá a ração e acha as trufas dos porcos.', 10)
@@ -1077,7 +1079,7 @@ begin
       select jsonb_agg(jsonb_build_object(
                'posicao', posicao, 'x', x, 'y', y, 'estado', estado, 'cultura', cultura,
                'plantado_em', plantado_em, 'erva', erva, 'praga', praga, 'seco', seco,
-               'roubado', roubado)
+               'roubado', roubado, 'adubado', adubado)
              order by posicao)
         from fazenda_canteiros where jogador_id = p_jogador), '[]'::jsonb),
     'diario', coalesce((
@@ -1185,9 +1187,16 @@ begin
     end if;
     update fazenda_canteiros
        set estado = 'arado', cultura = null, plantado_em = null,
-           erva = false, praga = false, seco = false, roubado = 0, prox_evento = null
+           erva = false, praga = false, seco = false, roubado = 0, prox_evento = null, adubado = false
      where jogador_id = p_jogador and posicao = p_posicao;
     if not p_bot then update fazenda_jogadores set xp = xp + 1 where id = p_jogador; end if;
+
+  elsif p_acao = 'adubar' then   -- só o Seu Zé (ajudante): +1 item na colheita desse plantio
+    if not p_bot then raise exception 'acao_invalida'; end if;
+    if c.estado <> 'plantado' or now() >= v_maduro or c.adubado then
+      raise exception 'nada_a_fazer';
+    end if;
+    update fazenda_canteiros set adubado = true where jogador_id = p_jogador and posicao = p_posicao;
 
   elsif p_acao = 'plantar' then
     if c.estado <> 'arado' then
@@ -1221,7 +1230,7 @@ begin
        set estado = 'plantado', cultura = k.id,
            plantado_em = now() - make_interval(secs => k.tempo_seg *
                            (0.1 * fazenda_protegido(p_jogador, 'crescer', c.x, c.y)::int + 0.25 * v_estufa::int)),
-           erva = false, praga = false, seco = false, roubado = 0,
+           erva = false, praga = false, seco = false, roubado = 0, adubado = false,
            prox_evento = now() + make_interval(secs => k.tempo_seg * (0.15 + random() * 0.35))
      where jogador_id = p_jogador and posicao = p_posicao;
     if not p_bot then
@@ -1257,7 +1266,8 @@ begin
     v_qtd := greatest(k.rendimento - (c.erva::int + c.praga::int + c.seco::int) - c.roubado, 1)
              + fazenda_tem_efeito(p_jogador, 'colheita')::int          -- colheitadeira
              + (fazenda_clima_em(now()) = 'sol')::int                    -- colheita no sol
-             + fazenda_protegido(p_jogador, 'adubo', c.x, c.y)::int;    -- cogumelos, barril, colmeia
+             + fazenda_protegido(p_jogador, 'adubo', c.x, c.y)::int     -- cogumelos, barril, colmeia
+             + c.adubado::int;                                          -- adubo do Seu Zé
     if fazenda_protegido(p_jogador, 'sorte', c.x, c.y) and random() < 0.15 then
       v_qtd := v_qtd * 2;                                               -- alvo
     end if;
@@ -1269,7 +1279,7 @@ begin
     update fazenda_canteiros   -- com trator, o canteiro já fica arado
        set estado = case when fazenda_tem_efeito(p_jogador, 'arar') then 'arado' else 'vazio' end,
            cultura = null, plantado_em = null,
-           erva = false, praga = false, seco = false, roubado = 0, prox_evento = null
+           erva = false, praga = false, seco = false, roubado = 0, prox_evento = null, adubado = false
      where jogador_id = p_jogador and posicao = p_posicao;
     if not p_bot then perform fazenda_missao(p_jogador, 'colher', v_qtd); end if;
 
@@ -1628,10 +1638,10 @@ begin
 end;
 $$;
 
--- Tarefas por hora de um ajudante em cada nível
+-- Tarefas por hora de um ajudante em cada nível (fase 18: 12 / 30 / 90; antes 4 / 12 / 36)
 create or replace function public.fazenda_ritmo(p_nivel int)
 returns real language sql immutable as $$
-  select (case p_nivel when 1 then 4 when 2 then 12 else 36 end)::real;
+  select (case p_nivel when 1 then 12 when 2 then 30 else 90 end)::real;
 $$;
 
 -- Os ajudantes fazem o trabalho acumulado desde a última vez (até 8 horas).
@@ -1649,6 +1659,7 @@ declare
   v_n     int;
   v_feito int;
   v_sem   text;
+  v_est   text;
 begin
   for a in
     select h.tipo, h.nivel, h.credito, h.atualizado_em, t.funcao, t.alvo
@@ -1685,15 +1696,42 @@ begin
         begin perform fazenda_aplicar(p_jogador, 'arar', c.posicao, null, true); v_feito := v_feito + 1;
         exception when others then null; end;
       end loop;
+      -- sobrou tempo: aduba os canteiros que estão crescendo (+1 item na colheita de cada um)
+      if v_feito < v_n then
+        for c in
+          select cc.posicao from fazenda_canteiros cc join fazenda_culturas k on k.id = cc.cultura
+           where cc.jogador_id = p_jogador and cc.estado = 'plantado' and not cc.adubado
+             and now() < cc.plantado_em + make_interval(secs => k.tempo_seg)
+           order by cc.plantado_em limit v_n - v_feito
+        loop
+          begin perform fazenda_aplicar(p_jogador, 'adubar', c.posicao, null, true); v_feito := v_feito + 1;
+          exception when others then null; end;
+        end loop;
+      end if;
 
     elsif v_n > 0 and a.funcao = 'plantar' then
       select coalesce(semente, 'alface') into v_sem from fazenda_jogadores where id = p_jogador;
+      -- se a última semente estiver fora de época: a melhor semente da estação que o nível deixa
+      select k.id into v_est from fazenda_culturas k
+       where k.tipo = 'cultura' and k.estacao = fazenda_estacao_em(now())
+         and k.nivel_min <= fazenda_nivel((select xp from fazenda_jogadores where id = p_jogador))
+       order by k.nivel_min desc limit 1;
       for c in
         select posicao from fazenda_canteiros
          where jogador_id = p_jogador and estado = 'arado' order by posicao limit v_n
       loop
-        begin perform fazenda_aplicar(p_jogador, 'plantar', c.posicao, v_sem, true); v_feito := v_feito + 1;
-        exception when others then exit;   -- acabou o dinheiro (ou a semente não serve): para
+        begin
+          perform fazenda_aplicar(p_jogador, 'plantar', c.posicao, v_sem, true); v_feito := v_feito + 1;
+        exception when others then
+          exit when sqlerrm = 'moedas_insuficientes';   -- acabou o dinheiro: para
+          begin
+            perform fazenda_aplicar(p_jogador, 'plantar', c.posicao, coalesce(v_est, 'alface'), true); v_feito := v_feito + 1;
+          exception when others then
+            begin
+              perform fazenda_aplicar(p_jogador, 'plantar', c.posicao, 'alface', true); v_feito := v_feito + 1;
+            exception when others then exit;
+            end;
+          end;
         end;
       end loop;
 

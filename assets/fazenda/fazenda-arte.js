@@ -888,7 +888,27 @@
             for (const a of atores.values()) {
                 if (a.v && a.v.estado !== 'produzindo') continue;   // esperando o toque
                 if (a.espera > 0) { a.espera -= dt; continue; }
+                // ajudante com trabalho na fila: vai até o canteiro (ou bicho), ao lado dele
+                if (a.ajudante && a.fila && a.fila.length && !a.indo) {
+                    const alvo = a.fila[0], b = alvo.animal != null ? atores.get(alvo.animal) : null;
+                    if (alvo.animal != null && !b) { a.fila.shift(); continue; }
+                    const px = b ? b.x : wx(alvo.x), py = b ? b.y : wy(alvo.y) + 2;
+                    a.tx = px + (a.x > px ? 11 : -11);
+                    a.ty = py;
+                    a.olhar = px;
+                    a.indo = true;
+                    a.vel = 45;
+                }
                 const dx = a.tx - a.x, dy = a.ty - a.y, d = Math.hypot(dx, dy);
+                if (d < 0.5 && a.indo) {   // chegou: trabalha um pouquinho (brilho) e segue a fila
+                    a.indo = false;
+                    a.fila.shift();
+                    a.flip = a.x > a.olhar;   // de frente para o canteiro (os sprites olham para a direita)
+                    a.brilho = performance.now() + 900;
+                    a.espera = 700;
+                    if (!a.fila.length) a.vel = 12;
+                    continue;
+                }
                 if (d < 0.5) {
                     a.espera = 800 + Math.random() * 3500;
                     a.tx = a.area.x0 + Math.random() * (a.area.x1 - a.area.x0);
@@ -1039,6 +1059,11 @@
                 q.fillStyle = PAL.k;
                 q.fillRect(x + 4, y + 5, 3, 1); q.fillRect(x + 6, y + 6, 1, 2);
                 q.fillRect(x + 9, y + 10, 3, 1); q.fillRect(x + 9, y + 11, 1, 1);
+            }
+            if (v.adubado) {
+                q.fillStyle = '#3f8f2f';
+                q.fillRect(x + 2, y + 12, 1, 1); q.fillRect(x + 4, y + 13, 1, 1); q.fillRect(x + 3, y + 14, 1, 1);
+                q.fillRect(x + 12, y + 12, 1, 1); q.fillRect(x + 13, y + 14, 1, 1); q.fillRect(x + 11, y + 14, 1, 1);
             }
             if (v.planta != null) {
                 const bob = v.maduro && Math.floor(tempo / 450) % 2 ? -1 : 0;
@@ -1210,6 +1235,9 @@
             });
 
             for (const a of atores.values()) if (a.v) desenharSinalAnimal(a, tempo);
+            for (const a of atores.values()) {
+                if (a.brilho && performance.now() < a.brilho) icone(q, 'brilho', Math.round(a.x) + (a.flip ? -3 : 11), Math.round(a.y) - 5 - (Math.floor(tempo / 150) % 2));
+            }
             if (lago && lagoNaTela()) desenharPescaria(tempo);
             for (const c of lista) {
                 // gerador a biomassa queimando milho e oficina trabalhando: fumacinha (a da oficina sai da chaminé, à direita)
@@ -1578,6 +1606,13 @@
             definirVisual(fn) { visual = fn; },
             definirAnimais(fn) { animaisFn = fn; },
             definirAjudantes(fn) { ajudantesFn = fn; },
+            // um ajudante trabalhou: ele vai até cada canteiro ({ x, y }) ou bicho ({ animal }) — até 8 na fila
+            ajudanteTrabalhou(tipo, alvos) {
+                const a = atores.get('h:' + tipo);
+                if (!a || !alvos || !alvos.length) return;
+                a.fila = (a.fila || []).concat(alvos).slice(0, 8);
+                a.espera = 0;
+            },
             definirConstrucoes(fn) { construcoesFn = fn; },
             definirCanteiros(fn) { canteirosFn = fn; },
             // terrenos da fazenda na tela e o próximo à venda (número da zona ou null)
