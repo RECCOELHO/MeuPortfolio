@@ -196,6 +196,7 @@
     let visita = null;            // fazenda do vizinho sendo visitada (null = em casa)
     let abaVizinhos = 'ranking';
     let abaLoja = 'sementes';
+    let abaCeleiro = 'tudo';
     let ultimoAvisoDiario = Number(store.get(LS.diarioVisto)) || 0;
     let culturas = {};            // id -> cultura
     let offset = 0;               // relógio do servidor - relógio local (ms)
@@ -994,6 +995,8 @@
     /* ---------- Ração reservada no celeiro (o "vender" não leva) ---------- */
     const reservaDe = (item) => (S && S.reservas && S.reservas[item]) || 0;
     const MAX_REFEICOES = 10;
+    // o que sai das oficinas (as que têm receita de entrada)
+    const produtosFinais = () => (S.itens || []).filter((it) => it.entradas && it.produz).map((it) => it.produz);
     // quais dos seus animais comem esse item, e quanto vai numa refeição de todos eles
     function quemCome(item) {
         const tipos = (S.animais_tipos || []).filter((t) => t.racao === item && S.animais.some((a) => a.tipo === t.id));
@@ -2248,14 +2251,25 @@
         } else if (nome === 'celeiro') {
             el.painelTitulo.innerHTML = `${spr(11, 32)} Celeiro`;
             // o que tem no celeiro + a ração dos seus animais (mesmo zerada, para dar para reservar antes)
-            const itens = S.culturas.filter((k) => S.celeiro[k.id] > 0 || quemCome(k.id));
-            if (!itens.some((k) => S.celeiro[k.id] > 0)) {
+            const todos = S.culturas.filter((k) => S.celeiro[k.id] > 0 || quemCome(k.id));
+            // produtos finais = o que sai das oficinas (salada, queijo, bolo...)
+            const finais = new Set(produtosFinais());
+            const nFinais = todos.filter((k) => finais.has(k.id) && S.celeiro[k.id] > 0).length;
+            const abas = `<div class="painel-abas" role="tablist">
+                <button type="button" role="tab" data-aba-celeiro="tudo" class="${abaCeleiro === 'tudo' ? 'ativa' : ''}">Tudo</button>
+                <button type="button" role="tab" data-aba-celeiro="finais" class="${abaCeleiro === 'finais' ? 'ativa' : ''}">Produtos finais${nFinais ? ` (${nFinais})` : ''}</button>
+            </div>`;
+            const soFinais = abaCeleiro === 'finais';
+            const itens = soFinais ? todos.filter((k) => finais.has(k.id)) : todos;
+            if (!todos.some((k) => S.celeiro[k.id] > 0)) {
                 corpo.innerHTML = `<p class="vazio-msg">${spr(76, 48)}<br>Seu celeiro está vazio.<br>Colha algo e volte aqui para vender!</p>`;
+            } else if (!itens.some((k) => S.celeiro[k.id] > 0)) {
+                corpo.innerHTML = abas + `<p class="vazio-msg">${spr(76, 48)}<br>Nenhum produto final no celeiro.<br>As oficinas transformam a colheita em salada, queijo, bolo, geleia...</p>`;
             } else {
                 const bonusVenda = S.jogador.bonus_venda || 0;
                 const livreDe = (k) => Math.max(0, naCeleiro(k.id) - reservaDe(k.id));
                 const total = Math.floor(itens.reduce((a, k) => a + livreDe(k) * k.venda, 0) * (100 + bonusVenda) / 100);
-                corpo.innerHTML = '<div class="lista">' + itens.map((k) => {
+                corpo.innerHTML = abas + '<div class="lista">' + itens.map((k) => {
                     const livre = livreDe(k), come = quemCome(k.id);
                     return `<div class="item">
                         <span class="ico">${spr(A.cultura(k.id).item, 44)}</span>
@@ -2270,7 +2284,7 @@
                 }).join('') + `</div>
                     <div class="rodape-painel">
                         <span class="preco">Valor total: ${ico('moeda', 16)} ${total}${bonusVenda ? ` <small class="bonus-txt">(+${bonusVenda}% de bônus)</small>` : ''}</span>
-                        <button type="button" class="botao verde" data-vender="*"${total ? '' : ' disabled'}>Vender tudo</button>
+                        <button type="button" class="botao verde" data-vender="${soFinais ? 'finais' : '*'}"${total ? '' : ' disabled'}>${soFinais ? 'Vender produtos finais' : 'Vender tudo'}</button>
                     </div>`;
             }
         } else if (nome === 'conta') {
@@ -2745,13 +2759,26 @@
         const vend = e.target.closest('[data-vender]');
         if (vend) {
             vend.disabled = true;
-            const item = vend.dataset.vender === '*' ? null : vend.dataset.vender;
+            const qual = vend.dataset.vender;
+            // "finais" vende só o que saiu das oficinas, um produto por vez
+            const lista = qual === 'finais' ? produtosFinais().filter((id) => naCeleiro(id) > reservaDe(id))
+                : [qual === '*' ? null : qual];
             enfileirar([], async () => {
-                const r = await rpc('fazenda_vender', { p_token: token, p_item: item, p_quantidade: null });
-                const guardou = Object.keys(S.reservas || {}).length ? ' A ração dos animais ficou guardada.' : '';
-                if (r.ganho > 0) { toast(`Vendeu por ${ico('moeda', 16)} ${r.ganho}!${guardou}`); som.tocar('moeda'); tutorialEvento('vender'); }
-                aplicarEstado(r.estado);
+                let ganho = 0, estado = null;
+                for (const item of lista) {
+                    const r = await rpc('fazenda_vender', { p_token: token, p_item: item, p_quantidade: null });
+                    ganho += r.ganho; estado = r.estado;
+                }
+                const guardou = qual !== 'finais' && Object.keys(S.reservas || {}).length ? ' A ração dos animais ficou guardada.' : '';
+                if (ganho > 0) { toast(`Vendeu por ${ico('moeda', 16)} ${ganho}!${guardou}`); som.tocar('moeda'); tutorialEvento('vender'); }
+                if (estado) aplicarEstado(estado);
             }).finally(() => { vend.disabled = false; });
+            return;
+        }
+        const abaC = e.target.closest('[data-aba-celeiro]');
+        if (abaC) {
+            abaCeleiro = abaC.dataset.abaCeleiro;
+            abrirPainel('celeiro', true);
             return;
         }
         const abaL = e.target.closest('[data-aba-loja]');
