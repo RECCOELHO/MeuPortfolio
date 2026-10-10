@@ -238,7 +238,11 @@
     const CLIMA = {
         sol: { nome: 'Sol', efeito: 'a colheita rende +1 item.' },
         nublado: { nome: 'Nublado', efeito: 'nenhum problema novo aparece nos canteiros.' },
-        chuva: { nome: 'Chuva', efeito: 'rega tudo, nenhum canteiro seca.' },
+        // no inverno a chuva cai como neve (mesmo efeito)
+        chuva: {
+            get nome() { return S && S.estacao === 'inverno' ? 'Neve' : 'Chuva'; },
+            get efeito() { return S && S.estacao === 'inverno' ? 'a neve rega tudo, nenhum canteiro seca.' : 'rega tudo, nenhum canteiro seca.'; }
+        },
         calor: { nome: 'Onda de calor', efeito: 'a terra seca mais rápido, fique de olho nos canteiros.' },
         vento: { nome: 'Ventania', efeito: 'espalha pragas pelos canteiros (e a turbina gira forte).' }
     };
@@ -292,6 +296,7 @@
         el.energia.hidden = !mostra;
         if (!mostra) return;
         const c = Math.floor(cargaAgora()), cap = S.energia.capacidade;
+        cena.definirEnergia(cap ? c / cap : 0);
         el.energia.innerHTML = `${ico('raio', 16)}<b>${c}</b><small>/${cap}</small>`;
         el.energia.classList.toggle('vazia', c < 5);
         el.energia.title = `Energia: ${c} de ${cap} ⚡`;
@@ -2124,7 +2129,7 @@
                     <li>Na loja tem <b>animais</b>: dê ração (sai do celeiro) e colete ovos, leite e lã. No celeiro, <b>Reservar</b> guarda a ração deles para não ir junto no "Vender tudo".</li>
                     <li>No botão <b>Construir</b> você coloca cercas, caminhos, árvores, flores e objetos onde quiser. Toque em <b>Pronto</b> para fechar.</li>
                     <li>Toque num item já colocado para ver o que ele faz; o <b>alcance</b> dele (irrigador, alarme, estufa...) aparece marcado no chão. <b>Segure o dedo 3 segundos</b> num item ou canteiro para pegar e levar para outro lugar.</li>
-                    <li>A semana tem as 4 <b>estações</b> (42 horas cada), e cada uma tem uma semente só dela: morango, melancia, abóbora e repolho. O <b>clima</b> muda várias vezes por dia: sol dá +1 na colheita, chuva rega tudo, onda de calor seca mais, nublado não traz problema novo e ventania espalha pragas. Toque no clima, lá em cima, para ver até quando ele vai.</li>
+                    <li>A semana tem as 4 <b>estações</b> (42 horas cada), e cada uma muda a cara da fazenda (pétalas na primavera, grama quente no verão, folhas caindo no outono, neve no inverno) e tem uma semente só dela: morango, melancia, abóbora e repolho. O <b>clima</b> muda várias vezes por dia: sol dá +1 na colheita, chuva rega tudo, onda de calor seca mais, nublado não traz problema novo e ventania espalha pragas. Toque no clima, lá em cima, para ver até quando ele vai.</li>
                     <li>Do nível 16 em diante vem a <b>energia</b> ${ico('raio', 14)}: painel solar, turbina, gerador a biomassa e reator enchem as baterias, e as máquinas elétricas (estufa, triturador, fábrica automática, robô, aspersor) trabalham sozinhas gastando energia. Toque no ${ico('raio', 12)} lá em cima (ou no botão abaixo) para ver o que cada uma faz.</li>
                     ${ANUNCIO.ligado || ehLocal ? `<li>Quando aparecer o botão <b>+30 min</b>, assista a um anúncio até o fim e tudo o que está em andamento (plantas, animais, oficinas, ajudantes e energia) adianta 30 minutos.</li>` : ''}
                     <li>No Perfil (ou em Vizinhos) tem o seu <b>link de convite</b>: quem criar uma fazenda por ele ganha moedas, e você também.</li>
