@@ -17,7 +17,7 @@
     <meta name="twitter:card" content="summary">
     <link rel="icon" type="image/png" href="assets/fazenda/app/icone-192.png">
     <!-- instalar como app (PWA): manifesto, ícones e o service worker em assets/app/instalar.js -->
-    <link rel="manifest" href="assets/fazenda/app/fazenda.webmanifest?v=20261009-10">
+    <link rel="manifest" href="assets/fazenda/app/fazenda.webmanifest?v=20261010-1">
     <link rel="apple-touch-icon" href="assets/fazenda/app/icone-180.png">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -27,7 +27,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&family=Jersey+10&display=swap" rel="stylesheet">
     <!-- ?v=: o Cloudflare guarda CSS/JS por 4 h no navegador; troque a versão a cada deploy da fazenda -->
-    <link rel="stylesheet" href="assets/fazenda/fazenda.css?v=20261009-10">
+    <link rel="stylesheet" href="assets/fazenda/fazenda.css?v=20261010-1">
 </head>
 
 <body>
@@ -36,7 +36,7 @@
 
     <!-- ===== HUD ===== -->
     <header class="hud" id="hud" hidden>
-        <div class="hud-perfil caixa" id="hudPerfil" role="button" tabindex="0" aria-label="Caminho dos níveis">
+        <div class="hud-perfil caixa" id="hudPerfil" role="button" tabindex="0" aria-label="Perfil">
             <span data-spr="109" data-px="40"></span>
             <div class="perfil-info">
                 <div class="apelido" id="hudApelido">—</div>
@@ -58,7 +58,8 @@
             <button type="button" class="botao" data-painel="celeiro"><span data-spr="11" data-px="28"></span><em>Celeiro</em><b class="contador" id="hudCeleiro" hidden>0</b></button>
             <button type="button" class="botao" data-painel="missoes"><span data-ico="missao" data-px="22"></span><em>Missões</em><b class="contador" id="hudMissoes" hidden>0</b></button>
             <button type="button" class="botao" data-painel="vizinhos"><span data-spr="108" data-px="28"></span><em>Vizinhos</em><b class="contador" id="hudDiario" hidden>0</b></button>
-            <button type="button" class="botao" data-painel="conta" aria-label="Perfil e ajuda"><span data-spr="109" data-px="28"></span><em>Perfil</em></button>
+            <button type="button" class="botao" data-painel="conta" aria-label="Perfil"><span data-spr="109" data-px="28"></span><em>Perfil</em></button>
+            <button type="button" class="botao" data-painel="ajuda" aria-label="Como jogar"><span data-ico="ajuda" data-px="22"></span><em>Ajuda</em></button>
             <button type="button" class="botao" id="btnSom" aria-label="Desligar sons"></button>
             <a href="indexversao2.html" class="botao" aria-label="Voltar ao portfólio"><span data-spr="127" data-px="28"></span><em>Sair</em></a>
         </nav>
@@ -66,7 +67,7 @@
 
     <div class="faixa-visita caixa" id="faixaVisita" hidden>
         <span data-spr="108" data-px="28"></span>
-        <span>Fazenda de <b id="visitaApelido">—</b> · Nv <b id="visitaNivel">1</b></span>
+        <span class="faixa-txt"><span class="faixa-nome">Fazenda de <b id="visitaApelido">—</b></span><span class="faixa-nv">· Nv <b id="visitaNivel">1</b></span></span>
         <button type="button" class="botao pequeno creme" id="btnPerfilVizinho">Perfil</button>
         <button type="button" class="botao pequeno verde" id="btnVoltarCasa">Minha fazenda</button>
     </div>
@@ -170,9 +171,9 @@
         </div>
     </section>
 
-    <script src="assets/app/instalar.js?v=20261009-10" data-escopo="/fazenda" defer></script>
-    <script src="assets/fazenda/fazenda-arte.js?v=20261009-10" defer></script>
-    <script src="assets/fazenda/fazenda.js?v=20261009-10" defer></script>
+    <script src="assets/app/instalar.js?v=20261010-1" data-escopo="/fazenda" defer></script>
+    <script src="assets/fazenda/fazenda-arte.js?v=20261010-1" defer></script>
+    <script src="assets/fazenda/fazenda.js?v=20261010-1" defer></script>
 </body>
 
 </html>

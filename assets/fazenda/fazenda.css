@@ -1185,6 +1185,10 @@ body.construindo .status {
     scrollbar-width: none;
     touch-action: pan-x pan-y;
     -webkit-tap-highlight-color: transparent;
+    /* segurar o dedo num item não pode abrir menu nem selecionar nada */
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
 }
 
 .cena-rolagem::-webkit-scrollbar {
@@ -1889,5 +1893,33 @@ body.construindo .status {
 @media (prefers-reduced-motion: reduce) {
     .lendario-peixe {
         animation: none;
+    }
+}
+
+/* ---------- Faixa do vizinho: o nome encolhe (com "…") e os botões nunca saem da tela ---------- */
+.faixa-txt {
+    display: flex;
+    gap: 5px;
+    min-width: 0;
+}
+
+.faixa-nome {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.faixa-nv {
+    flex-shrink: 0;
+}
+
+.faixa-visita .botao {
+    flex-shrink: 0;
+}
+
+@media (max-width: 760px) {
+    /* no celular a barra de baixo já tem "Voltar" */
+    #btnVoltarCasa {
+        display: none;
     }
 }
