@@ -665,7 +665,7 @@
     const NIVEL_MAX = 30;
     const presenteNivel = (n) => (n > 10 ? 100 : 50) * n;   // do 10 em diante sobe devagar, e o presente dobra
     const limiteCanteirosNivel = (n) => Math.min(6 + (n - 1) * 2, 54);
-    const ORDEM_TIPO = { Terreno: 0, Ajudante: 1, Oficina: 1, 'Máquina': 1, Energia: 1, Animal: 2, Semente: 3, Casa: 4, Enfeite: 5 };
+    const ORDEM_TIPO = { Terreno: 0, Ajudante: 1, Oficina: 1, 'Máquina': 1, Energia: 1, Animal: 2, Cercado: 2, Semente: 3, Casa: 4, Enfeite: 5 };
     function liberaNoNivel(n) {
         if (!S) return [];
         const r = [];
@@ -675,7 +675,7 @@
         for (const k of S.culturas) if (k.tipo === 'cultura' && k.nivel_min === n) r.push({ html: itemDe(k, 24), nome: k.estacao ? `${k.nome} (${NOME_ESTACAO[k.estacao]})` : k.nome, tipo: 'Semente' });
         for (const i of S.itens || []) {
             if (i.nivel_min !== n) continue;
-            const tipo = i.categoria === 'maquina' ? 'Máquina' : i.categoria === 'energia' ? 'Energia' : i.categoria === 'oficina' ? 'Oficina' : i.categoria === 'construcao' ? 'Casa' : 'Enfeite';
+            const tipo = i.categoria === 'maquina' ? 'Máquina' : i.categoria === 'energia' ? 'Energia' : i.categoria === 'oficina' ? 'Oficina' : i.categoria === 'construcao' ? 'Casa' : i.categoria === 'bichos' ? 'Cercado' : 'Enfeite';
             r.push({ html: A.htmlItem(i.id, 24), nome: i.nome, tipo });
         }
         return r.sort((a, b) => ORDEM_TIPO[a.tipo] - ORDEM_TIPO[b.tipo]);
@@ -801,8 +801,7 @@
         return spr(a.i, px, a.p);
     };
     function areaAjudante(t) {
-        if (t.funcao !== 'animal') return 'campo';
-        return ['galinha', 'pato', 'coelho'].includes(t.alvo) ? 'galinheiro' : 'pasto';
+        return t.funcao === 'animal' ? t.alvo : 'campo';
     }
     function visualAjudantes() {
         if (!S || visita) return [];
@@ -966,7 +965,8 @@
 
     /* ---------- Galinheiro: cresce com os bichos pequenos (igual a fazenda_galinheiro_linhas) ---------- */
     function linhasGalinheiro(fonte) {
-        const n = (fonte.animais || []).filter((a) => ['galinha', 'pato', 'coelho'].includes(a.tipo)).length;
+        const n = (fonte.animais || []).filter((a) => ['galinha', 'pato', 'coelho'].includes(a.tipo)
+            && !(fonte.construcoes || []).some((c) => c.tipo === 'cercado_' + a.tipo)).length;
         const quer = n >= 9 ? 4 : n >= 6 ? 3 : 2;
         let linhas = 2;
         while (linhas < quer) {
@@ -986,7 +986,7 @@
         cena.definirGalinheiro(g.linhas);
         if (!visita && g.quer > g.linhas && !avisouGalinheiro) {
             avisouGalinheiro = true;
-            toast(`${spr(A.ANIMAL.galinha, 20)} Os bichos pequenos precisam de mais espaço: deixe livre a fileira logo abaixo do galinheiro (até 7 quadrados da esquerda) e ele cresce sozinho.`);
+            toast(`${spr(A.ANIMAL.galinha, 20)} Os bichos estão apertados! Em Construir → Bichos tem um cercado para cada um (galinhas, coelhos, patos...): coloque onde quiser e eles se mudam para lá.`);
         }
     }
 
@@ -1397,7 +1397,7 @@
 
     function desenharPaleta() {
         if (!S || !S.itens) return;
-        const abas = [['plantacao', 'Plantação'], ['oficina', 'Oficinas'], ['maquina', 'Máquinas'], ['energia', 'Energia'], ['caminho', 'Cercas e caminhos'], ['natureza', 'Natureza'], ['objeto', 'Objetos'], ['construcao', 'Casas']];
+        const abas = [['plantacao', 'Plantação'], ['bichos', 'Bichos'], ['oficina', 'Oficinas'], ['maquina', 'Máquinas'], ['energia', 'Energia'], ['caminho', 'Cercas e caminhos'], ['natureza', 'Natureza'], ['objeto', 'Objetos'], ['construcao', 'Casas']];
         el.constrAbas.innerHTML = abas.map(([id, txt]) =>
             `<button type="button" data-constr-aba="${id}" class="${constr.aba === id ? 'ativa' : ''}">${txt}</button>`).join('');
         const lista = constr.aba === 'plantacao' ? [ITEM_CANTEIRO] : S.itens.filter((i) => i.categoria === constr.aba);
@@ -2262,7 +2262,7 @@
                     <li>Em <b>Construir → Oficinas</b> tem padaria, queijaria, pipocaria e outras. Toque nela para abrir o painel: guarde ingredientes no <b>estoque</b> (até 10 receitas) e ela trabalha sozinha, uma receita atrás da outra. O painel mostra quanto valem os ingredientes, quanto vale o produto e o <b>lucro</b>. Quando aparecer o balão, toque para pegar.</li>
                     <li>A <b>amoreira</b> dá amoras sozinha: quando aparecer o balão, toque nela para colher.</li>
                     <li>Em <b>Construir → Máquinas</b>: irrigador, pulverizador e robô capinador evitam seca, pragas e ervas por perto; o alarme protege dos vizinhos; trator e colheitadeira ajudam na fazenda toda.</li>
-                    <li>Na loja tem <b>animais</b>: dê ração (sai do celeiro) e colete ovos, leite e lã. No celeiro, <b>Reservar</b> guarda a ração deles para não ir junto no "Vender tudo".</li>
+                    <li>Na loja tem <b>animais</b> (até 5 de cada; cada um sai 50% mais caro que o anterior). Em <b>Construir → Bichos</b> tem um cercado para cada espécie: coloque onde quiser e eles se mudam para lá. Dê ração (sai do celeiro) e colete ovos, leite e lã. No celeiro, <b>Reservar</b> guarda a ração deles para não ir junto no "Vender tudo".</li>
                     <li>No botão <b>Construir</b> você coloca cercas, caminhos, árvores, flores e objetos onde quiser. Toque em <b>Pronto</b> para fechar.</li>
                     <li>Toque num item já colocado para ver o que ele faz; o <b>alcance</b> dele (irrigador, alarme, estufa...) aparece marcado no chão. <b>Segure o dedo 3 segundos</b> num item ou canteiro para pegar e levar para outro lugar.</li>
                     <li>A semana tem as 4 <b>estações</b> (42 horas cada), e cada uma muda a cara da fazenda (pétalas na primavera, grama quente no verão, folhas caindo no outono, neve no inverno) e tem uma semente só dela: morango, melancia, abóbora e repolho. O <b>clima</b> muda várias vezes por dia: sol dá +1 na colheita, chuva rega tudo, onda de calor seca mais, nublado não traz problema novo e ventania espalha pragas. Toque no clima, lá em cima, para ver até quando ele vai.</li>
@@ -2413,6 +2413,10 @@
         }).join('') + '</div><p class="aviso">Uma semente planta um canteiro, que colhe vários. Cada erva, praga ou seca deixada no canteiro tira 1 da colheita. Escolha uma semente e toque nos canteiros arados (ou em “Plantar tudo”).</p>';
     }
 
+    // cada bicho da mesma espécie sai 50% mais caro que o anterior (igual a fazenda_comprar)
+    const precoAnimal = (t, tem) => Math.round(t.custo * Math.pow(1.5, tem));
+    const cercadoDe = (bicho) => Object.keys(A.CERCADOS).find((id) => A.CERCADOS[id].bicho === bicho);
+    const temCercado = (bicho) => (S.construcoes || []).some((c) => c.tipo === cercadoDe(bicho));
     function htmlLojaAnimais() {
         const tipos = S.animais_tipos || [];
         if (!tipos.length) return '<p class="vazio-msg">Os animais chegam em breve.</p>';
@@ -2430,12 +2434,13 @@
                         <span>dá ${produto ? itemDe(produto, 16) + esc(produto.nome.toLowerCase()) : ''} a cada ${fmtDuracao(t.tempo_seg)}</span>
                         <span>vende ${moeda(produto ? produto.venda : 0)}</span>
                     </span>
+                    ${travado ? '' : `<span class="det"><span>${temCercado(t.id) ? `${A.htmlItem(cercadoDe(t.id), 16)} tem cercado próprio` : `sem cercado: coloque o ${esc(((tipoItem(cercadoDe(t.id)) || {}).nome || 'cercado').toLowerCase())} em Construir → Bichos`}</span>${tem && !cheio ? `<span>o próximo sai 50% mais caro</span>` : ''}</span>`}
                 </span>
                 ${travado ? `<span class="preco">Nível ${t.nivel_min}</span>`
                     : cheio ? '<span class="preco">Completo</span>'
-                    : `<button type="button" class="botao pequeno verde" data-comprar="animal:${esc(t.id)}">${ico('moeda', 14)} ${t.custo}</button>`}
+                    : `<button type="button" class="botao pequeno verde" data-comprar="animal:${esc(t.id)}">${ico('moeda', 14)} ${precoAnimal(t, tem).toLocaleString('pt-BR')}</button>`}
             </div>`;
-        }).join('') + '</div>' + htmlRacoes() + '<p class="aviso">Toque no animal com fome para dar a ração (sai do seu celeiro) e volte para coletar o produto. Os bichos pequenos ficam no galinheiro, que cresce conforme você compra mais deles.</p>';
+        }).join('') + '</div>' + htmlRacoes() + '<p class="aviso">Toque no animal com fome para dar a ração (sai do seu celeiro) e volte para coletar o produto. Cada bicho pode ter o seu cercado (Construir → Bichos): quem tem cercado sai do galinheiro e do pasto. Até 5 de cada; cada um sai 50% mais caro que o anterior.</p>';
     }
     // "1 alface", "2 alfaces", "2 beterrabas"...
     const nomeRacao = (k, n) => { const nome = k.nome.toLowerCase(); return n === 1 || /s$/.test(nome) ? nome : nome + 's'; };

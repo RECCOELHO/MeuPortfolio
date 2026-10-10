@@ -370,6 +370,25 @@
 
     let quadroHelice = 0;   // a turbina eólica gira (troca a cada poucos quadros)
 
+    /* ---------- Cercados dos bichos (Construir → Bichos) ----------
+       Cada espécie pode ter o seu: cerca em volta (porteira aberta no meio de baixo) e o chão
+       do bicho (terra, grama com cocho, laguinho, lama). Os bichos daquela espécie moram dentro. */
+    const CERCADOS = {
+        cercado_galinha: { bicho: 'galinha', w: 6, h: 4, chao: 'terra' },
+        cercado_coelho: { bicho: 'coelho', w: 6, h: 4, chao: 'feno' },
+        cercado_pato: { bicho: 'pato', w: 6, h: 4, chao: 'lago' },
+        cercado_vaca: { bicho: 'vaca', w: 7, h: 5, chao: 'cocho' },
+        cercado_ovelha: { bicho: 'ovelha', w: 7, h: 5, chao: 'cocho' },
+        cercado_porco: { bicho: 'porco', w: 6, h: 4, chao: 'lama' }
+    };
+    function gradeCercado(id) {
+        const k = CERCADOS[id];
+        const ehCerca = (x, y) => x >= 0 && y >= 0 && x < k.w && y < k.h && (x === 0 || y === 0 || x === k.w - 1 || y === k.h - 1)
+            && !(y === k.h - 1 && x === Math.floor(k.w / 2));
+        return Array.from({ length: k.h }, (_, y) => Array.from({ length: k.w }, (_, x) =>
+            ehCerca(x, y) ? tileCerca(ehCerca(x, y - 1), ehCerca(x, y + 1), ehCerca(x - 1, y), ehCerca(x + 1, y)) : null));
+    }
+
     /* ---------- Arte dos itens construíveis ----------
        p = pacote, i = tile, topo = tile de cima (árvores altas), topo2 = mais um em cima, auto = encaixe automático */
     function arteItem(id, est) {
@@ -412,6 +431,9 @@
             case 'tecelagem': return { p: 'town', w: 2, h: 3, grade: [[52, 55], [64, 67], [85, 75]] };
             case 'casa_geleia': return { p: 'town', w: 2, h: 3, grade: [[48, 51], [60, 63], [89, 79]] };
             // máquinas (Tiny Factory)
+            case 'cercado_galinha': case 'cercado_coelho': case 'cercado_pato':
+            case 'cercado_vaca': case 'cercado_ovelha': case 'cercado_porco':
+                return { p: 'town', w: CERCADOS[id].w, h: CERCADOS[id].h, grade: gradeCercado(id), cercado: CERCADOS[id] };
             case 'irrigador': return { p: 'factory', i: 91 };
             case 'pulverizador': return { p: 'factory', i: 126 };
             case 'alarme': return { p: 'factory', i: 129 };
@@ -535,7 +557,7 @@
         const a = arteItem(id, estacao());
         if (a.grade) {
             const m = Math.round(px / a.w);
-            return `<span class="px-grade" style="width:${m * a.w}px;height:${m * a.h}px;grid-template-columns:repeat(${a.w},${m}px)">${a.grade.flat().map((i) => htmlTile(i, m, a.p)).join('')}</span>`;
+            return `<span class="px-grade" style="width:${m * a.w}px;height:${m * a.h}px;grid-template-columns:repeat(${a.w},${m}px)">${a.grade.flat().map((i) => (i == null ? `<span style="width:${m}px;height:${m}px"></span>` : htmlTile(i, m, a.p))).join('')}</span>`;
         }
         const i = a.auto === 'cerca' ? 45 : a.auto === 'terra' ? 25 : a.i;
         if (a.topo == null) return htmlTile(i, px, a.p);
@@ -617,6 +639,7 @@
     }
 
     function tile(ctx, i, x, y, flip, pacote = 'farm') {
+        if (i == null) return;   // casa vazia de uma grade (porteira e meio dos cercados)
         if (i >= 1000) { i -= 1000; pacote = 'propria'; }
         const img = pacote === 'propria' ? atlasProprio : (atlasDaEstacao && atlasDaEstacao[pacote]) || atlas[pacote];
         const sx = (i % COLS) * T, sy = Math.floor(i / COLS) * T;
@@ -735,7 +758,15 @@
         function retCeleiro() {
             return { x: wx(MAPA.celeiro.x), y: wy(MAPA.celeiro.y), w: 3 * T, h: 6 * T };
         }
+        function areaCercado(bicho) {
+            const c = (construcoesFn() || []).find((k) => CERCADOS[k.tipo] && CERCADOS[k.tipo].bicho === bicho);
+            if (!c) return null;
+            const k = CERCADOS[c.tipo];
+            return { x0: wx(c.x) + 6, y0: wy(c.y) + 3, x1: wx(c.x + k.w) - 22, y1: wy(c.y + k.h) - 21 };
+        }
         function areaDe(tipo) {
+            const cercado = areaCercado(tipo);
+            if (cercado) return cercado;
             if (tipo === 'campo') {
                 // ajudantes da lavoura andam em volta dos canteiros
                 const l = listaCanteiros();
@@ -1040,7 +1071,11 @@
         }
 
         /* ---- animais ---- */
+        let assinaturaCercados = '';
         function sincronizarAnimais() {
+            // cercado novo, movido ou guardado: os bichos (e quem cuida deles) mudam de casa
+            const cercados = (construcoesFn() || []).filter((k) => CERCADOS[k.tipo]).map((k) => k.tipo + '@' + k.x + ',' + k.y).join('|');
+            if (cercados !== assinaturaCercados) { assinaturaCercados = cercados; atores.clear(); }
             const vistos = new Set();
             for (const v of animaisFn()) {
                 vistos.add(v.id);
@@ -1426,6 +1461,7 @@
             const pe = [];   // coisas "em pé", ordenadas pela altura
             for (const c of lista) {
                 const s = spritesDe(c.tipo, c.x, c.y, m);
+                if (s.cercado) { desenharCercado(c, s, tempo); continue; }
                 if (s.chao) tile(q, s.i, wx(c.x), wy(c.y), false, s.p);   // caminho/flores: chão
                 else if (s.grade) pe.push({ ...s, x: wx(c.x), y: wy(c.y + s.h - 1), gy: wy(c.y), flip: false, bob: 0 });
                 else pe.push({ ...s, x: wx(c.x), y: wy(c.y), flip: false, bob: ANIMA[c.tipo] === 'robo' && Math.floor((tempo + c.x * 97) / 380) % 2 ? -1 : 0 });
@@ -1624,6 +1660,35 @@
                     if (Math.floor(t / 250) % 6 === 0) icone(q, 'brilho', x + 20, y + 2);
                 }
             }
+        }
+
+        function desenharCercado(c, s, tempo) {
+            const k = s.cercado, x = wx(c.x), y = wy(c.y), w = k.w * T, h = k.h * T;
+            const ret = (rx, ry, rw, rh, cor) => { q.fillStyle = cor; q.fillRect(Math.round(rx), Math.round(ry), rw, rh); };
+            const r = rng(c.x * 131 + c.y * 17 + 7);
+            if (k.chao === 'terra' || k.chao === 'lama') {   // chão batido (galinhas) ou terra com poças de lama (porcos)
+                ret(x + 5, y + 7, w - 10, h - 13, '#c98f5a');
+                ret(x + 6, y + 6, w - 12, 1, '#c98f5a');
+                for (let n = 0; n < w * h / 40; n++) ret(x + 6 + r() * (w - 14), y + 8 + r() * (h - 16), 2, 1, r() < 0.5 ? '#b07745' : '#dcac78');
+                if (k.chao === 'lama') {
+                    for (const [px, py, pw] of [[0.25, 0.45, 22], [0.62, 0.62, 18]]) {
+                        ret(x + w * px, y + h * py, pw, 7, '#6b4330');
+                        ret(x + w * px + 2, y + h * py - 1, pw - 4, 1, '#6b4330');
+                        ret(x + w * px + 3, y + h * py + 1, pw - 10, 1, '#8a5a3c');
+                    }
+                }
+            } else if (k.chao === 'feno') {   // coelhos: palha espalhada
+                for (let n = 0; n < w * h / 22; n++) ret(x + 6 + r() * (w - 14), y + 7 + r() * (h - 14), 3, 1, r() < 0.5 ? '#e9c46a' : '#d4a743');
+            } else if (k.chao === 'lago') {   // patos: laguinho no meio, com borda clara e brilho
+                const lx = x + 18, ly = y + 16, lw = w - 36, lh = h - 30;
+                ret(lx + 2, ly - 1, lw - 4, lh + 2, '#4f8fbf');
+                ret(lx, ly + 1, lw, lh - 2, '#4f8fbf');
+                ret(lx + 2, ly + 1, lw - 4, lh - 2, '#79a7e8');
+                if (Math.floor(tempo / 700) % 2) ret(lx + 5, ly + 2, 4, 1, '#ffffff');
+                else ret(lx + lw - 10, ly + lh - 3, 4, 1, '#ffffff');
+            }
+            if (k.chao === 'cocho') tile(q, 110, x + T, y + T - 6);   // cocho de água no canto
+            s.grade.forEach((linha, dy) => linha.forEach((i, dx) => { if (i != null) tile(q, i, x + dx * T, y + dy * T, false, s.p); }));
         }
 
         // o alcance de um item colocado (irrigador, alarme, estufa...): some sozinho em 5 s
@@ -2049,6 +2114,7 @@
     }
 
     window.FazendaArte = {
+        CERCADOS,
         htmlAvatar,
         AVATAR_CORES,
         AVATAR_TIPOS,
