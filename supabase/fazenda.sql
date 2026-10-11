@@ -1016,7 +1016,9 @@ begin
   if v_id is null then
     raise exception 'token_invalido';
   end if;
-  update fazenda_jogadores set visto_em = now() where id = v_id;
+  -- visto_em só serve para "jogou nos últimos 30 dias": grava no máximo 1 vez por hora
+  -- (cada chamada gravando pesava no orçamento de disco do Supabase)
+  update fazenda_jogadores set visto_em = now() where id = v_id and visto_em < now() - interval '1 hour';
   return v_id;
 end;
 $$;
