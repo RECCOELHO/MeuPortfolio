@@ -47,6 +47,7 @@
         cultura_invalida: 'Semente inválida.',
         nivel_insuficiente: 'Você ainda não tem nível para essa semente.',
         moedas_insuficientes: 'Moedas insuficientes.',
+        diamantes_insuficientes: 'Faltam diamantes. Você ganha 5 a cada nível.',
         nada_a_fazer: 'Nada pra fazer aqui.',
         nao_maduro: 'Ainda não está pronto.',
         murchou: 'Essa planta murchou… are o canteiro para limpar.',
@@ -120,7 +121,7 @@
     const el = {
         canvas: $('cena'), hud: $('hud'), barra: $('barra'), status: $('status'),
         apelido: $('hudApelido'), nivel: $('hudNivel'), xpBar: $('hudXpBar'), xp: $('hudXp'), premio: $('hudPremio'),
-        moedas: $('hudMoedas'), celeiroCont: $('hudCeleiro'),
+        moedas: $('hudMoedas'), diamantes: $('hudDiamantes'), celeiroCont: $('hudCeleiro'),
         semIcone: $('semIcone'), semNome: $('semNome'), btnSemente: $('btnSemente'),
         toasts: $('toasts'), flut: $('flutuantes'),
         entrada: $('telaEntrada'), entradaCarregando: $('entradaCarregando'), entradaAbas: $('entradaAbas'), conviteFaixa: $('conviteFaixa'),
@@ -188,7 +189,7 @@
             get mudo() { return mudo; }
         };
     })();
-    const SOM_DA_ACAO = { arar: 'arar', plantar: 'plantar', colher: 'colher', erva: 'cuidar', praga: 'cuidar', seco: 'cuidar' };
+    const SOM_DA_ACAO = { arar: 'arar', plantar: 'plantar', colher: 'colher', agora: 'colher', erva: 'cuidar', praga: 'cuidar', seco: 'cuidar' };
 
     /* ---------- Estado ---------- */
     let token = store.get(LS.token);
@@ -682,10 +683,10 @@
         }
         return r.sort((a, b) => ORDEM_TIPO[a.tipo] - ORDEM_TIPO[b.tipo]);
     }
-    // extras de todo nível: canteiros a mais e o presente de moedas
+    // extras de todo nível: canteiros a mais, o presente de moedas e 5 diamantes (10 no começo)
     function extrasDoNivel(n) {
         const mais = n > 1 ? limiteCanteirosNivel(n) - limiteCanteirosNivel(n - 1) : limiteCanteirosNivel(1);
-        return { canteiros: mais, moedas: n > 1 ? presenteNivel(n) : 0 };
+        return { canteiros: mais, moedas: n > 1 ? presenteNivel(n) : 0, diamantes: n > 1 ? 5 : 10 };
     }
     const chipsHtml = (lista) => lista.map((x) => `<span class="chip" title="${esc(x.tipo)}">${x.html}<span>${esc(x.nome)}</span></span>`).join('');
     let nivelComemorar = null;   // { de, ate } da última subida de nível
@@ -1632,6 +1633,8 @@
                 ? `Faltam ${j.xp_proximo - j.xp} XP para o nível ${j.nivel + 1}${prox ? ': ' + prox : ''}. Toque para abrir o seu perfil.`
                 : 'Nível máximo! Toque para abrir o seu perfil.';
         }
+        const diam = String(j.diamantes || 0);
+        if (el.diamantes && el.diamantes.textContent !== diam) el.diamantes.textContent = diam;
         if (el.moedas.textContent !== String(j.moedas)) {
             el.moedas.textContent = j.moedas;
             const box = el.moedas.parentElement;
@@ -1829,7 +1832,7 @@
         atualizarTerreno();
         desenharHud();
         if (constr.ativo) desenharPaleta();
-        if (['loja', 'celeiro', 'missoes', 'oficina', 'energia'].includes(painelAtual)) abrirPainel(painelAtual, true);
+        if (['loja', 'celeiro', 'missoes', 'oficina', 'energia', 'canteiro'].includes(painelAtual)) abrirPainel(painelAtual, true);
     }
 
     /* ---------- Diário: quem passou pela sua fazenda ---------- */
@@ -1925,7 +1928,8 @@
         plantar: (k) => `−${k.custo} ${ico('moeda', 16)}`,
         erva: () => `+1 ${ico('xp', 16)} +1 ${ico('moeda', 16)}`,
         praga: () => `+1 ${ico('xp', 16)} +1 ${ico('moeda', 16)}`,
-        seco: () => `+1 ${ico('xp', 16)} +1 ${ico('moeda', 16)}`
+        seco: () => `+1 ${ico('xp', 16)} +1 ${ico('moeda', 16)}`,
+        arrancar: () => 'arrancou'
     };
 
     function validarPlantio() {
@@ -1952,7 +1956,7 @@
             return;
         }
         const acao = acaoPara(canteiro(p));
-        if (!acao) return pedirParaArrancar(p);
+        if (!acao) return abrirMenuCanteiro(p);
         let k = null;
         if (acao === 'plantar') {
             k = validarPlantio();
@@ -1970,18 +1974,23 @@
         executar(acao, [p], k);
     }
 
-    // canteiro crescendo e outra semente escolhida: o 1º toque pergunta, o 2º (em até 3 s) arranca e planta a nova
-    let arrancarPendente = null;
-    function pedirParaArrancar(p) {
-        const c = canteiro(p), i = info(c), k = culturas[semente];
-        if (i.fase !== 'crescendo' || !k || k.tipo !== 'cultura' || k.id === c.cultura) return;
-        if (!arrancarPendente || arrancarPendente.p !== p || agora() > arrancarPendente.ate) {
-            arrancarPendente = { p, ate: agora() + 3000 };
-            return mostrarStatus(`${itemDe(i.k)} ${esc(i.k.nome)} crescendo. <b>Toque de novo</b> para arrancar e plantar ${itemDe(k)} ${esc(k.nome.toLowerCase())} no lugar (o que está plantado se perde).`);
-        }
-        arrancarPendente = null;
-        const nova = validarPlantio();
-        if (!nova) return;
+    // planta crescendo: o toque abre o menu dela (quanto falta, colher agora com diamante, arrancar)
+    let menuCanteiro = null;
+    function abrirMenuCanteiro(p) {
+        if (info(canteiro(p)).fase !== 'crescendo') return;
+        menuCanteiro = p;
+        abrirPainel('canteiro');
+    }
+    const htmlCanteiroAgora = (i) => `<span class="barra-prog"><i style="width:${Math.round(i.prog * 100)}%"></i></span>
+        <p class="canteiro-falta">${Math.floor(i.prog * 100)}% · pronto em <b>${fmtTempo(i.resta)}</b></p>`;
+    // a semente escolhida dá para plantar no lugar? (null = não mostra o botão de trocar)
+    function sementeParaTrocar(c) {
+        const k = culturas[semente];
+        return k && k.tipo === 'cultura' && k.id !== c.cultura && podeEscolher(k) && k.nivel_min <= S.jogador.nivel ? k : null;
+    }
+    function trocarPlanta(p) {
+        const c = canteiro(p), nova = validarPlantio();
+        if (!c || !nova) return;
         if (!daEstacao(nova) && !naEstufa(c)) return toast(`${esc(nova.nome)} está fora de época: só cresce perto da estufa elétrica.`, 'erro');
         if (S.jogador.moedas < nova.custo) return toast(`Faltam moedas para ${esc(nova.nome.toLowerCase())}.`, 'erro');
         cena.irAte(p);
@@ -1990,8 +1999,9 @@
     }
 
     function executar(acao, posicoes, k) {
+        const colhe = acao === 'colher' || acao === 'agora';   // agora = colher na hora com diamante
         return enfileirar(posicoes, async () => {
-            const antes = acao === 'colher' ? Object.fromEntries(posicoes.map((p) => [p, { ...canteiro(p) }])) : null;
+            const antes = colhe ? Object.fromEntries(posicoes.map((p) => [p, { ...canteiro(p) }])) : null;
             let perdas = '';
             const r = await rpc('fazenda_acao', {
                 p_token: token,
@@ -1999,12 +2009,13 @@
                 p_posicoes: posicoes,
                 p_cultura: acao === 'plantar' ? k.id : null
             });
-            if (acao === 'colher') {
+            if (colhe) {
                 const sol = climaAgora() === 'sol';
                 Object.entries(r.colhido).forEach(([pos, qtd], n) => {
                     const c = canteiro(Number(pos));
                     const kc = c && culturas[c.cultura];
-                    if (kc) flutuar(Number(pos), `+${qtd} ${itemDe(kc, 20)}${sol ? ` (+1 ${ico('sol', 14)})` : ''} +${kc.xp} ${ico('xp', 16)}`, n * 80);
+                    const diam = acao === 'agora' && info(c).fase === 'crescendo' ? ` −1 ${ico('diamante', 14)}` : '';
+                    if (kc) flutuar(Number(pos), `+${qtd} ${itemDe(kc, 20)}${sol ? ` (+1 ${ico('sol', 14)})` : ''} +${kc.xp} ${ico('xp', 16)}${diam}`, n * 80);
                 });
                 perdas = textoPerdas(antes, r.colhido);
             } else if (r.feitos > 0) {
@@ -2287,6 +2298,26 @@
                         <button type="button" class="botao verde" data-vender="${soFinais ? 'finais' : '*'}"${total ? '' : ' disabled'}>${soFinais ? 'Vender produtos finais' : 'Vender tudo'}</button>
                     </div>`;
             }
+        } else if (nome === 'canteiro') {
+            const c = canteiro(menuCanteiro), i = info(c);
+            const diam = S.jogador.diamantes || 0;
+            el.painelTitulo.innerHTML = i.k ? `${itemDe(i.k, 32)} ${esc(i.k.nome)}` : 'Canteiro';
+            if (i.fase === 'crescendo') {
+                const troca = sementeParaTrocar(c);
+                corpo.innerHTML = `
+                    <div data-canteiro-agora>${htmlCanteiroAgora(i)}</div>
+                    <div class="menu-canteiro">
+                        <button type="button" class="botao verde" data-canteiro="agora"${diam < 1 ? ' disabled' : ''}>${ico('diamante', 18)} Colher agora · 1 diamante</button>
+                        <p class="aviso">Fica pronta na hora, sem erva, praga ou seca, e já vai para o celeiro. Você tem <b>${diam}</b> ${ico('diamante', 14)} e ganha 5 a cada nível.</p>
+                        ${troca ? `<button type="button" class="botao creme" data-canteiro="trocar">Arrancar e plantar ${itemDe(troca, 18)} ${esc(troca.nome.toLowerCase())} (${moeda(troca.custo)})</button>` : ''}
+                        <button type="button" class="botao creme" data-canteiro="arrancar">Arrancar (a planta se perde)</button>
+                    </div>`;
+            } else if (i.fase === 'maduro') {
+                corpo.innerHTML = `<p>${esc(i.k.nome)} pronto para colher!</p>
+                    <div class="rodape-painel"><span></span><button type="button" class="botao verde" data-canteiro="colher">Colher</button></div>`;
+            } else {
+                corpo.innerHTML = '<p>Esse canteiro não tem nada crescendo agora.</p>';
+            }
         } else if (nome === 'conta') {
             el.painelTitulo.innerHTML = boasVindas ? `${spr(83, 32)} Bem-vindo(a) à fazenda!` : `${A.htmlAvatar(S.jogador.avatar, 32)} Perfil`;
             const codigo = store.get(LS.codigo);
@@ -2342,7 +2373,8 @@
             el.painelTitulo.innerHTML = `${ico('ajuda', 26)} Como jogar`;
             corpo.innerHTML = `
                 <ul class="ajuda">
-                    <li>Toque num canteiro e ele faz a ação certa: <b>arar</b>, <b>plantar</b>, <b>cuidar</b> ou <b>colher</b>. Para trocar o que está crescendo, escolha outra semente e toque duas vezes no canteiro: ele arranca e planta a nova.</li>
+                    <li>Toque num canteiro e ele faz a ação certa: <b>arar</b>, <b>plantar</b>, <b>cuidar</b> ou <b>colher</b>.</li>
+                    <li>Toque numa planta crescendo para abrir o menu dela: quanto falta, <b>colher agora</b> por 1 ${ico('diamante', 14)} diamante (fica pronta na hora e vai para o celeiro), <b>arrancar</b>, ou arrancar e plantar a semente escolhida. Você começa com 10 diamantes e ganha 5 a cada nível.</li>
                     <li>As plantas crescem em tempo real, mesmo com a página fechada.</li>
                     <li>Aparecem ${ico('erva', 14)} ervas, ${ico('praga', 14)} pragas e ${ico('seco', 12)} seca: cada problema deixado custa 1 item na colheita.</li>
                     <li>Depois de madura, a planta <b>murcha</b> se ficar tempo demais sem colher.</li>
@@ -2360,7 +2392,7 @@
                     <li>A semana tem as 4 <b>estações</b> (42 horas cada), e cada uma muda a cara da fazenda (pétalas na primavera, grama quente no verão, folhas caindo no outono, neve no inverno) e tem uma semente só dela: morango, melancia, abóbora e repolho. O <b>clima</b> muda várias vezes por dia: sol dá +1 na colheita, chuva rega tudo, onda de calor seca mais, nublado não traz problema novo e ventania espalha pragas. Toque no clima, lá em cima, para ver até quando ele vai.</li>
                     <li>No nível 16 chegam os <b>canos de vidro</b> (Construir → Energia, 5 cada): ligue uma oficina com canos a um canteiro, a um baú ou ao celeiro e ela busca os ingredientes sozinha (2 ⚡ por receita); dá para ver os itens passando dentro do cano. O <b>baú</b> encostado num bloco de canteiros colhe sozinho o que amadurece, e encostado num cercado coleta e alimenta os bichos (1 ⚡ cada): com baú, canos e oficinas a produção fica toda automática.</li>
                     <li>Do nível 16 em diante vem a <b>energia</b> ${ico('raio', 14)}: painel solar, turbina, gerador a biomassa e reator enchem as baterias, e as máquinas elétricas (estufa, triturador, fábrica automática, robô, aspersor) trabalham sozinhas gastando energia. Toque no ${ico('raio', 12)} lá em cima (ou no botão abaixo) para ver o que cada uma faz.</li>
-                    ${ANUNCIO.ligado || ehLocal ? `<li>Quando aparecer o botão <b>+30 min</b>, assista a um anúncio até o fim e tudo o que está em andamento (plantas, animais, oficinas, ajudantes e energia) adianta 30 minutos.</li>` : ''}
+                    ${ANUNCIO.ligado || ehLocal ? `<li>Quando aparecer o botão <b>+30 min</b>, assista a um anúncio até o fim e tudo o que está em andamento (plantas, animais, oficinas, ajudantes e energia) adianta 30 minutos. Cada anúncio também dá 1 ${ico('diamante', 14)} diamante.</li>` : ''}
                     <li>No Perfil (ou em Vizinhos) tem o seu <b>link de convite</b>: quem criar uma fazenda por ele ganha moedas, e você também.</li>
                     <li>No <b>Vale do sudeste</b> (terreno 3) tem um lago: o pescador <b>Bira</b> tira um peixe a cada 30 minutos, até 16 no cesto. Toque no lago para pegar. Quanto mais raro, mais vale, e o lendário <b>Peixe do Velho Chico</b> sai em 1% das vezes (2% com a estátua do nível 30).</li>
                     <li>A cada 3 horas chega uma <b>visita na porteira</b>, do lado da casa (do nível 3 em diante): o feirante, a doceira e o caminhoneiro compram algo da fazenda pagando bem mais que o celeiro, e a mascate vende adubo. Toque nela para conversar.</li>
@@ -2376,17 +2408,18 @@
         } else if (nome === 'nivel' && nivelComemorar) {
             const { de, ate } = nivelComemorar;
             el.painelTitulo.innerHTML = `${ico('xp', 26)} Nível ${ate}!`;
-            let novos = [], canteiros = 0, moedas = 0;
+            let novos = [], canteiros = 0, moedas = 0, diamantes = 0;
             for (let n = de + 1; n <= ate; n++) {
                 novos = novos.concat(liberaNoNivel(n));
                 const x = extrasDoNivel(n);
-                canteiros += x.canteiros; moedas += x.moedas;
+                canteiros += x.canteiros; moedas += x.moedas; diamantes += x.diamantes;
             }
             const proximo = ate < NIVEL_MAX ? liberaNoNivel(ate + 1) : [];
             corpo.innerHTML = `
                 <div class="nivel-festa"><span class="nivel-numero">${ate}</span><p>Sua fazenda subiu de nível!</p></div>
                 <div class="nivel-ganhos">
                     ${moedas ? `<span class="ganho">${ico('moeda', 18)} Presente: <b>+${moedas}</b> moedas</span>` : ''}
+                    ${diamantes ? `<span class="ganho">${ico('diamante', 18)} <b>+${diamantes}</b> diamantes (toque numa planta crescendo para colher na hora)</span>` : ''}
                     ${canteiros ? `<span class="ganho">${A.htmlItem('canteiro', 20)} <b>+${canteiros}</b> canteiros para colocar (Construir → Plantação)</span>` : ''}
                 </div>
                 ${novos.length ? `<h3 class="secao-titulo">Liberado agora</h3><div class="chips">${chipsHtml(novos)}</div>` : ''}
@@ -2411,7 +2444,7 @@
             const falta = j.xp_proximo - j.xp;
             corpo.innerHTML = `
                 <p>Você está no nível <b>${j.nivel}</b>${j.nivel < NIVEL_MAX ? `: faltam <b>${falta}</b> ${ico('xp', 14)} para o próximo.` : '. Fazenda completa!'}</p>
-                <p class="aviso">Colher, cuidar dos canteiros, os animais e as missões dão XP. Cada nível traz um presente de moedas. Do nível 10 em diante cada nível pede mais XP que o anterior, e o presente dobra.</p>
+                <p class="aviso">Colher, cuidar dos canteiros, os animais e as missões dão XP. Cada nível traz um presente de moedas e 5 diamantes. Do nível 10 em diante cada nível pede mais XP que o anterior, e o presente dobra.</p>
                 <ol class="caminho">${Array.from({ length: NIVEL_MAX }, (_, i) => i + 1).map((n) => {
                     const x = extrasDoNivel(n);
                     const lista = liberaNoNivel(n);
@@ -2421,6 +2454,7 @@
                         <div class="chips">${chipsHtml(lista)}
                             ${x.canteiros ? `<span class="chip extra">${A.htmlItem('canteiro', 18)}<span>+${x.canteiros} canteiros</span></span>` : ''}
                             ${x.moedas ? `<span class="chip extra">${ico('moeda', 14)}<span>+${x.moedas}</span></span>` : ''}
+                            ${x.diamantes ? `<span class="chip extra">${ico('diamante', 14)}<span>+${x.diamantes}</span></span>` : ''}
                         </div>
                     </li>`;
                 }).join('')}</ol>`;
@@ -2773,6 +2807,16 @@
                 if (ganho > 0) { toast(`Vendeu por ${ico('moeda', 16)} ${ganho}!${guardou}`); som.tocar('moeda'); tutorialEvento('vender'); }
                 if (estado) aplicarEstado(estado);
             }).finally(() => { vend.disabled = false; });
+            return;
+        }
+        const menuC = e.target.closest('[data-canteiro]');
+        if (menuC) {
+            const p = menuCanteiro, o = menuC.dataset.canteiro;
+            fecharPainel();
+            if (o === 'trocar') return trocarPlanta(p);
+            cena.irAte(p);
+            if (o === 'arrancar') som.tocar('cuidar');
+            executar(o, [p]);
             return;
         }
         const abaC = e.target.closest('[data-aba-celeiro]');
@@ -3154,6 +3198,11 @@
         if (painelAtual === 'oficina') {
             const c = oficinaDoPainel(), o = c && infoOficina(c), alvo = el.painelCorpo.querySelector('[data-oficina-agora]');
             if (o && alvo) alvo.innerHTML = htmlOficinaAgora(o);
+        }
+        if (painelAtual === 'canteiro') {   // menu da planta: a barra anda e, quando amadurece, vira "Colher"
+            const i = info(canteiro(menuCanteiro)), alvo = el.painelCorpo.querySelector('[data-canteiro-agora]');
+            if (alvo && i.fase === 'crescendo') alvo.innerHTML = htmlCanteiroAgora(i);
+            else if (alvo) abrirPainel('canteiro', true);
         }
         if (document.visibilityState === 'visible' && Date.now() - ultimoPoll > POLL_MS) {
             ultimoPoll = Date.now();
