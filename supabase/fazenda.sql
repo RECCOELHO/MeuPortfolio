@@ -265,6 +265,10 @@ create table if not exists public.fazenda_ajudantes_tipos (
   descricao  text not null,
   ordem      int  not null default 0
 );
+-- Fase 43: a operária (oficinas) e o eletricista (energia mais barata)
+alter table public.fazenda_ajudantes_tipos drop constraint if exists fazenda_ajudantes_tipos_funcao_check;
+alter table public.fazenda_ajudantes_tipos add constraint fazenda_ajudantes_tipos_funcao_check
+  check (funcao in ('arar', 'plantar', 'cuidar', 'colher', 'animal', 'oficina', 'energia'));
 create table if not exists public.fazenda_ajudantes (
   jogador_id     uuid not null references public.fazenda_jogadores(id) on delete cascade,
   tipo           text not null references public.fazenda_ajudantes_tipos(id),
@@ -284,6 +288,11 @@ alter table public.fazenda_jogadores add column if not exists carregado_antes ti
 -- Fase 31: diamantes, a moeda especial (colher na hora). Todo mundo começa com 10, inclusive
 -- quem já jogava (o default preenche as linhas que existem), e ganha 5 a cada nível
 alter table public.fazenda_jogadores add column if not exists diamantes int not null default 10 check (diamantes >= 0);
+-- Fase 43: o que os diamantes compram e dura um tempo: XP em dobro até xp2_ate; o café dos
+-- ajudantes (trabalham em dobro) de cafe_de até cafe_ate
+alter table public.fazenda_jogadores add column if not exists xp2_ate timestamptz;
+alter table public.fazenda_jogadores add column if not exists cafe_de timestamptz;
+alter table public.fazenda_jogadores add column if not exists cafe_ate timestamptz;
 -- última semente que o jogador plantou (a semeadora usa a mesma)
 alter table public.fazenda_jogadores add column if not exists semente text references public.fazenda_culturas(id);
 
@@ -463,11 +472,13 @@ insert into public.fazenda_ajudantes_tipos (id, nome, papel, funcao, alvo, custo
   ('jardineiro', 'Tião',      'Jardineiro',         'cuidar',  null,      2500,  7, 'Tira erva daninha, praga e seca dos canteiros.', 3),
   ('coelheira',  'Nina',      'Cuidadora de coelhos','animal', 'coelho',  2000,  8, 'Dá a ração e coleta o pelo dos coelhos.', 4),
   ('vaqueiro',   'Bento',     'Vaqueiro',           'animal',  'vaca',    3000,  9, 'Dá a ração e tira o leite das vacas.', 5),
-  ('colhedor',   'Juca',      'Colhedor',           'colher',  null,      4000, 10, 'Colhe tudo o que estiver maduro, antes de murchar.', 6),
+  ('colhedor',   'Juca',      'Colhedor',           'colher',  null,      4000, 10, 'Colhe tudo o que estiver maduro, antes de murchar. Com o tempo que sobra, colhe as frutas do pomar (menos as das árvores encostadas num baú, que são do baú).', 6),
   ('semeadora',  'Dona Rosa', 'Semeadora',          'plantar', null,      4000, 11, 'Quando você está fora, planta os canteiros arados em rodízio com todas as sementes da estação que o seu nível libera, a menos plantada primeiro. Paga com suas moedas e pula as que o dinheiro não dá. Com você na fazenda, ela descansa: quem escolhe é você.', 7),
   ('patinheiro', 'Pedrinho',  'Cuidador de patos',  'animal',  'pato',    3000, 12, 'Dá a ração e junta as penas dos patos.', 8),
   ('pastora',    'Lia',       'Pastora',            'animal',  'ovelha',  4000, 13, 'Dá a ração e tosquia a lã das ovelhas.', 9),
-  ('porqueiro',  'Tonho',     'Porqueiro',          'animal',  'porco',   5000, 15, 'Dá a ração e acha as trufas dos porcos.', 10)
+  ('porqueiro',  'Tonho',     'Porqueiro',          'animal',  'porco',   5000, 15, 'Dá a ração e acha as trufas dos porcos.', 10),
+  ('operaria',   'Dona Lurdes','Operária',          'oficina', null,      6000, 12, 'Cuida das oficinas sem gastar energia: leva para o celeiro o que ficou pronto (o XP do produto vem quando você vende) e enche o estoque delas com o que tem no celeiro, uma receita de cada vez em rodízio (a ração reservada fica). Trabalha depois da rede de canos.', 11),
+  ('eletricista','Faísca',    'Eletricista',        'energia', null,      8000, 17, 'Cuida das máquinas: tudo o que gasta energia gasta menos. Nível 1: −20%; nível 2: −35%; nível 3: metade.', 12)
 on conflict (id) do update set
   nome = excluded.nome, papel = excluded.papel, funcao = excluded.funcao, alvo = excluded.alvo,
   custo = excluded.custo, nivel_min = excluded.nivel_min, descricao = excluded.descricao, ordem = excluded.ordem;
@@ -596,7 +607,7 @@ on conflict (id) do update set
 -- baterias e as máquinas elétricas gastam. Os números ficam nas funções fazenda_capacidade,
 -- fazenda_energia_taxa e nos gastos de cada máquina; as descrições aparecem no jogo.
 insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem, efeito, raio, limite, descricao) values
-  ('cano',          'Cano de vidro',      'energia',     5, 16, 79, 'cano',       0, null, 'Canos encostados formam uma rede que liga baús, oficinas e o celeiro. A rede enche sozinha o estoque das oficinas com o que tem nos baús e no celeiro (1 ⚡ por receita); o produto vai para outra oficina que usa ele, para o celeiro ou para um baú; o que sobra no baú vai para o celeiro (1 ⚡ por viagem). Dá para ver cada item passando.'),
+  ('cano',          'Cano de vidro',      'energia',    20, 16, 79, 'cano',       0, null, 'Canos encostados formam uma rede que liga baús, oficinas e o celeiro. A rede enche sozinha o estoque das oficinas com o que tem nos baús e no celeiro (2 ⚡ por receita); o produto vai para outra oficina que usa ele, para o celeiro ou para um baú; o que sobra no baú vai para o celeiro (2 ⚡ por viagem). Dá para ver cada item passando.'),
   ('painel_solar',  'Painel solar',       'energia',  2500, 16, 80, 'solar',      0, 6, 'Gera até 12 ⚡/h de dia (sol forte: 14; nublado: 5; chuva: 3). À noite, nada: no jogo, o dia e a noite se revezam a cada 2 horas.'),
   ('bateria',       'Banco de baterias',  'energia',  2000, 16, 81, 'bateria',    0, 4, 'Guarda mais 100 ⚡ (sem bateria, a caixa de luz guarda só 50).'),
   ('turbina',       'Turbina eólica',     'energia',  4000, 17, 82, 'eolica',     0, 4, 'Gera 8 ⚡/h de dia e de noite; 30 ⚡/h na ventania e 14 na chuva.'),
@@ -605,8 +616,8 @@ insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem, 
   ('triturador',    'Triturador',         'energia',  8000, 20, 85, 'triturar',   0, 1, 'As oficinas rendem 2 produtos por receita. Gasta 10 ⚡ por receita.'),
   ('supercap',      'Supercapacitor',     'energia',  9000, 21, 86, 'bateria',    0, 2, 'Guarda mais 500 ⚡.'),
   ('fabrica_auto',  'Fábrica automática', 'energia', 12000, 22, 87, 'automatico', 0, 1, 'Um pedaço do celeiro em qualquer lugar: a rede de canos encostada nela leva e traz do celeiro como se o cano chegasse até ele (sem mexer na ração reservada).'),
-  ('robo_colheita', 'Robô colheitador',   'energia', 14000, 23, 88, 'robo',       3, 2, 'Colhe, ara e replanta sozinho os canteiros em volta (3). Gasta 3 ⚡ por colheita e 1 por plantio.'),
-  ('aspersor',      'Aspersor elétrico',  'energia', 10000, 24, 89, 'aspersor',   3, 4, 'Nenhuma erva, praga ou seca nos canteiros em volta (3). Gasta 1 ⚡ por problema evitado.'),
+  ('robo_colheita', 'Robô colheitador',   'energia', 14000, 23, 88, 'robo',       3, 2, 'Colhe, ara e replanta sozinho os canteiros em volta (3). Gasta 4 ⚡ por colheita e 2 por plantio.'),
+  ('aspersor',      'Aspersor elétrico',  'energia', 10000, 24, 89, 'aspersor',   3, 4, 'Nenhuma erva, praga ou seca nos canteiros em volta (3). Gasta 2 ⚡ por problema evitado.'),
   ('reator',        'Reator nuclear',     'energia', 30000, 25, 90, 'reator',     0, 1, 'Gera 120 ⚡/h sem parar, de dia e de noite (80 na onda de calor, para não esquentar).')
 on conflict (id) do update set
   nome = excluded.nome, categoria = excluded.categoria, custo = excluded.custo,
@@ -650,7 +661,7 @@ update public.fazenda_itens i
     ('arvore',        'seco',         1,  4, 'Sombra: sem seca nos canteiros encostados.', null, null, null),
     ('arvore_outono', 'crescer',      1,  4, 'Folhas viram adubo: plantas encostadas crescem 10% mais rápido.', null, null, null),
     ('pinheiro',      'praga',        2,  4, 'Passarinhos: sem pragas em volta (2 quadrados).', null, null, null),
-    ('amoreira',      null,           0,  3, 'Dá 4 amoras a cada 5 horas: toque nela para colher. Pomar: 2 árvores frutíferas por terreno.', 'morango', 18000, 4),
+    ('amoreira',      null,           0,  3, 'Dá 4 amoras a cada 5 horas: toque nela para colher. Até 2 amoreiras por terreno (cada fruta tem o seu limite).', 'morango', 18000, 4),
     ('pedras',        'erva',         1,  1, 'Cobertura de pedras: sem erva daninha nos canteiros encostados.', null, null, null),
     ('tora',          'crescer',      1,  2, 'Minhocas: plantas encostadas crescem 10% mais rápido.', null, null, null),
     ('placa',         'cerca',        2,  1, '"Proibido pegar": vizinhos pegam no máximo 1 item em volta (2 quadrados).', null, null, null),
@@ -660,7 +671,7 @@ update public.fazenda_itens i
     ('alvo',          'sorte',        2,  2, 'Sorte: 15% de chance de colheita em dobro em volta (2 quadrados).', null, null, null),
     ('caixote',       'venda',        0,  2, '+10% no preço de venda (fazenda toda, não acumula).', null, null, null),
     ('colmeia',       'adubo',        2,  3, 'Abelhas: +1 item na colheita em volta (2 quadrados).', null, null, null),
-    ('bau',           'missao',       0,  3, '+25% de moedas nas missões. Com energia, guarda em si (até 200 itens) o que recolhe: encostado num bloco de canteiros, colhe o que amadurece; num cercado, coleta e dá ração aos bichos; numa árvore do pomar, colhe as frutas; no lago, pega o cesto do Bira (1 ⚡ cada). Com canos, manda para as oficinas e o celeiro.', null, null, null),
+    ('bau',           'missao',       0,  3, '+25% de moedas nas missões. Com energia, guarda em si (até 200 itens) o que recolhe: encostado num bloco de canteiros, colhe o que amadurece; num cercado, coleta e dá ração aos bichos; numa árvore do pomar, colhe as frutas; no lago, pega o cesto do Bira (2 ⚡ cada). Com canos, manda para as oficinas e o celeiro.', null, null, null),
     ('lampiao',       null,           0,  3, 'Acende sozinho de noite e ilumina em volta. +3 de beleza (beleza dá bônus nas vendas).', null, null, null),
     ('casa_vermelha', null,           0, 20, 'Casinha: +20 de beleza (beleza dá bônus nas vendas).', null, null, null),
     ('casa_azul',     null,           0, 30, 'Casinha: +30 de beleza (beleza dá bônus nas vendas).', null, null, null)
@@ -669,7 +680,8 @@ update public.fazenda_itens i
 
 -- Fase 26: o pomar — fruta só dá no pé. Árvores frutíferas: 4 por terreno no total (fazenda inicial
 -- + cada terreno comprado), de qualquer tipo, contando a amoreira. Algumas ficam depois do nível 25.
-update public.fazenda_itens set limite = null, por_terreno = 2, grupo = 'pomar' where id = 'amoreira';
+-- fase 43: o limite do pomar é de cada fruta (2 pés por terreno), não de todas juntas: grupo null
+update public.fazenda_itens set limite = null, por_terreno = 2, grupo = null where id = 'amoreira';
 insert into public.fazenda_culturas (id, nome, emoji, tempo_seg, custo, venda, rendimento, xp, nivel_min, ordem, tipo) values
   ('laranja', 'Laranja', '🍊', 1, 0, 15, 1, 3, 5, 50, 'produto'),
   ('limao', 'Limão', '🍊', 1, 0, 14, 1, 3, 8, 51, 'produto'),
@@ -681,13 +693,13 @@ insert into public.fazenda_culturas (id, nome, emoji, tempo_seg, custo, venda, r
 on conflict (id) do update set
   nome = excluded.nome, venda = excluded.venda, xp = excluded.xp, nivel_min = excluded.nivel_min, ordem = excluded.ordem, tipo = excluded.tipo;
 insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem, beleza, produz, produz_seg, produz_qtd, por_terreno, grupo, descricao) values
-  ('laranjeira', 'Laranjeira', 'pomar', 300, 5, 110, 3, 'laranja', 14400, 4, 2, 'pomar', 'Dá 4 laranjas a cada 4 horas: toque nela para colher. Pomar: 2 árvores frutíferas por terreno.'),
-  ('limoeiro', 'Limoeiro', 'pomar', 450, 8, 111, 3, 'limao', 21600, 6, 2, 'pomar', 'Dá 6 limões a cada 6 horas: toque nela para colher. Pomar: 2 árvores frutíferas por terreno.'),
-  ('goiabeira', 'Goiabeira', 'pomar', 700, 12, 112, 3, 'goiaba', 18000, 4, 2, 'pomar', 'Dá 4 goiabas a cada 5 horas: toque nela para colher. Pomar: 2 árvores frutíferas por terreno.'),
-  ('mangueira', 'Mangueira', 'pomar', 3000, 26, 113, 3, 'manga', 18000, 5, 2, 'pomar', 'Dá 5 mangas a cada 5 horas: toque nela para colher. Pomar: 2 árvores frutíferas por terreno.'),
-  ('abacateiro', 'Abacateiro', 'pomar', 4000, 27, 114, 3, 'abacate', 21600, 4, 2, 'pomar', 'Dá 4 abacates a cada 6 horas: toque nela para colher. Pomar: 2 árvores frutíferas por terreno.'),
-  ('cacaueiro', 'Cacaueiro', 'pomar', 5000, 28, 115, 3, 'cacau', 21600, 6, 2, 'pomar', 'Dá 6 cacaus a cada 6 horas: toque nela para colher. Pomar: 2 árvores frutíferas por terreno.'),
-  ('jabuticabeira', 'Jabuticabeira', 'pomar', 6000, 29, 116, 3, 'jabuticaba', 28800, 12, 2, 'pomar', 'Dá 12 jabuticabas a cada 8 horas: toque nela para colher. Pomar: 2 árvores frutíferas por terreno.')
+  ('laranjeira', 'Laranjeira', 'pomar', 300, 5, 110, 3, 'laranja', 14400, 4, 2, null, 'Dá 4 laranjas a cada 4 horas: toque nela para colher. Até 2 laranjeiras por terreno (cada fruta tem o seu limite).'),
+  ('limoeiro', 'Limoeiro', 'pomar', 450, 8, 111, 3, 'limao', 21600, 6, 2, null, 'Dá 6 limões a cada 6 horas: toque nela para colher. Até 2 limoeiros por terreno (cada fruta tem o seu limite).'),
+  ('goiabeira', 'Goiabeira', 'pomar', 700, 12, 112, 3, 'goiaba', 18000, 4, 2, null, 'Dá 4 goiabas a cada 5 horas: toque nela para colher. Até 2 goiabeiras por terreno (cada fruta tem o seu limite).'),
+  ('mangueira', 'Mangueira', 'pomar', 3000, 26, 113, 3, 'manga', 18000, 5, 2, null, 'Dá 5 mangas a cada 5 horas: toque nela para colher. Até 2 mangueiras por terreno (cada fruta tem o seu limite).'),
+  ('abacateiro', 'Abacateiro', 'pomar', 4000, 27, 114, 3, 'abacate', 21600, 4, 2, null, 'Dá 4 abacates a cada 6 horas: toque nela para colher. Até 2 abacateiros por terreno (cada fruta tem o seu limite).'),
+  ('cacaueiro', 'Cacaueiro', 'pomar', 5000, 28, 115, 3, 'cacau', 21600, 6, 2, null, 'Dá 6 cacaus a cada 6 horas: toque nela para colher. Até 2 cacaueiros por terreno (cada fruta tem o seu limite).'),
+  ('jabuticabeira', 'Jabuticabeira', 'pomar', 6000, 29, 116, 3, 'jabuticaba', 28800, 12, 2, null, 'Dá 12 jabuticabas a cada 8 horas: toque nela para colher. Até 2 jabuticabeiras por terreno (cada fruta tem o seu limite).')
 on conflict (id) do update set
   nome = excluded.nome, categoria = excluded.categoria, custo = excluded.custo, nivel_min = excluded.nivel_min, ordem = excluded.ordem,
   beleza = excluded.beleza, produz = excluded.produz, produz_seg = excluded.produz_seg, produz_qtd = excluded.produz_qtd,
@@ -1191,7 +1203,7 @@ begin
       if v_ce = 'chuva' and v_tipo = 2 then v_tipo := -1; end if;          -- com chuva não seca
       if v_ce = 'nublado' then v_tipo := -1; end if;                       -- nublado: nada de novo
       -- máquina por perto evita o problema (robô capinador, pulverizador, irrigador);
-      -- o aspersor elétrico evita qualquer um, gastando 1 ⚡
+      -- o aspersor elétrico evita qualquer um, gastando 2 ⚡
       if v_tipo = 0 and not v_erva and not fazenda_protegido(p_jogador, 'erva', r.x, r.y) then
         if not fazenda_aspersor(p_jogador, r.x, r.y) then v_erva := true; end if;
       elsif v_tipo = 1 and not v_praga and not fazenda_protegido(p_jogador, 'praga', r.x, r.y) then
@@ -1259,8 +1271,13 @@ begin
       'avatar', j.avatar,
       'avatares', j.avatares,
       'avatar_precos', fazenda_avatar_precos(),
+      'avatar_diamantes', fazenda_avatar_diamantes(),
       'moedas', j.moedas,
       'diamantes', j.diamantes,
+      -- fase 43: o que os diamantes ligaram (até quando) e quantos pacotes de XP saíram hoje
+      'xp2_ate', case when j.xp2_ate > now() then j.xp2_ate end,
+      'cafe_ate', case when j.cafe_ate > now() then j.cafe_ate end,
+      'xp_compras_hoje', fazenda_diamantes_hoje(p_jogador, 'xp'),
       -- conta Google ligada (só aparece para o dono; null = não ligada)
       'google', case when j.google_sub is not null then coalesce(j.google_email, 'sua conta Google') end,
       'xp', j.xp,
@@ -1275,6 +1292,7 @@ begin
     ),
     'zonas_venda', fazenda_zonas(),
     'pacotes_diamantes', fazenda_pacotes_diamantes(),
+    'loja_diamantes', fazenda_loja_diamantes(),
     -- fase 39: o que está em cada baú, o que já chegou pelo cano em cada oficina e as viagens
     -- dos últimos 2 minutos (o jogo desenha o item andando só enquanto ela acontece)
     'baus', coalesce((select jsonb_object_agg(b.x || ',' || b.y, b.itens) from (
@@ -1746,22 +1764,32 @@ end;
 $$;
 
 -- Gasta energia se tiver o bastante (senão não gasta nada e devolve false)
+-- Fase 43: quanto custa de verdade (o eletricista contratado baixa 20% / 35% / 50%)
+create or replace function public.fazenda_energia_preco(p_jogador uuid, p_qtd real)
+returns real language sql stable security definer set search_path = public as $$
+  select (p_qtd * coalesce((select case h.nivel when 1 then 0.8 when 2 then 0.65 else 0.5 end
+                              from fazenda_ajudantes h join fazenda_ajudantes_tipos t on t.id = h.tipo
+                             where h.jogador_id = p_jogador and t.funcao = 'energia' limit 1), 1))::real;
+$$;
+
 create or replace function public.fazenda_gastar_energia(p_jogador uuid, p_qtd real)
 returns boolean
 language plpgsql security definer
 set search_path = public, extensions
 as $$
+declare
+  v_qtd real := fazenda_energia_preco(p_jogador, p_qtd);
 begin
-  if fazenda_energia_atualizar(p_jogador) < p_qtd then
+  if fazenda_energia_atualizar(p_jogador) < v_qtd then
     return false;
   end if;
-  update fazenda_jogadores set energia = energia - p_qtd where id = p_jogador;
-  update fazenda_estatisticas set energia = energia + ceil(p_qtd)::int where jogador_id = p_jogador;
+  update fazenda_jogadores set energia = energia - v_qtd where id = p_jogador;
+  update fazenda_estatisticas set energia = energia + ceil(v_qtd)::int where jogador_id = p_jogador;
   return true;
 end;
 $$;
 
--- Tem aspersor elétrico com energia cobrindo (x, y)? Gasta 1 ⚡ por problema evitado.
+-- Tem aspersor elétrico com energia cobrindo (x, y)? Gasta 2 ⚡ por problema evitado (fase 43; era 1).
 create or replace function public.fazenda_aspersor(p_jogador uuid, p_x int, p_y int)
 returns boolean
 language plpgsql security definer
@@ -1771,7 +1799,7 @@ begin
   if not fazenda_protegido(p_jogador, 'aspersor', p_x, p_y) then
     return false;
   end if;
-  return fazenda_gastar_energia(p_jogador, 1);
+  return fazenda_gastar_energia(p_jogador, 2);
 end;
 $$;
 
@@ -1922,7 +1950,7 @@ $$;
 
 -- A oficina busca na rede os ingredientes de 1 receita: primeiro o que já chegou nela pelo cano,
 -- depois os baús da rede e por último o celeiro (se a rede chega nele; a ração reservada fica).
--- Só tira se der a receita inteira. 1 ⚡ por receita; cada saída vira uma viagem.
+-- Só tira se der a receita inteira. 2 ⚡ por receita; cada saída vira uma viagem.
 create or replace function public.fazenda_rede_puxar(p_jogador uuid, p_x int, p_y int, p_entradas jsonb, p_membros jsonb, p_em timestamptz)
 returns boolean
 language plpgsql security definer
@@ -1950,9 +1978,8 @@ begin
       return false;
     end if;
   end loop;
-  -- 1 ⚡ por receita (fase 42; era 2): a rede agora enche o estoque inteiro
-  if fazenda_energia_atualizar(p_jogador) < 1 then return false; end if;
-  perform fazenda_gastar_energia(p_jogador, 1);
+  -- 2 ⚡ por receita (fase 43; na 42 foi 1): a rede enche o estoque inteiro, então pesa na energia
+  if not fazenda_gastar_energia(p_jogador, 2) then return false; end if;
   for e in select key as item, value::int as qtd from jsonb_each_text(p_entradas) loop
     v_falta := e.qtd;
     select quantidade into v_tira from fazenda_oficina_itens where jogador_id = p_jogador and x = p_x and y = p_y and item = e.item for update;
@@ -2042,7 +2069,7 @@ end;
 $$;
 
 -- O que sobra nos baús ligados ao celeiro (o que nenhuma oficina da rede usa) vai para o celeiro.
--- 1 ⚡ por viagem (um tipo de item de cada vez); sem energia, espera.
+-- 2 ⚡ por viagem (um tipo de item de cada vez); sem energia, espera.
 create or replace function public.fazenda_rede_descarregar(p_jogador uuid, p_membros jsonb)
 returns void
 language plpgsql security definer
@@ -2065,7 +2092,7 @@ begin
              join fazenda_itens i on i.id = c.tipo
             where m->>'papel' = 'oficina' and (m->>'rede')::int = any(v_redes) and i.entradas ? bi.item)
     loop
-      exit when not fazenda_gastar_energia(p_jogador, 1);
+      exit when not fazenda_gastar_energia(p_jogador, 2);
       update fazenda_bau_itens set quantidade = 0 where jogador_id = p_jogador and x = b.x and y = b.y and item = it.item;
       insert into fazenda_celeiro (jogador_id, item, quantidade) values (p_jogador, it.item, it.quantidade)
       on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
@@ -2120,7 +2147,7 @@ begin
         v_pr := v_pr + v_qtd - case when v_rede then fazenda_rede_entregar(p_jogador, o.x, o.y, o.produz, v_qtd, v_membros, v_fim) else 0 end;
         v_t := null;
       end if;
-      -- estoque vazio e na rede: busca uma receita nos baús/celeiro da rede (2 ⚡)
+      -- estoque vazio e na rede: busca uma receita nos baús/celeiro da rede (2 ⚡, fase 43)
       if v_est <= 0 and v_rede
          and fazenda_rede_puxar(p_jogador, o.x, o.y, o.entradas, v_membros, greatest(coalesce(v_fim, now()), now() - interval '12 hours')) then
         v_est := 1;
@@ -2161,7 +2188,7 @@ $$;
 
 -- Fase 29: baú coletor (precisa de energia). Encostado num bloco de canteiros (os canteiros
 -- encostados uns nos outros), colhe sozinho o que amadurece; encostado num cercado, coleta o
--- produto e alimenta os bichos daquela espécie. 1 ⚡ por colheita, coleta ou ração.
+-- produto e alimenta os bichos daquela espécie. 2 ⚡ por colheita, coleta ou ração (fase 43; era 1).
 create or replace function public.fazenda_baus(p_jogador uuid)
 returns void
 language plpgsql security definer
@@ -2194,7 +2221,7 @@ begin
          and now() >= c.plantado_em + make_interval(secs => u.tempo_seg)
          and now() < c.plantado_em + make_interval(secs => u.tempo_seg + greatest(u.tempo_seg * 2, 3600))
     loop
-      exit when v_livre <= 0 or not fazenda_gastar_energia(p_jogador, 1);
+      exit when v_livre <= 0 or not fazenda_gastar_energia(p_jogador, 2);
       begin
         v_qtd := fazenda_aplicar(p_jogador, 'colher', k.posicao, null, true);   -- cai no celeiro...
         perform fazenda_bau_guardar(p_jogador, b.x, b.y, k.cultura, v_qtd, k.x, k.y);   -- ...e passa para o baú
@@ -2215,7 +2242,7 @@ begin
     loop
       begin
         if m.alimentado_em is not null and now() >= m.alimentado_em + make_interval(secs => m.tempo_seg)
-           and v_livre > 0 and fazenda_gastar_energia(p_jogador, 1) then
+           and v_livre > 0 and fazenda_gastar_energia(p_jogador, 2) then
           perform fazenda_animal_um(p_jogador, m.id, 'coletar', true);
           perform fazenda_bau_guardar(p_jogador, b.x, b.y, m.produto, 1, m.px, m.py);
           v_livre := v_livre - 1;
@@ -2224,7 +2251,7 @@ begin
       exception when others then null;
       end;
       begin
-        if m.alimentado_em is null and fazenda_energia_atualizar(p_jogador) >= 1 then
+        if m.alimentado_em is null and fazenda_energia_atualizar(p_jogador) >= fazenda_energia_preco(p_jogador, 2) then
           if coalesce((select quantidade from fazenda_bau_itens where jogador_id = p_jogador and x = b.x and y = b.y and item = m.racao), 0) >= m.racao_qtd then
             update fazenda_bau_itens set quantidade = quantidade - m.racao_qtd where jogador_id = p_jogador and x = b.x and y = b.y and item = m.racao;
             insert into fazenda_celeiro (jogador_id, item, quantidade) values (p_jogador, m.racao, m.racao_qtd)   -- passa pelo celeiro
@@ -2233,7 +2260,7 @@ begin
             v_livre := v_livre + m.racao_qtd;
           end if;
           perform fazenda_animal_um(p_jogador, m.id, 'alimentar', true);   -- sem ração: pula (e desfaz o de cima)
-          perform fazenda_gastar_energia(p_jogador, 1);
+          perform fazenda_gastar_energia(p_jogador, 2);
         end if;
       exception when others then null;
       end;
@@ -2246,7 +2273,7 @@ begin
          and abs(c.x - b.x) + abs(c.y - b.y) = 1
          and (c.colhido_em is null or now() >= c.colhido_em + make_interval(secs => i.produz_seg))
     loop
-      exit when v_livre <= 0 or not fazenda_gastar_energia(p_jogador, 1);
+      exit when v_livre <= 0 or not fazenda_gastar_energia(p_jogador, 2);
       update fazenda_construcoes set colhido_em = now() where jogador_id = p_jogador and x = arv.x and y = arv.y;
       insert into fazenda_bau_itens (jogador_id, x, y, item, quantidade) values (p_jogador, b.x, b.y, arv.produz, arv.produz_qtd)
       on conflict (jogador_id, x, y, item) do update set quantidade = fazenda_bau_itens.quantidade + excluded.quantidade;
@@ -2256,10 +2283,10 @@ begin
 
     -- encostado no lago (x 24..29, y 14..18): pega o cesto do Bira
     if ((b.x in (23, 30) and b.y between 14 and 18) or (b.y in (13, 19) and b.x between 24 and 29))
-       and v_livre > 0 and fazenda_energia_atualizar(p_jogador) >= 1 then
+       and v_livre > 0 and fazenda_energia_atualizar(p_jogador) >= fazenda_energia_preco(p_jogador, 2) then
       v_peixes := fazenda_cesto(p_jogador, v_livre);
       if v_peixes <> '{}'::jsonb then
-        perform fazenda_gastar_energia(p_jogador, 1);
+        perform fazenda_gastar_energia(p_jogador, 2);
         for e in select key as item, value::int as qtd from jsonb_each_text(v_peixes) loop
           insert into fazenda_bau_itens (jogador_id, x, y, item, quantidade) values (p_jogador, b.x, b.y, e.item, e.qtd)
           on conflict (jogador_id, x, y, item) do update set quantidade = fazenda_bau_itens.quantidade + excluded.quantidade;
@@ -2307,23 +2334,23 @@ begin
        order by x.posicao
     loop
       if cc.maduro then
-        begin   -- colhe (e ara, se não tiver trator): 3 ⚡
-          if not fazenda_gastar_energia(p_jogador, 3) then exit; end if;
+        begin   -- colhe (e ara, se não tiver trator): 4 ⚡ (fase 43; era 3)
+          if not fazenda_gastar_energia(p_jogador, 4) then exit; end if;
           perform fazenda_aplicar(p_jogador, 'colher', cc.posicao, null, true);
           if (select estado from fazenda_canteiros where jogador_id = p_jogador and posicao = cc.posicao) = 'vazio' then
             perform fazenda_aplicar(p_jogador, 'arar', cc.posicao, null, true);
           end if;
         exception when others then null;
         end;
-        begin   -- replanta a mesma semente (paga com suas moedas): 1 ⚡
-          if fazenda_gastar_energia(p_jogador, 1) then
+        begin   -- replanta a mesma semente (paga com suas moedas): 2 ⚡
+          if fazenda_gastar_energia(p_jogador, 2) then
             perform fazenda_aplicar(p_jogador, 'plantar', cc.posicao, cc.cultura, true);
           end if;
         exception when others then null;
         end;
       elsif cc.estado = 'arado' and v_sem is not null then
-        begin   -- canteiro arado vazio: planta a última semente que você usou
-          if fazenda_gastar_energia(p_jogador, 1) then
+        begin   -- canteiro arado vazio: planta a última semente que você usou (2 ⚡)
+          if fazenda_gastar_energia(p_jogador, 2) then
             perform fazenda_aplicar(p_jogador, 'plantar', cc.posicao, v_sem, true);
           end if;
         exception when others then null;
@@ -2357,7 +2384,11 @@ declare
   v_sem   text;
   v_nivel int;
   v_ok    boolean;
+  v_cafe_de  timestamptz;
+  v_cafe_ate timestamptz;
+  v_seg   real;
 begin
+  select cafe_de, cafe_ate into v_cafe_de, v_cafe_ate from fazenda_jogadores where id = p_jogador;
   for a in
     select h.tipo, h.nivel, h.credito, h.atualizado_em, t.funcao, t.alvo
       from fazenda_ajudantes h join fazenda_ajudantes_tipos t on t.id = h.tipo
@@ -2365,8 +2396,13 @@ begin
      order by t.ordem
        for update of h
   loop
-    v_cred := least(a.credito + extract(epoch from now() - a.atualizado_em)::real / 3600 * fazenda_ritmo(a.nivel),
-                    fazenda_ritmo(a.nivel) * 8);
+    -- o eletricista não faz tarefas: ele baixa o gasto de energia (fazenda_energia_preco)
+    continue when a.funcao = 'energia';
+    -- fase 43: com o café (diamantes) o tempo dentro dele vale em dobro
+    v_seg := extract(epoch from now() - a.atualizado_em)::real
+           + case when v_cafe_ate is null then 0
+                  else greatest(extract(epoch from least(now(), v_cafe_ate) - greatest(a.atualizado_em, v_cafe_de))::real, 0) end;
+    v_cred := least(a.credito + v_seg / 3600 * fazenda_ritmo(a.nivel), fazenda_ritmo(a.nivel) * 8);
     v_n := floor(v_cred);
     v_feito := 0;
 
@@ -2380,6 +2416,60 @@ begin
       loop
         begin perform fazenda_aplicar(p_jogador, 'colher', c.posicao, null, true); v_feito := v_feito + 1;
         exception when others then null; end;
+      end loop;
+      -- fase 43: com o tempo que sobra, colhe as frutas do pomar (para o celeiro); a árvore encostada
+      -- num baú fica para o baú (é ela que alimenta a rede de canos)
+      if v_feito < v_n then
+        for c in
+          select k.x, k.y, i.produz, i.produz_qtd from fazenda_construcoes k join fazenda_itens i on i.id = k.tipo
+           where k.jogador_id = p_jogador and i.categoria = 'pomar' and i.produz is not null
+             and (k.colhido_em is null or now() >= k.colhido_em + make_interval(secs => i.produz_seg))
+             and not exists (select 1 from fazenda_construcoes b
+                              where b.jogador_id = p_jogador and b.tipo = 'bau' and abs(b.x - k.x) + abs(b.y - k.y) = 1)
+           order by k.colhido_em nulls first, k.x, k.y limit v_n - v_feito
+        loop
+          update fazenda_construcoes set colhido_em = now() where jogador_id = p_jogador and x = c.x and y = c.y;
+          insert into fazenda_celeiro (jogador_id, item, quantidade) values (p_jogador, c.produz, c.produz_qtd)
+          on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
+          v_feito := v_feito + 1;
+        end loop;
+      end if;
+
+    elsif v_n > 0 and a.funcao = 'oficina' then
+      -- fase 43, a operária: a rede anda primeiro (ela só faz o que a rede não fez)...
+      perform fazenda_oficinas_andar(p_jogador);
+      -- ...leva para o celeiro o que ficou pronto esperando...
+      for c in
+        select k.x, k.y, k.prontos, i.produz from fazenda_construcoes k join fazenda_itens i on i.id = k.tipo
+         where k.jogador_id = p_jogador and i.entradas is not null and k.prontos > 0
+         order by i.ordem, k.x, k.y
+      loop
+        exit when v_feito >= v_n;
+        insert into fazenda_celeiro (jogador_id, item, quantidade) values (p_jogador, c.produz, c.prontos)
+        on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
+        update fazenda_construcoes set prontos = 0 where jogador_id = p_jogador and x = c.x and y = c.y;
+        v_feito := v_feito + 1;
+      end loop;
+      -- ...e enche o estoque com o que tem no celeiro, uma receita por vez em rodízio (a parada já começa)
+      v_ok := true;
+      while v_ok and v_feito < v_n loop
+        v_ok := false;
+        for c in
+          select k.x, k.y, i.entradas from fazenda_construcoes k join fazenda_itens i on i.id = k.tipo
+           where k.jogador_id = p_jogador and i.entradas is not null
+             and k.estoque + (k.iniciado_em is not null)::int < fazenda_estoque_max()
+           order by i.ordem, k.x, k.y
+        loop
+          exit when v_feito >= v_n;
+          if fazenda_abastecer(p_jogador, c.entradas, 1) = 1 then
+            update fazenda_construcoes
+               set iniciado_em = coalesce(iniciado_em, now()),
+                   estoque = estoque + case when iniciado_em is null then 0 else 1 end
+             where jogador_id = p_jogador and x = c.x and y = c.y;
+            v_feito := v_feito + 1;
+            v_ok := true;
+          end if;
+        end loop;
       end loop;
 
     elsif v_n > 0 and a.funcao = 'arar' then
@@ -3556,6 +3646,11 @@ create or replace function public.fazenda_avatar_precos()
 returns jsonb language sql immutable as $$
   select '{"fazendeiro": 0, "fazendeira": 0, "rapaz": 3000, "mago": 20000, "viking": 35000, "cavaleiro": 50000}'::jsonb;
 $$;
+-- Fase 43: personagens que só saem com diamantes (paga uma vez, fica seu)
+create or replace function public.fazenda_avatar_diamantes()
+returns jsonb language sql immutable as $$
+  select '{"soldado": 30, "barbaro": 40, "guarda": 50, "feiticeiro": 70, "fantasma": 100, "ciclope": 120, "diabinho": 150, "morcego": 200}'::jsonb;
+$$;
 
 -- Salva o avatar: o personagem (tipo) e o número de cada cor (0 = a cor original do personagem;
 -- as cores ficam no cliente, em AVATAR_CORES de fazenda-arte.js). O que faltar vira 0.
@@ -3570,9 +3665,11 @@ declare
   r       record;
   j       record;
   v_preco int;
+  v_diam  int := 0;
 begin
   if jsonb_typeof(p_avatar) is distinct from 'object' then raise exception 'avatar_invalido'; end if;
-  if coalesce(p_avatar->>'tipo', 'fazendeiro') not in ('fazendeiro', 'fazendeira', 'rapaz', 'mago', 'viking', 'cavaleiro') then
+  if not (fazenda_avatar_precos() ? coalesce(p_avatar->>'tipo', 'fazendeiro')
+          or fazenda_avatar_diamantes() ? coalesce(p_avatar->>'tipo', 'fazendeiro')) then
     raise exception 'avatar_invalido';
   end if;
   v := jsonb_build_object('tipo', coalesce(p_avatar->>'tipo', 'fazendeiro'));
@@ -3589,15 +3686,20 @@ begin
   end loop;
   -- personagem que ainda não é seu: compra agora (se tiver moedas)
   select * into j from fazenda_jogadores where id = v_id for update;
-  v_preco := (fazenda_avatar_precos()->>(v->>'tipo'))::int;
-  if v_preco > 0 and not (v->>'tipo') = any(j.avatares) then
+  v_preco := coalesce((fazenda_avatar_precos()->>(v->>'tipo'))::int, 0);
+  v_diam := coalesce((fazenda_avatar_diamantes()->>(v->>'tipo'))::int, 0);
+  if (v->>'tipo') = any(j.avatares) then
+    v_preco := 0; v_diam := 0;
+  elsif v_diam > 0 then   -- personagem de diamante
+    if j.diamantes < v_diam then raise exception 'diamantes_insuficientes'; end if;
+    update fazenda_jogadores set diamantes = diamantes - v_diam, avatares = array_append(avatares, v->>'tipo') where id = v_id;
+    insert into fazenda_diamantes_usos (jogador_id, item, diamantes) values (v_id, 'avatar:' || (v->>'tipo'), v_diam);
+  elsif v_preco > 0 then
     if j.moedas < v_preco then raise exception 'moedas_insuficientes'; end if;
     update fazenda_jogadores set moedas = moedas - v_preco, avatares = array_append(avatares, v->>'tipo') where id = v_id;
-  else
-    v_preco := 0;
   end if;
   update fazenda_jogadores set avatar = v where id = v_id;
-  return jsonb_build_object('avatar', v, 'pagou', v_preco, 'estado', fazenda_estado(v_id));
+  return jsonb_build_object('avatar', v, 'pagou', v_preco, 'pagou_diamantes', v_diam, 'estado', fazenda_estado(v_id));
 end;
 $$;
 
@@ -4102,6 +4204,142 @@ end;
 $$;
 
 -- ------------------------------------------------------------
+-- Fase 43: o que fazer com os diamantes. Além de colher agora (1 por planta) e dos personagens
+-- (fazenda_avatar_diamantes), a loja tem: XP em dobro por 1 hora, um pacote de XP (10% do
+-- nível, até 3 por dia), o café dos ajudantes (trabalham em dobro por 2 horas), encher a
+-- energia (1 diamante a cada 50 ⚡ que faltam) e terminar a receita de uma oficina na hora
+-- (1 diamante por hora que falta). O jogo monta a loja com fazenda_loja_diamantes.
+-- ------------------------------------------------------------
+create table if not exists public.fazenda_diamantes_usos (
+  id         bigint generated always as identity primary key,
+  jogador_id uuid not null references public.fazenda_jogadores(id) on delete cascade,
+  item       text not null,
+  diamantes  int  not null,
+  em         timestamptz not null default now()
+);
+create index if not exists fazenda_diamantes_usos_jogador on public.fazenda_diamantes_usos (jogador_id, item, em);
+alter table public.fazenda_diamantes_usos enable row level security;
+revoke all on public.fazenda_diamantes_usos from anon, authenticated;
+
+create or replace function public.fazenda_loja_diamantes()
+returns jsonb language sql immutable as $$
+  select '{"xp2": {"preco": 15, "horas": 1},
+           "xp": {"preco": 10, "pct": 10, "por_dia": 3},
+           "cafe": {"preco": 10, "horas": 2},
+           "energia": {"por": 50},
+           "oficina": {"por_hora": 1}}'::jsonb;
+$$;
+
+-- o dia da loja (o pacote de XP tem limite por dia) é o de Brasília (UTC-3)
+create or replace function public.fazenda_diamantes_hoje(p_jogador uuid, p_item text)
+returns int language sql stable security definer set search_path = public as $$
+  select count(*)::int from fazenda_diamantes_usos
+   where jogador_id = p_jogador and item = p_item
+     and ((em at time zone 'UTC') - interval '3 hours')::date = ((now() at time zone 'UTC') - interval '3 hours')::date;
+$$;
+
+-- XP em dobro: todo XP que entra enquanto vale (colher, bichos, vender, missões...) vem dobrado.
+-- O pacote de XP liga fazenda.xp_puro para não dobrar.
+create or replace function public.fazenda_xp_dobro()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  if new.xp > old.xp and new.xp2_ate is not null and new.xp2_ate > now()
+     and coalesce(current_setting('fazenda.xp_puro', true), '') <> '1' then
+    new.xp := old.xp + 2 * (new.xp - old.xp);
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists fazenda_xp_dobro on public.fazenda_jogadores;
+create trigger fazenda_xp_dobro before update of xp on public.fazenda_jogadores
+  for each row execute function public.fazenda_xp_dobro();
+
+create or replace function public.fazenda_usar_diamantes(p_token text, p_item text, p_x int default null, p_y int default null)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id    uuid := fazenda_auth(p_token);
+  v_loja  jsonb := fazenda_loja_diamantes() -> p_item;
+  j       record;
+  o       record;
+  v_preco int;
+  v_nivel int;
+  v_xp    int := 0;
+  v_e     real;
+  v_cap   int;
+begin
+  if v_loja is null then raise exception 'item_invalido'; end if;
+  perform fazenda_tick(v_id);
+  select * into j from fazenda_jogadores where id = v_id for update;
+
+  if p_item = 'xp2' then
+    v_preco := (v_loja->>'preco')::int;
+    if j.diamantes < v_preco then raise exception 'diamantes_insuficientes'; end if;
+    -- comprar de novo com ele valendo soma mais 1 hora
+    update fazenda_jogadores
+       set diamantes = diamantes - v_preco,
+           xp2_ate = greatest(coalesce(xp2_ate, now()), now()) + make_interval(hours => (v_loja->>'horas')::int)
+     where id = v_id;
+
+  elsif p_item = 'xp' then
+    v_preco := (v_loja->>'preco')::int;
+    if j.diamantes < v_preco then raise exception 'diamantes_insuficientes'; end if;
+    if fazenda_diamantes_hoje(v_id, 'xp') >= (v_loja->>'por_dia')::int then raise exception 'limite_diario'; end if;
+    v_nivel := fazenda_nivel(j.xp);
+    if v_nivel >= 30 then raise exception 'xp_maximo'; end if;
+    v_xp := ceil((fazenda_xp_nivel(v_nivel + 1) - fazenda_xp_nivel(v_nivel)) * (v_loja->>'pct')::int / 100.0)::int;
+    perform set_config('fazenda.xp_puro', '1', true);
+    update fazenda_jogadores set diamantes = diamantes - v_preco, xp = xp + v_xp where id = v_id;
+    perform set_config('fazenda.xp_puro', '', true);
+
+  elsif p_item = 'cafe' then
+    v_preco := (v_loja->>'preco')::int;
+    if j.diamantes < v_preco then raise exception 'diamantes_insuficientes'; end if;
+    if not exists (select 1 from fazenda_ajudantes where jogador_id = v_id) then raise exception 'sem_ajudantes'; end if;
+    perform fazenda_trabalhar(v_id);   -- fecha o trabalho de antes no ritmo de antes
+    update fazenda_jogadores
+       set diamantes = diamantes - v_preco,
+           cafe_de = case when cafe_ate > now() then cafe_de else now() end,
+           cafe_ate = greatest(coalesce(cafe_ate, now()), now()) + make_interval(hours => (v_loja->>'horas')::int)
+     where id = v_id;
+
+  elsif p_item = 'energia' then
+    if not exists (select 1 from fazenda_construcoes c join fazenda_itens i on i.id = c.tipo
+                    where c.jogador_id = v_id and i.categoria = 'energia') then
+      raise exception 'sem_maquinas';
+    end if;
+    v_e := fazenda_energia_atualizar(v_id);
+    v_cap := fazenda_capacidade(v_id);
+    if v_cap - v_e < 1 then raise exception 'energia_cheia'; end if;
+    v_preco := greatest(1, ceil((v_cap - v_e) / (v_loja->>'por')::real))::int;
+    if j.diamantes < v_preco then raise exception 'diamantes_insuficientes'; end if;
+    update fazenda_jogadores set diamantes = diamantes - v_preco, energia = v_cap, energia_em = now() where id = v_id;
+
+  elsif p_item = 'oficina' then
+    perform fazenda_oficinas_andar(v_id);
+    select c.iniciado_em, i.produz_seg, i.entradas into o
+      from fazenda_construcoes c join fazenda_itens i on i.id = c.tipo
+     where c.jogador_id = v_id and c.x = p_x and c.y = p_y
+       for update of c;
+    if not found or o.entradas is null then raise exception 'item_invalido'; end if;
+    if o.iniciado_em is null then raise exception 'oficina_parada'; end if;
+    v_preco := greatest(1, ceil(extract(epoch from o.iniciado_em + make_interval(secs => o.produz_seg) - now()) / 3600
+                                * (v_loja->>'por_hora')::int))::int;
+    if j.diamantes < v_preco then raise exception 'diamantes_insuficientes'; end if;
+    update fazenda_jogadores set diamantes = diamantes - v_preco where id = v_id;
+    update fazenda_construcoes set iniciado_em = now() - make_interval(secs => o.produz_seg)
+     where jogador_id = v_id and x = p_x and y = p_y;
+    perform fazenda_oficinas_andar(v_id);   -- termina agora: o produto sai e a próxima começa
+  end if;
+
+  insert into fazenda_diamantes_usos (jogador_id, item, diamantes) values (v_id, p_item, v_preco);
+  return jsonb_build_object('item', p_item, 'diamantes', v_preco, 'xp', v_xp, 'estado', fazenda_estado(v_id));
+end;
+$$;
+
+-- ------------------------------------------------------------
 -- Permissões: só a API pública fica executável pela chave anon
 -- ------------------------------------------------------------
 revoke execute on function
@@ -4202,7 +4440,13 @@ revoke execute on function
   public.fazenda_google_desligar(text),
   public.fazenda_xp_nivel_v3(int),
   public.fazenda_dia_em(timestamptz),
-  public.fazenda_dia_fim(timestamptz)
+  public.fazenda_dia_fim(timestamptz),
+  public.fazenda_energia_preco(uuid, real),
+  public.fazenda_avatar_diamantes(),
+  public.fazenda_loja_diamantes(),
+  public.fazenda_diamantes_hoje(uuid, text),
+  public.fazenda_xp_dobro(),
+  public.fazenda_usar_diamantes(text, text, int, int)
 from public, anon, authenticated;
 
 grant execute on function
@@ -4233,5 +4477,6 @@ grant execute on function
   public.fazenda_pescar(text),
   public.fazenda_compra_status(text, uuid),
   public.fazenda_google_desligar(text),
-  public.fazenda_bau_esvaziar(text, int, int)
+  public.fazenda_bau_esvaziar(text, int, int),
+  public.fazenda_usar_diamantes(text, text, int, int)
 to anon, authenticated;

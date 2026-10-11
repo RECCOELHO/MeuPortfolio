@@ -370,7 +370,32 @@
             calca: { nome: 'Calça', cores: { '#52607c': 1 }, y: [14, 15] } } },
         cavaleiro: { nome: 'Cavaleiro', p: 'dungeon', i: 97, regioes: {
             roupa: { nome: 'Armadura', cores: { '#52607c': 0, '#8b9bb4': 1, '#c0cbdc': 2 }, y: [0, 16] },
-            pele: { cores: { '#e19a65': 0, '#f7c282': 1 }, y: [0, 16] } } }
+            pele: { cores: { '#e19a65': 0, '#f7c282': 1 }, y: [0, 16] } } },
+        // fase 43: os de diamante (fazenda_avatar_diamantes). Os da doceira, do caminhoneiro e da
+        // mascate (99, 112, 100) ficam só para as visitas da porteira
+        soldado: { nome: 'Soldado', p: 'dungeon', i: 98, regioes: {
+            cabelo: { nome: 'Cabelo', cores: { '#bd6c4a': 2, '#763b36': 1 }, y: [0, 9] },
+            pele: { cores: { '#e19a65': 0, '#f7c282': 1 }, y: [0, 16] },
+            roupa: { nome: 'Armadura', cores: { '#8b9bb4': 1, '#c0cbdc': 2 }, y: [10, 16] },
+            calca: { nome: 'Calça', cores: { '#52607c': 1 }, y: [12, 16] } } },
+        barbaro: { nome: 'Bárbaro', p: 'dungeon', i: 88, regioes: {
+            cabelo: { nome: 'Cabelo', cores: { '#bd6c4a': 2, '#763b36': 1 }, y: [0, 6] },
+            pele: { cores: { '#e19a65': 0, '#f7c282': 1 }, y: [0, 16] },
+            calca: { nome: 'Tanga', cores: { '#bd6c4a': 2, '#763b36': 1 }, y: [12, 16] } } },
+        guarda: { nome: 'Guarda', p: 'dungeon', i: 96, regioes: {
+            roupa: { nome: 'Armadura', cores: { '#52607c': 0, '#8b9bb4': 1, '#c0cbdc': 2 }, y: [0, 16] } } },
+        feiticeiro: { nome: 'Feiticeiro', p: 'dungeon', i: 111, regioes: {
+            roupa: { nome: 'Manto', cores: { '#763b36': 0, '#bd6c4a': 1 }, y: [0, 16] },
+            cabelo: { nome: 'Barba', cores: { '#8b9bb4': 1, '#aab7cc': 2, '#c0cbdc': 2 }, y: [8, 16] } } },
+        fantasma: { nome: 'Fantasma', p: 'dungeon', i: 108, regioes: {
+            roupa: { nome: 'Cor', cores: { '#25956a': 0, '#43e1b3': 1, '#69ffd4': 2 }, y: [0, 16] } } },
+        ciclope: { nome: 'Ciclope', p: 'dungeon', i: 109, regioes: {
+            pele: { cores: { '#e19a65': 0, '#f7c282': 1 }, y: [0, 16] },
+            calca: { nome: 'Tanga', cores: { '#bd6c4a': 2, '#763b36': 1 }, y: [11, 16] } } },
+        diabinho: { nome: 'Diabinho', p: 'dungeon', i: 110, regioes: {
+            roupa: { nome: 'Cor', cores: { '#e84537': 1, '#ff706d': 2 }, y: [0, 16] } } },
+        morcego: { nome: 'Morcego', p: 'dungeon', i: 120, regioes: {
+            roupa: { nome: 'Asas', cores: { '#763b36': 0, '#bd6c4a': 1, '#eaa56c': 2 }, y: [0, 16] } } }
     };
     // cores à escolha (a 0, "original", não está aqui): [escuro, médio, claro]
     const TONS = {
@@ -441,7 +466,9 @@
         jardineiro: { ...MOCO, ferramenta: 84 }, coelheira: { ...MOCA, ferramenta: 8 },
         vaqueiro: { ...MOCO, ferramenta: 123 }, colhedor: { ...MOCO, ferramenta: 88 },
         semeadora: { ...MOCA, ferramenta: 10 }, patinheiro: { ...MOCO, ferramenta: 1003 },
-        pastora: { ...MOCA, ferramenta: 74 }, porqueiro: { ...MOCO, ferramenta: 79 }
+        pastora: { ...MOCA, ferramenta: 74 }, porqueiro: { ...MOCO, ferramenta: 79 },
+        // fase 43: a operária leva uma caixa e o eletricista uma engrenagem (do pacote da fábrica)
+        operaria: { ...MOCA, ferramenta: 73, ferramentaP: 'factory' }, eletricista: { ...MOCO, ferramenta: 114, ferramentaP: 'factory' }
     };
 
     let quadroHelice = 0;   // a turbina eólica gira (troca a cada poucos quadros)
@@ -1261,7 +1288,7 @@
                 const r = rng(hash(h.id));
                 const x = area.x0 + r() * (area.x1 - area.x0), y = area.y0 + r() * (area.y1 - area.y0);
                 atores.set(h.id, {
-                    id: h.id, tipo: h.tipo, i: arte.i, p: arte.p, ferramenta: arte.ferramenta, area, x, y, tx: x, ty: y,
+                    id: h.id, tipo: h.tipo, i: arte.i, p: arte.p, ferramenta: arte.ferramenta, ferramentaP: arte.ferramentaP, area, x, y, tx: x, ty: y,
                     flip: r() < 0.5, espera: r() * 2000, vel: 12, ajudante: true
                 });
             }
@@ -1633,7 +1660,7 @@
                 const bob = (parado && Math.floor(tempo / 600) % 2) || (andando && Math.floor(tempo / 140) % 2) ? -1 : 0;
                 pe.push({ p: a.p || 'farm', i: a.i, x: a.x, y: a.y, flip: a.flip, bob });
                 // ferramenta na mão do ajudante (do lado para onde ele olha)
-                if (a.ferramenta != null) pe.push({ p: 'farm', i: a.ferramenta, x: a.x + (a.flip ? -7 : 7), y: a.y + 0.5, flip: a.flip, bob });
+                if (a.ferramenta != null) pe.push({ p: a.ferramentaP || 'farm', i: a.ferramenta, x: a.x + (a.flip ? -7 : 7), y: a.y + 0.5, flip: a.flip, bob });
             }
             const andando = fazendeiro.passo > 0;
             pe.push({ img: avatarCanvas(avatarAtual), x: fazendeiro.x, y: fazendeiro.y, flip: fazendeiro.flip, bob: andando && Math.floor(tempo / 120) % 2 ? -1 : 0 });
@@ -1923,12 +1950,12 @@
             q.fillRect(x + 6, y + 6, 4, 4);
         }
         // itens pequenos (8 px) andando dentro dos canos: ingrediente da fonte para a oficina, produto de volta
-        function miniTile(i, x, y) {
+        function miniTile(i, x, y, tam = 8) {
             if (i == null) return;
             let pacote = 'farm';
             if (i >= 1000) { i -= 1000; pacote = 'propria'; }
             const img = pacote === 'propria' ? atlasProprio : (atlasDaEstacao && atlasDaEstacao.farm) || atlas.farm;
-            q.drawImage(img, (i % COLS) * T, Math.floor(i / COLS) * T, T, T, Math.round(x), Math.round(y), 8, 8);
+            q.drawImage(img, (i % COLS) * T, Math.floor(i / COLS) * T, T, T, Math.round(x), Math.round(y), tam, tam);
         }
         // viagens dos itens pela rede (fase 39): cada item anda do ponto de saída, pelos canos, até
         // o destino, só enquanto a viagem acontece (o servidor marca a hora). Sem cano (do canteiro,
@@ -1945,11 +1972,14 @@
                 const [ax, ay] = p[i], [bx, by] = p[i + 1];
                 const x = wx(ax + (bx - ax) * f) + 8, y = wy(ay + (by - ay) * f) + 8;
                 const pulo = v.direto ? -Math.round(Math.sin(t * Math.PI) * 7) : 0;
-                if (!v.direto) {   // uma sombrinha dentro do vidro ajuda a ver o item passando
-                    q.fillStyle = 'rgba(63, 38, 49, .25)';
-                    q.fillRect(Math.round(x) - 4, Math.round(y) + 3, 8, 2);
-                }
-                miniTile(v.icone, x - 4, y - 4 + pulo);
+                // fase 44: item grande (12 px) numa bolinha clara, para dar para ver no celular
+                const cx = Math.round(x), cy = Math.round(y) + pulo;
+                q.fillStyle = 'rgba(63, 38, 49, .3)';   // sombra embaixo
+                q.fillRect(cx - 5, Math.round(y) + 6, 10, 2);
+                q.fillStyle = 'rgba(255, 255, 255, .8)';
+                q.fillRect(cx - 6, cy - 7, 12, 14);
+                q.fillRect(cx - 7, cy - 6, 14, 12);
+                miniTile(v.icone, cx - 6, cy - 6, 12);
             }
         }
 

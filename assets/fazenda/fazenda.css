@@ -806,6 +806,11 @@ button.item:hover {
     gap: 3px;
 }
 
+/* texto corrido (com negrito no meio) dentro de .det */
+.det span.txt {
+    display: block;
+}
+
 .preco {
     font-weight: 700;
     white-space: nowrap;
@@ -1857,6 +1862,12 @@ body.construindo .status {
 .xp-premio > * {
     flex: none;
     transform: scale(.8);
+}
+
+/* XP em dobro (comprado com diamantes): o enchimento fica dourado */
+.xpbar.dobro i {
+    background: var(--ouro);
+    box-shadow: inset 0 -3px 0 #e38628;
 }
 
 /* falta pouco para subir: a barra pisca dourada */
