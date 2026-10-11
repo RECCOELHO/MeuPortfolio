@@ -712,6 +712,14 @@
         return d <= 2 ? 1 : d <= 4 ? 0.5 : 0.25;
     }
     const xpDaPlanta = (k) => Math.floor(k.xp * multXpPlanta(k));
+    // vender dá 1 XP a cada 25 moedas do valor (igual a fazenda_vender): produto conta inteiro,
+    // planta segue a regra acima e a fácil demais (a de um quarto) não conta
+    const XP_VENDA = 25;
+    function multXpVenda(k) {
+        if (k.tipo !== 'cultura') return 1;
+        const m = multXpPlanta(k);
+        return m === 1 ? 1 : m === 0.5 ? 0.5 : 0;
+    }
     const ORDEM_TIPO = { Terreno: 0, Ajudante: 1, Oficina: 1, 'Máquina': 1, Energia: 1, Animal: 2, Cercado: 2, 'Árvore': 2, Semente: 3, Casa: 4, Enfeite: 5 };
     function liberaNoNivel(n) {
         if (!S) return [];
@@ -2372,6 +2380,7 @@
                 const bonusVenda = S.jogador.bonus_venda || 0;
                 const livreDe = (k) => Math.max(0, naCeleiro(k.id) - reservaDe(k.id));
                 const total = Math.floor(itens.reduce((a, k) => a + livreDe(k) * k.venda, 0) * (100 + bonusVenda) / 100);
+                const xpTotal = Math.floor(itens.reduce((a, k) => a + livreDe(k) * k.venda * multXpVenda(k), 0) / XP_VENDA);
                 corpo.innerHTML = abas + '<div class="lista">' + itens.map((k) => {
                     const livre = livreDe(k), come = quemCome(k.id);
                     return `<div class="item">
@@ -2386,7 +2395,7 @@
                     </div>`;
                 }).join('') + `</div>
                     <div class="rodape-painel">
-                        <span class="preco">Valor total: ${ico('moeda', 16)} ${total}${bonusVenda ? ` <small class="bonus-txt">(+${bonusVenda}% de bônus)</small>` : ''}</span>
+                        <span class="preco">Valor total: ${ico('moeda', 16)} ${total}${bonusVenda ? ` <small class="bonus-txt">(+${bonusVenda}% de bônus)</small>` : ''}${xpTotal ? ` · +${xpTotal} ${ico('xp', 14)}` : ''}</span>
                         <button type="button" class="botao verde" data-vender="${soFinais ? 'finais' : '*'}"${total ? '' : ' disabled'}>${soFinais ? 'Vender produtos finais' : 'Vender tudo'}</button>
                     </div>`;
             }
@@ -2481,7 +2490,7 @@
                     <li>As plantas crescem em tempo real, mesmo com a página fechada.</li>
                     <li>Aparecem ${ico('erva', 14)} ervas, ${ico('praga', 14)} pragas e ${ico('seco', 12)} seca: cada problema deixado custa 1 item na colheita.</li>
                     <li>Depois de madura, a planta <b>murcha</b> se ficar tempo demais sem colher.</li>
-                    <li>Toque no <b>celeiro</b> para vender a colheita, compre sementes melhores e suba de nível para ganhar canteiros.</li>
+                    <li>Toque no <b>celeiro</b> para vender a colheita, compre sementes melhores e suba de nível para ganhar canteiros. <b>Vender também dá XP</b>: 1 a cada 25 moedas do valor (os produtos das oficinas, dos bichos, do lago e do pomar contam inteiros; planta fácil demais para o seu nível não conta).</li>
                     <li>Os canteiros ficam onde você quiser: <b>Construir → Plantação</b> para colocar, <b>Mover</b> para mudar de lugar. Lado a lado eles viram fileiras.</li>
                     <li>Na loja, aba <b>Terrenos</b>, compre pedaços da mata em volta para a fazenda crescer (e ganhar mais canteiros). São 6 terrenos, e os três últimos são grandes.</li>
                     <li>Todo item do Construir faz alguma coisa: evita seca, praga ou erva, adianta o crescimento, dá itens e XP extras, protege dos vizinhos ou aumenta a <b>beleza</b> (bônus nas vendas). Toque num item para ver o que ele faz.</li>
@@ -2548,7 +2557,7 @@
             const falta = j.xp_proximo - j.xp;
             corpo.innerHTML = `
                 <p>Você está no nível <b>${j.nivel}</b>${j.nivel < NIVEL_MAX ? `: faltam <b>${falta}</b> ${ico('xp', 14)} para o próximo.` : '. Fazenda completa!'}</p>
-                <p class="aviso">Colher, cuidar dos canteiros, os animais e as missões dão XP. Planta fácil para o seu nível rende menos XP: plante as sementes novas que cada nível libera. Cada nível traz um presente de moedas e 5 diamantes. Do nível 10 em diante cada nível pede mais XP que o anterior, e o presente dobra.</p>
+                <p class="aviso">Colher, cuidar dos canteiros, os animais, as missões e vender dão XP. Planta fácil para o seu nível rende menos XP: plante as sementes novas que cada nível libera. Cada nível traz um presente de moedas e 5 diamantes. Do nível 10 em diante cada nível pede mais XP que o anterior (do 19 em diante, bem mais), e o presente dobra.</p>
                 <ol class="caminho">${Array.from({ length: NIVEL_MAX }, (_, i) => i + 1).map((n) => {
                     const x = extrasDoNivel(n);
                     const lista = liberaNoNivel(n);
@@ -3018,13 +3027,13 @@
             const lista = qual === 'finais' ? produtosFinais().filter((id) => naCeleiro(id) > reservaDe(id))
                 : [qual === '*' ? null : qual];
             enfileirar([], async () => {
-                let ganho = 0, estado = null;
+                let ganho = 0, xp = 0, estado = null;
                 for (const item of lista) {
                     const r = await rpc('fazenda_vender', { p_token: token, p_item: item, p_quantidade: null });
-                    ganho += r.ganho; estado = r.estado;
+                    ganho += r.ganho; xp += r.xp || 0; estado = r.estado;
                 }
                 const guardou = qual !== 'finais' && Object.keys(S.reservas || {}).length ? ' A ração dos animais ficou guardada.' : '';
-                if (ganho > 0) { toast(`Vendeu por ${ico('moeda', 16)} ${ganho}!${guardou}`); som.tocar('moeda'); tutorialEvento('vender'); }
+                if (ganho > 0) { toast(`Vendeu por ${ico('moeda', 16)} ${ganho}${xp ? ` e ganhou +${xp} ${ico('xp', 16)}` : ''}!${guardou}`); som.tocar('moeda'); tutorialEvento('vender'); }
                 if (estado) aplicarEstado(estado);
             }).finally(() => { vend.disabled = false; });
             return;
