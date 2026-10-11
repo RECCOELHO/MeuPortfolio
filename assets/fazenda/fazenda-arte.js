@@ -1616,7 +1616,7 @@
             for (const c of lista) {
                 const s = spritesDe(c.tipo, c.x, c.y, m);
                 if (s.cercado) { desenharCercado(c, s, tempo); continue; }
-                if (s.cano) { desenharCano(c); continue; }
+                if (s.cano) { desenharCano(c, tempo); continue; }
                 if (s.chao) tile(q, s.i, wx(c.x), wy(c.y), false, s.p);   // caminho/flores: chão
                 else if (s.grade) pe.push({ ...s, x: wx(c.x), y: wy(c.y + s.h - 1), gy: wy(c.y), flip: false, bob: 0 });
                 else pe.push({ ...s, x: wx(c.x), y: wy(c.y), flip: false, bob: ANIMA[c.tipo] === 'robo' && Math.floor((tempo + c.x * 97) / 380) % 2 ? -1 : 0 });
@@ -1696,6 +1696,10 @@
                 tile(q, of.produto, bx + 2, by + 1);
                 q.globalAlpha = 1;
                 if (of.trabalhando) barraProgresso(bx + 4, by + 19, of.progresso || 0);
+                if (of.rede) {   // selo de cano: esta oficina está ligada na rede
+                    q.fillStyle = '#566c86'; q.fillRect(bx - 3, by - 3, 8, 8);
+                    q.fillStyle = of.rede === 'sem_energia' ? '#e8434a' : '#6ee68c'; q.fillRect(bx - 1, by - 1, 4, 4);
+                }
                 if (pronta && Math.floor(tempo / 300) % 3) icone(q, 'brilho', bx + 17, by - 3);
             }
             for (const c of lista) {
@@ -1706,6 +1710,13 @@
                 if (Math.floor(tempo / 300) % 3) icone(q, 'brilho', x + 15, by - 3);
             }
 
+            for (const c of lista) {   // baú: barrinha de quanto está cheio (verde → amarelo → vermelho)
+                if (!c.bau || !(c.bau.frac > 0)) continue;
+                const f = Math.min(1, c.bau.frac), x = wx(c.x) + 2, y = wy(c.y) + T - 1;
+                q.fillStyle = '#3f2631'; q.fillRect(x - 1, y - 1, T - 2, 4);
+                q.fillStyle = f >= 1 ? '#e8434a' : f > 0.75 ? '#fdbe53' : '#6ee68c';
+                q.fillRect(x, y, Math.max(1, Math.round((T - 4) * f)), 2);
+            }
             if (!construcao.ativo && alcance) desenharAlcance();
             if (segurando) desenharSegurar(lista);
 
@@ -1883,7 +1894,7 @@
 
         /* ---- canos de vidro: braços para os lados ligados (outro cano, oficina, canteiro, baú,
            celeiro), um anel de metal no meio e os itens passando por dentro ---- */
-        function desenharCano(c) {
+        function desenharCano(c, tempo) {
             const x = wx(c.x), y = wy(c.y), l = c.cano || [false, false, false, false];   // leste, oeste, sul, norte
             const vidro = 'rgba(214,236,255,.5)', borda = 'rgba(63,38,49,.65)', brilho = 'rgba(255,255,255,.85)';
             const braco = (x0, y0, w, h, deitado) => {
@@ -1899,7 +1910,17 @@
             if (l[3]) braco(x + 5, y, 6, 8, false);
             q.fillStyle = '#566c86'; q.fillRect(x + 4, y + 4, 8, 8);
             q.fillStyle = '#8b9bb4'; q.fillRect(x + 5, y + 5, 6, 6);
-            q.fillStyle = 'rgba(214,236,255,.85)'; q.fillRect(x + 6, y + 6, 4, 4);
+            // luzinha no anel: verde passando quando a rede está ligada e com energia, vermelha piscando
+            // sem energia, apagada quando o cano não liga nada
+            if (c.rede === 'ok') {
+                const onda = (Math.sin(tempo / 260 - (c.x + c.y) * 0.9) + 1) / 2;
+                q.fillStyle = `rgba(110, 230, 140, ${(0.45 + 0.55 * onda).toFixed(2)})`;
+            } else if (c.rede === 'sem_energia') {
+                q.fillStyle = Math.floor(tempo / 500) % 2 ? '#e8434a' : '#7a2a30';
+            } else {
+                q.fillStyle = 'rgba(214,236,255,.85)';
+            }
+            q.fillRect(x + 6, y + 6, 4, 4);
         }
         // itens pequenos (8 px) andando dentro dos canos: ingrediente da fonte para a oficina, produto de volta
         function miniTile(i, x, y) {

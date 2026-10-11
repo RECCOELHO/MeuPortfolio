@@ -596,7 +596,7 @@ on conflict (id) do update set
 -- baterias e as máquinas elétricas gastam. Os números ficam nas funções fazenda_capacidade,
 -- fazenda_energia_taxa e nos gastos de cada máquina; as descrições aparecem no jogo.
 insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem, efeito, raio, limite, descricao) values
-  ('cano',          'Cano de vidro',      'energia',     5, 16, 79, 'cano',       0, null, 'Canos encostados formam uma rede que liga baús, oficinas e o celeiro. A oficina busca os ingredientes nos baús e no celeiro da rede (2 ⚡ por receita); o produto vai para outra oficina que usa ele, para o celeiro ou para um baú; o que sobra no baú vai para o celeiro (1 ⚡ por viagem). Dá para ver cada item passando.'),
+  ('cano',          'Cano de vidro',      'energia',     5, 16, 79, 'cano',       0, null, 'Canos encostados formam uma rede que liga baús, oficinas e o celeiro. A rede enche sozinha o estoque das oficinas com o que tem nos baús e no celeiro (1 ⚡ por receita); o produto vai para outra oficina que usa ele, para o celeiro ou para um baú; o que sobra no baú vai para o celeiro (1 ⚡ por viagem). Dá para ver cada item passando.'),
   ('painel_solar',  'Painel solar',       'energia',  2500, 16, 80, 'solar',      0, 6, 'Gera até 12 ⚡/h de dia (sol forte: 14; nublado: 5; chuva: 3). À noite, nada: no jogo, o dia e a noite se revezam a cada 2 horas.'),
   ('bateria',       'Banco de baterias',  'energia',  2000, 16, 81, 'bateria',    0, 4, 'Guarda mais 100 ⚡ (sem bateria, a caixa de luz guarda só 50).'),
   ('turbina',       'Turbina eólica',     'energia',  4000, 17, 82, 'eolica',     0, 4, 'Gera 8 ⚡/h de dia e de noite; 30 ⚡/h na ventania e 14 na chuva.'),
@@ -1915,7 +1915,7 @@ $$;
 
 -- A oficina busca na rede os ingredientes de 1 receita: primeiro o que já chegou nela pelo cano,
 -- depois os baús da rede e por último o celeiro (se a rede chega nele; a ração reservada fica).
--- Só tira se der a receita inteira. 2 ⚡ por receita; cada saída vira uma viagem.
+-- Só tira se der a receita inteira. 1 ⚡ por receita; cada saída vira uma viagem.
 create or replace function public.fazenda_rede_puxar(p_jogador uuid, p_x int, p_y int, p_entradas jsonb, p_membros jsonb, p_em timestamptz)
 returns boolean
 language plpgsql security definer
@@ -1943,8 +1943,9 @@ begin
       return false;
     end if;
   end loop;
-  if fazenda_energia_atualizar(p_jogador) < 2 then return false; end if;
-  perform fazenda_gastar_energia(p_jogador, 2);
+  -- 1 ⚡ por receita (fase 42; era 2): a rede agora enche o estoque inteiro
+  if fazenda_energia_atualizar(p_jogador) < 1 then return false; end if;
+  perform fazenda_gastar_energia(p_jogador, 1);
   for e in select key as item, value::int as qtd from jsonb_each_text(p_entradas) loop
     v_falta := e.qtd;
     select quantidade into v_tira from fazenda_oficina_itens where jogador_id = p_jogador and x = p_x and y = p_y and item = e.item for update;
@@ -2084,6 +2085,8 @@ declare
   v_n     int;
   v_qtd   int;
   v_rede  boolean;
+  v_volta int;
+  v_puxou boolean;
 begin
   for o in
     select c.x, c.y, c.iniciado_em, c.estoque, c.prontos, i.produz, i.produz_seg, i.produz_qtd, i.entradas
@@ -2122,6 +2125,28 @@ begin
     end loop;
     update fazenda_construcoes set iniciado_em = v_t, estoque = v_est, prontos = least(v_pr, 32000)
      where jogador_id = p_jogador and x = o.x and y = o.y;
+  end loop;
+  -- Fase 42: a rede enche o estoque das oficinas sozinha (até o máximo), uma receita por vez em
+  -- rodízio, para dividir o que tem entre todas; a oficina parada que ganhou ingrediente já começa
+  for v_volta in 1..fazenda_estoque_max() loop
+    v_puxou := false;
+    for o in
+      select c.x, c.y, c.estoque, c.iniciado_em, i.entradas
+        from fazenda_construcoes c join fazenda_itens i on i.id = c.tipo
+       where c.jogador_id = p_jogador and i.entradas is not null
+         and c.estoque + (c.iniciado_em is not null)::int < fazenda_estoque_max()
+       order by i.ordem, c.x, c.y
+    loop
+      continue when fazenda_redes_de(v_membros, 'oficina', o.x, o.y) is null;
+      if fazenda_rede_puxar(p_jogador, o.x, o.y, o.entradas, v_membros, now()) then
+        update fazenda_construcoes
+           set iniciado_em = coalesce(iniciado_em, now()),
+               estoque = estoque + case when iniciado_em is null then 0 else 1 end
+         where jogador_id = p_jogador and x = o.x and y = o.y;
+        v_puxou := true;
+      end if;
+    end loop;
+    exit when not v_puxou;
   end loop;
   perform fazenda_rede_descarregar(p_jogador, v_membros);
 end;
