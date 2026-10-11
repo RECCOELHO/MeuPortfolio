@@ -693,6 +693,14 @@
     const NIVEL_MAX = 30;
     const presenteNivel = (n) => (n > 10 ? 100 : 50) * n;   // do 10 em diante sobe devagar, e o presente dobra
     const limiteCanteirosNivel = (n) => Math.min(6 + (n - 1) * 2, 54);
+    // Planta fácil para o seu nível rende menos XP (igual a fazenda_xp_planta no SQL): compara com a
+    // melhor semente comum que o nível libera. Até 2 níveis abaixo, cheio; 3 ou 4, metade; 5+, um quarto.
+    function multXpPlanta(k) {
+        const melhor = Math.max(1, ...S.culturas.filter((x) => x.tipo === 'cultura' && !x.estacao && x.nivel_min <= S.jogador.nivel).map((x) => x.nivel_min));
+        const d = melhor - k.nivel_min;
+        return d <= 2 ? 1 : d <= 4 ? 0.5 : 0.25;
+    }
+    const xpDaPlanta = (k) => Math.floor(k.xp * multXpPlanta(k));
     const ORDEM_TIPO = { Terreno: 0, Ajudante: 1, Oficina: 1, 'Máquina': 1, Energia: 1, Animal: 2, Cercado: 2, 'Árvore': 2, Semente: 3, Casa: 4, Enfeite: 5 };
     function liberaNoNivel(n) {
         if (!S) return [];
@@ -1717,7 +1725,7 @@
         if (visita) return mostrarStatus(descreverVisita(c, i));
         let txt;
         switch (i.fase) {
-            case 'vazio': txt = `${spr(86, 22)} Terra batida. Toque para arar (+1 ${ico('xp', 14)}).`; break;
+            case 'vazio': txt = `${spr(86, 22)} Terra batida. Toque para arar${S.jogador.nivel <= 5 ? ` (+1 ${ico('xp', 14)})` : ''}.`; break;
             case 'arado': {
                 const k = culturas[semente];
                 txt = k ? `${itemDe(k)} Toque para plantar ${esc(k.nome.toLowerCase())} (${moeda(k.custo)}).` : 'Pronto para plantar.';
@@ -1948,12 +1956,15 @@
         toast(esc(e.message || 'Algo deu errado.'), 'erro');
     }
 
+    // cuidar dá 1 moeda e o XP segue a regra da planta (inteiro: só sai XP com a planta valendo cheio)
+    const xpCuidar = (c) => { const kc = c && culturas[c.cultura]; return kc ? Math.floor(multXpPlanta(kc)) : 0; };
+    const textoCuidar = (c) => `${xpCuidar(c) ? `+1 ${ico('xp', 16)} ` : ''}+1 ${ico('moeda', 16)}`;
     const FEEDBACK = {
-        arar: () => `+1 ${ico('xp', 16)}`,
+        arar: () => (S.jogador.nivel <= 5 ? `+1 ${ico('xp', 16)}` : ''),   // arar só dá XP até o nível 5
         plantar: (k) => `−${k.custo} ${ico('moeda', 16)}`,
-        erva: () => `+1 ${ico('xp', 16)} +1 ${ico('moeda', 16)}`,
-        praga: () => `+1 ${ico('xp', 16)} +1 ${ico('moeda', 16)}`,
-        seco: () => `+1 ${ico('xp', 16)} +1 ${ico('moeda', 16)}`,
+        erva: (k, c) => textoCuidar(c),
+        praga: (k, c) => textoCuidar(c),
+        seco: (k, c) => textoCuidar(c),
         arrancar: () => 'arrancou'
     };
 
@@ -2040,13 +2051,16 @@
                     const c = canteiro(Number(pos));
                     const kc = c && culturas[c.cultura];
                     const diam = acao === 'agora' && info(c).fase === 'crescendo' ? ` −1 ${ico('diamante', 14)}` : '';
-                    if (kc) flutuar(Number(pos), `+${qtd} ${itemDe(kc, 20)}${sol ? ` (+1 ${ico('sol', 14)})` : ''} +${kc.xp} ${ico('xp', 16)}${diam}`, n * 80);
+                    const xp = kc ? xpDaPlanta(kc) : 0;
+                    if (kc) flutuar(Number(pos), `+${qtd} ${itemDe(kc, 20)}${sol ? ` (+1 ${ico('sol', 14)})` : ''}${xp ? ` +${xp} ${ico('xp', 16)}` : ''}${diam}`, n * 80);
                 });
                 perdas = textoPerdas(antes, r.colhido);
             } else if (r.feitos > 0) {
-                const fb = FEEDBACK[acao](k);
                 const feitos = posicoes.length === 1 ? posicoes : posicoes.filter((p) => !mesmoEstado(p, r.estado));
-                feitos.forEach((p, n) => flutuar(p, fb, n * 60));
+                feitos.forEach((p, n) => {   // (o canteiro ainda é o de antes: dá para saber a planta)
+                    const fb = FEEDBACK[acao](k, canteiro(p));
+                    if (fb) flutuar(p, fb, n * 60);
+                });
             }
             if (r.feitos > 0 || Object.keys(r.colhido || {}).length) som.tocar(SOM_DA_ACAO[acao]);
             aplicarEstado(r.estado);
@@ -2403,6 +2417,7 @@
             corpo.innerHTML = `
                 <ul class="ajuda">
                     <li>Toque num canteiro e ele faz a ação certa: <b>arar</b>, <b>plantar</b>, <b>cuidar</b> ou <b>colher</b>.</li>
+                    <li><b>XP das plantas:</b> quanto melhor a semente que o seu nível já libera, menos XP as plantas simples dão. Até 2 níveis abaixo da melhor, XP cheio; 3 ou 4 abaixo, metade; 5 ou mais, um quarto. A colheita e as moedas não mudam. Arar dá XP só até o nível 5. Na loja aparece quanto XP cada semente rende para você.</li>
                     <li>Toque numa planta crescendo para abrir o menu dela: quanto falta, <b>colher agora</b> por 1 ${ico('diamante', 14)} diamante (fica pronta na hora e vai para o celeiro), <b>arrancar</b>, ou arrancar e plantar a semente escolhida. Você começa com 10 diamantes e ganha 5 a cada nível.</li>
                     <li>As plantas crescem em tempo real, mesmo com a página fechada.</li>
                     <li>Aparecem ${ico('erva', 14)} ervas, ${ico('praga', 14)} pragas e ${ico('seco', 12)} seca: cada problema deixado custa 1 item na colheita.</li>
@@ -2473,7 +2488,7 @@
             const falta = j.xp_proximo - j.xp;
             corpo.innerHTML = `
                 <p>Você está no nível <b>${j.nivel}</b>${j.nivel < NIVEL_MAX ? `: faltam <b>${falta}</b> ${ico('xp', 14)} para o próximo.` : '. Fazenda completa!'}</p>
-                <p class="aviso">Colher, cuidar dos canteiros, os animais e as missões dão XP. Cada nível traz um presente de moedas e 5 diamantes. Do nível 10 em diante cada nível pede mais XP que o anterior, e o presente dobra.</p>
+                <p class="aviso">Colher, cuidar dos canteiros, os animais e as missões dão XP. Planta fácil para o seu nível rende menos XP: plante as sementes novas que cada nível libera. Cada nível traz um presente de moedas e 5 diamantes. Do nível 10 em diante cada nível pede mais XP que o anterior, e o presente dobra.</p>
                 <ol class="caminho">${Array.from({ length: NIVEL_MAX }, (_, i) => i + 1).map((n) => {
                     const x = extrasDoNivel(n);
                     const lista = liberaNoNivel(n);
@@ -2560,7 +2575,7 @@
                     <span class="nome">${esc(k.nome)}${k.estacao ? ` <small class="tag-estacao${daEstacao(k) ? ' agora' : temEstufa() ? ' estufa' : ''}">${daEstacao(k) ? 'da estação!' : temEstufa() ? 'só na estufa' : 'só ' + naEstacao(k.estacao) + (faltaParaEstacao(k.estacao) ? ' · em ' + fmtTempo(faltaParaEstacao(k.estacao)) : '')}</small>` : ''}</span>
                     <span class="det">
                         <span>cresce em ${fmtDuracao(k.tempo_seg)}</span>
-                        <span>+${k.xp} ${ico('xp', 13)} por colheita</span>
+                        <span>+${xpDaPlanta(k)} ${ico('xp', 13)} por colheita${k.nivel_min <= S.jogador.nivel && multXpPlanta(k) < 1 ? ' (fácil para o seu nível)' : ''}</span>
                     </span>
                     <span class="conta-semente">1 semente (${moeda(k.custo)}) → colhe ${k.rendimento} × ${moeda(k.venda)} = ${moeda(k.rendimento * k.venda)} → <b>lucro +${lucro}</b></span>
                 </span>

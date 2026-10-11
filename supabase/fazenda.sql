@@ -1265,6 +1265,17 @@ $$;
 -- Aplica uma ação em um canteiro. Retorna a quantidade colhida (0 se não colheu).
 drop function if exists public.fazenda_aplicar(uuid, text, int, text);
 -- p_bot = feita por um ajudante (sem XP, sem missão, sem moeda de "cuidar")
+-- Fase 35: planta fácil para o nível do jogador rende menos XP (alface de 2 min não vira
+-- fábrica de XP). Compara o nível da planta com a melhor semente comum (sem estação) que o
+-- nível do jogador já libera: até 2 níveis abaixo dela, XP cheio; 3 ou 4 abaixo, metade;
+-- 5 ou mais, um quarto (quem chama arredonda para baixo). Igual a multXpPlanta em fazenda.js.
+create or replace function public.fazenda_xp_planta(p_nivel int, p_planta_nivel int)
+returns numeric language sql stable set search_path = public as $$
+  select case when d <= 2 then 1.0 when d <= 4 then 0.5 else 0.25 end
+    from (select coalesce((select max(nivel_min) from fazenda_culturas
+                            where tipo = 'cultura' and estacao is null and nivel_min <= p_nivel), 1) - p_planta_nivel as d) x;
+$$;
+
 create or replace function public.fazenda_aplicar(p_jogador uuid, p_acao text, p_posicao int, p_cultura text, p_bot boolean default false)
 returns int
 language plpgsql security definer
@@ -1321,7 +1332,8 @@ begin
        set estado = 'arado', cultura = null, plantado_em = null,
            erva = false, praga = false, seco = false, roubado = 0, prox_evento = null, adubado = false
      where jogador_id = p_jogador and posicao = p_posicao;
-    if not p_bot then update fazenda_jogadores set xp = xp + 1 where id = p_jogador; end if;
+    -- arar só dá XP para quem está começando (até o nível 5): senão alface de 2 min vira fábrica de XP
+    if not p_bot and fazenda_nivel(j.xp) <= 5 then update fazenda_jogadores set xp = xp + 1 where id = p_jogador; end if;
 
   elsif p_acao = 'arrancar' then   -- o jogador tira o que está plantado (perde a planta) para plantar outra coisa
     if p_bot then raise exception 'acao_invalida'; end if;
@@ -1391,7 +1403,9 @@ begin
            seco  = case when p_acao = 'seco'  then false else seco  end
      where jogador_id = p_jogador and posicao = p_posicao;
     if not p_bot then
-      update fazenda_jogadores set xp = xp + 1, moedas = moedas + 1 where id = p_jogador;
+      update fazenda_jogadores   -- o XP de cuidar segue a regra da planta (fazenda_xp_planta)
+         set xp = xp + floor(fazenda_xp_planta(fazenda_nivel(j.xp), k.nivel_min))::int, moedas = moedas + 1
+       where id = p_jogador;
       perform fazenda_missao(p_jogador, 'cuidar', 1);
     end if;
 
@@ -1415,7 +1429,12 @@ begin
     values (p_jogador, k.id, v_qtd)
     on conflict (jogador_id, item)
     do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
-    if not p_bot then update fazenda_jogadores set xp = xp + k.xp + fazenda_protegido(p_jogador, 'xp', c.x, c.y)::int where id = p_jogador; end if;
+    if not p_bot then   -- planta fácil para o nível do jogador rende menos XP (fazenda_xp_planta)
+      update fazenda_jogadores
+         set xp = xp + floor((k.xp + fazenda_protegido(p_jogador, 'xp', c.x, c.y)::int)
+                             * fazenda_xp_planta(fazenda_nivel(j.xp), k.nivel_min))::int
+       where id = p_jogador;
+    end if;
     update fazenda_canteiros   -- com trator, o canteiro já fica arado
        set estado = case when fazenda_tem_efeito(p_jogador, 'arar') then 'arado' else 'vazio' end,
            cultura = null, plantado_em = null,
@@ -3660,7 +3679,8 @@ revoke execute on function
   public.fazenda_compra_status(text, uuid),
   public.fazenda_google_ligar(text, text, text),
   public.fazenda_google_entrar(text),
-  public.fazenda_google_desligar(text)
+  public.fazenda_google_desligar(text),
+  public.fazenda_xp_planta(int, int)
 from public, anon, authenticated;
 
 grant execute on function
