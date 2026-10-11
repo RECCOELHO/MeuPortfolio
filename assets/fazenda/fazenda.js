@@ -1281,6 +1281,29 @@
     }
 
     let oficinaAberta = null;   // { x, y } da oficina com o painel aberto
+    let bauAberto = null;       // { x, y } do baú com o painel aberto
+    const BAU_MAX = 200;        // igual a fazenda_bau_livre no SQL
+    // painel do baú: o que ele guardou, de onde recolhe e para onde a rede leva
+    function htmlBau(b) {
+        const itens = Object.entries((S.baus || {})[b.x + ',' + b.y] || {}).filter(([, n]) => n > 0).sort((a, z) => z[1] - a[1]);
+        const total = itens.reduce((a, [, n]) => a + n, 0);
+        const rede = vizinhosNaRede(b.x, b.y);
+        const usam = rede ? new Set(rede.oficinas.flatMap((k) => Object.keys(tipoItem(k.tipo).entradas || {}))) : new Set();
+        const txtRede = !rede || (!rede.oficinas.length && !rede.celeiro)
+            ? `Sem cano até uma oficina ou o celeiro: o que ele recolhe fica guardado aqui. Ligue com <b>canos de vidro</b> (Construir → Energia).`
+            : `Na rede${rede.oficinas.length ? ` com ${rede.oficinas.length} oficina(s)` : ''}${rede.celeiro ? `${rede.oficinas.length ? ' e' : ' com'} o celeiro` : ''}: manda pelo cano o que as oficinas usam${rede.celeiro ? ' e leva o resto para o celeiro (1 ⚡ por viagem)' : ''}.`;
+        return `
+            <p>${total} de ${BAU_MAX} itens guardados</p>
+            <span class="estoque-barra"><i style="width:${Math.min(100, Math.round(total / BAU_MAX * 100))}%"></i></span>
+            ${itens.length ? '<div class="bau-itens">' + itens.map(([item, n]) => `<span class="chip" title="${nomeItem(item)}${usam.has(item) ? ' (uma oficina da rede usa)' : ''}">${itemDe(culturas[item] || { id: item }, 20)}<span>${n}${usam.has(item) ? ` ${A.htmlItem('cano', 12)}` : ''}</span></span>`).join('') + '</div>'
+                : '<p class="vazio-msg">Vazio por enquanto.</p>'}
+            <p class="aviso">${A.htmlItem('cano', 16)} ${txtRede}</p>
+            <p class="det">Com energia, recolhe sozinho o que estiver encostado nele: o bloco de canteiros, um cercado (coleta e dá ração), uma árvore do pomar e o cesto do lago (1 ⚡ cada). Cheio, ele para de recolher.</p>
+            <div class="rodape-painel">
+                <button type="button" class="botao verde" data-bau-esvaziar${total ? '' : ' disabled'}>Levar tudo para o celeiro</button>
+                <button type="button" class="botao creme" data-fechar>Fechar</button>
+            </div>`;
+    }
     const oficinaDoPainel = () => oficinaAberta && S && (S.construcoes || []).find((k) => k.x === oficinaAberta.x && k.y === oficinaAberta.y);
     function acaoOficina(c, o) {
         oficinaAberta = { x: c.x, y: c.y };
@@ -1357,6 +1380,7 @@
         if (c && (tipoItem(c.tipo) || {}).efeito === 'biomassa') return alternarGerador(c);
         const o = c && infoOficina(c);
         if (o) return acaoOficina(c, o);
+        if (c && c.tipo === 'bau' && !visita) { bauAberto = { x, y }; return abrirPainel('bau'); }
         const p = c && infoProducao(c);
         if (!p) return;
         if (p.falta > 0) return mostrarStatus(`${A.htmlItem(c.tipo, 22)} ${esc(p.it.nome)}: as próximas ${esc(p.produto.nome.toLowerCase())}s ficam prontas em ${fmtTempo(p.falta)}.`);
@@ -1459,6 +1483,7 @@
     cena.definirVisual(visualCanteiro);
     cena.definirAnimais(visualAnimais);
     cena.definirRelogio(agora);   // a noite do jogo segue o relógio do servidor
+    cena.definirViagens(visualViagens);   // os itens andando pela rede de canos
     cena.definirAjudantes(visualAjudantes);
     cena.definirConstrucoes(visualConstrucoes);
     cena.definirCanteiros(() => ((visita || S) ? (visita || S).canteiros : DEMO_CANTEIROS));
@@ -1940,7 +1965,7 @@
         atualizarTerreno();
         desenharHud();
         if (constr.ativo) desenharPaleta();
-        if (['loja', 'celeiro', 'missoes', 'oficina', 'energia', 'canteiro'].includes(painelAtual)) abrirPainel(painelAtual, true);
+        if (['loja', 'celeiro', 'missoes', 'oficina', 'energia', 'canteiro', 'bau'].includes(painelAtual)) abrirPainel(painelAtual, true);
     }
 
     /* ---------- Diário: quem passou pela sua fazenda ---------- */
@@ -2527,6 +2552,10 @@
         } else if (nome === 'energia') {
             el.painelTitulo.innerHTML = `${ico('raio', 26)} Energia e máquinas`;
             corpo.innerHTML = htmlEnergia();
+        } else if (nome === 'bau') {
+            const b = bauAberto && (S.construcoes || []).find((k) => k.x === bauAberto.x && k.y === bauAberto.y && k.tipo === 'bau');
+            el.painelTitulo.innerHTML = `${A.htmlItem('bau', 32)} Baú`;
+            corpo.innerHTML = b ? htmlBau(b) : '<p class="vazio-msg">Esse baú não está mais aqui.</p>';
         } else if (nome === 'historico') {
             el.painelTitulo.innerHTML = `${ico('sino', 26)} Histórico de avisos`;
             corpo.innerHTML = htmlHistorico() + (historico.length ? `<div class="rodape-painel">
@@ -2557,7 +2586,8 @@
                     <li>Toque num item já colocado para ver o que ele faz; o <b>alcance</b> dele (irrigador, alarme, estufa...) aparece marcado no chão. <b>Segure o dedo 3 segundos</b> num item ou canteiro para pegar e levar para outro lugar.</li>
                     <li>A semana tem as 4 <b>estações</b> (42 horas cada), e cada uma muda a cara da fazenda (pétalas na primavera, grama quente no verão, folhas caindo no outono, neve no inverno) e tem uma semente só dela: morango, melancia, abóbora e repolho. O <b>clima</b> muda várias vezes por dia: sol dá +1 na colheita, chuva rega tudo, onda de calor seca mais, nublado não traz problema novo e ventania espalha pragas. Toque no clima, lá em cima, para ver até quando ele vai.</li>
                     <li>O jogo tem o próprio <b>dia e noite</b>: eles se revezam a cada 2 horas (12 horas de dia e 12 de noite em cada dia de verdade). De noite o mapa escurece, as janelas, os lampiões e as oficinas acendem, aparecem vaga-lumes, e o painel solar não gera energia. Toque no clima para ver quando amanhece.</li>
-                    <li>No nível 16 chegam os <b>canos de vidro</b> (Construir → Energia, 5 cada): ligue uma oficina com canos a um canteiro, a um baú ou ao celeiro e ela busca os ingredientes sozinha (2 ⚡ por receita); dá para ver os itens passando dentro do cano. O <b>baú</b> encostado num bloco de canteiros colhe sozinho o que amadurece, e encostado num cercado coleta e alimenta os bichos (1 ⚡ cada): com baú, canos e oficinas a produção fica toda automática.</li>
+                    <li>O <b>baú</b> guarda em si (até 200 itens) o que recolhe sozinho, com energia, do que estiver encostado nele: o bloco de canteiros, um cercado (coleta e dá ração), uma árvore do pomar e o cesto do lago (1 ⚡ cada). Toque no baú para ver o que tem.</li>
+                    <li>No nível 16 chegam os <b>canos de vidro</b> (Construir → Energia, 5 cada). Canos encostados formam uma <b>rede</b>, e tudo o que encosta num cano dela (baús, oficinas, o celeiro, a fábrica automática) trabalha junto: a oficina busca os ingredientes nos baús e no celeiro da rede (2 ⚡ por receita); o produto vai para outra oficina que usa ele (o óleo da prensa vai para o empório), para o celeiro ou para um baú; e o que nenhuma oficina usa sai do baú para o celeiro (1 ⚡ por viagem). Nada anda sem estar ligado, e cada item aparece passando pelo cano quando viaja.</li>
                     <li>Do nível 16 em diante vem a <b>energia</b> ${ico('raio', 14)}: painel solar, turbina, gerador a biomassa e reator enchem as baterias, e as máquinas elétricas (estufa, triturador, fábrica automática, robô, aspersor) trabalham sozinhas gastando energia. Toque no ${ico('raio', 12)} lá em cima (ou no botão abaixo) para ver o que cada uma faz.</li>
                     ${ANUNCIO.ligado || ehLocal ? `<li>Quando aparecer o botão <b>+30 min</b>, assista a um anúncio até o fim e tudo o que está em andamento (plantas, animais, oficinas, ajudantes e energia) adianta 30 minutos. Cada anúncio também dá 1 ${ico('diamante', 14)} diamante.</li>` : ''}
                     <li>No Perfil (ou em Vizinhos) tem o seu <b>link de convite</b>: quem criar uma fazenda por ele ganha moedas, e você também.</li>
@@ -3096,6 +3126,17 @@
         if (dia) {
             dia.disabled = true;
             comprarDiamantes(dia.dataset.diamantes).finally(() => { dia.disabled = false; });
+            return;
+        }
+        const esv = e.target.closest('[data-bau-esvaziar]');
+        if (esv && bauAberto) {
+            esv.disabled = true;
+            const { x, y } = bauAberto;
+            enfileirar([], async () => {
+                const r = await rpc('fazenda_bau_esvaziar', { p_token: token, p_x: x, p_y: y });
+                if (r.qtd) toast(`${A.htmlItem('bau', 16)} Levou ${r.qtd} itens do baú para o celeiro.`);
+                aplicarEstado(r.estado);
+            }).finally(() => { esv.disabled = false; });
             return;
         }
         if (e.target.closest('[data-historico-limpar]')) {
