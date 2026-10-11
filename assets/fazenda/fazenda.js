@@ -25,7 +25,7 @@
         if (alt && /^(localhost|127\.0\.0\.1)$/.test(location.hostname)) API = alt;
     } catch { /* ignora */ }
 
-    const POLL_MS = 30000;
+    const POLL_MS = 60000;   // de quanto em quanto a fazenda aberta busca o estado (cada busca grava no banco)
 
     /* ---------- Armazenamento local (protegido) ---------- */
     const LS = {
