@@ -17,7 +17,7 @@
     <meta name="twitter:card" content="summary">
     <link rel="icon" type="image/png" href="assets/fazenda/app/icone-192.png">
     <!-- instalar como app (PWA): manifesto, ícones e o service worker em assets/app/instalar.js -->
-    <link rel="manifest" href="assets/fazenda/app/fazenda.webmanifest?v=20261010-18">
+    <link rel="manifest" href="assets/fazenda/app/fazenda.webmanifest?v=20261011-1">
     <link rel="apple-touch-icon" href="assets/fazenda/app/icone-180.png">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -27,7 +27,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&family=Jersey+10&display=swap" rel="stylesheet">
     <!-- ?v=: o Cloudflare guarda CSS/JS por 4 h no navegador; troque a versão a cada deploy da fazenda -->
-    <link rel="stylesheet" href="assets/fazenda/fazenda.css?v=20261010-18">
+    <link rel="stylesheet" href="assets/fazenda/fazenda.css?v=20261011-1">
 </head>
 
 <body>
@@ -48,7 +48,7 @@
                 </div>
             </div>
         </div>
-        <div class="hud-moedas caixa" title="Moedas"><span data-ico="moeda" data-px="20"></span><b id="hudMoedas">0</b></div>
+        <div class="hud-moedas caixa" title="Moedas e diamantes"><span data-ico="moeda" data-px="20"></span><b id="hudMoedas">0</b><span class="hud-diamantes"><span data-ico="diamante" data-px="18"></span><b id="hudDiamantes">0</b></span></div>
         <button type="button" class="hud-clima caixa" id="hudClima" aria-label="Clima de hoje" hidden></button>
         <button type="button" class="hud-energia caixa" id="hudEnergia" aria-label="Energia" hidden></button>
         <!-- celular: os botões do topo ficam dentro deste menu -->
@@ -171,9 +171,9 @@
         </div>
     </section>
 
-    <script src="assets/app/instalar.js?v=20261010-18" data-escopo="/fazenda" defer></script>
-    <script src="assets/fazenda/fazenda-arte.js?v=20261010-18" defer></script>
-    <script src="assets/fazenda/fazenda.js?v=20261010-18" defer></script>
+    <script src="assets/app/instalar.js?v=20261011-1" data-escopo="/fazenda" defer></script>
+    <script src="assets/fazenda/fazenda-arte.js?v=20261011-1" defer></script>
+    <script src="assets/fazenda/fazenda.js?v=20261011-1" defer></script>
 </body>
 
 </html>

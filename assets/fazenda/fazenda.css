@@ -365,6 +365,31 @@ button {
     animation: pulo .3s steps(3);
 }
 
+/* menu da planta crescendo: botões um embaixo do outro */
+.menu-canteiro {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.menu-canteiro .aviso {
+    margin: -4px 0 4px;
+}
+
+.canteiro-falta {
+    text-align: center;
+}
+
+/* diamantes na mesma caixa das moedas, separados por um tracinho */
+.hud-diamantes {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding-left: 10px;
+    border-left: 2px solid rgba(63, 38, 49, .2);
+}
+
 @keyframes pulo {
     50% { transform: translateY(-4px); }
 }
@@ -904,6 +929,26 @@ button.item:hover {
         margin-left: auto;
         font-size: 18px;
         padding: 6px 10px;
+        /* no celular os diamantes vão embaixo das moedas, para não apertar o perfil */
+        display: grid;
+        grid-template-columns: auto auto;
+        align-items: center;
+        gap: 0 6px;
+        line-height: 1;
+    }
+
+    .hud-diamantes {
+        grid-column: 1 / -1;
+        justify-content: flex-end;
+        gap: 4px;
+        padding: 3px 0 0;
+        border-left: 0;
+        border-top: 2px solid rgba(63, 38, 49, .2);
+        margin-top: 3px;
+    }
+
+    .hud .hud-diamantes b {   /* (.hud na frente: a regra da fonte pixel vem depois no arquivo) */
+        font-size: 20px;
     }
 
     .apelido {

@@ -281,6 +281,9 @@ alter table public.fazenda_canteiros add column if not exists adubado boolean no
 alter table public.fazenda_jogadores drop column if exists ultimas_sementes;
 alter table public.fazenda_jogadores add column if not exists carregado_em timestamptz;
 alter table public.fazenda_jogadores add column if not exists carregado_antes timestamptz;
+-- Fase 31: diamantes, a moeda especial (colher na hora). Todo mundo começa com 10, inclusive
+-- quem já jogava (o default preenche as linhas que existem), e ganha 5 a cada nível
+alter table public.fazenda_jogadores add column if not exists diamantes int not null default 10 check (diamantes >= 0);
 -- última semente que o jogador plantou (a semeadora usa a mesma)
 alter table public.fazenda_jogadores add column if not exists semente text references public.fazenda_culturas(id);
 
@@ -838,12 +841,14 @@ begin
 end;
 $$;
 
--- XP onde começa o nível n. Até o 10: 25·(n-1)² (25, 100, 225... 2025). Do 10 em diante
--- cada nível pede 22% a mais que o anterior, começando em 700 (10→11: 700, 15→16: 1.892,
--- 20→21: 5.113, 24→25: 11.327). Os números da barra vêm daqui (estado: xp_nivel/xp_proximo).
+-- XP onde começa o nível n. Até o 10 é uma tabela que começa bem fácil (o nível 2 vem na
+-- primeira colheita de alface) e chega nos mesmos 2025 de antes: 10, 35, 85, 175, 315, 525,
+-- 825, 1325, 2025 (fase 31; antes era 25·(n-1)², e ninguém desce de nível com a troca). Do 10
+-- em diante cada nível pede 22% a mais que o anterior, começando em 700 (10→11: 700,
+-- 15→16: 1.892, 20→21: 5.113, 24→25: 11.327). Os números da barra vêm daqui (estado: xp_nivel/xp_proximo).
 create or replace function public.fazenda_xp_nivel(p_nivel int)
 returns bigint language sql immutable as $$
-  select case when p_nivel <= 10 then 25 * (p_nivel - 1) * (p_nivel - 1)
+  select case when p_nivel <= 10 then (array[0, 10, 35, 85, 175, 315, 525, 825, 1325, 2025])[greatest(p_nivel, 1)]
               else 2025 + round(700 * (power(1.22::float8, p_nivel - 10) - 1) / 0.22)::bigint end;
 $$;
 
@@ -854,7 +859,7 @@ declare
   n int;
 begin
   if p_xp < 2025 then
-    return floor(sqrt(greatest(p_xp, 0) / 25.0))::int + 1;
+    return 1 + (select count(*)::int from unnest(array[10, 35, 85, 175, 315, 525, 825, 1325]) t where t <= p_xp);
   end if;
   n := 10 + floor(ln(1 + (p_xp - 2025) * 0.22 / 700) / ln(1.22))::int;
   while fazenda_xp_nivel(n + 1) <= p_xp loop n := n + 1; end loop;    -- acerta o arredondamento
@@ -1119,10 +1124,11 @@ begin
     select * into j from fazenda_jogadores where id = p_jogador;
   end if;
   v_nivel := fazenda_nivel(j.xp);
-  -- subiu de nível: presente de moedas por cada nível novo
+  -- subiu de nível: presente de moedas e 5 diamantes por cada nível novo
   if v_nivel > coalesce(j.nivel_premiado, 1) then
     update fazenda_jogadores
        set moedas = moedas + (select sum(fazenda_presente_nivel(n)) from generate_series(coalesce(j.nivel_premiado, 1) + 1, v_nivel) n),
+           diamantes = diamantes + 5 * (v_nivel - coalesce(j.nivel_premiado, 1)),
            nivel_premiado = v_nivel
      where id = p_jogador;
     select * into j from fazenda_jogadores where id = p_jogador;
@@ -1142,6 +1148,7 @@ begin
       'avatares', j.avatares,
       'avatar_precos', fazenda_avatar_precos(),
       'moedas', j.moedas,
+      'diamantes', j.diamantes,
       'xp', j.xp,
       'nivel', v_nivel,
       'xp_nivel', fazenda_xp_nivel(v_nivel),
@@ -1281,6 +1288,21 @@ begin
     select * into k from fazenda_culturas where id = c.cultura;
     v_maduro := c.plantado_em + make_interval(secs => k.tempo_seg);
     v_murcho := v_maduro + make_interval(secs => greatest(k.tempo_seg * 2, 3600));
+  end if;
+
+  -- colher agora (fase 31): 1 diamante deixa pronto na hora o que está crescendo, sem os
+  -- problemas, e já colhe. Maduro não precisa de diamante: só colhe.
+  if p_acao = 'agora' then
+    if p_bot then raise exception 'acao_invalida'; end if;
+    if c.estado <> 'plantado' or now() >= v_murcho then raise exception 'nada_a_fazer'; end if;
+    if now() < v_maduro then
+      if j.diamantes < 1 then raise exception 'diamantes_insuficientes'; end if;
+      update fazenda_jogadores set diamantes = diamantes - 1 where id = p_jogador;
+      c.erva := false; c.praga := false; c.seco := false;
+      v_maduro := now();
+      v_murcho := now() + make_interval(secs => greatest(k.tempo_seg * 2, 3600));
+    end if;
+    p_acao := 'colher';
   end if;
 
   if p_acao = 'arar' then
@@ -3346,6 +3368,7 @@ begin
    where jogador_id = v_id;
   update fazenda_jogadores
      set energia = least(energia + fazenda_energia_taxa(v_id, now()) * 0.5, fazenda_capacidade(v_id)),
+         diamantes = diamantes + 1,   -- fase 31: cada anúncio também dá 1 diamante
          anuncio_em = now()
    where id = v_id;
   insert into fazenda_estatisticas (jogador_id) values (v_id) on conflict do nothing;

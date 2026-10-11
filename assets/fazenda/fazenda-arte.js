@@ -507,6 +507,8 @@
     /* ---------- Ícones pixel (mesma paleta) ---------- */
     const ICONES = {
         moeda: ['..oooo..', '.oyyyyo.', 'oywyyyYo', 'oywyYyYo', 'oyyyYyYo', 'oyyyyYYo', '.oYYYYo.', '..oooo..'],
+        // diamante: a moeda especial (colher na hora)
+        diamante: ['..ooooo..', '.owwbbBo.', 'owbbbbbBo', 'oBbBbBbBo', '.obbbbBo.', '..obbBo..', '...oBo...', '....o....'],
         ajuda: ['.ooooooo.', 'owwwwwwwo', 'owwooowwo', 'owowwwowo', 'owwwwowwo', 'owwwowwwo', 'owwwwwwwo', 'owwwowwwo', '.oooooooo', '.....oo..'],
         xp: ['....o....', '...oyo...', '..oywyo..', 'oooywyooo', 'oyyyyyyYo', '.oyyyyYo.', '.oyyoyYo.', 'oyYo.oYYo', 'ooo...ooo'],
         praga: ['.o.....o.', '..o...o..', '..ooooo..', '.oPwpPPo.', 'oPpPPPpPo', 'oPPPPPPPo', '.oPPpPPo.', '..ooooo..'],
