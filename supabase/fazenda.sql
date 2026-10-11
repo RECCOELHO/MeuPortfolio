@@ -296,7 +296,10 @@ alter table public.fazenda_estatisticas add column if not exists energia int not
 -- Fase 12: curva de XP. 1 = a antiga (25·(n-1)² em todos os níveis), 2 = a nova (mais
 -- difícil do nível 10 em diante). Quem já jogava é convertido uma vez só (ver abaixo).
 alter table public.fazenda_jogadores add column if not exists curva smallint not null default 1;
-alter table public.fazenda_jogadores alter column curva set default 2;
+alter table public.fazenda_jogadores alter column curva set default 3;   -- 3 = fase 37 (mais puxada do 19 em diante)
+-- Fase 37: vender dá XP (1 a cada 25 moedas do valor); o que sobra de uma venda (menos de 25)
+-- fica guardado para a próxima, para quem vende aos poucos não perder nada
+alter table public.fazenda_jogadores add column if not exists venda_resto numeric not null default 0;
 
 -- Fase 13: anúncio premiado (quando foi o último) e quantos cada jogador já assistiu
 alter table public.fazenda_jogadores add column if not exists anuncio_em timestamptz;
@@ -851,7 +854,11 @@ $$;
 create or replace function public.fazenda_xp_nivel(p_nivel int)
 returns bigint language sql immutable as $$
   select case when p_nivel <= 10 then (array[0, 10, 35, 85, 175, 315, 525, 825, 1325, 2025])[greatest(p_nivel, 1)]
-              else 2025 + round(700 * (power(1.22::float8, p_nivel - 10) - 1) / 0.22)::bigint end;
+              when p_nivel <= 18 then 2025 + round(700 * (power(1.22::float8, p_nivel - 10) - 1) / 0.22)::bigint
+              -- fase 37: do 19 em diante cada nível pede 30% a mais que o anterior (era 22%).
+              -- 2817 = o que o 17→18 pede; 18→19: 3.661, 19→20: 4.759, 24→25: 17.671
+              else 2025 + round(700 * (power(1.22::float8, 8) - 1) / 0.22)::bigint
+                   + round(700 * power(1.22::float8, 7) * 1.3 * (power(1.3::float8, p_nivel - 18) - 1) / 0.3)::bigint end;
 $$;
 
 -- Nível a partir do XP (o inverso de fazenda_xp_nivel)
@@ -878,6 +885,21 @@ update public.fazenda_jogadores j
                                                     * (fazenda_xp_nivel(x.n + 1) - fazenda_xp_nivel(x.n)))::int end,
        curva = 2
   from (select id, floor(sqrt(greatest(xp, 0) / 25.0))::int + 1 as n from public.fazenda_jogadores where curva = 1) x
+ where j.id = x.id;
+
+-- Fase 37 (curva 2 → 3, uma vez): quem já passou do 18 na curva de 22% continua no mesmo
+-- nível, com a barra cheia na mesma proporção (ninguém desce de nível). Até o 18 nada muda.
+update public.fazenda_jogadores j
+   set xp = case when x.n <= 18 then j.xp
+                 else fazenda_xp_nivel(x.n) + floor(least(greatest((j.xp - x.ini) / nullif(x.fim - x.ini, 0), 0), 0.999)
+                                                    * (fazenda_xp_nivel(x.n + 1) - fazenda_xp_nivel(x.n)))::int end,
+       curva = 3
+  from (select id, n,
+               2025 + round(700 * (power(1.22::float8, n - 10) - 1) / 0.22) as ini,
+               2025 + round(700 * (power(1.22::float8, n + 1 - 10) - 1) / 0.22) as fim
+          from (select id, case when xp < 2025 then 1
+                                else 10 + floor(ln(1 + (xp - 2025) * 0.22 / 700) / ln(1.22))::int end as n
+                  from public.fazenda_jogadores where curva = 2) y) x
  where j.id = x.id;
 
 create or replace function public.fazenda_max_canteiros(p_nivel int)
@@ -2164,14 +2186,18 @@ declare
   r       record;
   v_qtd   int;
   v_ganho int := 0;
+  v_nivel int;
+  v_valor numeric := 0;   -- valor que conta para o XP (sem o bônus de beleza)
+  v_xp    int;
 begin
   if p_quantidade is not null and p_quantidade <= 0 then
     raise exception 'quantidade_invalida';
   end if;
+  v_nivel := fazenda_nivel((select xp from fazenda_jogadores where id = v_id));
 
   -- o que está reservado para os animais fica no celeiro
   for r in
-    select ce.item, ce.quantidade - coalesce(rs.quantidade, 0) as livre, k.venda
+    select ce.item, ce.quantidade - coalesce(rs.quantidade, 0) as livre, k.venda, k.tipo, k.nivel_min
       from fazenda_celeiro ce
       join fazenda_culturas k on k.id = ce.item
       left join fazenda_reservas rs on rs.jogador_id = ce.jogador_id and rs.item = ce.item
@@ -2184,15 +2210,23 @@ begin
     update fazenda_celeiro set quantidade = quantidade - v_qtd
      where jogador_id = v_id and item = r.item;
     v_ganho := v_ganho + v_qtd * r.venda;
+    -- XP da venda (fase 37): produtos contam inteiros; planta segue a regra de XP das plantas,
+    -- e a fácil demais para o nível (a de um quarto) não conta: alface não vira XP de novo
+    v_valor := v_valor + v_qtd * r.venda * case when r.tipo <> 'cultura' then 1
+      else (case fazenda_xp_planta(v_nivel, r.nivel_min) when 1 then 1 when 0.5 then 0.5 else 0 end) end;
   end loop;
 
   v_ganho := (v_ganho * (100 + fazenda_bonus_venda(v_id))) / 100;   -- beleza e caixote
-  update fazenda_jogadores set moedas = moedas + v_ganho where id = v_id;
+  -- 1 XP a cada 25 moedas do valor; o que sobra fica para a próxima venda
+  select floor((venda_resto + v_valor) / 25)::int into v_xp from fazenda_jogadores where id = v_id;
+  update fazenda_jogadores
+     set moedas = moedas + v_ganho, xp = xp + v_xp, venda_resto = venda_resto + v_valor - v_xp * 25
+   where id = v_id;
   if v_ganho > 0 then
     perform fazenda_missao(v_id, 'vender', v_ganho);
   end if;
 
-  return jsonb_build_object('ganho', v_ganho, 'estado', fazenda_estado(v_id));
+  return jsonb_build_object('ganho', v_ganho, 'xp', v_xp, 'estado', fazenda_estado(v_id));
 end;
 $$;
 
