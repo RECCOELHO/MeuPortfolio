@@ -386,8 +386,18 @@ button {
     display: flex;
     align-items: center;
     gap: 6px;
-    padding-left: 10px;
+    padding: 0 0 0 10px;
+    border: 0;
     border-left: 2px solid rgba(63, 38, 49, .2);
+    background: none;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+}
+
+.hud-diamantes:hover b,
+.hud-diamantes:focus-visible b {
+    text-decoration: underline;
 }
 
 @keyframes pulo {
@@ -561,8 +571,14 @@ button {
 .abas-botoes,
 .painel-abas {
     display: flex;
+    flex-wrap: wrap;   /* a loja tem 5 abas: no celular vira duas linhas */
     gap: 10px;
     margin: 4px 0 18px;
+}
+
+.painel-abas button {
+    flex: 1 1 auto;
+    white-space: nowrap;
 }
 
 .abas-botoes button,
