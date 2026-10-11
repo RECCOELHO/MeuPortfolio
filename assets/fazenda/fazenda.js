@@ -48,6 +48,11 @@
         nivel_insuficiente: 'Você ainda não tem nível para essa semente.',
         moedas_insuficientes: 'Moedas insuficientes.',
         diamantes_insuficientes: 'Faltam diamantes. Você ganha 5 a cada nível.',
+        pacote_invalido: 'Pacote de diamantes inválido.',
+        muitas_compras: 'Muitas compras abertas na última hora. Espere um pouco e tente de novo.',
+        loja_fechada: 'A loja de diamantes ainda não abriu.',
+        compra_invalida: 'Compra não encontrada.',
+        erro_pagamento: 'O Mercado Pago não respondeu agora. Tente daqui a pouco.',
         nada_a_fazer: 'Nada pra fazer aqui.',
         nao_maduro: 'Ainda não está pronto.',
         murchou: 'Essa planta murchou… are o canteiro para limpar.',
@@ -374,6 +379,18 @@
         if (/^[A-Z0-9]{6}$/.test(cod)) { store.set(LS.convite, cod); conviteDoLink = true; }
         if (url.searchParams.has('convite')) {
             url.searchParams.delete('convite');
+            history.replaceState(null, '', url.pathname + url.search + url.hash);
+        }
+    } catch { /* ignora */ }
+    // volta do Mercado Pago: fazenda.html?compra=ID (mais os parâmetros dele, que saem da barra de endereço)
+    let compraDoLink = null;
+    try {
+        const url = new URL(location.href);
+        const id = url.searchParams.get('compra') || '';
+        if (/^[0-9a-f-]{36}$/i.test(id)) compraDoLink = id;
+        if (url.searchParams.has('compra')) {
+            ['compra', 'collection_id', 'collection_status', 'payment_id', 'status', 'external_reference', 'payment_type',
+                'merchant_order_id', 'preference_id', 'site_id', 'processing_mode', 'merchant_account_id'].forEach((k) => url.searchParams.delete(k));
             history.replaceState(null, '', url.pathname + url.search + url.hash);
         }
     } catch { /* ignora */ }
@@ -2249,12 +2266,13 @@
             if (!soAtualizar) tutorialEvento('loja');
             el.painelTitulo.innerHTML = `${spr(9, 32)} Loja`;
             const abas = `<div class="painel-abas" role="tablist">
-                ${[['sementes', 'Sementes'], ['animais', 'Animais'], ['ajudantes', 'Ajudantes'], ['terrenos', 'Terrenos']].map(([id, txt]) =>
+                ${[['sementes', 'Sementes'], ['animais', 'Animais'], ['ajudantes', 'Ajudantes'], ['terrenos', 'Terrenos'], ['diamantes', 'Diamantes']].map(([id, txt]) =>
                     `<button type="button" role="tab" data-aba-loja="${id}" class="${abaLoja === id ? 'ativa' : ''}">${txt}</button>`).join('')}
             </div>`;
             if (abaLoja === 'animais') corpo.innerHTML = abas + htmlLojaAnimais();
             else if (abaLoja === 'terrenos') corpo.innerHTML = abas + htmlLojaTerrenos();
             else if (abaLoja === 'ajudantes') corpo.innerHTML = abas + htmlLojaAjudantes();
+            else if (abaLoja === 'diamantes') corpo.innerHTML = abas + htmlLojaDiamantes();
             else corpo.innerHTML = abas + htmlLojaSementes();
         } else if (nome === 'missoes') {
             el.painelTitulo.innerHTML = `${ico('missao', 26)} Missões do dia`;
@@ -2309,6 +2327,7 @@
                     <div class="menu-canteiro">
                         <button type="button" class="botao verde" data-canteiro="agora"${diam < 1 ? ' disabled' : ''}>${ico('diamante', 18)} Colher agora · 1 diamante</button>
                         <p class="aviso">Fica pronta na hora, sem erva, praga ou seca, e já vai para o celeiro. Você tem <b>${diam}</b> ${ico('diamante', 14)} e ganha 5 a cada nível.</p>
+                        ${diam < 1 && (S.pacotes_diamantes || []).length ? `<button type="button" class="botao creme" data-ir-diamantes>${ico('diamante', 18)} Comprar diamantes</button>` : ''}
                         ${troca ? `<button type="button" class="botao creme" data-canteiro="trocar">Arrancar e plantar ${itemDe(troca, 18)} ${esc(troca.nome.toLowerCase())} (${moeda(troca.custo)})</button>` : ''}
                         <button type="button" class="botao creme" data-canteiro="arrancar">Arrancar (a planta se perde)</button>
                     </div>`;
@@ -2634,6 +2653,55 @@
         }).join('') + '</div><p class="aviso">Cada terreno abre um pedaço da mata em volta: mais espaço para canteiros, cercados, máquinas e enfeites, e mais canteiros no seu limite. Os três últimos são grandes. Também dá para tocar na placa no mapa.</p>';
     }
 
+    /* ---------- Diamantes à venda (Mercado Pago) ----------
+       A Edge Function fazenda-diamantes cria a compra e devolve a página de pagamento; o
+       Mercado Pago traz a pessoa de volta em fazenda.html?compra=ID e avisa a função, que
+       credita os diamantes. Os pacotes e preços vêm do servidor (estado.pacotes_diamantes). */
+    const reais = (v) => 'R$ ' + Number(v).toFixed(2).replace('.', ',');
+    function htmlLojaDiamantes() {
+        const pacotes = S.pacotes_diamantes || [];
+        if (!pacotes.length) return '<p class="vazio-msg">Os diamantes chegam em breve.</p>';
+        return `<p>Você tem <b>${S.jogador.diamantes || 0}</b> ${ico('diamante', 14)}. Cada diamante faz uma planta crescendo ficar pronta na hora.</p>
+            <div class="lista">` + pacotes.map((p) => `<div class="item">
+                <span class="ico">${ico('diamante', 36)}</span>
+                <span><span class="nome">${p.diamantes} diamantes</span><span class="det"><span>colhe ${p.diamantes} plantas na hora</span></span></span>
+                <button type="button" class="botao pequeno verde" data-diamantes="${esc(p.id)}">${reais(p.valor)}</button>
+            </div>`).join('') + `</div>
+            <p class="aviso">O pagamento é no Mercado Pago (Pix, cartão ou saldo): a fazenda não vê os dados do seu cartão. Os diamantes caem assim que o pagamento é aprovado. Também dá para ganhar: 5 a cada nível${ANUNCIO.ligado ? ' e 1 por anúncio' : ''}. <a href="privacidade.html" target="_blank" rel="noopener">Como funciona a compra</a></p>`;
+    }
+    async function comprarDiamantes(pacote) {
+        let res, data;
+        try {
+            res = await fetch(`${API}/functions/v1/fazenda-diamantes`, {
+                method: 'POST',
+                headers: { apikey: SUPABASE_KEY, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token, pacote })
+            });
+            data = await res.json().catch(() => null);
+        } catch {
+            return toast('Sem conexão com a loja de diamantes. Tente de novo.', 'erro');
+        }
+        if (!res.ok || !data || !data.url) return toast(ERROS[data && data.message] || 'A loja de diamantes não respondeu. Tente daqui a pouco.', 'erro');
+        location.href = data.url;   // página do Mercado Pago
+    }
+    // voltou do Mercado Pago: espera a aprovação (Pix costuma ser na hora) e avisa quando os diamantes caírem
+    async function acompanharCompra(id) {
+        for (let n = 0; n < 20; n++) {
+            let r;
+            try { r = await rpc('fazenda_compra_status', { p_token: token, p_compra: id }); } catch { return; }
+            aplicarEstado(r.estado);
+            if (r.status === 'aprovada') {
+                toast(`${ico('diamante', 16)} Compra aprovada: +${r.diamantes} diamantes!`, 'festa');
+                som.tocar('moeda');
+                return;
+            }
+            if (r.status !== 'pendente') return toast('O pagamento não foi aprovado, então nenhum diamante entrou.', 'erro');
+            if (n === 0) toast('Esperando o Mercado Pago aprovar o pagamento...');
+            await new Promise((ok) => setTimeout(ok, 3000));
+        }
+        toast('O pagamento ainda está em análise. Os diamantes caem sozinhos assim que o Mercado Pago aprovar.');
+    }
+
     const TEXTO_MISSAO = {
         colher: (n) => `Colha ${n} itens`,
         plantar: (n) => `Plante ${n} sementes`,
@@ -2807,6 +2875,17 @@
                 if (ganho > 0) { toast(`Vendeu por ${ico('moeda', 16)} ${ganho}!${guardou}`); som.tocar('moeda'); tutorialEvento('vender'); }
                 if (estado) aplicarEstado(estado);
             }).finally(() => { vend.disabled = false; });
+            return;
+        }
+        const dia = e.target.closest('[data-diamantes]');
+        if (dia) {
+            dia.disabled = true;
+            comprarDiamantes(dia.dataset.diamantes).finally(() => { dia.disabled = false; });
+            return;
+        }
+        if (e.target.closest('[data-ir-diamantes]')) {
+            abaLoja = 'diamantes';
+            abrirPainel('loja');
             return;
         }
         const menuC = e.target.closest('[data-canteiro]');
@@ -3064,6 +3143,11 @@
 
     el.btnConstruir.addEventListener('click', abrirConstrucao);
     if (el.clima) el.clima.addEventListener('click', descreverClima);
+    $('hudDiamantesBtn').addEventListener('click', () => {
+        if (!S || visita) return;
+        abaLoja = 'diamantes';
+        abrirPainel('loja');
+    });
     if (el.energia) el.energia.addEventListener('click', descreverEnergia);
     if (el.anuncio) el.anuncio.addEventListener('click', assistirAnuncio);
     if (el.hudPerfil) {
@@ -3232,6 +3316,7 @@
         try {
             aplicarEstado(await rpc('fazenda_carregar', { p_token: token }));
             mostrarFazenda();
+            if (compraDoLink) acompanharCompra(compraDoLink);
             if (conviteDoLink) {
                 store.del(LS.convite);
                 toast('Esse convite é para quem ainda não tem fazenda. Você pode chamar os seus amigos pelo Perfil!');

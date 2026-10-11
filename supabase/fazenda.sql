@@ -1159,6 +1159,7 @@ begin
       'bonus_venda', fazenda_bonus_venda(p_jogador)
     ),
     'zonas_venda', fazenda_zonas(),
+    'pacotes_diamantes', fazenda_pacotes_diamantes(),
     'galinheiro', jsonb_build_object('linhas', fazenda_galinheiro_linhas(p_jogador), 'quer', fazenda_galinheiro_quer(p_jogador)),
     'visitante', fazenda_visitante(p_jogador),
     -- o lago (só com o terreno 3): desde quando o cesto enche, o ritmo, o máximo e as chances
@@ -3408,6 +3409,109 @@ end;
 $$;
 
 -- ------------------------------------------------------------
+-- Fase 32: compra de diamantes pelo Mercado Pago (Checkout Pro)
+-- A Edge Function fazenda-diamantes (supabase/functions) cria a compra aqui, abre a página
+-- de pagamento e, quando o Mercado Pago avisa, confere o pagamento na API dele e chama
+-- fazenda_compra_pagamento. As duas funções internas não ficam abertas para a chave anon.
+-- ------------------------------------------------------------
+create table if not exists public.fazenda_compras (
+  id          uuid primary key default gen_random_uuid(),
+  jogador_id  uuid not null references public.fazenda_jogadores(id) on delete cascade,
+  pacote      text not null,
+  valor       numeric(10, 2) not null,
+  diamantes   int  not null,
+  status      text not null default 'pendente' check (status in ('pendente', 'aprovada', 'recusada', 'estornada')),
+  mp_id       text unique,
+  criado_em   timestamptz not null default now(),
+  pago_em     timestamptz
+);
+create index if not exists fazenda_compras_jogador on public.fazenda_compras (jogador_id, criado_em);
+alter table public.fazenda_compras enable row level security;
+revoke all on public.fazenda_compras from anon, authenticated;
+
+-- Pacotes à venda: R$ 1 = 24 diamantes (igual em todos)
+create or replace function public.fazenda_pacotes_diamantes()
+returns jsonb language sql immutable as $$
+  select '[{"id":"d24","valor":1,"diamantes":24},
+           {"id":"d120","valor":5,"diamantes":120},
+           {"id":"d240","valor":10,"diamantes":240},
+           {"id":"d480","valor":20,"diamantes":480}]'::jsonb;
+$$;
+
+-- Edge Function: o jogador escolheu um pacote. Cria a compra pendente.
+create or replace function public.fazenda_compra_criar(p_token text, p_pacote text)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id uuid := fazenda_auth(p_token);
+  v_p  jsonb;
+  v_c  record;
+begin
+  select p into v_p from jsonb_array_elements(fazenda_pacotes_diamantes()) p where p->>'id' = p_pacote;
+  if v_p is null then raise exception 'pacote_invalido'; end if;
+  -- contra clique repetido: no máximo 10 compras abertas por hora
+  if (select count(*) from fazenda_compras where jogador_id = v_id and criado_em > now() - interval '1 hour') >= 10 then
+    raise exception 'muitas_compras';
+  end if;
+  insert into fazenda_compras (jogador_id, pacote, valor, diamantes)
+  values (v_id, p_pacote, (v_p->>'valor')::numeric, (v_p->>'diamantes')::int)
+  returning * into v_c;
+  return jsonb_build_object('id', v_c.id, 'pacote', v_c.pacote, 'valor', v_c.valor, 'diamantes', v_c.diamantes);
+end;
+$$;
+
+-- Edge Function: o Mercado Pago avisou e a função já conferiu o pagamento na API dele.
+-- Aprovado (e no valor certo) credita os diamantes uma vez só; estorno/chargeback tira de volta.
+create or replace function public.fazenda_compra_pagamento(p_compra uuid, p_mp_id text, p_status text, p_valor numeric)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  c record;
+begin
+  select * into c from fazenda_compras where id = p_compra for update;
+  if not found then return jsonb_build_object('resultado', 'desconhecida'); end if;
+  if c.mp_id is not null and c.mp_id <> p_mp_id and c.status = 'aprovada' then
+    return jsonb_build_object('resultado', 'outro_pagamento');   -- já foi paga por outro pagamento
+  end if;
+
+  if p_status = 'approved' and c.status in ('pendente', 'recusada') then
+    if p_valor < c.valor then return jsonb_build_object('resultado', 'valor_errado'); end if;
+    update fazenda_compras set status = 'aprovada', mp_id = p_mp_id, pago_em = now() where id = c.id;
+    update fazenda_jogadores set diamantes = diamantes + c.diamantes where id = c.jogador_id;
+    return jsonb_build_object('resultado', 'creditada', 'diamantes', c.diamantes);
+  elsif p_status in ('refunded', 'charged_back') and c.status = 'aprovada' then
+    update fazenda_compras set status = 'estornada' where id = c.id;
+    update fazenda_jogadores set diamantes = greatest(diamantes - c.diamantes, 0) where id = c.jogador_id;
+    return jsonb_build_object('resultado', 'estornada');
+  elsif p_status in ('rejected', 'cancelled') and c.status = 'pendente' then
+    update fazenda_compras set status = 'recusada', mp_id = p_mp_id where id = c.id;
+    return jsonb_build_object('resultado', 'recusada');
+  end if;
+  return jsonb_build_object('resultado', 'nada');
+end;
+$$;
+
+-- O jogador voltou do Mercado Pago (fazenda.html?compra=...): como está a compra?
+create or replace function public.fazenda_compra_status(p_token text, p_compra uuid)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id uuid := fazenda_auth(p_token);
+  c    record;
+begin
+  select * into c from fazenda_compras where id = p_compra and jogador_id = v_id;
+  if not found then raise exception 'compra_invalida'; end if;
+  return jsonb_build_object('status', c.status, 'diamantes', c.diamantes, 'estado', fazenda_estado(v_id));
+end;
+$$;
+
+-- ------------------------------------------------------------
 -- Permissões: só a API pública fica executável pela chave anon
 -- ------------------------------------------------------------
 revoke execute on function
@@ -3488,7 +3592,11 @@ revoke execute on function
   public.fazenda_atender(text, boolean),
   public.fazenda_avatar(text, jsonb),
   public.fazenda_avatar_precos(),
-  public.fazenda_checar_conquistas(uuid)
+  public.fazenda_checar_conquistas(uuid),
+  public.fazenda_pacotes_diamantes(),
+  public.fazenda_compra_criar(text, text),
+  public.fazenda_compra_pagamento(uuid, text, text, numeric),
+  public.fazenda_compra_status(text, uuid)
 from public, anon, authenticated;
 
 grant execute on function
@@ -3516,5 +3624,6 @@ grant execute on function
   public.fazenda_gerador(text, int, int),
   public.fazenda_anuncio(text),
   public.fazenda_convite_info(text),
-  public.fazenda_pescar(text)
+  public.fazenda_pescar(text),
+  public.fazenda_compra_status(text, uuid)
 to anon, authenticated;
