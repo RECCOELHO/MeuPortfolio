@@ -3429,13 +3429,14 @@ create index if not exists fazenda_compras_jogador on public.fazenda_compras (jo
 alter table public.fazenda_compras enable row level security;
 revoke all on public.fazenda_compras from anon, authenticated;
 
--- Pacotes à venda: R$ 1 = 24 diamantes (igual em todos)
+-- Pacotes à venda: R$ 1 = 24 diamantes, e os maiores vêm com bônus (fase 33):
+-- R$ 5 +10, R$ 10 +30, R$ 20 +100. A compra guarda os diamantes do pacote na hora em que é criada.
 create or replace function public.fazenda_pacotes_diamantes()
 returns jsonb language sql immutable as $$
-  select '[{"id":"d24","valor":1,"diamantes":24},
-           {"id":"d120","valor":5,"diamantes":120},
-           {"id":"d240","valor":10,"diamantes":240},
-           {"id":"d480","valor":20,"diamantes":480}]'::jsonb;
+  select '[{"id":"p1","valor":1,"diamantes":24,"bonus":0},
+           {"id":"p5","valor":5,"diamantes":130,"bonus":10},
+           {"id":"p10","valor":10,"diamantes":270,"bonus":30},
+           {"id":"p20","valor":20,"diamantes":580,"bonus":100}]'::jsonb;
 $$;
 
 -- Edge Function: o jogador escolheu um pacote. Cria a compra pendente.

@@ -2664,7 +2664,7 @@
         return `<p>Você tem <b>${S.jogador.diamantes || 0}</b> ${ico('diamante', 14)}. Cada diamante faz uma planta crescendo ficar pronta na hora.</p>
             <div class="lista">` + pacotes.map((p) => `<div class="item">
                 <span class="ico">${ico('diamante', 36)}</span>
-                <span><span class="nome">${p.diamantes} diamantes</span><span class="det"><span>colhe ${p.diamantes} plantas na hora</span></span></span>
+                <span><span class="nome">${p.diamantes} diamantes</span><span class="det">${p.bonus ? `<span class="bonus-txt">+${p.bonus} de bônus</span>` : ''}<span>colhe ${p.diamantes} plantas na hora</span></span></span>
                 <button type="button" class="botao pequeno verde" data-diamantes="${esc(p.id)}">${reais(p.valor)}</button>
             </div>`).join('') + `</div>
             <p class="aviso">O pagamento é no Mercado Pago (Pix, cartão ou saldo): a fazenda não vê os dados do seu cartão. Os diamantes caem assim que o pagamento é aprovado. Também dá para ganhar: 5 a cada nível${ANUNCIO.ligado ? ' e 1 por anúncio' : ''}. <a href="privacidade.html" target="_blank" rel="noopener">Como funciona a compra</a></p>`;
