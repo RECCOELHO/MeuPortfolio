@@ -1123,7 +1123,7 @@
             if (!auto) prontos += it.produz_qtd;   // com a fábrica automática vai direto para o celeiro
             t = estoque > 0 ? (estoque--, t + dur) : null;
         }
-        const base = { it, produto, estoque, prontos, auto, ligada, rede };
+        const base = { x: c.x, y: c.y, it, produto, estoque, prontos, auto, ligada, rede };
         if (t == null) return { ...base, estado: 'parada' };
         const falta = t + dur - agora();
         return { ...base, estado: 'trabalhando', falta, progresso: 1 - falta / dur, termina: t + dur + estoque * dur };
@@ -1139,12 +1139,21 @@
     function visualConstrucoes() {
         if (!S) return DEMO_CONSTRUCOES;
         if (visita) return visita.construcoes || [];
+        // sinal da rede: luz verde pulsando = ligada e com energia; vermelha piscando = sem energia
+        const sinal = cargaAgora() >= 1 ? 'ok' : 'sem_energia';
         return (S.construcoes || []).map((c) => {
             const o = infoOficina(c);
             if (o) {   // (os itens andando nos canos agora vêm das viagens: visualViagens)
-                return { ...c, oficina: { estado: o.prontos > 0 ? 'pronta' : o.estado, trabalhando: o.estado === 'trabalhando', progresso: o.progresso, produto: A.cultura(o.it.produz).item } };
+                return { ...c, oficina: { estado: o.prontos > 0 ? 'pronta' : o.estado, trabalhando: o.estado === 'trabalhando', progresso: o.progresso, produto: A.cultura(o.it.produz).item, rede: o.ligada ? sinal : null } };
             }
-            if (c.tipo === 'cano') return { ...c, cano: redeCanos().lados.get(c.x + ',' + c.y) };
+            if (c.tipo === 'cano') {
+                const r = redeCanos(), k = c.x + ',' + c.y;
+                return { ...c, cano: r.lados.get(k), rede: (r.membros.get(r.redeDoCano.get(k)) || 0) >= 2 ? sinal : null };
+            }
+            if (c.tipo === 'bau') {
+                const total = Object.values((S.baus || {})[c.x + ',' + c.y] || {}).reduce((a, n) => a + n, 0);
+                return total > 0 ? { ...c, bau: { frac: total / BAU_MAX } } : c;
+            }
             if (c.iniciado_em && (tipoItem(c.tipo) || {}).efeito === 'biomassa') return { ...c, ligado: true };
             const p = infoProducao(c);
             return p && p.falta <= 0 ? { ...c, pronto: true, produto: A.cultura(p.it.produz).item } : c;
@@ -1211,7 +1220,9 @@
             const [x, y] = ck.split(',').map(Number);
             lados.set(ck, VIZINHOS.map(([dx, dy]) => set.has((x + dx) + ',' + (y + dy)) || coisas.some((k) => dentro(k, x + dx, y + dy))));
         }
-        cacheCanos = { cons, set, redeDoCano, coisas, lados, caminhos: new Map() };
+        const membros = new Map();   // rede → quantas coisas ela liga (com 2 ou mais ela trabalha)
+        for (const k of coisas) for (const r of k.redes) membros.set(r, (membros.get(r) || 0) + 1);
+        cacheCanos = { cons, set, redeDoCano, coisas, lados, membros, caminhos: new Map() };
         return cacheCanos;
     }
     // o que está na mesma rede que a coisa em (x, y) (fora ela mesma)
@@ -1313,16 +1324,49 @@
     }
     // o painel da oficina: a receita, a conta do lucro, o que está fazendo, o estoque
     const valorReceita = (it) => Object.entries(it.entradas).reduce((a, [item, qtd]) => a + qtd * ((culturas[item] || {}).venda || 0), 0);
+    // o que falta na rede para mais uma receita: conta o que já chegou na oficina pelo cano, os baús
+    // da rede e o celeiro, se a rede chega nele (igual a fazenda_rede_puxar no SQL)
+    function faltaNaRede(o) {
+        const chegou = (S.oficina_itens || {})[o.x + ',' + o.y] || {};
+        return Object.entries(o.it.entradas).map(([item, qtd]) => {
+            let tem = chegou[item] || 0;
+            for (const b of o.rede.baus) tem += ((S.baus || {})[b.x + ',' + b.y] || {})[item] || 0;
+            if (o.rede.celeiro) tem += Math.max(0, naCeleiro(item) - reservaDe(item));
+            return { item, falta: qtd - tem };
+        }).filter((f) => f.falta > 0);
+    }
+    const listaFalta = (falta) => falta.map((f) => `${f.falta} ${itemDe(culturas[f.item] || { id: f.item }, 16)}`).join(', ');
+    // por que a rede não manda mais (ou que ela está mandando)
+    function motivoRede(o) {
+        const falta = faltaNaRede(o);
+        const onde = `nos baús${o.rede.celeiro ? ' ou no celeiro' : ''}`;
+        // o que outra oficina da rede faz chega sozinho pelo cano quando ela terminar
+        const quemFaz = (item) => o.rede.oficinas.find((k) => tipoItem(k.tipo).produz === item);
+        const semFonte = falta.filter((f) => !quemFaz(f.item));
+        if (falta.length && !semFonte.length) {
+            const nomes = [...new Set(falta.map((f) => esc(tipoItem(quemFaz(f.item).tipo).nome.toLowerCase())))].join(' e ');
+            return `esperando ${listaFalta(falta)} chegar pelo cano (quem faz na rede: ${nomes}).`;
+        }
+        if (falta.length) return `falta na rede ${listaFalta(semFonte)}. Guarde ${onde} da rede e ela enche o estoque sozinha.`;
+        if (cargaAgora() < 1) return `a rede está sem energia (1 ${ico('raio', 12)} por receita).`;
+        return null;
+    }
     function htmlOficinaAgora(o) {
         const p = (n) => `${n} ${itemDe(o.produto, 18)}`;
+        const abastece = o.ligada && (o.rede.baus.length > 0 || o.rede.celeiro);   // a rede tem de onde trazer ingrediente
         const linhas = [];
         if (o.prontos) linhas.push(`<b>${p(o.prontos)} pronto(s)</b> esperando você pegar.`);
         if (o.estado === 'trabalhando') {
             linhas.push(`Fazendo ${nomeItem(o.it.produz)}: pronto em <b>${fmtTempo(o.falta)}</b>
                 <span class="barrinha"><i style="width:${Math.round(o.progresso * 100)}%"></i></span>`);
-            linhas.push(o.estoque ? `Depois faz mais ${o.estoque} sozinha: termina tudo em ${fmtTempo(o.termina - agora())}.` : 'Depois dessa, para: o estoque está vazio.');
+            if (o.estoque) linhas.push(`Depois faz mais ${o.estoque} sozinha: termina tudo em ${fmtTempo(o.termina - agora())}.`);
+            else if (abastece) { const m = motivoRede(o); linhas.push(m ? `Depois dessa, para: ${m}` : `${A.htmlItem('cano', 16)} A rede está mandando mais ingredientes: o estoque enche sozinho.`); }
+            else linhas.push('Depois dessa, para: o estoque está vazio.');
+        } else if (abastece) {
+            const m = motivoRede(o);
+            linhas.push(m ? `Parada: ${m}` : `${A.htmlItem('cano', 16)} Os ingredientes já estão a caminho pelo cano: ela começa em instantes.`);
         } else {
-            linhas.push(o.auto ? 'Parada: falta ingrediente no celeiro (ou energia para a fábrica automática).' : 'Parada: guarde ingredientes no estoque e ela começa na hora.');
+            linhas.push('Parada: guarde ingredientes no estoque e ela começa na hora.');
         }
         return linhas.map((l) => `<p>${l}</p>`).join('');
     }
@@ -1347,7 +1391,9 @@
             <div class="oficina-agora" data-oficina-agora>${htmlOficinaAgora(o)}</div>
             <h3 class="secao-titulo">Estoque: ${o.estoque} receita${o.estoque === 1 ? '' : 's'} guardada${o.estoque === 1 ? '' : 's'}${o.estado === 'trabalhando' ? ' + 1 fazendo' : ''} (cabem ${max})</h3>
             <span class="estoque-barra"><i style="width:${Math.round(ocupado / max * 100)}%"></i></span>
-            <p class="det">Guardar tira os ingredientes do celeiro agora (a ração reservada fica). Ela trabalha sozinha até o estoque acabar.</p>
+            <p class="det">${o.ligada && (o.rede.baus.length || o.rede.celeiro)
+                ? `${A.htmlItem('cano', 14)} <b>A rede enche este estoque sozinha</b> (até ${max} receitas, 1 ${ico('raio', 12)} cada) com o que tem nos baús${o.rede.celeiro ? ' e no celeiro' : ''} da rede. Você também pode guardar do celeiro aqui.`
+                : 'Guardar tira os ingredientes do celeiro agora (a ração reservada fica). Ela trabalha sozinha até o estoque acabar.'}</p>
             <div class="estoque-botoes">
                 <button type="button" class="botao pequeno creme" data-estoque="1"${pode >= 1 ? '' : ' disabled'}>+1</button>
                 <button type="button" class="botao pequeno creme" data-estoque="5"${pode >= 5 ? '' : ' disabled'}>+5</button>
@@ -1356,7 +1402,8 @@
             </div>
             ${!cabe ? '<p class="aviso">Estoque cheio.</p>'
                 : falta.length ? `<p class="aviso">Para mais uma receita faltam no celeiro: ${falta.map((f) => `${f.falta} ${itemDe(culturas[f.item] || { id: f.item }, 16)}`).join(', ')}.</p>` : ''}
-            ${o.ligada ? `<p class="aviso">${A.htmlItem('cano', 18)} Na rede: ${o.rede.baus.length} baú(s)${o.rede.oficinas.length ? `, ${o.rede.oficinas.length} oficina(s)` : ''}${o.rede.celeiro ? ' e o celeiro' : ''}. Quando o estoque acaba, ela busca os ingredientes nos baús${o.rede.celeiro ? ' e no celeiro' : ''} da rede (2 ${ico('raio', 12)} por receita); o produto sai pelo cano para a oficina que usa ele, o celeiro ou um baú.</p>`
+            ${o.ligada ? `<p class="aviso">${A.htmlItem('cano', 18)} Na rede: ${o.rede.baus.length} baú(s)${o.rede.oficinas.length ? `, ${o.rede.oficinas.length} oficina(s)` : ''}${o.rede.celeiro ? ' e o celeiro' : ''}. O produto sai pelo cano para a oficina que usa ele, o celeiro ou um baú. Luz verde nos canos: a rede está trabalhando; vermelha piscando: falta energia.</p>
+                ${o.rede.celeiro ? '' : `<p class="det">O celeiro não está nesta rede: ela só pega o que está nos baús. Para usar o que está no celeiro, encoste um cano no próprio celeiro (o prédio grande no canto de cima, à esquerda).</p>`}`
                 : S.jogador.nivel >= 16 ? `<p class="det">${A.htmlItem('cano', 16)} Dica: ligue esta oficina com <b>canos de vidro</b> (Construir → Energia) a baús, a outras oficinas e ao celeiro: tudo o que está na mesma rede de canos trabalha junto.</p>` : ''}
             <div class="rodape-painel">
                 ${o.prontos ? `<button type="button" class="botao verde" data-oficina-pegar>Pegar ${o.prontos} ${itemDe(o.produto, 18)}</button>` : '<span></span>'}
@@ -2575,7 +2622,7 @@
                     <li>A semana tem as 4 <b>estações</b> (42 horas cada), e cada uma muda a cara da fazenda (pétalas na primavera, grama quente no verão, folhas caindo no outono, neve no inverno) e tem uma semente só dela: morango, melancia, abóbora e repolho. O <b>clima</b> muda várias vezes por dia: sol dá +1 na colheita, chuva rega tudo, onda de calor seca mais, nublado não traz problema novo e ventania espalha pragas. Toque no clima, lá em cima, para ver até quando ele vai.</li>
                     <li>O jogo tem o próprio <b>dia e noite</b>: eles se revezam a cada 2 horas (12 horas de dia e 12 de noite em cada dia de verdade). De noite o mapa escurece, as janelas, os lampiões e as oficinas acendem, aparecem vaga-lumes, e o painel solar não gera energia. Toque no clima para ver quando amanhece.</li>
                     <li>O <b>baú</b> guarda em si (até 200 itens) o que recolhe sozinho, com energia, do que estiver encostado nele: o bloco de canteiros, um cercado (coleta e dá ração), uma árvore do pomar e o cesto do lago (1 ⚡ cada). Toque no baú para ver o que tem.</li>
-                    <li>No nível 16 chegam os <b>canos de vidro</b> (Construir → Energia, 5 cada). Canos encostados formam uma <b>rede</b>, e tudo o que encosta num cano dela (baús, oficinas, o celeiro, a fábrica automática) trabalha junto: a oficina busca os ingredientes nos baús e no celeiro da rede (2 ⚡ por receita); o produto vai para outra oficina que usa ele (o óleo da prensa vai para o empório), para o celeiro ou para um baú; e o que nenhuma oficina usa sai do baú para o celeiro (1 ⚡ por viagem). Nada anda sem estar ligado, e cada item aparece passando pelo cano quando viaja.</li>
+                    <li>No nível 16 chegam os <b>canos de vidro</b> (Construir → Energia, 5 cada). Canos encostados formam uma <b>rede</b>, e tudo o que encosta num cano dela (baús, oficinas, o celeiro, a fábrica automática) trabalha junto: a rede <b>enche sozinha o estoque das oficinas</b> (até 10 receitas, 1 ⚡ cada) com o que tem nos baús e no celeiro da rede, dividindo entre todas; o produto vai para outra oficina que usa ele (o óleo da prensa vai para o empório), para o celeiro ou para um baú; e o que nenhuma oficina usa sai do baú para o celeiro (1 ⚡ por viagem). Para o celeiro fazer parte, o cano tem que encostar no próprio prédio do celeiro. Nada anda sem estar ligado. Como saber se está funcionando: a <b>luz no meio do cano</b> fica verde pulsando quando a rede liga duas coisas ou mais (vermelha piscando = sem energia), a oficina na rede ganha um selinho de cano no balão, o baú mostra uma barrinha de quanto está cheio, e cada item aparece passando pelo cano quando viaja.</li>
                     <li>Do nível 16 em diante vem a <b>energia</b> ${ico('raio', 14)}: painel solar, turbina, gerador a biomassa e reator enchem as baterias, e as máquinas elétricas (estufa, triturador, fábrica automática, robô, aspersor) trabalham sozinhas gastando energia. Toque no ${ico('raio', 12)} lá em cima (ou no botão abaixo) para ver o que cada uma faz.</li>
                     ${ANUNCIO.ligado || ehLocal ? `<li>Quando aparecer o botão <b>+30 min</b>, assista a um anúncio até o fim e tudo o que está em andamento (plantas, animais, oficinas, ajudantes e energia) adianta 30 minutos. Cada anúncio também dá 1 ${ico('diamante', 14)} diamante.</li>` : ''}
                     <li>No Perfil (ou em Vizinhos) tem o seu <b>link de convite</b>: quem criar uma fazenda por ele ganha moedas, e você também.</li>
