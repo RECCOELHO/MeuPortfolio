@@ -1293,12 +1293,12 @@
         return { x: p[0], y: p[1], w: t.w, h: t.h };
     };
     const centro = (k) => [k.x + k.w / 2 - 0.5, k.y + Math.min(k.h, 3) / 2 - 0.5];
-    /* Fase 44: cada unidade anda sozinha, devagar, em fila: 10 girassóis são 10 girassóis passando
+    /* Fase 44: cada unidade anda sozinha, em fila: 10 girassóis são 10 girassóis passando
        pelo cano, um atrás do outro (e o produto voltando para o celeiro do mesmo jeito). A viagem
        entra na fila quando o jogo a recebe pela primeira vez (o servidor manda as criadas nos
        últimos 2 minutos); quem vai pelo mesmo caminho espera o anterior sair. */
-    const MS_POR_QUADRADO = 900;   // bem devagar: quase 1 segundo para cada quadrado de cano
-    const ESPACO_MS = 650;         // um item sai 0,65 s depois do outro
+    const MS_POR_QUADRADO = 300;   // dá para acompanhar com o olho sem ficar parado (0,3 s por quadrado)
+    const ESPACO_MS = 220;         // um logo atrás do outro: 10 itens viram uma fileira passando
     const MAX_POR_VIAGEM = 20, MAX_NA_TELA = 200;
     let viagensVistas = new Set(), listaVista = null, itensAndando = [];
     const filaRota = new Map();    // caminho → quando ele fica livre para o próximo item
@@ -1310,7 +1310,7 @@
             if (viagensVistas.has(g.id) || itensAndando.length >= MAX_NA_TELA) continue;
             const de = pegada(g.de), para = pegada(g.para);
             const pontos = [centro(de), ...(g.direto ? [] : caminhoCanos(de, para)), centro(para)];
-            const dur = Math.max(1800, (pontos.length - 1) * MS_POR_QUADRADO);
+            const dur = Math.max(700, (pontos.length - 1) * MS_POR_QUADRADO);
             const rota = `${g.de}>${g.para}`;
             // a hora marcada só vale se for daqui a pouco (o servidor espalha as viagens em até 15 s)
             const marcada = Date.parse(g.em);
@@ -2329,7 +2329,7 @@
 
     function resumoMassa(acao, r, k, perdas) {
         if (!r.feitos) return;
-        if (acao === 'colher') {
+        if (acao === 'colher' || acao === 'agora') {
             const total = Object.values(r.colhido).reduce((a, b) => a + b, 0);
             toast(`${spr(35, 22)} Colheu ${total} itens de ${r.feitos} canteiro(s)!${perdas ? ' ' + perdas : ''}`);
         } else if (acao === 'plantar') {
@@ -2343,12 +2343,45 @@
         return S.canteiros.filter((c) => filtro(c, info(c))).map((c) => c.posicao);
     }
 
+    // Colher tudo com diamantes: 1 por planta crescendo (fica pronta na hora e já colhe); as
+    // maduras vão junto, de graça. Se os diamantes não dão para todas, vão as que mais demoram.
+    function planoColherTudo() {
+        const lista = S.canteiros.map((c) => ({ c, i: info(c) }));
+        const maduros = lista.filter((x) => x.i.fase === 'maduro').map((x) => x.c.posicao);
+        const crescendo = lista.filter((x) => x.i.fase === 'crescendo').sort((a, b) => b.i.resta - a.i.resta).map((x) => x.c.posicao);
+        const da = Math.min(crescendo.length, S.jogador.diamantes || 0);
+        return { maduros, crescendo, da, escolhidos: crescendo.slice(0, da) };
+    }
+    function htmlColherTudo() {
+        const p = planoColherTudo(), d = S.jogador.diamantes || 0, n = p.crescendo.length;
+        if (!n) return `<p>Nenhuma planta crescendo agora.</p>
+            <div class="rodape-painel"><span></span><button type="button" class="botao creme" data-fechar>Fechar</button></div>`;
+        return `<p><b>${n}</b> planta${n === 1 ? '' : 's'} ainda crescendo. Com diamante, cada uma fica pronta na hora (sem erva, praga ou seca) e já vai para o celeiro: 1 ${ico('diamante', 14)} por planta${p.maduros.length ? `; as ${p.maduros.length} maduras vão junto, de graça` : ''}.</p>
+            <p>Você tem <b>${d}</b> ${ico('diamante', 14)}.${p.da && p.da < n ? ` Dá para <b>${p.da}</b>: vão as que mais demoram, e as outras continuam crescendo.` : ''}</p>
+            ${p.da ? `<p class="aviso">Quer mesmo colher tudo agora? Vai gastar <b>${p.da} diamante${p.da === 1 ? '' : 's'}</b>.</p>` : `<p class="aviso">Sem diamantes para isso agora.</p>`}
+            <div class="rodape-painel">
+                <button type="button" class="botao creme" data-fechar>Não, deixa crescer</button>
+                ${p.da ? `<button type="button" class="botao verde" data-colher-tudo-agora>Sim, gastar ${ico('diamante', 16)} ${p.da}</button>`
+                    : (S.pacotes_diamantes || []).length ? `<button type="button" class="botao verde" data-ir-diamantes>${ico('diamante', 16)} Comprar diamantes</button>` : '<span></span>'}
+            </div>`;
+    }
+    function colherTudoAgora() {
+        const p = planoColherTudo();
+        fecharPainel();
+        if (!p.da) return;
+        const todas = [...p.escolhidos, ...p.maduros];
+        for (let n = 0; n < todas.length; n += 100) executar('agora', todas.slice(n, n + 100));   // (o servidor aceita até 100 por vez)
+    }
+
     async function acaoEmMassa(tipo) {
         if (!S) return;
+        if (tipo === 'agora') return abrirPainel('colherTudo');   // colher tudo com diamantes (pergunta antes)
         if (tipo === 'colher') {
             // colhe os canteiros maduros e coleta os produtos dos animais
             const ps = posicoesOnde((c, i) => i.fase === 'maduro');
             const prontos = (S.animais || []).filter((a) => infoAnimal(a).estado === 'pronto').map((a) => a.id);
+            // nada pronto, mas tem planta crescendo e diamante: pergunta se quer colher tudo agora
+            if (!ps.length && !prontos.length && planoColherTudo().crescendo.length && (S.jogador.diamantes || 0) > 0) return abrirPainel('colherTudo');
             if (!ps.length && !prontos.length) return toast('Nada pronto ainda.');
             if (ps.length) executar('colher', ps);
             if (prontos.length) {
@@ -2571,6 +2604,9 @@
                         <button type="button" class="botao verde" data-vender="${soFinais ? 'finais' : '*'}"${total ? '' : ' disabled'}>${soFinais ? 'Vender produtos finais' : 'Vender tudo'}</button>
                     </div>`;
             }
+        } else if (nome === 'colherTudo') {
+            el.painelTitulo.innerHTML = `${ico('diamante', 26)} Colher tudo agora?`;
+            corpo.innerHTML = htmlColherTudo();
         } else if (nome === 'canteiro') {
             const c = canteiro(menuCanteiro), i = info(c);
             const diam = S.jogador.diamantes || 0;
@@ -2581,6 +2617,7 @@
                     <div data-canteiro-agora>${htmlCanteiroAgora(i)}</div>
                     <div class="menu-canteiro">
                         <button type="button" class="botao verde" data-canteiro="agora"${diam < 1 ? ' disabled' : ''}>${ico('diamante', 18)} Colher agora · 1 diamante</button>
+                        ${planoColherTudo().crescendo.length > 1 ? `<button type="button" class="botao creme" data-colher-tudo${diam < 1 ? ' disabled' : ''}>${ico('diamante', 18)} Colher todas as ${planoColherTudo().crescendo.length} crescendo</button>` : ''}
                         <p class="aviso">Fica pronta na hora, sem erva, praga ou seca, e já vai para o celeiro. Você tem <b>${diam}</b> ${ico('diamante', 14)} e ganha 5 a cada nível.</p>
                         ${diam < 1 && (S.pacotes_diamantes || []).length ? `<button type="button" class="botao creme" data-ir-diamantes>${ico('diamante', 18)} Comprar diamantes</button>` : ''}
                         ${troca ? `<button type="button" class="botao creme" data-canteiro="trocar">Arrancar e plantar ${itemDe(troca, 18)} ${esc(troca.nome.toLowerCase())} (${moeda(troca.custo)})</button>` : ''}
@@ -2965,7 +3002,8 @@
             ${linha(ico('raio', 36), 'Encher a energia', `Baterias cheias na hora: 1 ${ico('diamante', 12)} a cada ${l.energia.por} ⚡ que faltam.`,
                 pe == null ? info('Sem energia ainda') : pe === 0 ? info('Já está cheia') : botaoDiamante('energia', pe, 'Encher'))}
             ${linha(A.htmlItem('prensa_oleo', 36), 'Oficina na hora', `Na oficina trabalhando, toque em <b>Terminar agora</b>: ${l.oficina.por_hora} ${ico('diamante', 12)} por hora que falta.`)}
-            ${linha(itemDe(culturas.tomate || { id: 'tomate' }, 36), 'Colher agora', `Toque numa planta crescendo: 1 ${ico('diamante', 12)} e ela fica pronta na hora.`)}
+            ${linha(itemDe(culturas.tomate || { id: 'tomate' }, 36), 'Colher agora', `Toque numa planta crescendo: 1 ${ico('diamante', 12)} e ela fica pronta na hora. Ou colha todas de uma vez (1 ${ico('diamante', 12)} por planta).`,
+                planoColherTudo().crescendo.length ? `<button type="button" class="botao pequeno verde" data-colher-tudo${j.diamantes > 0 ? '' : ' disabled'}>Colher todas<br>${ico('diamante', 14)} ${planoColherTudo().crescendo.length}</button>` : info('Nada crescendo'))}
             ${linha(A.htmlAvatar({ tipo: 'fantasma' }, 36), 'Personagens especiais', 'Soldado, bárbaro, guarda, feiticeiro, fantasma, ciclope, diabinho e morcego: só com diamantes.',
                 '<button type="button" class="botao pequeno creme" data-avatar-editar>Ver</button>')}
         </div>`;
@@ -3280,6 +3318,8 @@
             }).finally(() => { vend.disabled = false; });
             return;
         }
+        if (e.target.closest('[data-colher-tudo]')) { abrirPainel('colherTudo'); return; }
+        if (e.target.closest('[data-colher-tudo-agora]')) { colherTudoAgora(); return; }
         const ud = e.target.closest('[data-usar-diamante]');
         if (ud) {
             if (!ud.dataset.confirmar) {   // o primeiro toque só pede para confirmar (diamante vale dinheiro)

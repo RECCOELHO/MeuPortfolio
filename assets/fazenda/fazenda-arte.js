@@ -1950,12 +1950,12 @@
             q.fillRect(x + 6, y + 6, 4, 4);
         }
         // itens pequenos (8 px) andando dentro dos canos: ingrediente da fonte para a oficina, produto de volta
-        function miniTile(i, x, y) {
+        function miniTile(i, x, y, tam = 8) {
             if (i == null) return;
             let pacote = 'farm';
             if (i >= 1000) { i -= 1000; pacote = 'propria'; }
             const img = pacote === 'propria' ? atlasProprio : (atlasDaEstacao && atlasDaEstacao.farm) || atlas.farm;
-            q.drawImage(img, (i % COLS) * T, Math.floor(i / COLS) * T, T, T, Math.round(x), Math.round(y), 8, 8);
+            q.drawImage(img, (i % COLS) * T, Math.floor(i / COLS) * T, T, T, Math.round(x), Math.round(y), tam, tam);
         }
         // viagens dos itens pela rede (fase 39): cada item anda do ponto de saída, pelos canos, até
         // o destino, só enquanto a viagem acontece (o servidor marca a hora). Sem cano (do canteiro,
@@ -1972,11 +1972,14 @@
                 const [ax, ay] = p[i], [bx, by] = p[i + 1];
                 const x = wx(ax + (bx - ax) * f) + 8, y = wy(ay + (by - ay) * f) + 8;
                 const pulo = v.direto ? -Math.round(Math.sin(t * Math.PI) * 7) : 0;
-                if (!v.direto) {   // uma sombrinha dentro do vidro ajuda a ver o item passando
-                    q.fillStyle = 'rgba(63, 38, 49, .25)';
-                    q.fillRect(Math.round(x) - 4, Math.round(y) + 3, 8, 2);
-                }
-                miniTile(v.icone, x - 4, y - 4 + pulo);
+                // fase 44: item grande (12 px) numa bolinha clara, para dar para ver no celular
+                const cx = Math.round(x), cy = Math.round(y) + pulo;
+                q.fillStyle = 'rgba(63, 38, 49, .3)';   // sombra embaixo
+                q.fillRect(cx - 5, Math.round(y) + 6, 10, 2);
+                q.fillStyle = 'rgba(255, 255, 255, .8)';
+                q.fillRect(cx - 6, cy - 7, 12, 14);
+                q.fillRect(cx - 7, cy - 6, 14, 12);
+                miniTile(v.icone, cx - 6, cy - 6, 12);
             }
         }
 
