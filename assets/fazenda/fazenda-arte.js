@@ -577,8 +577,8 @@
     /* ---------- Ícones pixel (mesma paleta) ---------- */
     const ICONES = {
         moeda: ['..oooo..', '.oyyyyo.', 'oywyyyYo', 'oywyYyYo', 'oyyyYyYo', 'oyyyyYYo', '.oYYYYo.', '..oooo..'],
-        // lua: noite no jogo
-        lua: ['...ooo...', '..obbo...', '.obbo....', '.obo.....', 'obbo.....', 'obbo...o.', '.obbo.obo', '.obbbbbo.', '..ooooo..'],
+        // lua: noite no jogo (meia-lua prateada com brilho, sombra azulada, crateras e uma estrelinha)
+        lua: ['....oooo.y..', '..oowSo.yyy.', '.owsso...y..', '.ossSo......', 'owssSo......', 'owssSo....y.', 'osssSo......', 'osSsso......', 'ossssSo.....', '.ossssSo....', '.ossSssSoo..', '..oossssSoo.', '....ooooo...'],
         // sino: histórico de avisos
         sino: ['....o....', '...oyo...', '..oyyyo..', '..owyyo..', '..owyyo..', '.oyyyyyo.', 'oyyyyyyYo', 'ooooooooo', '...oYo...', '....o....'],
         // diamante: a moeda especial (colher na hora)
