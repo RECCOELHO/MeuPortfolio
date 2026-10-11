@@ -64,6 +64,9 @@
     };
     // o galinheiro cresce com os bichos (definirGalinheiro): a reserva é o mesmo objeto
     MAPA.reservas[2] = MAPA.galinheiro;
+    // fase 45: o galinheiro (0 fileiras) e o pasto só existem para quem ainda tem bicho sem cercado;
+    // sem eles a reserva some (largura 0) e dá para construir ali
+    MAPA.pastoAtivo = true;
     const MARGEM = 9;   // quadrados de mata em volta do terreno
 
     /* ---------- Terrenos: começa com BASE e compra as ZONAS em ordem ----------
@@ -958,7 +961,7 @@
                 return { x0: wx(MAPA.campo.x), y0: wy(MAPA.campo.y), x1: wx(MAPA.campo.x + 5), y1: wy(MAPA.campo.y + 1) };
             }
             const a = tipo === 'galinheiro' || PEQUENOS.includes(tipo)
-                ? { x: MAPA.galinheiro.x, y: MAPA.galinheiro.y, w: MAPA.galinheiro.w, h: MAPA.galinheiro.h }
+                ? { x: MAPA.galinheiro.x, y: MAPA.galinheiro.y, w: MAPA.galinheiro.w, h: MAPA.galinheiro.h || 2 }
                 : { x: MAPA.pasto.x + 1, y: MAPA.pasto.y + 2, w: MAPA.pasto.w - 2, h: MAPA.pasto.h - 3 };
             return { x0: wx(a.x), y0: wy(a.y), x1: wx(a.x + a.w - 1), y1: wy(a.y + a.h - 1) };
         }
@@ -1165,8 +1168,8 @@
                 f.putImageData(dados, c.x, c.y);
             }
 
-            // pasto cercado com porteira
-            const pa = MAPA.pasto;
+            // pasto cercado com porteira (fase 45: só para quem ainda tem bicho grande sem cercado)
+            const pa = MAPA.pastoAtivo ? MAPA.pasto : { x: 0, y: 0, w: 0, h: 0 };
             const ehCerca = (tx, ty) => {
                 if (tx < pa.x || ty < pa.y || tx >= pa.x + pa.w || ty >= pa.y + pa.h) return false;
                 const borda = tx === pa.x || ty === pa.y || tx === pa.x + pa.w - 1 || ty === pa.y + pa.h - 1;
@@ -1179,7 +1182,7 @@
                     tile(f, tileCerca(ehCerca(tx, ty - 1), ehCerca(tx, ty + 1), ehCerca(tx - 1, ty), ehCerca(tx + 1, ty)), wx(tx), wy(ty), false, 'town');
                 }
             }
-            for (const o of MAPA.cochos) tile(f, o.i, wx(o.x), wy(o.y));
+            if (MAPA.pastoAtivo) for (const o of MAPA.cochos) tile(f, o.i, wx(o.x), wy(o.y));
             if (zonasAtuais >= 3) {
                 fundoGrama.getContext('2d').drawImage(fundo, 0, 0);
                 desenharLago();
@@ -2386,11 +2389,21 @@
             telaDoVisitante() { return visitante ? { x: (visitante.x + T / 2 - cam.x) * escala, y: (visitante.y - 4 - cam.y) * escala } : null; },
             // quanto as baterias têm (0..1): as luzinhas delas acendem conforme a carga
             definirEnergia(frac) { energiaFrac = Math.max(0, Math.min(1, frac || 0)); },
-            // fileiras do galinheiro (2 a 4): refaz o chão e os bichos pequenos se espalham no espaço novo
+            // fileiras do galinheiro (2 a 4; 0 = não tem, fase 45): refaz o chão e os bichos pequenos se espalham no espaço novo
             definirGalinheiro(linhas) {
-                const h = Math.max(2, Math.min(4, linhas || 2));
+                const h = linhas > 0 ? Math.max(2, Math.min(4, linhas)) : 0;
                 if (h === MAPA.galinheiro.h) return;
                 MAPA.galinheiro.h = h;
+                for (const [id, a] of atores) if (!a.ajudante) atores.delete(id);
+                montarFundo();
+                precisaDesenhar = true;
+            },
+            // fase 45: o pasto do começo existe? (só com bicho grande sem cercado)
+            definirPasto(ativo) {
+                ativo = !!ativo;
+                if (ativo === MAPA.pastoAtivo) return;
+                MAPA.pastoAtivo = ativo;
+                MAPA.reservas[3].w = ativo ? MAPA.pasto.w : 0;
                 for (const [id, a] of atores) if (!a.ajudante) atores.delete(id);
                 montarFundo();
                 precisaDesenhar = true;
