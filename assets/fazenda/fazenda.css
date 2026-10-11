@@ -610,6 +610,37 @@ button {
     display: flex;
 }
 
+/* entrar com Google: "ou" com tracinhos dos lados e o botão oficial do Google centralizado */
+.google-entrar {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.google-entrar[hidden] {
+    display: none;
+}
+
+.google-entrar .ou {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    color: var(--texto-suave);
+}
+
+.google-entrar .ou::before,
+.google-entrar .ou::after {
+    content: '';
+    flex: 1;
+    border-top: 2px solid rgba(63, 38, 49, .2);
+}
+
+.google-botao {
+    min-height: 44px;
+}
+
 .aba label {
     font-weight: 600;
 }

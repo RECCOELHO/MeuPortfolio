@@ -143,7 +143,7 @@
             <div class="abas" id="entradaAbas" hidden>
                 <div class="abas-botoes" role="tablist">
                     <button type="button" role="tab" class="ativa" data-aba="nova" aria-selected="true">Nova fazenda</button>
-                    <button type="button" role="tab" data-aba="codigo" aria-selected="false">Já tenho código</button>
+                    <button type="button" role="tab" data-aba="codigo" aria-selected="false">Já tenho fazenda</button>
                 </div>
                 <form class="aba ativa" data-aba="nova" id="formNova" autocomplete="off">
                     <label for="inApelido">Como te chamam na roça?</label>
@@ -154,6 +154,11 @@
                     <label for="inCodigo">Código de recuperação</label>
                     <input id="inCodigo" required placeholder="MILHO-XXXX-XXXX" spellcheck="false" autocapitalize="characters">
                     <button type="submit" class="botao grande verde">Voltar pra minha fazenda</button>
+                    <!-- entrar com a conta Google ligada à fazenda (aparece quando GOOGLE_CLIENT_ID está preenchido) -->
+                    <div class="google-entrar" id="googleEntrar" hidden>
+                        <span class="ou">ou</span>
+                        <div class="google-botao" id="googleEntrarBotao"></div>
+                    </div>
                 </form>
                 <p class="erro" id="entradaErro" role="alert"></p>
             </div>

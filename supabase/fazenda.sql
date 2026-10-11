@@ -1151,6 +1151,8 @@ begin
       'avatar_precos', fazenda_avatar_precos(),
       'moedas', j.moedas,
       'diamantes', j.diamantes,
+      -- conta Google ligada (só aparece para o dono; null = não ligada)
+      'google', case when j.google_sub is not null then coalesce(j.google_email, 'sua conta Google') end,
       'xp', j.xp,
       'nivel', v_nivel,
       'xp_nivel', fazenda_xp_nivel(v_nivel),
@@ -3515,6 +3517,62 @@ end;
 $$;
 
 -- ------------------------------------------------------------
+-- Fase 34: fazenda ligada a uma conta Google, para voltar a ela sem o código de recuperação.
+-- A Edge Function (rota /google) confere o login do Google (assinatura, aud, validade) e só
+-- então chama ligar/entrar com o "sub" (id fixo da conta). Ligar e entrar não ficam abertas
+-- para a chave anon; desligar sim (precisa do token da sessão).
+-- ------------------------------------------------------------
+alter table public.fazenda_jogadores add column if not exists google_sub text;
+alter table public.fazenda_jogadores add column if not exists google_email text;
+create unique index if not exists fazenda_jogadores_google on public.fazenda_jogadores (google_sub) where google_sub is not null;
+
+create or replace function public.fazenda_google_ligar(p_token text, p_sub text, p_email text)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id uuid := fazenda_auth(p_token);
+begin
+  if coalesce(p_sub, '') = '' then raise exception 'google_invalido'; end if;
+  -- uma conta Google abre uma fazenda só
+  if exists (select 1 from fazenda_jogadores where google_sub = p_sub and id <> v_id) then
+    raise exception 'google_em_uso';
+  end if;
+  update fazenda_jogadores set google_sub = p_sub, google_email = p_email where id = v_id;
+  return jsonb_build_object('estado', fazenda_estado(v_id));
+end;
+$$;
+
+create or replace function public.fazenda_google_entrar(p_sub text)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id uuid;
+begin
+  select id into v_id from fazenda_jogadores where google_sub = p_sub and coalesce(p_sub, '') <> '';
+  if v_id is null then raise exception 'google_sem_fazenda'; end if;
+  perform fazenda_tick(v_id);
+  return jsonb_build_object('token', fazenda_nova_sessao(v_id), 'estado', fazenda_estado(v_id));
+end;
+$$;
+
+create or replace function public.fazenda_google_desligar(p_token text)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id uuid := fazenda_auth(p_token);
+begin
+  update fazenda_jogadores set google_sub = null, google_email = null where id = v_id;
+  return jsonb_build_object('estado', fazenda_estado(v_id));
+end;
+$$;
+
+-- ------------------------------------------------------------
 -- Permissões: só a API pública fica executável pela chave anon
 -- ------------------------------------------------------------
 revoke execute on function
@@ -3599,7 +3657,10 @@ revoke execute on function
   public.fazenda_pacotes_diamantes(),
   public.fazenda_compra_criar(text, text),
   public.fazenda_compra_pagamento(uuid, text, text, numeric),
-  public.fazenda_compra_status(text, uuid)
+  public.fazenda_compra_status(text, uuid),
+  public.fazenda_google_ligar(text, text, text),
+  public.fazenda_google_entrar(text),
+  public.fazenda_google_desligar(text)
 from public, anon, authenticated;
 
 grant execute on function
@@ -3628,5 +3689,6 @@ grant execute on function
   public.fazenda_anuncio(text),
   public.fazenda_convite_info(text),
   public.fazenda_pescar(text),
-  public.fazenda_compra_status(text, uuid)
+  public.fazenda_compra_status(text, uuid),
+  public.fazenda_google_desligar(text)
 to anon, authenticated;

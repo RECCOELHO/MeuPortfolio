@@ -14,6 +14,9 @@
     // site e liberar os anúncios para jogos; teste: true mostra só anúncios de teste do Google
     // (troque para false depois de conferir que funciona).
     const ANUNCIO = { cliente: 'ca-pub-9193438749452073', ligado: false, teste: true };
+    // Login com Google para ligar a fazenda e abrir ela em outro aparelho. É o ID do cliente OAuth
+    // (público; o mesmo da Edge Function fazenda-diamantes). Vazio = sem Google.
+    const GOOGLE_CLIENT_ID = '399889578261-33gg9c2uq7d40v6nba2qf1g3b87qfugj.apps.googleusercontent.com';
 
     // Em localhost dá pra apontar para um backend de teste: fazenda.html?api=http://localhost:8787
     let API = SUPABASE_URL;
@@ -53,6 +56,11 @@
         loja_fechada: 'A loja de diamantes ainda não abriu.',
         compra_invalida: 'Compra não encontrada.',
         erro_pagamento: 'O Mercado Pago não respondeu agora. Tente daqui a pouco.',
+        google_invalido: 'Não deu para confirmar o login do Google. Tente de novo.',
+        google_em_uso: 'Essa conta Google já está ligada a outra fazenda.',
+        google_sem_fazenda: 'Nenhuma fazenda ligada a essa conta Google. Entre com o código e ligue ao Google no Perfil.',
+        google_fechado: 'O login com Google ainda não está ligado.',
+        google_indisponivel: 'O Google não respondeu agora. Tente daqui a pouco.',
         nada_a_fazer: 'Nada pra fazer aqui.',
         nao_maduro: 'Ainda não está pronto.',
         murchou: 'Essa planta murchou… are o canteiro para limpar.',
@@ -2358,7 +2366,8 @@
                 ${htmlEstatisticas(S.estatisticas)}`}
                 <h3 class="secao-titulo">Código de recuperação</h3>
                 ${codigo ? `<div class="codigo-box"><code>${esc(codigo)}</code><button type="button" class="botao pequeno creme" data-copiar>Copiar</button></div>` : '<p class="aviso">O código não está salvo neste aparelho. Se você anotou, ele continua valendo.</p>'}
-                <p class="aviso">Guarde esse código: é o único jeito de abrir sua fazenda em outro aparelho ou se o navegador for limpo.</p>
+                <p class="aviso">Guarde esse código: ${GOOGLE_CLIENT_ID ? 'com ele, ou com a conta Google aqui embaixo, você abre' : 'é o único jeito de abrir'} sua fazenda em outro aparelho ou se o navegador for limpo.</p>
+                ${htmlGoogle()}
                 ${htmlInstalar()}
                 ${boasVindas ? '' : htmlAvisos()}
                 ${boasVindas ? '' : htmlConvite()}
@@ -2372,6 +2381,7 @@
                     <a class="botao creme" href="indexversao2.html">Voltar ao portfólio</a>
                     <button type="button" class="botao vermelho" data-sair>Sair desta fazenda</button>`}
                 </div>`;
+            botaoGoogle(corpo.querySelector('[data-google-botao]'), 'ligar');
         } else if (nome === 'avatar') {
             el.painelTitulo.innerHTML = `${A.htmlAvatar(rascunhoAvatar, 32)} Seu avatar`;
             corpo.innerHTML = htmlEditorAvatar();
@@ -2702,6 +2712,73 @@
         toast('O pagamento ainda está em análise. Os diamantes caem sozinhos assim que o Mercado Pago aprovar.');
     }
 
+    /* ---------- Conta Google: ligar a fazenda e abrir ela num aparelho novo ----------
+       O botão é o oficial do Google (Google Identity Services, carregado só quando aparece).
+       A credencial vai para a Edge Function (rota /google), que confere a assinatura antes de
+       ligar a conta à fazenda ou abrir a fazenda ligada a ela. */
+    let googleScript = null, googleAcao = null;
+    function carregarGoogle() {
+        if (!googleScript) googleScript = new Promise((ok, falha) => {
+            const s = document.createElement('script');
+            s.src = 'https://accounts.google.com/gsi/client';
+            s.async = true;
+            s.onload = () => {
+                window.google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: (r) => respostaGoogle(r.credential), cancel_on_tap_outside: true });
+                ok();
+            };
+            s.onerror = () => { googleScript = null; falha(new Error('Não deu para abrir o login do Google agora.')); };
+            document.head.appendChild(s);
+        });
+        return googleScript;
+    }
+    async function botaoGoogle(alvo, acao) {
+        if (!GOOGLE_CLIENT_ID || !alvo) return;
+        try { await carregarGoogle(); } catch (e) { alvo.textContent = e.message; return; }
+        googleAcao = acao;
+        alvo.innerHTML = '';
+        window.google.accounts.id.renderButton(alvo, {
+            theme: 'outline', size: 'large', shape: 'pill', locale: 'pt-BR',
+            text: acao === 'entrar' ? 'signin_with' : 'continue_with'
+        });
+    }
+    async function respostaGoogle(credencial) {
+        const acao = googleAcao;
+        let res = null, data = null;
+        try {
+            res = await fetch(`${API}/functions/v1/fazenda-diamantes/google`, {
+                method: 'POST',
+                headers: { apikey: SUPABASE_KEY, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ credencial, acao, token: acao === 'ligar' ? token : undefined })
+            });
+            data = await res.json().catch(() => null);
+        } catch { /* sem conexão: cai na mensagem abaixo */ }
+        if (!res || !res.ok || !data) {
+            const msg = ERROS[data && data.message] || 'O login com Google não funcionou agora. Tente de novo.';
+            return acao === 'entrar' ? mostrarErroEntrada(msg) : toast(msg, 'erro');
+        }
+        if (acao === 'entrar') {
+            token = data.token;
+            store.set(LS.token, token);
+            aplicarEstado(data.estado);
+            mostrarFazenda();
+            toast('Bem-vindo(a) de volta!');
+        } else {
+            aplicarEstado(data.estado);
+            toast(`${ico('check', 14)} Fazenda ligada ao Google: agora dá para abrir ela em qualquer aparelho.`, 'festa');
+            if (painelAtual === 'conta') abrirPainel('conta', true);
+        }
+    }
+    function htmlGoogle() {
+        if (!GOOGLE_CLIENT_ID) return '';
+        const conta = S.jogador.google;
+        return `<h3 class="secao-titulo">Conta Google</h3>
+            ${conta
+                ? `<p>${ico('check', 14)} Ligada a <b>${esc(conta)}</b>. Em outro aparelho, toque em <b>Já tenho fazenda → Entrar com Google</b>.</p>
+                   <p><button type="button" class="botao pequeno creme" data-google-desligar>Desligar do Google</button></p>`
+                : `<p>Ligue a fazenda à sua conta Google: se perder o código ou trocar de celular, é só entrar com o Google.</p>
+                   <div class="google-botao" data-google-botao></div>`}`;
+    }
+
     const TEXTO_MISSAO = {
         colher: (n) => `Colha ${n} itens`,
         plantar: (n) => `Plante ${n} sementes`,
@@ -2881,6 +2958,15 @@
         if (dia) {
             dia.disabled = true;
             comprarDiamantes(dia.dataset.diamantes).finally(() => { dia.disabled = false; });
+            return;
+        }
+        if (e.target.closest('[data-google-desligar]')) {
+            enfileirar([], async () => {
+                const r = await rpc('fazenda_google_desligar', { p_token: token });
+                aplicarEstado(r.estado);
+                toast('A fazenda não está mais ligada ao Google. Guarde bem o código de recuperação.');
+                if (painelAtual === 'conta') abrirPainel('conta', true);
+            });
             return;
         }
         if (e.target.closest('[data-ir-diamantes]')) {
@@ -3193,6 +3279,8 @@
         el.inApelido.focus();
         ajustarMargens();
         mostrarFaixaConvite();
+        const g = $('googleEntrar');
+        if (g && GOOGLE_CLIENT_ID) { g.hidden = false; botaoGoogle($('googleEntrarBotao'), 'entrar'); }
     }
 
     function mostrarFazenda() {
@@ -3228,6 +3316,8 @@
         document.querySelectorAll('.aba').forEach((a) => a.classList.toggle('ativa', a.dataset.aba === b.dataset.aba));
         mostrarErroEntrada('');
         (b.dataset.aba === 'nova' ? el.inApelido : el.inCodigo).focus();
+        // o botão do Google é desenhado de novo com a aba à mostra (escondido ele pode sair sem largura)
+        if (b.dataset.aba === 'codigo' && GOOGLE_CLIENT_ID) botaoGoogle($('googleEntrarBotao'), 'entrar');
     }));
 
     async function enviarEntrada(form, fn, args, aoEntrar) {
