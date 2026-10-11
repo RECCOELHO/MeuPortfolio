@@ -279,15 +279,21 @@
     }
     const iconeClima = (c) => (c === 'nublado' ? 'nuvem' : CLIMA[c] ? c : 'sol');
     const daEstacao = (k) => !k.estacao || !S || k.estacao === S.estacao;
+    let noiteMostrada = null;   // para redesenhar o clima do topo quando vira o dia ou a noite
     function desenharClima() {
         if (!el.clima) return;
         if (S && S.estacao) cena.definirEstacao(S.estacao);
         const c = climaAgora();
         el.clima.hidden = !CLIMA[c];
         if (!CLIMA[c]) return;
-        el.clima.innerHTML = ico(iconeClima(c), 22) + `<span>${CLIMA[c].nome}</span>`;
+        const dia = A.faseDoDia(agora());
+        noiteMostrada = dia.noite;
+        // de noite "sol" vira céu limpo (só a lua); os outros climas aparecem ao lado dela
+        const ceuLimpo = dia.noite && c === 'sol';
+        el.clima.innerHTML = (dia.noite ? ico('lua', 22) : '') + (ceuLimpo ? '' : ico(iconeClima(c), 22)) +
+            `<span>${dia.noite ? 'Noite · ' : ''}${ceuLimpo ? 'céu limpo' : CLIMA[c].nome}</span>`;
         const prox = CLIMA[S.clima.proximo || S.clima.amanha];
-        el.clima.title = `${CLIMA[c].nome}${S.clima.ate ? ' até ' + hora(S.clima.ate) : ''}: ${CLIMA[c].efeito}${prox ? ' Depois: ' + prox.nome.toLowerCase() + '.' : ''}`;
+        el.clima.title = `${dia.noite ? `Noite até ${hora(dia.fim)}. ` : `Dia até ${hora(dia.fim)}. `}${CLIMA[c].nome}${S.clima.ate ? ' até ' + hora(S.clima.ate) : ''}: ${CLIMA[c].efeito}${prox ? ' Depois: ' + prox.nome.toLowerCase() + '.' : ''}`;
         cena.definirClima(visita ? null : c);
     }
     function descreverClima() {
@@ -295,7 +301,11 @@
         if (!CLIMA[c]) return;
         const prox = S.clima.proximo || S.clima.amanha;
         const fimEst = S.estacao_fim ? Date.parse(S.estacao_fim) - agora() : 0;
-        mostrarStatus(`${ico(iconeClima(c), 18)} <b>${CLIMA[c].nome}</b>${S.clima.ate ? ' até ' + hora(S.clima.ate) : ''}: ${CLIMA[c].efeito}` +
+        const dia = A.faseDoDia(agora());
+        mostrarStatus((dia.noite
+            ? `${ico('lua', 18)} <b>Noite</b> até ${hora(dia.fim)}: o painel solar descansa e as luzes acendem. `
+            : `${ico('sol', 18)} <b>Dia</b> até ${hora(dia.fim)}. `) +
+            `${ico(iconeClima(c), 18)} <b>${CLIMA[c].nome}</b>${S.clima.ate ? ' até ' + hora(S.clima.ate) : ''}: ${CLIMA[c].efeito}` +
             (CLIMA[prox] ? ` Depois: ${ico(iconeClima(prox), 16)} ${CLIMA[prox].nome.toLowerCase()}.` : '') +
             (S.estacao ? ` É ${NOME_ESTACAO[S.estacao]}${fimEst > 0 && S.estacao_proxima ? `, vira ${NOME_ESTACAO[S.estacao_proxima]} em ${fmtTempo(fimEst)}` : ''}.` : ''));
     }
@@ -327,9 +337,9 @@
         if (!painelAtual) abrirPainel('energia');
         const ph = Math.round(Number(S.energia.por_hora));
         const temSol = (S.construcoes || []).some((c) => c.tipo === 'painel_solar');
-        const h = new Date(agora()).getHours();
+        const dia = A.faseDoDia(agora());
         mostrarStatus(`${ico('raio', 18)} <b>Energia</b>: ${Math.floor(cargaAgora())} de ${S.energia.capacidade} ⚡. ` +
-            (ph > 0 ? `Entrando ${ph} ⚡/h agora.` : `Nada entrando agora${temSol && (h < 6 || h >= 18) ? ' (o painel solar só gera de dia)' : ''}.`) +
+            (ph > 0 ? `Entrando ${ph} ⚡/h agora.` : `Nada entrando agora${temSol && dia.noite ? ` (é noite no jogo: o painel solar volta a gerar às ${hora(dia.fim)})` : ''}.`) +
             ' Baterias guardam mais; as máquinas elétricas gastam ao trabalhar.');
     }
     // Energia e máquinas: o que você tem, quanto gera e gasta, e o que vem nos próximos níveis
@@ -1385,6 +1395,7 @@
     });
     cena.definirVisual(visualCanteiro);
     cena.definirAnimais(visualAnimais);
+    cena.definirRelogio(agora);   // a noite do jogo segue o relógio do servidor
     cena.definirAjudantes(visualAjudantes);
     cena.definirConstrucoes(visualConstrucoes);
     cena.definirCanteiros(() => ((visita || S) ? (visita || S).canteiros : DEMO_CANTEIROS));
@@ -2482,6 +2493,7 @@
                     <li>No botão <b>Construir</b> você coloca cercas, caminhos, árvores, flores e objetos onde quiser. Toque em <b>Pronto</b> para fechar.</li>
                     <li>Toque num item já colocado para ver o que ele faz; o <b>alcance</b> dele (irrigador, alarme, estufa...) aparece marcado no chão. <b>Segure o dedo 3 segundos</b> num item ou canteiro para pegar e levar para outro lugar.</li>
                     <li>A semana tem as 4 <b>estações</b> (42 horas cada), e cada uma muda a cara da fazenda (pétalas na primavera, grama quente no verão, folhas caindo no outono, neve no inverno) e tem uma semente só dela: morango, melancia, abóbora e repolho. O <b>clima</b> muda várias vezes por dia: sol dá +1 na colheita, chuva rega tudo, onda de calor seca mais, nublado não traz problema novo e ventania espalha pragas. Toque no clima, lá em cima, para ver até quando ele vai.</li>
+                    <li>O jogo tem o próprio <b>dia e noite</b>: eles se revezam a cada 2 horas (12 horas de dia e 12 de noite em cada dia de verdade). De noite o mapa escurece, as janelas, os lampiões e as oficinas acendem, aparecem vaga-lumes, e o painel solar não gera energia. Toque no clima para ver quando amanhece.</li>
                     <li>No nível 16 chegam os <b>canos de vidro</b> (Construir → Energia, 5 cada): ligue uma oficina com canos a um canteiro, a um baú ou ao celeiro e ela busca os ingredientes sozinha (2 ⚡ por receita); dá para ver os itens passando dentro do cano. O <b>baú</b> encostado num bloco de canteiros colhe sozinho o que amadurece, e encostado num cercado coleta e alimenta os bichos (1 ⚡ cada): com baú, canos e oficinas a produção fica toda automática.</li>
                     <li>Do nível 16 em diante vem a <b>energia</b> ${ico('raio', 14)}: painel solar, turbina, gerador a biomassa e reator enchem as baterias, e as máquinas elétricas (estufa, triturador, fábrica automática, robô, aspersor) trabalham sozinhas gastando energia. Toque no ${ico('raio', 12)} lá em cima (ou no botão abaixo) para ver o que cada uma faz.</li>
                     ${ANUNCIO.ligado || ehLocal ? `<li>Quando aparecer o botão <b>+30 min</b>, assista a um anúncio até o fim e tudo o que está em andamento (plantas, animais, oficinas, ajudantes e energia) adianta 30 minutos. Cada anúncio também dá 1 ${ico('diamante', 14)} diamante.</li>` : ''}
@@ -3438,6 +3450,7 @@
         desenharEnergia();
         atualizarBotaoAnuncio();
         atualizarLago();
+        if (S.clima && A.faseDoDia(agora()).noite !== noiteMostrada) desenharClima();   // virou o dia ou a noite
         if (painelAtual === 'oficina') {
             const c = oficinaDoPainel(), o = c && infoOficina(c), alvo = el.painelCorpo.querySelector('[data-oficina-agora]');
             if (o && alvo) alvo.innerHTML = htmlOficinaAgora(o);

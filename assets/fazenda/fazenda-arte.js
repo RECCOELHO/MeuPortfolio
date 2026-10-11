@@ -103,6 +103,24 @@
         return ['primavera', 'verao', 'outono', 'inverno'][Math.floor(min / 2520)];
     }
 
+    /* ---------- Dia e noite do jogo ----------
+       Em 24 h, 12 h de dia e 12 h de noite, se revezando de 2 em 2 horas no relógio de Brasília
+       (UTC-3): dia das 0h às 2h, noite das 2h às 4h... Igual a fazenda_dia_em no SQL (que decide
+       quando o painel solar gera). n = quanto está escuro (0 a 1): escurece nos 10 primeiros
+       minutos da noite e clareia nos 10 primeiros do dia. ?noite=1 / ?noite=0 força no teste. */
+    const BLOCO_DIA = 120, VIRADA = 10;   // minutos
+    function faseDoDia(ms) {
+        try {
+            const f = new URLSearchParams(location.search).get('noite');
+            if (f === '1' || f === '0') return { noite: f === '1', n: f === '1' ? 1 : 0, fim: ms + 3600e3 };
+        } catch { /* ignora */ }
+        const m = ms / 60000 - 180;
+        const b = Math.floor(m / BLOCO_DIA), dentro = m - b * BLOCO_DIA;
+        const noite = Math.abs(b % 2) === 1;
+        const rampa = Math.min(1, dentro / VIRADA);
+        return { noite, n: noite ? rampa : 1 - rampa, fim: ((b + 1) * BLOCO_DIA + 180) * 60000 };
+    }
+
     /* ---------- Sprites do pacote por cultura ----------
        fases: [broto, crescendo, maduro], murcho, item colhido, semente (loja) */
     const CULTURAS = {
@@ -269,7 +287,9 @@
         // 47 jabuticaba
         ['................', '................', '................', '................', '......aaaa......', '.....aVUVVa.....', '.....aVdVVa.....', '.....aVVVea.....', '...aaaaeeaaaa...', '..aVUVVaaVUVVa..', '..aVdVVaaVdVVa..', '..aVVVeaaVVVea..', '...aaaa..aaaa...', '................', '................', '................'],
         // 48 cano de vidro (ícone do Construir; no mapa o cano é desenhado na hora, transparente)
-        ['................', '................', '................', '................', '................', 'aaaaaaaaaaaaaaaa', 'dddddddddddddddd', 'ffffffiiifffffff', 'fffffiiiiiffffff', 'ffffffiiifffffff', 'llllllllllllllll', 'aaaaaaaaaaaaaaaa', '................', '................', '................', '................']
+        ['................', '................', '................', '................', '................', 'aaaaaaaaaaaaaaaa', 'dddddddddddddddd', 'ffffffiiifffffff', 'fffffiiiiiffffff', 'ffffffiiifffffff', 'llllllllllllllll', 'aaaaaaaaaaaaaaaa', '................', '................', '................', '................'],
+        // 49 lampião (de noite a luz dele é desenhada por cima, em desenharNoite)
+        ['......aaaa......', '.....aeeeea.....', '....aeeeeeea....', '.....aGGGGa.....', '.....aGdGGa.....', '.....aGGGga.....', '.....agggga.....', '.....aeeeea.....', '......aKKa......', '......aKKa......', '......aKKa......', '......aKKa......', '......aKKa......', '.....aKKKKa.....', '....aeeeeeea....', '....aaaaaaaa....']
     ];
     const atlasProprio = document.createElement('canvas');
     atlasProprio.width = 12 * 16;
@@ -443,6 +463,7 @@
             case 'caixote': return { p: 'farm', i: 47 };
             case 'colmeia': return { p: 'town', i: 94 };
             case 'bau': return { p: 'farm', i: 76 };
+            case 'lampiao': return { p: 'farm', i: 1049 };
             case 'casa_vermelha': return { p: 'town', w: 3, h: 3, grade: [[52, 53, 55], [64, 65, 67], [84, 85, 75]] };
             case 'casa_azul': return { p: 'town', w: 3, h: 3, grade: [[48, 49, 51], [60, 61, 63], [88, 89, 79]] };
             case 'canteiro': return { p: 'farm', i: 1 };
@@ -507,6 +528,8 @@
     /* ---------- Ícones pixel (mesma paleta) ---------- */
     const ICONES = {
         moeda: ['..oooo..', '.oyyyyo.', 'oywyyyYo', 'oywyYyYo', 'oyyyYyYo', 'oyyyyYYo', '.oYYYYo.', '..oooo..'],
+        // lua: noite no jogo
+        lua: ['...ooo...', '..obbo...', '.obbo....', '.obo.....', 'obbo.....', 'obbo...o.', '.obbo.obo', '.obbbbbo.', '..ooooo..'],
         // sino: histórico de avisos
         sino: ['....o....', '...oyo...', '..oyyyo..', '..owyyo..', '..owyyo..', '.oyyyyyo.', 'oyyyyyyYo', 'ooooooooo', '...oYo...', '....o....'],
         // diamante: a moeda especial (colher na hora)
@@ -1584,6 +1607,8 @@
             });
 
             desenharMaquinas(lista, tempo);
+            const escuro = faseDoDia(relogio()).n;
+            if (escuro > 0) desenharNoite(lista, tempo, escuro);   // balões e sinais vêm depois: ficam claros
             if (visitante && !visitante.andando && !visitante.saindo) {   // balão com o pedido, pulando
                 const bx = Math.round(visitante.x) - 2, by = Math.round(visitante.y) - 21 + (Math.floor(tempo / 350) % 2);
                 balao(bx, by, 20, 18);
@@ -1662,9 +1687,70 @@
             ctx.imageSmoothingEnabled = false;
             ctx.fillStyle = (CHAO[EST] || CHAO.primavera).grama;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
+            if (escuro > 0) {   // a grama fora do mapa escurece junto
+                ctx.fillStyle = `rgba(16, 22, 58, ${(0.62 * escuro).toFixed(3)})`;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
             const k = escala * dpr;
             ctx.drawImage(mundo, 0, 0, MW, MH, -Math.round(cam.x * k), -Math.round(cam.y * k), MW * k, MH * k);
             desenharClima(tempo, k);
+        }
+
+        /* ---- noite: o mundo escurece num azul e as luzes acendem por cima ----
+           (casa, celeiro e casinhas com a janela acesa, lampiões, oficinas trabalhando, reator,
+           estufa) e uns vaga-lumes piscam pela fazenda. "escuro" vai de 0 a 1 (faseDoDia). */
+        let relogio = () => Date.now();
+        const LUZ_QUENTE = '255, 196, 110';
+        function luzesDaNoite(lista, tempo) {
+            const L = [{ x: wx(MAPA.casa.x) + 1.5 * T, y: wy(MAPA.casa.y) + 2 * T, r: 3 * T, cor: LUZ_QUENTE, f: 0.55 }];
+            const cel = retCeleiro();
+            L.push({ x: cel.x + cel.w / 2, y: cel.y + cel.h - T, r: 2.5 * T, cor: LUZ_QUENTE, f: 0.45 });
+            for (const c of lista) {
+                const x = wx(c.x), y = wy(c.y);
+                if (c.tipo === 'lampiao') {
+                    const tremor = 0.9 + 0.1 * Math.sin(tempo / 140 + c.x * 7 + c.y * 3);   // chama tremendo
+                    L.push({ x: x + T / 2, y: y + 5, r: 3.5 * T, cor: '255, 210, 120', f: 0.6 * tremor });
+                } else if (c.tipo === 'casa_vermelha' || c.tipo === 'casa_azul') {
+                    L.push({ x: x + 1.5 * T, y: y + 2 * T, r: 3 * T, cor: LUZ_QUENTE, f: 0.5 });
+                } else if (c.oficina && c.oficina.trabalhando) {
+                    const a = arteItem(c.tipo, EST);
+                    L.push({ x: x + (a.w || 1) * T / 2, y: y + (a.h || 1) * T * 0.65, r: 2.5 * T, cor: LUZ_QUENTE, f: 0.45 });
+                } else if (c.tipo === 'reator') {
+                    L.push({ x: x + T, y: y + T, r: 3.5 * T, cor: '120, 255, 150', f: 0.5 });
+                } else if (c.tipo === 'estufa') {
+                    L.push({ x: x + T, y: y + T, r: 3 * T, cor: '205, 165, 255', f: 0.4 });
+                }
+            }
+            return L;
+        }
+        function desenharNoite(lista, tempo, escuro) {
+            q.save();
+            q.globalCompositeOperation = 'multiply';   // tudo fica mais escuro e azulado, sem perder a cor
+            q.globalAlpha = escuro;
+            q.fillStyle = '#3e4c8c';
+            q.fillRect(0, 0, MW, MH);
+            q.globalAlpha = 1;
+            q.globalCompositeOperation = 'lighter';    // as luzes somam por cima
+            for (const l of luzesDaNoite(lista, tempo)) {
+                const g = q.createRadialGradient(l.x, l.y, 0, l.x, l.y, l.r);
+                g.addColorStop(0, `rgba(${l.cor}, ${(l.f * escuro).toFixed(3)})`);
+                g.addColorStop(0.45, `rgba(${l.cor}, ${(l.f * escuro * 0.35).toFixed(3)})`);
+                g.addColorStop(1, `rgba(${l.cor}, 0)`);
+                q.fillStyle = g;
+                q.fillRect(l.x - l.r, l.y - l.r, l.r * 2, l.r * 2);
+            }
+            // vaga-lumes: cada um passeia em volta de um ponto fixo e pisca no seu ritmo
+            for (let k = 0; k < 32; k++) {
+                const bx = ((k * 197 + 31) % 101) / 101 * MW, by = ((k * 131 + 17) % 89) / 89 * MH;
+                const x = Math.round(bx + Math.sin(tempo / 1700 + k) * 12), y = Math.round(by + Math.cos(tempo / 2300 + k * 1.7) * 9);
+                const pisca = (Math.sin(tempo / 380 + k * 2.3) + 1) / 2;
+                if (pisca < 0.35) continue;
+                q.fillStyle = `rgba(200, 255, 120, ${(0.25 * pisca * escuro).toFixed(3)})`;
+                q.fillRect(x - 1, y - 1, 3, 3);
+                q.fillStyle = `rgba(235, 255, 170, ${(pisca * escuro).toFixed(3)})`;
+                q.fillRect(x, y, 1, 1);
+            }
+            q.restore();
         }
 
         /* ---- máquinas se mexendo: água, névoa, luz, fumaça, brilho, carga ---- */
@@ -2178,6 +2264,7 @@
             },
             focarTile(tx, ty) { focar(wx(tx) + T / 2, wy(ty) + T / 2); },
             definirClima(c) { clima = c || null; precisaDesenhar = true; },
+            definirRelogio(fn) { if (typeof fn === 'function') relogio = fn; },
             // seu lago: { prontos, max } (null na visita ou sem o terreno 3)
             definirLago(l) { lago = l || null; },
             // avatar do fazendeiro que anda na fazenda (null = o do pacote)
@@ -2248,6 +2335,7 @@
     }
 
     window.FazendaArte = {
+        faseDoDia,
         CERCADOS,
         htmlAvatar,
         AVATAR_CORES,
