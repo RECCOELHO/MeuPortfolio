@@ -976,6 +976,14 @@ $$;
 
 -- Quantos canteiros o jogador pode ter: +2 por nível até o 25 e o que cada terreno comprado dá
 -- (6 nos três primeiros, 10 a 12 nos grandes; igual a limiteCanteirosNivel em fazenda.js)
+-- Fase 40: quantas construções cabem na fazenda (cerca, caminho, cano, enfeite, máquina...):
+-- 250 e mais 150 a cada terreno comprado (antes era 200 fixo, pouco para o mapa grande e os canos).
+-- Igual a maxConstrucoes em fazenda.js.
+create or replace function public.fazenda_max_construcoes(p_zonas int)
+returns int language sql immutable as $$
+  select 250 + 150 * greatest(coalesce(p_zonas, 0), 0);
+$$;
+
 create or replace function public.fazenda_limite_canteiros(p_nivel int, p_zonas int)
 returns int language sql immutable as $$
   select least(6 + (p_nivel - 1) * 2, 54)
@@ -1237,6 +1245,7 @@ begin
       'xp_nivel', fazenda_xp_nivel(v_nivel),
       'xp_proximo', fazenda_xp_nivel(v_nivel + 1),
       'max_canteiros', v_max,
+      'max_construcoes', fazenda_max_construcoes(j.zonas),
       'zonas', j.zonas,
       'beleza', fazenda_beleza(p_jogador),
       'bonus_venda', fazenda_bonus_venda(p_jogador)
@@ -3284,7 +3293,7 @@ begin
          >= i.por_terreno * (1 + j.zonas) then
     raise exception 'limite_terreno';
   end if;
-  if (select count(*) from fazenda_construcoes where jogador_id = v_id) >= 200 then
+  if (select count(*) from fazenda_construcoes where jogador_id = v_id) >= fazenda_max_construcoes(j.zonas) then
     raise exception 'limite_construcoes';
   end if;
   if j.moedas < i.custo then raise exception 'moedas_insuficientes'; end if;
@@ -4064,6 +4073,7 @@ revoke execute on function
   public.fazenda_zonas(),
   public.fazenda_no_terreno(int, int, int),
   public.fazenda_limite_canteiros(int, int),
+  public.fazenda_max_construcoes(int),
   public.fazenda_presente_nivel(int),
   public.fazenda_tem_efeito(uuid, text),
   public.fazenda_protegido(uuid, text, int, int),
