@@ -745,12 +745,6 @@
 
     // canteiros que ainda dá para colocar (o limite cresce com o nível e os terrenos)
     const canteirosLivres = () => (S ? Math.max(0, S.jogador.max_canteiros - S.canteiros.length) : 0);
-    // construções (cerca, caminho, cano, enfeite, máquina...): 250 + 150 por terreno (fazenda_max_construcoes)
-    const maxConstrucoes = () => (S && S.jogador.max_construcoes) || 250 + 150 * ((S && S.jogador.zonas) || 0);
-    const fazendaCheia = () => !!S && (S.construcoes || []).length >= maxConstrucoes();
-    const textoFazendaCheia = () => `Sua fazenda chegou ao limite de ${maxConstrucoes()} construções (cercas, caminhos, canos e enfeites também contam). ` +
-        ((S.jogador.zonas || 0) < 6 ? 'Compre outro terreno (Loja → Terrenos): cada um dá espaço para mais 150. ' : '') + 'Ou guarde algumas que não usa.';
-
     /* ---------- Leitura de um canteiro ---------- */
     function canteiro(p) {
         const fonte = visita || S;
@@ -1571,9 +1565,7 @@
             const it = tipoItem(constr.tipo);
             if (!it) return toast('Escolha um item na barra de baixo.');
             const max = maxItem(it), tem = quantosTem(it);
-            if (max && tem >= max) return toast(it.por_terreno ? `Seu pomar está cheio (${tem} de ${max} árvores): compre outro terreno (Loja → Terrenos) para plantar mais. São ${it.por_terreno} árvores frutíferas por terreno.` : ERROS.limite_maquina, 'erro');
-            if (it.id !== 'canteiro' && fazendaCheia()) return toast(textoFazendaCheia(), 'erro');
-            const tam = tamanhoItem(it.id);
+            if (max && tem >= max) return toast(it.por_terreno ? `Seu pomar está cheio (${tem} de ${max} árvores): compre outro terreno (Loja → Terrenos) para plantar mais. São ${it.por_terreno} árvores frutíferas por terreno.` : ERROS.limite_maquina, 'erro');            const tam = tamanhoItem(it.id);
             if (!cabeAqui(x, y, tam.w, tam.h)) {
                 return toast(tam.w > 1 ? `Não cabe aqui: ${esc(it.nome.toLowerCase())} precisa de ${tam.w}×${tam.h} quadrados livres.` : ERROS.lugar_ocupado, 'erro');
             }
