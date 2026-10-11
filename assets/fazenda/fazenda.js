@@ -30,7 +30,8 @@
     /* ---------- Armazenamento local (protegido) ---------- */
     const LS = {
         token: 'fazenda_token', codigo: 'fazenda_codigo', semente: 'fazenda_semente',
-        diarioVisto: 'fazenda_diario_visto', mudo: 'fazenda_mudo', tutorial: 'fazenda_tutorial', avisos: 'fazenda_avisos', convite: 'fazenda_convite'
+        diarioVisto: 'fazenda_diario_visto', mudo: 'fazenda_mudo', tutorial: 'fazenda_tutorial', avisos: 'fazenda_avisos', convite: 'fazenda_convite',
+        historico: 'fazenda_historico', historicoVisto: 'fazenda_historico_visto'
     };
     const store = {
         get(k) { try { return localStorage.getItem(k); } catch { return null; } },
@@ -1666,6 +1667,7 @@
                 ? `Faltam ${j.xp_proximo - j.xp} XP para o nível ${j.nivel + 1}${prox ? ': ' + prox : ''}. Toque para abrir o seu perfil.`
                 : 'Nível máximo! Toque para abrir o seu perfil.';
         }
+        desenharContadorHistorico();
         const diam = String(j.diamantes || 0);
         if (el.diamantes && el.diamantes.textContent !== diam) el.diamantes.textContent = diam;
         if (el.moedas.textContent !== String(j.moedas)) {
@@ -1909,11 +1911,50 @@
 
     /* ---------- Feedback visual ---------- */
     // html: monte com esc() em qualquer texto vindo de jogadores ou do servidor
+    /* ---------- Histórico dos avisos ----------
+       Todo aviso (toast) fica guardado neste aparelho (os últimos 60) para ler com calma no
+       painel Histórico; o contador do menu mostra quantos chegaram desde a última vez. */
+    const HIST_MAX = 60;
+    let historico = [];
+    try { historico = JSON.parse(store.get(LS.historico) || '[]').filter((h) => h && h.html).slice(0, HIST_MAX); } catch { historico = []; }
+    let histVisto = Number(store.get(LS.historicoVisto)) || 0;
+    const histNovos = () => historico.filter((h) => h.em > histVisto).length;
+    function guardarAviso(html, tipo) {
+        historico.unshift({ em: Date.now(), html, tipo: tipo || '' });
+        if (historico.length > HIST_MAX) historico.length = HIST_MAX;
+        store.set(LS.historico, JSON.stringify(historico));
+        if (painelAtual === 'historico') marcarHistoricoVisto();
+        desenharContadorHistorico();
+    }
+    function marcarHistoricoVisto() {
+        histVisto = Date.now();
+        store.set(LS.historicoVisto, String(histVisto));
+        desenharContadorHistorico();
+    }
+    function desenharContadorHistorico() {
+        const n = histNovos(), c = $('hudHistorico');
+        if (c) { c.textContent = n > 99 ? '99+' : n; c.hidden = !n; }
+    }
+    function htmlHistorico() {
+        if (!historico.length) return '<p class="vazio-msg">Nenhum aviso ainda. Tudo o que aparecer no topo da tela fica guardado aqui.</p>';
+        const hoje = new Date().toDateString();
+        return '<ul class="historico">' + historico.map((h) => {
+            const d = new Date(h.em);
+            const quando = d.toDateString() === hoje
+                ? d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+                : d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+            return `<li class="${h.tipo === 'erro' ? 'erro-t' : h.tipo === 'festa' ? 'festa' : ''}"><time>${quando}</time><span>${h.html}</span></li>`;
+        }).join('') + '</ul>';
+    }
+
     function toast(html, tipo) {
         if (tipo === 'erro') som.tocar('erro');
+        guardarAviso(html, tipo);
         const t = document.createElement('div');
         t.className = 'toast' + (tipo === 'erro' ? ' erro-t' : tipo === 'festa' ? ' festa' : '');
         t.innerHTML = html;
+        t.title = 'Toque para ver o histórico de avisos';
+        t.addEventListener('click', () => { if (S && !painelAtual) abrirPainel('historico'); });
         el.toasts.appendChild(t);
         while (el.toasts.children.length > (window.innerWidth <= 760 ? 2 : 3)) el.toasts.firstChild.remove();
         setTimeout(() => t.remove(), tipo === 'festa' ? 4600 : 3100);
@@ -2412,6 +2453,13 @@
         } else if (nome === 'energia') {
             el.painelTitulo.innerHTML = `${ico('raio', 26)} Energia e máquinas`;
             corpo.innerHTML = htmlEnergia();
+        } else if (nome === 'historico') {
+            el.painelTitulo.innerHTML = `${ico('sino', 26)} Histórico de avisos`;
+            corpo.innerHTML = htmlHistorico() + (historico.length ? `<div class="rodape-painel">
+                    <span class="aviso">Os últimos ${HIST_MAX} avisos ficam guardados neste aparelho.</span>
+                    <button type="button" class="botao creme" data-historico-limpar>Limpar</button>
+                </div>` : '');
+            marcarHistoricoVisto();
         } else if (nome === 'ajuda') {
             el.painelTitulo.innerHTML = `${ico('ajuda', 26)} Como jogar`;
             corpo.innerHTML = `
@@ -2973,6 +3021,12 @@
         if (dia) {
             dia.disabled = true;
             comprarDiamantes(dia.dataset.diamantes).finally(() => { dia.disabled = false; });
+            return;
+        }
+        if (e.target.closest('[data-historico-limpar]')) {
+            historico = [];
+            store.del(LS.historico);
+            abrirPainel('historico', true);
             return;
         }
         if (e.target.closest('[data-google-desligar]')) {

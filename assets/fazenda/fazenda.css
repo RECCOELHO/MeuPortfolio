@@ -365,6 +365,41 @@ button {
     animation: pulo .3s steps(3);
 }
 
+/* aviso no topo: tocar abre o histórico */
+.toasts .toast {
+    pointer-events: auto;
+    cursor: pointer;
+}
+
+/* histórico de avisos: hora à esquerda, o aviso como apareceu */
+.historico {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.historico li {
+    display: flex;
+    gap: 10px;
+    align-items: baseline;
+    padding: 8px 10px;
+    background: var(--creme-2);
+    border-left: 4px solid var(--madeira-esc);
+}
+
+.historico li.festa { border-left-color: var(--ouro); }
+.historico li.erro-t { border-left-color: #c34b35; }
+
+.historico time {
+    flex: none;
+    min-width: 46px;
+    color: var(--texto-suave);
+    font-variant-numeric: tabular-nums;
+}
+
 /* menu da planta crescendo: botões um embaixo do outro */
 .menu-canteiro {
     display: flex;
