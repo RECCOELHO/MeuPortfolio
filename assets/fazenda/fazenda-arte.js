@@ -144,6 +144,11 @@
         abacate: { item: 1045 }, cacau: { item: 1046 }, jabuticaba: { item: 1047 },
         lambari: { item: 1030 }, tilapia: { item: 1031 }, piau: { item: 1032 }, curimata: { item: 1033 },
         tucunare: { item: 1034 }, surubim: { item: 1035 }, velho_chico: { item: 1036 },
+        // produtos das oficinas da fase 38 (arte própria 1050..1062)
+        picles: { item: 1050 }, oleo: { item: 1051 }, doce_abobora: { item: 1052 }, peixe_frito: { item: 1053 },
+        suco: { item: 1054 }, sorvete: { item: 1055 }, peixe_defumado: { item: 1056 }, almofada: { item: 1057 },
+        moqueca: { item: 1058 }, azeite_trufado: { item: 1059 }, vitamina: { item: 1060 }, guacamole: { item: 1061 },
+        licor: { item: 1062 }, chocolate: { item: 1063 },
         // sementes da estação (broto e meio do pacote; madura e fruta próprias)
         moranguinho: { fases: [52, 53, 1013], murcho: 55, item: 1014, semente: 1014 },
         melancia: { fases: [52, 53, 1015], murcho: 55, item: 1016, semente: 1016 },
@@ -289,7 +294,36 @@
         // 48 cano de vidro (ícone do Construir; no mapa o cano é desenhado na hora, transparente)
         ['................', '................', '................', '................', '................', 'aaaaaaaaaaaaaaaa', 'dddddddddddddddd', 'ffffffiiifffffff', 'fffffiiiiiffffff', 'ffffffiiifffffff', 'llllllllllllllll', 'aaaaaaaaaaaaaaaa', '................', '................', '................', '................'],
         // 49 lampião (de noite a luz dele é desenhada por cima, em desenharNoite)
-        ['......aaaa......', '.....aeeeea.....', '....aeeeeeea....', '.....aGGGGa.....', '.....aGdGGa.....', '.....aGGGga.....', '.....agggga.....', '.....aeeeea.....', '......aKKa......', '......aKKa......', '......aKKa......', '......aKKa......', '......aKKa......', '.....aKKKKa.....', '....aeeeeeea....', '....aaaaaaaa....']
+        ['......aaaa......', '.....aeeeea.....', '....aeeeeeea....', '.....aGGGGa.....', '.....aGdGGa.....', '.....aGGGga.....', '.....agggga.....', '.....aeeeea.....', '......aKKa......', '......aKKa......', '......aKKa......', '......aKKa......', '......aKKa......', '.....aKKKKa.....', '....aeeeeeea....', '....aaaaaaaa....'],
+        // produtos das oficinas da fase 38 (50..62)
+        // 50 picles (pote de vidro com pepinos)
+        ['................', '................', '.....aaaaaa.....', '....allllllla...', '....aaaaaaaaa...', '...adhvhhvhhha..', '...adhhvhhvhha..', '...ahssssssvha..', '...ahssssssvva..', '...ahvhhvhhhva..', '...avhhhvhhvva..', '....aaaaaaaaa...', '................', '................', '................', '................'],
+        // 51 óleo de girassol (garrafa amarela)
+        ['................', '.......aa.......', '......aHHa......', '......aaaa......', '......adga......', '......adga......', '.....adggga.....', '....adggggga....', '....adGGGGga....', '....adGssGga....', '....adGssGga....', '....adGGGGga....', '....adggggga....', '....aHHHHHHa....', '.....aaaaaa.....', '................'],
+        // 52 doce de abóbora (pote laranja)
+        ['................', '................', '.....aaaaaa.....', '....allllllla...', '....aaaaaaaaa...', '...adOOOOOOOOa..', '...adOOOOOOOOa..', '...aOssssssONa..', '...aOssssssONa..', '...aOOOOOOOONa..', '...aNOOOOOONNa..', '....aaaaaaaaa...', '................', '................', '................', '................'],
+        // 53 peixe frito (dourado, no prato)
+        ['................', '................', '................', '................', '.....aaaaa......', '...aagggggaa.a..', '..agHgggggggaga.', '..agdgggHgggHga.', '..agggHgggggaga.', '...aagggggaa.a..', '.....aaaaa......', '.aaaaaaaaaaaaaa.', '.afffffffffffla.', '..aaaaaaaaaaaa..', '................', '................'],
+        // 54 suco de frutas (copo laranja com canudo)
+        ['................', '...........a....', '..........ara...', '....aaaaaaraa...', '....addddrdda...', '....adOOOrOOa...', '....adOOOOOOa...', '....adOgOOOOa...', '.....adOOOOa....', '.....adOOOOa....', '.....adOOONa....', '......aOOOa.....', '......aNNNa.....', '.......aaa......', '................', '................'],
+        // 55 sorvete (casquinha com bola rosa)
+        ['................', '.......aaa......', '.....aamPmaa....', '....amPPdPPma...', '....aPPPPPPPa...', '...aPmPPPPPmPa..', '...aPPPPmPPPPa..', '....aaaaaaaaa...', '....awxwxwxwa...', '.....axwxwxa....', '.....awxwxwa....', '......axwxa.....', '......awxwa.....', '.......axa......', '........a.......', '................'],
+        // 56 peixe defumado (marrom, na tábua)
+        ['................', '................', '................', '................', '.....aaaaa......', '...aannnnnaa.a..', '..anynnnnnnnana.', '..andnnnynnnyna.', '..annnynnnnnana.', '...aannnnnaa.a..', '.....aaaaa......', '.aaaaaaaaaaaaaa.', '.ayyyyyyyyyyyya.', '..aaaaaaaaaaaa..', '................', '................'],
+        // 57 almofada (creme, com bordado rosa)
+        ['................', '................', '..aaa......aaa..', '..amsaaaaaasma..', '...assssssssa...', '..asdssssssssa..', '..assssmmssssa..', '..asssmPPmsssa..', '..assssmmssssa..', '..asssssssssxa..', '...assssssssa...', '..amsaaaaaasma..', '..aaa......aaa..', '................', '................', '................'],
+        // 58 moqueca (panela de barro fumegando)
+        ['................', '.....l...l......', '......l...l.....', '.....l...l......', '....aaaaaaaa....', '...aOrOOrOOOa...', '..aOOgOOOrOgOa..', '.aaaaaaaaaaaaaa.', '.ayyyyyyyyyyyya.', '..aynyyyyyynya..', '..ayyyyyyyyyya..', '...ayyyyyyyya...', '....aaaaaaaa....', '................', '................', '................'],
+        // 59 azeite trufado (garrafa verde-escura)
+        ['................', '.......aa.......', '......anna......', '......aaaa......', '......adLa......', '......adLa......', '.....adLLLa.....', '....adLLLLLa....', '....advvvvLa....', '....advssvLa....', '....advssvLa....', '....advvvvLa....', '....adLLLLLa....', '....annnnnna....', '.....aaaaaa.....', '................'],
+        // 60 vitamina de manga (copo amarelo com canudo)
+        ['................', '...........a....', '..........aBa...', '....aaaaaaBaa...', '....addddBdda...', '....adGGGBGGa...', '....adGGGGGGa...', '....adGdGGGGa...', '.....adGGGGa....', '.....adGGGGa....', '.....adGGGga....', '......aGGGa.....', '......aggga.....', '.......aaa......', '................', '................'],
+        // 61 guacamole (tigela com chips)
+        ['................', '................', '................', '.........aa.....', '........axxa....', '.......axgxa....', '...aaaaaxxaaa...', '..aMhMMhMaMhMa..', '.aaaaaaaaaaaaaa.', '.acccccccccccca.', '..acdccccccbca..', '...accccccbca...', '....aaaaaaaa....', '................', '................', '................'],
+        // 62 licor de jabuticaba (garrafa roxa)
+        ['................', '.......aa.......', '......ayya......', '......aaaa......', '......adVa......', '......adVa......', '.....adVVVa.....', '....adVVVVVa....', '....adUUUUVa....', '....adUssUVa....', '....adUssUVa....', '....adUUUUVa....', '....adVVVVVa....', '....ayyyyyya....', '.....aaaaaa.....', '................'],
+        // 63 chocolate (barra, metade no papel)
+        ['................', '................', '.aaaaaaaaaaaaa..', '.ayynayynayyna..', '.aynnaynnaynna..', '.annnannnannna..', '.aaaaaaaaaaaaa..', '.ayynayynayyna..', '.aynnaynnaynna..', '.annnannnannna..', '.aaaaaaaaaaaaa..', '.afffffffffffa..', '.aBBBBBBBBBBBa..', '.aaaaaaaaaaaaa..', '................', '................']
     ];
     const atlasProprio = document.createElement('canvas');
     atlasProprio.width = 12 * 16;
@@ -476,6 +510,21 @@
             case 'confeitaria': return { p: 'town', w: 2, h: 3, grade: [[48, 51], [60, 63], [90, 91]] };
             case 'tecelagem': return { p: 'town', w: 2, h: 3, grade: [[52, 55], [64, 67], [85, 75]] };
             case 'casa_geleia': return { p: 'town', w: 2, h: 3, grade: [[48, 51], [60, 63], [89, 79]] };
+            // fase 38: telhado vermelho/azul com parede de madeira ou de pedra; defumadouro e adega de pedra
+            case 'conservas': return { p: 'town', w: 2, h: 3, grade: [[52, 55], [64, 67], [88, 89]] };
+            case 'prensa_oleo': return { p: 'town', w: 2, h: 3, grade: [[48, 51], [60, 63], [84, 85]] };
+            case 'doceria': return { p: 'town', w: 2, h: 3, grade: [[52, 55], [64, 67], [90, 91]] };
+            case 'peixaria': return { p: 'town', w: 2, h: 3, grade: [[48, 51], [60, 63], [85, 75]] };
+            case 'casa_sucos': return { p: 'town', w: 2, h: 3, grade: [[52, 55], [64, 67], [84, 85]] };
+            case 'sorveteria': return { p: 'town', w: 2, h: 3, grade: [[48, 51], [60, 63], [84, 87]] };
+            case 'defumadouro': return { p: 'town', w: 2, h: 3, grade: [[99, 102], [111, 114], [125, 126]] };
+            case 'atelie': return { p: 'town', w: 2, h: 3, grade: [[52, 55], [64, 67], [89, 79]] };
+            case 'cozinha_moqueca': return { p: 'town', w: 2, h: 3, grade: [[48, 51], [60, 63], [88, 89]] };
+            case 'emporio': return { p: 'town', w: 2, h: 3, grade: [[52, 55], [64, 67], [85, 87]] };
+            case 'vitaminas': return { p: 'town', w: 2, h: 3, grade: [[48, 51], [60, 63], [90, 79]] };
+            case 'guacamolaria': return { p: 'town', w: 2, h: 3, grade: [[52, 55], [64, 67], [86, 75]] };
+            case 'chocolateria': return { p: 'town', w: 2, h: 3, grade: [[48, 51], [60, 63], [86, 87]] };
+            case 'adega': return { p: 'town', w: 2, h: 3, grade: [[99, 102], [111, 114], [123, 124]] };
             // máquinas (Tiny Factory)
             case 'cercado_galinha': case 'cercado_coelho': case 'cercado_pato':
             case 'cercado_vaca': case 'cercado_ovelha': case 'cercado_porco':

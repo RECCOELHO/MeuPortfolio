@@ -691,6 +691,48 @@ on conflict (id) do update set
   beleza = excluded.beleza, produz = excluded.produz, produz_seg = excluded.produz_seg, produz_qtd = excluded.produz_qtd,
   por_terreno = excluded.por_terreno, grupo = excluded.grupo, descricao = excluded.descricao;
 
+-- Fase 38: toda matéria-prima tem uma oficina. 14 oficinas novas para o que sobrava (beterraba,
+-- girassol, morango, melancia, abóbora, repolho, pena, pelo, trufa, peixes e frutas). O produto
+-- vale ~1,7x os ingredientes, como nas oficinas antigas; o empório usa o óleo da prensa.
+insert into public.fazenda_culturas (id, nome, emoji, tempo_seg, custo, venda, rendimento, xp, nivel_min, ordem, tipo) values
+  ('picles',         'Picles',              '🫙', 1, 0, 105, 1, 11,  6, 60, 'produto'),
+  ('oleo',           'Óleo de girassol',    '🫗', 1, 0, 135, 1, 14,  8, 61, 'produto'),
+  ('doce_abobora',   'Doce de abóbora',     '🍮', 1, 0, 275, 1, 28, 10, 62, 'produto'),
+  ('peixe_frito',    'Peixe frito',         '🐟', 1, 0, 155, 1, 16, 11, 63, 'produto'),
+  ('suco',           'Suco de frutas',      '🧃', 1, 0, 120, 1, 12, 12, 64, 'produto'),
+  ('sorvete',        'Sorvete',             '🍦', 1, 0, 235, 1, 24, 12, 65, 'produto'),
+  ('peixe_defumado', 'Peixe defumado',      '🐟', 1, 0, 355, 1, 36, 13, 66, 'produto'),
+  ('almofada',       'Almofada',            '🛏', 1, 0, 560, 1, 50, 14, 67, 'produto'),
+  ('moqueca',        'Moqueca',             '🍲', 1, 0, 840, 1, 70, 15, 68, 'produto'),
+  ('azeite_trufado', 'Azeite trufado',      '🫒', 1, 0, 760, 1, 65, 18, 69, 'produto'),
+  ('vitamina',       'Vitamina de manga',   '🥤', 1, 0, 270, 1, 27, 26, 70, 'produto'),
+  ('guacamole',      'Guacamole',           '🥑', 1, 0, 320, 1, 32, 27, 71, 'produto'),
+  ('licor',          'Licor de jabuticaba', '🍷', 1, 0, 305, 1, 30, 29, 72, 'produto'),
+  ('chocolate',      'Chocolate',           '🍫', 1, 0, 425, 1, 42, 28, 73, 'produto')
+on conflict (id) do update set
+  nome = excluded.nome, venda = excluded.venda, xp = excluded.xp, nivel_min = excluded.nivel_min, ordem = excluded.ordem, tipo = excluded.tipo;
+insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem, largura, altura,
+                                  produz, produz_seg, produz_qtd, entradas, limite, beleza, descricao) values
+  ('conservas',    'Conservas',          'oficina',  1000,  6, 68, 2, 3, 'picles',          3600, 1, '{"batata": 3, "repolho": 2}', 2, 5, '3 beterrabas + 2 repolhos → picles.'),
+  ('prensa_oleo',  'Prensa de óleo',     'oficina',  1400,  8, 69, 2, 3, 'oleo',            3000, 1, '{"girassol": 4}', 2, 5, '4 girassóis → óleo de girassol.'),
+  ('doceria',      'Doceria',            'oficina',  2200, 10, 70, 2, 3, 'doce_abobora',    5100, 1, '{"jerimum": 3, "ovo": 1}', 2, 5, '3 abóboras + 1 ovo → doce de abóbora.'),
+  ('peixaria',     'Peixaria',           'oficina',  2000, 11, 71, 2, 3, 'peixe_frito',     2580, 1, '{"tilapia": 2, "lambari": 2}', 2, 5, '2 tilápias + 2 lambaris → peixe frito.'),
+  ('casa_sucos',   'Casa de sucos',      'oficina',  2400, 12, 72, 2, 3, 'suco',            1800, 1, '{"laranja": 2, "limao": 1, "goiaba": 1}', 2, 5, '2 laranjas + 1 limão + 1 goiaba → suco de frutas.'),
+  ('sorveteria',   'Sorveteria',         'oficina',  2600, 12, 73, 2, 3, 'sorvete',         3600, 1, '{"moranguinho": 2, "melancia": 1, "leite": 1}', 2, 5, '2 morangos + 1 melancia + 1 leite → sorvete.'),
+  ('defumadouro',  'Defumadouro',        'oficina',  3000, 13, 74, 2, 3, 'peixe_defumado',  7200, 1, '{"curimata": 2, "piau": 1}', 2, 5, '2 curimatãs + 1 piau → peixe defumado.'),
+  ('atelie',       'Ateliê de penas',    'oficina',  3500, 14, 75, 2, 3, 'almofada',        7680, 1, '{"pena": 4, "pelo": 2}', 2, 5, '4 penas + 2 pelos de coelho → almofada.'),
+  ('cozinha_moqueca','Cozinha de moqueca','oficina', 4500, 15, 76, 2, 3, 'moqueca',         5100, 1, '{"tucunare": 1, "surubim": 1, "tomate": 2, "limao": 1}', 2, 5, '1 tucunaré + 1 surubim + 2 tomates + 1 limão → moqueca.'),
+  ('emporio',      'Empório',            'oficina',  8000, 18, 77, 2, 3, 'azeite_trufado', 10200, 1, '{"trufa": 1, "oleo": 2}', 2, 5, '1 trufa + 2 óleos de girassol (da prensa) → azeite trufado.'),
+  ('vitaminas',    'Casa de vitaminas',  'oficina', 20000, 26, 78, 2, 3, 'vitamina',        3600, 1, '{"manga": 2, "leite": 1}', 2, 5, '2 mangas + 1 leite → vitamina de manga.'),
+  ('guacamolaria', 'Guacamolaria',       'oficina', 24000, 27, 80, 2, 3, 'guacamole',       3600, 1, '{"abacate": 2, "tomate": 1, "limao": 1}', 2, 5, '2 abacates + 1 tomate + 1 limão → guacamole.'),
+  ('chocolateria', 'Chocolateria',       'oficina', 26000, 28, 81, 2, 3, 'chocolate',       7200, 1, '{"cacau": 3, "leite": 1}', 2, 5, '3 cacaus + 1 leite → chocolate.'),
+  ('adega',        'Adega',              'oficina', 30000, 29, 82, 2, 3, 'licor',          14400, 1, '{"jabuticaba": 4}', 2, 5, '4 jabuticabas → licor de jabuticaba.')
+on conflict (id) do update set
+  nome = excluded.nome, categoria = excluded.categoria, custo = excluded.custo, nivel_min = excluded.nivel_min,
+  ordem = excluded.ordem, largura = excluded.largura, altura = excluded.altura, produz = excluded.produz,
+  produz_seg = excluded.produz_seg, produz_qtd = excluded.produz_qtd, entradas = excluded.entradas,
+  limite = excluded.limite, beleza = excluded.beleza, descricao = excluded.descricao;
+
 -- Fase 28: pomar menor (2 árvores frutíferas por terreno; antes 4). Quem passou do limite novo fica
 -- com as árvores mais caras; as que sobram saem e o preço inteiro delas volta em moedas.
 with arv as (
