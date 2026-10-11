@@ -489,7 +489,8 @@ insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem) 
   ('alvo',          'Alvo',                'objeto',    80, 6, 26),
   ('caixote',       'Caixote de tomate',   'objeto',   100, 7, 27),
   ('colmeia',       'Colmeia',             'objeto',   120, 8, 28),
-  ('bau',           'Baú',                 'objeto',   150, 11, 29)
+  ('bau',           'Baú',                 'objeto',   150, 11, 29),
+  ('lampiao',       'Lampião',             'objeto',    70, 4, 30)
 on conflict (id) do update set
   nome = excluded.nome, categoria = excluded.categoria, custo = excluded.custo,
   nivel_min = excluded.nivel_min, ordem = excluded.ordem;
@@ -591,7 +592,7 @@ on conflict (id) do update set
 -- fazenda_energia_taxa e nos gastos de cada máquina; as descrições aparecem no jogo.
 insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem, efeito, raio, limite, descricao) values
   ('cano',          'Cano de vidro',      'energia',     5, 16, 79, 'cano',       0, null, 'Ligue uma oficina com canos a um canteiro, ao celeiro ou a um baú: quando o estoque acaba, ela busca os ingredientes sozinha (2 ⚡ por receita) e os produtos voltam pelo cano.'),
-  ('painel_solar',  'Painel solar',       'energia',  2500, 16, 80, 'solar',      0, 6, 'Gera até 12 ⚡/h de dia (sol forte: 14; nublado: 5; chuva: 3). À noite, nada.'),
+  ('painel_solar',  'Painel solar',       'energia',  2500, 16, 80, 'solar',      0, 6, 'Gera até 12 ⚡/h de dia (sol forte: 14; nublado: 5; chuva: 3). À noite, nada: no jogo, o dia e a noite se revezam a cada 2 horas.'),
   ('bateria',       'Banco de baterias',  'energia',  2000, 16, 81, 'bateria',    0, 4, 'Guarda mais 100 ⚡ (sem bateria, a caixa de luz guarda só 50).'),
   ('turbina',       'Turbina eólica',     'energia',  4000, 17, 82, 'eolica',     0, 4, 'Gera 8 ⚡/h de dia e de noite; 30 ⚡/h na ventania e 14 na chuva.'),
   ('estufa',        'Estufa elétrica',    'energia',  5000, 18, 83, 'estufa',     2, 3, 'Canteiros em volta (2) aceitam sementes de qualquer estação e crescem 25% mais rápido. Gasta 5 ⚡ por plantio.'),
@@ -655,6 +656,7 @@ update public.fazenda_itens i
     ('caixote',       'venda',        0,  2, '+10% no preço de venda (fazenda toda, não acumula).', null, null, null),
     ('colmeia',       'adubo',        2,  3, 'Abelhas: +1 item na colheita em volta (2 quadrados).', null, null, null),
     ('bau',           'missao',       0,  3, '+25% de moedas nas missões. Com energia: encostado num bloco de canteiros, colhe sozinho o que amadurece; encostado num cercado, coleta e alimenta os bichos (1 ⚡ cada). Com canos, leva tudo para as oficinas.', null, null, null),
+    ('lampiao',       null,           0,  3, 'Acende sozinho de noite e ilumina em volta. +3 de beleza (beleza dá bônus nas vendas).', null, null, null),
     ('casa_vermelha', null,           0, 20, 'Casinha: +20 de beleza (beleza dá bônus nas vendas).', null, null, null),
     ('casa_azul',     null,           0, 30, 'Casinha: +30 de beleza (beleza dá bônus nas vendas).', null, null, null)
   ) v(id, efeito, raio, beleza, descricao, produz, produz_seg, produz_qtd)
@@ -931,11 +933,24 @@ returns int language sql stable security definer set search_path = public as $$
     from fazenda_construcoes c where c.jogador_id = p_jogador;
 $$;
 
--- ⚡ por hora que sol, vento e reator geram num momento (o painel solar só de dia, 6h às 18h)
+-- Fase 36: o dia e a noite do jogo. Em cada 24 h, 12 h de dia e 12 h de noite, se revezando
+-- de 2 em 2 horas no relógio de Brasília (UTC-3): dia das 0h às 2h, noite das 2h às 4h, dia das
+-- 4h às 6h... Igual a faseDoDia em fazenda-arte.js (que também escurece o mapa).
+create or replace function public.fazenda_dia_em(p_t timestamptz)
+returns boolean language sql immutable as $$
+  select floor((extract(epoch from p_t) / 60 - 180) / 120)::bigint % 2 = 0;
+$$;
+-- quando o bloco de 2 h (dia ou noite) de p_t termina
+create or replace function public.fazenda_dia_fim(p_t timestamptz)
+returns timestamptz language sql immutable as $$
+  select to_timestamp(((floor((extract(epoch from p_t) / 60 - 180) / 120) + 1) * 120 + 180) * 60);
+$$;
+
+-- ⚡ por hora que sol, vento e reator geram num momento (o painel solar só de dia: fazenda_dia_em)
 create or replace function public.fazenda_energia_taxa(p_jogador uuid, p_t timestamptz)
 returns real language sql stable security definer set search_path = public as $$
   select coalesce(sum(case i.efeito
-           when 'solar' then case when extract(hour from p_t at time zone 'America/Sao_Paulo') between 6 and 17
+           when 'solar' then case when fazenda_dia_em(p_t)
                                   then case x.clima when 'sol' then 12 when 'calor' then 14 when 'vento' then 10 when 'nublado' then 5 else 3 end
                                   else 0 end
            when 'eolica' then case x.clima when 'vento' then 30 when 'chuva' then 14 when 'nublado' then 10 when 'sol' then 8 else 5 end
@@ -1590,7 +1605,9 @@ begin
   v_e := j.energia;
   v_t := greatest(coalesce(j.energia_em, now()), now() - interval '12 hours');
   while v_t < now() loop
-    v_prox := least(date_trunc('minute', v_t) + make_interval(mins => 36 - fazenda_minuto_semana(v_t) % 36), now());
+    -- fatia até a próxima troca de clima (36 min) ou de dia/noite (2 h), o que vier antes
+    v_prox := least(date_trunc('minute', v_t) + make_interval(mins => 36 - fazenda_minuto_semana(v_t) % 36),
+                    fazenda_dia_fim(v_t), now());
     v_e := v_e + fazenda_energia_taxa(p_jogador, v_t) * extract(epoch from v_prox - v_t)::real / 3600;
     v_t := v_prox;
   end loop;
@@ -3680,7 +3697,9 @@ revoke execute on function
   public.fazenda_google_ligar(text, text, text),
   public.fazenda_google_entrar(text),
   public.fazenda_google_desligar(text),
-  public.fazenda_xp_planta(int, int)
+  public.fazenda_xp_planta(int, int),
+  public.fazenda_dia_em(timestamptz),
+  public.fazenda_dia_fim(timestamptz)
 from public, anon, authenticated;
 
 grant execute on function
