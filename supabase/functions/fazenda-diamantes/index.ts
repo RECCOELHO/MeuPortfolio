@@ -2,6 +2,7 @@
 //
 //   POST /functions/v1/fazenda-diamantes          { token, pacote } → { url } da página de pagamento
 //   POST /functions/v1/fazenda-diamantes/webhook  aviso do Mercado Pago (notification_url)
+//   GET  /functions/v1/fazenda-diamantes/saude    o Access Token vale? (só o código da resposta do Mercado Pago)
 //
 // O aviso não é levado a sério sozinho: a função busca o pagamento na API do Mercado Pago
 // com o nosso token e só então chama fazenda_compra_pagamento (supabase/fazenda.sql).
@@ -12,7 +13,7 @@
 import postgres from 'npm:postgres@3.4.5';
 
 const MP = 'https://api.mercadopago.com';
-const TOKEN_MP = Deno.env.get('MP_ACCESS_TOKEN') ?? '';
+const TOKEN_MP = (Deno.env.get('MP_ACCESS_TOKEN') ?? '').trim();   // (espaço ou quebra de linha colados junto)
 const SITE = 'https://www.jessecoelho.com.br/fazenda.html';
 const AVISOS = `${Deno.env.get('SUPABASE_URL')}/functions/v1/fazenda-diamantes/webhook`;
 const sql = postgres(Deno.env.get('SUPABASE_DB_URL')!, { prepare: false, max: 2 });
@@ -20,7 +21,7 @@ const sql = postgres(Deno.env.get('SUPABASE_DB_URL')!, { prepare: false, max: 2 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'content-type, apikey, authorization, x-client-info',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS'
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
 };
 const json = (corpo: unknown, status = 200) =>
   new Response(JSON.stringify(corpo), { status, headers: { ...CORS, 'Content-Type': 'application/json' } });
@@ -31,6 +32,7 @@ Deno.serve(async (req) => {
   const url = new URL(req.url);
   try {
     if (url.pathname.endsWith('/webhook')) return await aviso(req, url);
+    if (url.pathname.endsWith('/saude')) return await saude();
     if (req.method !== 'POST') return json({ message: 'metodo_invalido' }, 405);
     return await comprar(req);
   } catch (e) {
@@ -38,9 +40,21 @@ Deno.serve(async (req) => {
     const msg = String((e as Error)?.message ?? e);
     if (/^[a-z_]+$/.test(msg) && msg !== 'mp_indisponivel') return json({ message: msg }, 400);
     console.error(e);
-    return json({ message: 'erro_pagamento' }, 500);
+    // o código que o Mercado Pago respondeu (401 = token recusado) ajuda a achar o problema
+    return json({ message: 'erro_pagamento', mp: (e as { mp?: number })?.mp }, 500);
   }
 });
+
+// Diagnóstico: o Access Token vale? Devolve só o código da resposta, nada da conta
+async function saude() {
+  if (!TOKEN_MP) return json({ ok: false, mp: 'sem_token' });
+  const r = await fetch(`${MP}/users/me`, { headers: { Authorization: `Bearer ${TOKEN_MP}` } });
+  return json({ ok: r.ok, mp: r.status, teste: TOKEN_MP.startsWith('TEST-') });
+}
+const falhaMp = async (onde: string, r: Response) => {
+  console.error(onde, r.status, await r.text());
+  return Object.assign(new Error('mp_indisponivel'), { mp: r.status });
+};
 
 // O jogador escolheu um pacote: cria a compra e a preferência de pagamento
 async function comprar(req: Request) {
@@ -61,10 +75,7 @@ async function comprar(req: Request) {
       statement_descriptor: 'FAZENDINHA'
     })
   });
-  if (!r.ok) {
-    console.error('preferência recusada', r.status, await r.text());
-    throw new Error('mp_indisponivel');
-  }
+  if (!r.ok) throw await falhaMp('preferência recusada', r);
   const p = await r.json();
   // com as credenciais de teste o Mercado Pago usa o endereço do sandbox
   return json({ url: TOKEN_MP.startsWith('TEST-') ? p.sandbox_init_point : p.init_point, compra: c.id });
@@ -79,7 +90,7 @@ async function aviso(req: Request, url: URL) {
 
   const r = await fetch(`${MP}/v1/payments/${id}`, { headers: { Authorization: `Bearer ${TOKEN_MP}` } });
   if (r.status === 404) return json({ ok: true, pagamento: 'nao_existe' });
-  if (!r.ok) throw new Error('mp_indisponivel');   // 500: o Mercado Pago manda o aviso de novo depois
+  if (!r.ok) throw await falhaMp('consulta do pagamento', r);   // 500: o Mercado Pago manda o aviso de novo depois
   const p = await r.json();
   // pagamento de outra coisa da mesma conta, ou em outra moeda: não é com a gente
   if (!UUID.test(String(p.external_reference ?? '')) || p.currency_id !== 'BRL') return json({ ok: true, pagamento: 'outro' });
