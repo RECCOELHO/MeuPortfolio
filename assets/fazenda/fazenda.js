@@ -52,6 +52,12 @@
         nivel_insuficiente: 'Você ainda não tem nível para essa semente.',
         moedas_insuficientes: 'Moedas insuficientes.',
         diamantes_insuficientes: 'Faltam diamantes. Você ganha 5 a cada nível.',
+        limite_diario: 'Hoje já foram os 3 pacotes de XP. Amanhã tem mais!',
+        xp_maximo: 'Você já está no nível máximo.',
+        energia_cheia: 'As baterias já estão cheias.',
+        sem_maquinas: 'Você ainda não tem nada de energia (painel solar, bateria...).',
+        sem_ajudantes: 'Contrate um ajudante primeiro (Loja → Ajudantes).',
+        oficina_parada: 'Essa oficina está parada: não tem receita para terminar.',
         pacote_invalido: 'Pacote de diamantes inválido.',
         muitas_compras: 'Muitas compras abertas na última hora. Espere um pouco e tente de novo.',
         loja_fechada: 'A loja de diamantes ainda não abriu.',
@@ -96,7 +102,7 @@
         cesto_vazio: 'O cesto ainda está vazio: o Bira tira um peixe a cada 30 minutos.',
         limite_canteiros: 'Você já usou todos os seus canteiros. Suba de nível ou compre terrenos para ter mais.',
         limite_maquina: 'Você já tem essa máquina (uma basta para a fazenda toda).',
-        limite_terreno: 'Seu pomar está cheio: compre outro terreno para plantar mais (2 árvores frutíferas por terreno).',
+        limite_terreno: 'Já tem o máximo dessa árvore: compre outro terreno para plantar mais (2 pés de cada fruta por terreno).',
         alarme: 'O alarme disparou! Esse canteiro está protegido.',
         item_invalido: 'Item inválido.',
         lugar_reservado: 'Esse lugar é reservado (celeiro, casa, pasto, galinheiro) ou fica na mata fora do seu terreno.',
@@ -360,7 +366,8 @@
         const en = S.energia || {}, carga = Math.floor(cargaAgora()), cap = en.capacidade || 50;
         return `
             ${temEletrico() ? `<p>${ico('raio', 16)} Agora: <b>${carga}</b> de ${cap} ⚡ · entrando <b>${Math.round(Number(en.por_hora) || 0)}</b> ⚡ por hora.</p>
-                <span class="estoque-barra"><i style="width:${Math.round(carga / cap * 100)}%"></i></span>` : ''}
+                <span class="estoque-barra"><i style="width:${Math.round(carga / cap * 100)}%"></i></span>
+                ${precoEnergiaDiamantes() > 0 ? `<p class="det">Com pressa? ${botaoDiamante('energia', precoEnergiaDiamantes(), 'Encher agora')} O <b>eletricista</b> (Loja → Ajudantes) faz tudo gastar menos.</p>` : ''}` : ''}
             <p class="aviso">Do nível 16 em diante a fazenda vira indústria: <b>geradores</b> enchem as <b>baterias</b>, e as <b>máquinas elétricas</b> gastam essa energia para trabalhar sozinhas por você. Sem energia elas só param; o resto da fazenda continua igual.</p>
             ${grupo('Geram energia', itens.filter((i) => gera.has(i.efeito)))}
             ${grupo('Guardam energia', itens.filter((i) => guarda.has(i.efeito)))}
@@ -837,7 +844,8 @@
     /* ---------- Ajudantes: pessoas contratadas que trabalham sozinhas ---------- */
     const tipoAjudante = (id) => S && (S.ajudantes_tipos || []).find((t) => t.id === id);
     const meuAjudante = (id) => S && (S.ajudantes || []).find((h) => h.tipo === id);
-    const RITMO = [0, 12, 30, 90];                                 // tarefas por hora (igual a fazenda_ritmo)
+    const RITMO = [0, 12, 30, 90];
+    const DESCONTO_ELETRICISTA = ['', '−20%', '−35%', '−50%'];   // igual a fazenda_energia_preco                                 // tarefas por hora (igual a fazenda_ritmo)
     const custoAjudante = (t, nivel) => t.custo * [1, 2, 4][nivel || 0];   // contratar, nível 2, nível 3
     const retratoAjudante = (id, px) => {
         const a = A.AJUDANTE_ARTE[id] || { p: 'factory', i: 120 };
@@ -856,14 +864,15 @@
     function descreverAjudante(id) {
         const t = tipoAjudante(id), h = meuAjudante(id);
         if (!t || !h) return;
-        mostrarStatus(`${retratoAjudante(id, 22)} <b>${esc(t.nome)}</b>, ${esc(t.papel.toLowerCase())} nível ${h.nivel}: ${esc(t.descricao)} (${RITMO[h.nivel]} por hora)`);
+        mostrarStatus(`${retratoAjudante(id, 22)} <b>${esc(t.nome)}</b>, ${esc(t.papel.toLowerCase())} nível ${h.nivel}: ${esc(t.descricao)} (${t.funcao === 'energia' ? DESCONTO_ELETRICISTA[h.nivel] + ' de energia' : RITMO[h.nivel] + ' por hora'})`);
     }
     // o que os ajudantes fizeram desde a última olhada (vem uma vez só do servidor)
     function avisarAjudantes(estado) {
-        const UNIDADE = { colher: ['colheu', 'canteiros'], arar: ['arou ou adubou', 'canteiros'], plantar: ['plantou', 'canteiros'], cuidar: ['resolveu', 'problemas'], animal: ['fez', 'tarefas'] };
+        const UNIDADE = { colher: ['fez', 'colheitas'], arar: ['arou ou adubou', 'canteiros'], plantar: ['plantou', 'canteiros'], cuidar: ['resolveu', 'problemas'], animal: ['fez', 'tarefas'],
+            oficina: ['levou ou guardou', 'receitas'] };
         const partes = (estado.ajudantes || []).filter((h) => h.relatorio > 0).map((h) => {
             const t = (estado.ajudantes_tipos || []).find((x) => x.id === h.tipo);
-            if (!t) return '';
+            if (!t || !UNIDADE[t.funcao]) return '';
             const [verbo, coisa] = UNIDADE[t.funcao];
             return `${esc(t.nome)} ${verbo} ${h.relatorio} ${h.relatorio === 1 ? coisa.replace(/s$/, '') : coisa}`;
         }).filter(Boolean);
@@ -902,7 +911,12 @@
     /* ---------- Avatar: chapéu e cores (fazenda_avatar); o desenho sai de A.htmlAvatar ---------- */
     let rascunhoAvatar = null;
     const precoAvatar = (tipo) => ((S.jogador.avatar_precos || {})[tipo]) || 0;
-    const temAvatar = (tipo) => !precoAvatar(tipo) || (S.jogador.avatares || []).includes(tipo);
+    const diamAvatar = (tipo) => ((S.jogador.avatar_diamantes || {})[tipo]) || 0;   // fase 43: os de diamante
+    const temAvatar = (tipo) => (!precoAvatar(tipo) && !diamAvatar(tipo)) || (S.jogador.avatares || []).includes(tipo);
+    // o servidor ainda sem a fase 43 não vende os de diamante: eles nem aparecem
+    const avatarAVenda = (id) => id in (S.jogador.avatar_precos || {}) || id in (S.jogador.avatar_diamantes || {}) || !S.jogador.avatar_precos;
+    const etiquetaAvatar = (id) => temAvatar(id) ? (precoAvatar(id) || diamAvatar(id) ? 'seu' : 'grátis')
+        : diamAvatar(id) ? `${ico('diamante', 11)} ${diamAvatar(id)}` : `${ico('moeda', 11)} ${precoAvatar(id).toLocaleString('pt-BR')}`;
     function htmlEditorAvatar() {
         const a = rascunhoAvatar, tipo = A.AVATAR_TIPOS[a.tipo], cores = A.AVATAR_CORES;
         const bolinha = (cor) => `<span class="av-cor" style="background:${cor}"></span>`;
@@ -914,14 +928,16 @@
         };
         return `
             <div class="av-preview">${A.htmlAvatar(a, 112)}</div>
-            <div class="av-linha"><span class="av-titulo">Personagem</span><div class="av-opcoes">${Object.entries(A.AVATAR_TIPOS).map(([id, t]) =>
-                `<button type="button" class="av-op chapeu${a.tipo === id ? ' ativa' : ''}" data-av="tipo:${id}">${A.htmlAvatar({ ...a, tipo: id }, 40)}<small>${t.nome}</small><small class="av-preco">${temAvatar(id) ? (precoAvatar(id) ? 'seu' : 'grátis') : `${ico('moeda', 11)} ${precoAvatar(id).toLocaleString('pt-BR')}`}</small></button>`).join('')}</div></div>
+            <div class="av-linha"><span class="av-titulo">Personagem</span><div class="av-opcoes">${Object.entries(A.AVATAR_TIPOS).filter(([id]) => avatarAVenda(id)).map(([id, t]) =>
+                `<button type="button" class="av-op chapeu${a.tipo === id ? ' ativa' : ''}" data-av="tipo:${id}">${A.htmlAvatar({ ...a, tipo: id }, 40)}<small>${t.nome}</small><small class="av-preco">${etiquetaAvatar(id)}</small></button>`).join('')}</div></div>
             ${['chapeu', 'cabelo', 'pele', 'roupa', 'calca'].filter((r) => tipo.regioes[r]).map(linha).join('')}
             <p class="det">A primeira bolinha de cada linha é a cor original do personagem. Seus vizinhos veem esse avatar no ranking e quando visitam a sua fazenda.</p>
             <div class="rodape-painel">
                 <button type="button" class="botao creme" data-painel-ir="conta">Cancelar</button>
                 ${temAvatar(a.tipo)
                     ? '<button type="button" class="botao verde" data-av-salvar>Salvar</button>'
+                    : diamAvatar(a.tipo)
+                    ? `<button type="button" class="botao verde" data-av-salvar${(S.jogador.diamantes || 0) >= diamAvatar(a.tipo) ? '' : ' disabled'}>Comprar ${esc(tipo.nome.toLowerCase())} por ${ico('diamante', 14)} ${diamAvatar(a.tipo)}</button>`
                     : `<button type="button" class="botao verde" data-av-salvar${S.jogador.moedas >= precoAvatar(a.tipo) ? '' : ' disabled'}>Comprar ${esc(tipo.nome.toLowerCase())} por ${ico('moeda', 14)} ${precoAvatar(a.tipo).toLocaleString('pt-BR')}</button>`}
             </div>`;
     }
@@ -1148,7 +1164,7 @@
             return cacheVisitaCons.lista;
         }
         // sinal da rede: luz verde pulsando = ligada e com energia; vermelha piscando = sem energia
-        const sinal = cargaAgora() >= 1 ? 'ok' : 'sem_energia';
+        const sinal = cargaAgora() >= 2 ? 'ok' : 'sem_energia';
         return (S.construcoes || []).map((c) => {
             const o = infoOficina(c);
             if (o) {   // (os itens andando nos canos agora vêm das viagens: visualViagens)
@@ -1173,7 +1189,7 @@
         seco: 'sem seca', praga: 'sem pragas', erva: 'sem ervas', crescer: 'cresce 10% mais rápido',
         adubo: '+1 item', xp: '+1 XP', sorte: 'sorte (colheita em dobro às vezes)', cerca: 'vizinho pega no máximo 1',
         alarme: 'protegido do vizinho', estufa: 'estufa: qualquer estação e +25% rápido (5 ⚡)',
-        robo: 'o robô colhe e replanta', aspersor: 'sem nenhum problema (aspersor, 1 ⚡)'
+        robo: 'o robô colhe e replanta', aspersor: 'sem nenhum problema (aspersor, 2 ⚡)'
     };
     function bonusDoCanteiro(c, fonte) {
         const vistos = new Set();
@@ -1325,14 +1341,14 @@
         const usam = rede ? new Set(rede.oficinas.flatMap((k) => Object.keys(tipoItem(k.tipo).entradas || {}))) : new Set();
         const txtRede = !rede || (!rede.oficinas.length && !rede.celeiro)
             ? `Sem cano até uma oficina ou o celeiro: o que ele recolhe fica guardado aqui. Ligue com <b>canos de vidro</b> (Construir → Energia).`
-            : `Na rede${rede.oficinas.length ? ` com ${rede.oficinas.length} oficina(s)` : ''}${rede.celeiro ? `${rede.oficinas.length ? ' e' : ' com'} o celeiro` : ''}: manda pelo cano o que as oficinas usam${rede.celeiro ? ' e leva o resto para o celeiro (1 ⚡ por viagem)' : ''}.`;
+            : `Na rede${rede.oficinas.length ? ` com ${rede.oficinas.length} oficina(s)` : ''}${rede.celeiro ? `${rede.oficinas.length ? ' e' : ' com'} o celeiro` : ''}: manda pelo cano o que as oficinas usam${rede.celeiro ? ' e leva o resto para o celeiro (2 ⚡ por viagem)' : ''}.`;
         return `
             <p>${total} de ${BAU_MAX} itens guardados</p>
             <span class="estoque-barra"><i style="width:${Math.min(100, Math.round(total / BAU_MAX * 100))}%"></i></span>
             ${itens.length ? '<div class="bau-itens">' + itens.map(([item, n]) => `<span class="chip" title="${nomeItem(item)}${usam.has(item) ? ' (uma oficina da rede usa)' : ''}">${itemDe(culturas[item] || { id: item }, 20)}<span>${n}${usam.has(item) ? ` ${A.htmlItem('cano', 12)}` : ''}</span></span>`).join('') + '</div>'
                 : '<p class="vazio-msg">Vazio por enquanto.</p>'}
             <p class="aviso">${A.htmlItem('cano', 16)} ${txtRede}</p>
-            <p class="det">Com energia, recolhe sozinho o que estiver encostado nele: o bloco de canteiros, um cercado (coleta e dá ração), uma árvore do pomar e o cesto do lago (1 ⚡ cada). Cheio, ele para de recolher.</p>
+            <p class="det">Com energia, recolhe sozinho o que estiver encostado nele: o bloco de canteiros, um cercado (coleta e dá ração), uma árvore do pomar e o cesto do lago (2 ⚡ cada). Cheio, ele para de recolher.</p>
             <div class="rodape-painel">
                 <button type="button" class="botao verde" data-bau-esvaziar${total ? '' : ' disabled'}>Levar tudo para o celeiro</button>
                 <button type="button" class="botao creme" data-fechar>Fechar</button>
@@ -1382,7 +1398,7 @@
             return `esperando ${listaFalta(falta)} chegar pelo cano (quem faz na rede: ${nomes}).`;
         }
         if (falta.length) return `falta na rede ${listaFalta(semFonte)}. Guarde ${onde} da rede e ela enche o estoque sozinha.`;
-        if (cargaAgora() < 1) return `a rede está sem energia (1 ${ico('raio', 12)} por receita).`;
+        if (cargaAgora() < 2) return `a rede está sem energia (2 ${ico('raio', 12)} por receita).`;
         return null;
     }
     function htmlOficinaAgora(o) {
@@ -1426,7 +1442,7 @@
             <h3 class="secao-titulo">Estoque: ${o.estoque} receita${o.estoque === 1 ? '' : 's'} guardada${o.estoque === 1 ? '' : 's'}${o.estado === 'trabalhando' ? ' + 1 fazendo' : ''} (cabem ${max})</h3>
             <span class="estoque-barra"><i style="width:${Math.round(ocupado / max * 100)}%"></i></span>
             <p class="det">${o.ligada && (o.rede.baus.length || o.rede.celeiro)
-                ? `${A.htmlItem('cano', 14)} <b>A rede enche este estoque sozinha</b> (até ${max} receitas, 1 ${ico('raio', 12)} cada) com o que tem nos baús${o.rede.celeiro ? ' e no celeiro' : ''} da rede. Você também pode guardar do celeiro aqui.`
+                ? `${A.htmlItem('cano', 14)} <b>A rede enche este estoque sozinha</b> (até ${max} receitas, 2 ${ico('raio', 12)} cada) com o que tem nos baús${o.rede.celeiro ? ' e no celeiro' : ''} da rede. Você também pode guardar do celeiro aqui.`
                 : 'Guardar tira os ingredientes do celeiro agora (a ração reservada fica). Ela trabalha sozinha até o estoque acabar.'}</p>
             <div class="estoque-botoes">
                 <button type="button" class="botao pequeno creme" data-estoque="1"${pode >= 1 ? '' : ' disabled'}>+1</button>
@@ -1439,8 +1455,11 @@
             ${o.ligada ? `<p class="aviso">${A.htmlItem('cano', 18)} Na rede: ${o.rede.baus.length} baú(s)${o.rede.oficinas.length ? `, ${o.rede.oficinas.length} oficina(s)` : ''}${o.rede.celeiro ? ' e o celeiro' : ''}. O produto sai pelo cano para a oficina que usa ele, o celeiro ou um baú. Luz verde nos canos: a rede está trabalhando; vermelha piscando: falta energia.</p>
                 ${o.rede.celeiro ? '' : `<p class="det">O celeiro não está nesta rede: ela só pega o que está nos baús. Para usar o que está no celeiro, encoste um cano no próprio celeiro (o prédio grande no canto de cima, à esquerda).</p>`}`
                 : S.jogador.nivel >= 16 ? `<p class="det">${A.htmlItem('cano', 16)} Dica: ligue esta oficina com <b>canos de vidro</b> (Construir → Energia) a baús, a outras oficinas e ao celeiro: tudo o que está na mesma rede de canos trabalha junto.</p>` : ''}
+            ${lojaD() && o.ligada && cargaAgora() < 2 && precoEnergiaDiamantes() > 0
+                ? `<p class="det">${ico('raio', 14)} Sem energia a rede para. ${botaoDiamante('energia', precoEnergiaDiamantes(), 'Encher a energia')}</p>` : ''}
             <div class="rodape-painel">
                 ${o.prontos ? `<button type="button" class="botao verde" data-oficina-pegar>Pegar ${o.prontos} ${itemDe(o.produto, 18)}</button>` : '<span></span>'}
+                ${lojaD() && o.estado === 'trabalhando' ? botaoDiamante('oficina', precoOficinaDiamantes(o), 'Terminar agora', ` data-x="${c.x}" data-y="${c.y}"`) : ''}
                 <button type="button" class="botao creme" data-fechar>Fechar</button>
             </div>`;
     }
@@ -1603,7 +1622,7 @@
     }
     // quantos dá para ter: limite fixo, ou por terreno (amoreira: 4 na fazenda inicial + 4 por terreno comprado)
     const maxItem = (it) => it.limite || (it.por_terreno ? it.por_terreno * (1 + ((S && S.jogador.zonas) || 0)) : null);
-    // quantos já tem (itens do mesmo grupo dividem o limite: o pomar conta todas as árvores frutíferas)
+    // quantos já tem (itens do mesmo grupo dividem o limite; desde a fase 43 cada árvore frutífera conta só ela)
     const quantosTem = (it) => (S.construcoes || []).filter((c) => c.tipo === it.id || (it.grupo && (tipoItem(c.tipo) || {}).grupo === it.grupo)).length;
     const descricaoItem = (it) => (it.id === 'canteiro'
         ? `Lugar de plantar. Você tem ${S.canteiros.length} de ${S.jogador.max_canteiros}.`
@@ -1716,7 +1735,7 @@
             const it = tipoItem(constr.tipo);
             if (!it) return toast('Escolha um item na barra de baixo.');
             const max = maxItem(it), tem = quantosTem(it);
-            if (max && tem >= max) return toast(it.por_terreno ? `Seu pomar está cheio (${tem} de ${max} árvores): compre outro terreno (Loja → Terrenos) para plantar mais. São ${it.por_terreno} árvores frutíferas por terreno.` : ERROS.limite_maquina, 'erro');            const tam = tamanhoItem(it.id);
+            if (max && tem >= max) return toast(it.por_terreno ? `Já tem ${tem} de ${max} ${esc(it.nome.toLowerCase())}s: compre outro terreno (Loja → Terrenos) para plantar mais. São ${it.por_terreno} pés de cada fruta por terreno (as outras frutas têm o limite delas).` : ERROS.limite_maquina, 'erro');            const tam = tamanhoItem(it.id);
             if (!cabeAqui(x, y, tam.w, tam.h)) {
                 return toast(tam.w > 1 ? `Não cabe aqui: ${esc(it.nome.toLowerCase())} precisa de ${tam.w}×${tam.h} quadrados livres.` : ERROS.lugar_ocupado, 'erro');
             }
@@ -1829,6 +1848,11 @@
             el.premio.innerHTML = premio ? premio.html : '';
         }
         el.xpBar.parentElement.classList.toggle('quase', j.nivel < NIVEL_MAX && prog >= 0.8);
+        // XP em dobro ligado (diamantes): a barra fica dourada e o texto ganha um ×2
+        const dobro = j.xp2_ate && Date.parse(j.xp2_ate) > agora();
+        el.xpBar.parentElement.classList.toggle('dobro', !!dobro);
+        el.xpBar.parentElement.title = dobro ? `XP em dobro até ${hora(j.xp2_ate)}` : 'Experiência';
+        if (dobro) el.xp.textContent += ' ×2';
         if (el.hudPerfil) {
             const prox = j.nivel < NIVEL_MAX ? liberaNoNivel(j.nivel + 1).slice(0, 3).map((x) => x.nome).join(', ') : '';
             el.hudPerfil.title = j.nivel < NIVEL_MAX
@@ -2638,7 +2662,7 @@
                 <ul class="ajuda">
                     <li>Toque num canteiro e ele faz a ação certa: <b>arar</b>, <b>plantar</b>, <b>cuidar</b> ou <b>colher</b>.</li>
                     <li><b>XP das plantas:</b> colher dá o XP de cada planta (aparece na loja), em qualquer nível. O mesmo canteiro dá XP de colheita no máximo uma vez a cada 8 minutos: a alface, que cresce em 2, dá XP de 4 em 4 colheitas. Cuidar dá +1 XP. Arar dá XP só até o nível 5.</li>
-                    <li>Toque numa planta crescendo para abrir o menu dela: quanto falta, <b>colher agora</b> por 1 ${ico('diamante', 14)} diamante (fica pronta na hora e vai para o celeiro), <b>arrancar</b>, ou arrancar e plantar a semente escolhida. Você começa com 10 diamantes e ganha 5 a cada nível.</li>
+                    <li>Toque numa planta crescendo para abrir o menu dela: quanto falta, <b>colher agora</b> por 1 ${ico('diamante', 14)} diamante (fica pronta na hora e vai para o celeiro), <b>arrancar</b>, ou arrancar e plantar a semente escolhida. Você começa com 10 diamantes e ganha 5 a cada nível. Em <b>Loja → Diamantes</b> eles também compram <b>XP em dobro</b> por 1 hora, um <b>pacote de XP</b> (até 3 por dia), o <b>café dos ajudantes</b> (em dobro por 2 horas), <b>energia</b> cheia na hora, uma <b>oficina terminando agora</b> e <b>personagens especiais</b> para o avatar.</li>
                     <li>As plantas crescem em tempo real, mesmo com a página fechada.</li>
                     <li>Aparecem ${ico('erva', 14)} ervas, ${ico('praga', 14)} pragas e ${ico('seco', 12)} seca: cada problema deixado custa 1 item na colheita.</li>
                     <li>Depois de madura, a planta <b>murcha</b> se ficar tempo demais sem colher.</li>
@@ -2646,18 +2670,18 @@
                     <li>Os canteiros ficam onde você quiser: <b>Construir → Plantação</b> para colocar, <b>Mover</b> para mudar de lugar. Lado a lado eles viram fileiras.</li>
                     <li>Na loja, aba <b>Terrenos</b>, compre pedaços da mata em volta para a fazenda crescer (e ganhar mais canteiros). São 6 terrenos, e os três últimos são grandes.</li>
                     <li>Todo item do Construir faz alguma coisa: evita seca, praga ou erva, adianta o crescimento, dá itens e XP extras, protege dos vizinhos ou aumenta a <b>beleza</b> (bônus nas vendas). Toque num item para ver o que ele faz.</li>
-                    <li>Na loja, aba <b>Ajudantes</b>: contrate pessoas que aram, plantam, cuidam, colhem e tratam dos animais sozinhas (12 tarefas por hora no nível 1, 30 no 2 e 90 no 3). O <b>Seu Zé</b> também aduba os canteiros crescendo: +1 item na colheita. Com a fazenda aberta, dá para ver cada um indo até onde trabalhou.</li>
+                    <li>Na loja, aba <b>Ajudantes</b>: contrate pessoas que aram, plantam, cuidam, colhem e tratam dos animais sozinhas (12 tarefas por hora no nível 1, 30 no 2 e 90 no 3). O <b>Seu Zé</b> também aduba os canteiros crescendo: +1 item na colheita; o <b>Juca</b> colhe também o pomar. A <b>Dona Lurdes</b> (operária, nível 12) cuida das oficinas: leva o que ficou pronto para o celeiro e enche o estoque delas; o <b>Faísca</b> (eletricista, nível 17) faz tudo o que é elétrico gastar menos. Ajudante não gasta energia. Com a fazenda aberta, dá para ver cada um indo até onde trabalhou.</li>
                     <li>Em <b>Construir → Oficinas</b> tem uma oficina para cada matéria-prima: padaria, queijaria, conservas, prensa de óleo, peixaria, defumadouro, casa de sucos, sorveteria, ateliê de penas, cozinha de moqueca, empório (que usa o óleo da prensa), adega e outras. Toque nela para abrir o painel: guarde ingredientes no <b>estoque</b> (até 10 receitas) e ela trabalha sozinha, uma receita atrás da outra. O painel mostra quanto valem os ingredientes, quanto vale o produto e o <b>lucro</b>. Quando aparecer o balão, toque para pegar.</li>
-                    <li>Fruta só dá no pé: em <b>Construir → Pomar</b> tem amoreira, laranjeira, limoeiro, goiabeira e, do nível 26 ao 29, mangueira, abacateiro, cacaueiro e jabuticabeira. Cada árvore dá frutas sozinha: quando aparecer o balão, toque nela para colher. São 2 árvores frutíferas por terreno: quanto mais terreno, maior o pomar.</li>
+                    <li>Fruta só dá no pé: em <b>Construir → Pomar</b> tem amoreira, laranjeira, limoeiro, goiabeira e, do nível 26 ao 29, mangueira, abacateiro, cacaueiro e jabuticabeira. Cada árvore dá frutas sozinha: quando aparecer o balão, toque nela para colher. São 2 pés de <b>cada fruta</b> por terreno (2 laranjeiras, 2 limoeiros...): quanto mais terreno, maior o pomar. Para colher sozinho: um <b>baú</b> encostado na árvore, com energia, colhe e guarda (e manda pela rede de canos); ou o <b>Juca</b> (colhedor) colhe as que não têm baú e leva para o celeiro.</li>
                     <li>Em <b>Construir → Máquinas</b>: irrigador, pulverizador e robô capinador evitam seca, pragas e ervas por perto; o alarme protege dos vizinhos; trator e colheitadeira ajudam na fazenda toda.</li>
                     <li>Na loja tem <b>animais</b> (até 5 de cada; cada um sai 50% mais caro que o anterior). Em <b>Construir → Bichos</b> tem um cercado para cada espécie: coloque onde quiser e eles se mudam para lá. Dê ração (sai do celeiro) e colete ovos, leite e lã. No celeiro, <b>Reservar</b> guarda a ração deles para não ir junto no "Vender tudo".</li>
                     <li>No botão <b>Construir</b> você coloca cercas, caminhos, árvores, flores e objetos onde quiser. Toque em <b>Pronto</b> para fechar.</li>
                     <li>Toque num item já colocado para ver o que ele faz; o <b>alcance</b> dele (irrigador, alarme, estufa...) aparece marcado no chão. <b>Segure o dedo 3 segundos</b> num item ou canteiro para pegar e levar para outro lugar.</li>
                     <li>A semana tem as 4 <b>estações</b> (42 horas cada), e cada uma muda a cara da fazenda (pétalas na primavera, grama quente no verão, folhas caindo no outono, neve no inverno) e tem uma semente só dela: morango, melancia, abóbora e repolho. O <b>clima</b> muda várias vezes por dia: sol dá +1 na colheita, chuva rega tudo, onda de calor seca mais, nublado não traz problema novo e ventania espalha pragas. Toque no clima, lá em cima, para ver até quando ele vai.</li>
                     <li>O jogo tem o próprio <b>dia e noite</b>: eles se revezam a cada 2 horas (12 horas de dia e 12 de noite em cada dia de verdade). De noite o mapa escurece, as janelas, os lampiões e as oficinas acendem, aparecem vaga-lumes, e o painel solar não gera energia. Toque no clima para ver quando amanhece.</li>
-                    <li>O <b>baú</b> guarda em si (até 200 itens) o que recolhe sozinho, com energia, do que estiver encostado nele: o bloco de canteiros, um cercado (coleta e dá ração), uma árvore do pomar e o cesto do lago (1 ⚡ cada). Toque no baú para ver o que tem.</li>
-                    <li>No nível 16 chegam os <b>canos de vidro</b> (Construir → Energia, 5 cada). Canos encostados formam uma <b>rede</b>, e tudo o que encosta num cano dela (baús, oficinas, o celeiro, a fábrica automática) trabalha junto: a rede <b>enche sozinha o estoque das oficinas</b> (até 10 receitas, 1 ⚡ cada) com o que tem nos baús e no celeiro da rede, dividindo entre todas; o produto vai para outra oficina que usa ele (o óleo da prensa vai para o empório), para o celeiro ou para um baú; e o que nenhuma oficina usa sai do baú para o celeiro (1 ⚡ por viagem). Para o celeiro fazer parte, o cano tem que encostar no próprio prédio do celeiro. Nada anda sem estar ligado. Como saber se está funcionando: a <b>luz no meio do cano</b> fica verde pulsando quando a rede liga duas coisas ou mais (vermelha piscando = sem energia), a oficina na rede ganha um selinho de cano no balão, o baú mostra uma barrinha de quanto está cheio, e cada item aparece passando pelo cano quando viaja.</li>
-                    <li>Do nível 16 em diante vem a <b>energia</b> ${ico('raio', 14)}: painel solar, turbina, gerador a biomassa e reator enchem as baterias, e as máquinas elétricas (estufa, triturador, fábrica automática, robô, aspersor) trabalham sozinhas gastando energia. Toque no ${ico('raio', 12)} lá em cima (ou no botão abaixo) para ver o que cada uma faz.</li>
+                    <li>O <b>baú</b> guarda em si (até 200 itens) o que recolhe sozinho, com energia, do que estiver encostado nele: o bloco de canteiros, um cercado (coleta e dá ração), uma árvore do pomar e o cesto do lago (2 ⚡ cada). Toque no baú para ver o que tem.</li>
+                    <li>No nível 16 chegam os <b>canos de vidro</b> (Construir → Energia, 20 cada). Canos encostados formam uma <b>rede</b>, e tudo o que encosta num cano dela (baús, oficinas, o celeiro, a fábrica automática) trabalha junto: a rede <b>enche sozinha o estoque das oficinas</b> (até 10 receitas, 2 ⚡ cada) com o que tem nos baús e no celeiro da rede, dividindo entre todas; o produto vai para outra oficina que usa ele (o óleo da prensa vai para o empório), para o celeiro ou para um baú; e o que nenhuma oficina usa sai do baú para o celeiro (2 ⚡ por viagem). Para o celeiro fazer parte, o cano tem que encostar no próprio prédio do celeiro. Nada anda sem estar ligado. Como saber se está funcionando: a <b>luz no meio do cano</b> fica verde pulsando quando a rede liga duas coisas ou mais (vermelha piscando = sem energia), a oficina na rede ganha um selinho de cano no balão, o baú mostra uma barrinha de quanto está cheio, e cada item aparece passando pelo cano quando viaja.</li>
+                    <li>Do nível 16 em diante vem a <b>energia</b> ${ico('raio', 14)}: painel solar, turbina, gerador a biomassa e reator enchem as baterias, e as máquinas elétricas (estufa, triturador, fábrica automática, robô, aspersor, baús e a rede de canos) trabalham sozinhas gastando energia. O <b>eletricista</b> (ajudante, nível 17) faz tudo gastar menos, e dá para encher as baterias com diamantes. Toque no ${ico('raio', 12)} lá em cima (ou no botão abaixo) para ver o que cada uma faz.</li>
                     ${ANUNCIO.ligado || ehLocal ? `<li>Quando aparecer o botão <b>+30 min</b>, assista a um anúncio até o fim e tudo o que está em andamento (plantas, animais, oficinas, ajudantes e energia) adianta 30 minutos. Cada anúncio também dá 1 ${ico('diamante', 14)} diamante.</li>` : ''}
                     <li>No Perfil (ou em Vizinhos) tem o seu <b>link de convite</b>: quem criar uma fazenda por ele ganha moedas, e você também.</li>
                     <li>No <b>Vale do sudeste</b> (terreno 3) tem um lago: o pescador <b>Bira</b> tira um peixe a cada 30 minutos, até 16 no cesto. Toque no lago para pegar. Quanto mais raro, mais vale, e o lendário <b>Peixe do Velho Chico</b> sai em 1% das vezes (2% com a estátua do nível 30).</li>
@@ -2862,7 +2886,8 @@
             const h = meuAjudante(t.id), nivel = h ? h.nivel : 0;
             const travado = !h && t.nivel_min > S.jogador.nivel;
             const estrelas = [1, 2, 3].map((n) => (n <= nivel ? '★' : '☆')).join('');
-            const ritmo = nivel ? `${RITMO[nivel]} por hora${nivel < 3 ? ` (nível ${nivel + 1}: ${RITMO[nivel + 1]})` : ''}` : `${RITMO[1]} por hora`;
+            const ritmo = t.funcao === 'energia' ? DESCONTO_ELETRICISTA[nivel || 1] + ' de energia' + (nivel && nivel < 3 ? ` (nível ${nivel + 1}: ${DESCONTO_ELETRICISTA[nivel + 1]})` : '')
+                : nivel ? `${RITMO[nivel]} por hora${nivel < 3 ? ` (nível ${nivel + 1}: ${RITMO[nivel + 1]})` : ''}` : `${RITMO[1]} por hora`;
             const acao = travado ? `<span class="preco">Nível ${t.nivel_min}</span>`
                 : nivel >= 3 ? '<span class="preco">Nível máximo</span>'
                 : `<button type="button" class="botao pequeno verde" data-contratar="${esc(t.id)}">${nivel ? 'Evoluir' : 'Contratar'}<br>${ico('moeda', 14)} ${custoAjudante(t, nivel)}</button>`;
@@ -2875,7 +2900,8 @@
                 </span>
                 ${acao}
             </div>`;
-        }).join('') + '</div><p class="aviso">Ajudantes trabalham sozinhos, até com a fazenda fechada (guardam até 8 h de trabalho). Não dão XP: o XP é seu. Quem cuida de animais precisa de ração no celeiro.</p>';
+        }).join('') + '</div><p class="aviso">Ajudantes trabalham sozinhos, até com a fazenda fechada (guardam até 8 h de trabalho), e não gastam energia: são a mão de obra de graça ao lado das máquinas. Não dão XP: o XP é seu. Quem cuida de animais precisa de ração no celeiro.</p>'
+            + (lojaD() && (S.ajudantes || []).length ? `<p class="det">${ativoAte(S.jogador.cafe_ate) ? `<b>Café servido:</b> trabalhando em dobro até ${hora(S.jogador.cafe_ate)}. ` : 'Café dos ajudantes: todos em dobro por 2 horas. '}${botaoDiamante('cafe', lojaD().cafe.preco, ativoAte(S.jogador.cafe_ate) ? '+2 horas' : 'Servir café')}</p>` : '');
     }
 
     function htmlLojaTerrenos() {
@@ -2905,10 +2931,68 @@
        Mercado Pago traz a pessoa de volta em fazenda.html?compra=ID e avisa a função, que
        credita os diamantes. Os pacotes e preços vêm do servidor (estado.pacotes_diamantes). */
     const reais = (v) => 'R$ ' + Number(v).toFixed(2).replace('.', ',');
+    /* ---------- O que fazer com os diamantes (fase 43; preços vêm de estado.loja_diamantes) ---------- */
+    const lojaD = () => (S && S.loja_diamantes) || null;
+    const ativoAte = (iso) => (iso && Date.parse(iso) > agora() ? iso : null);
+    // encher a energia: 1 diamante a cada 50 ⚡ que faltam (null = sem nada de energia; 0 = cheia)
+    function precoEnergiaDiamantes() {
+        const l = lojaD();
+        if (!l || !temEletrico()) return null;
+        const falta = (S.energia.capacidade || 50) - cargaAgora();
+        return falta < 1 ? 0 : Math.max(1, Math.ceil(falta / l.energia.por));
+    }
+    const precoOficinaDiamantes = (o) => Math.max(1, Math.ceil(o.falta / 3600000) * (lojaD() ? lojaD().oficina.por_hora : 1));
+    // botão de gastar diamantes (o primeiro toque pede para confirmar)
+    const botaoDiamante = (item, preco, texto, xy = '') => `<button type="button" class="botao pequeno verde" data-usar-diamante="${item}" data-preco="${preco}"${xy}${(S.jogador.diamantes || 0) >= preco ? '' : ' disabled'}>${texto}<br>${ico('diamante', 14)} ${preco}</button>`;
+    function htmlUsarDiamantes() {
+        const l = lojaD();
+        if (!l) return '';
+        const j = S.jogador;
+        const xp2 = ativoAte(j.xp2_ate), cafe = ativoAte(j.cafe_ate);
+        const pacoteXp = Math.ceil(((j.xp_proximo || 0) - (j.xp_nivel || 0)) * l.xp.pct / 100);
+        const hoje = j.xp_compras_hoje || 0;
+        const pe = precoEnergiaDiamantes();
+        const info = (txt) => `<span class="preco">${txt}</span>`;
+        const linha = (icone, nome, det, acao) => `<div class="item"><span class="ico">${icone}</span>
+            <span><span class="nome">${nome}</span><span class="det"><span class="txt">${det}</span></span></span>${acao || '<span></span>'}</div>`;
+        return `<h3 class="secao-titulo">Usar diamantes</h3><div class="lista">
+            ${linha(ico('xp', 36), 'XP em dobro', xp2 ? `<b>Ligado até ${hora(xp2)}</b>: todo XP vem dobrado. Comprar de novo soma mais ${l.xp2.horas} hora.`
+                : `Por ${l.xp2.horas} hora, todo XP que você ganha (colher, bichos, vender, missões) vem dobrado.`, botaoDiamante('xp2', l.xp2.preco, xp2 ? '+1 hora' : 'Ligar'))}
+            ${linha(ico('xp', 36), `Pacote de XP: +${pacoteXp}`, `${l.xp.pct}% do seu nível, na hora. Até ${l.xp.por_dia} por dia (hoje: ${hoje}).`,
+                j.nivel >= 30 ? info('Nível máximo') : hoje >= l.xp.por_dia ? info('Amanhã tem mais') : botaoDiamante('xp', l.xp.preco, 'Pegar'))}
+            ${linha(retratoAjudante('colhedor', 36), 'Café dos ajudantes', cafe ? `<b>Em dobro até ${hora(cafe)}</b>. Comprar de novo soma mais ${l.cafe.horas} horas.`
+                : `Por ${l.cafe.horas} horas, todos os seus ajudantes trabalham em dobro.`, (S.ajudantes || []).length ? botaoDiamante('cafe', l.cafe.preco, cafe ? `+${l.cafe.horas} horas` : 'Servir') : info('Sem ajudantes'))}
+            ${linha(ico('raio', 36), 'Encher a energia', `Baterias cheias na hora: 1 ${ico('diamante', 12)} a cada ${l.energia.por} ⚡ que faltam.`,
+                pe == null ? info('Sem energia ainda') : pe === 0 ? info('Já está cheia') : botaoDiamante('energia', pe, 'Encher'))}
+            ${linha(A.htmlItem('prensa_oleo', 36), 'Oficina na hora', `Na oficina trabalhando, toque em <b>Terminar agora</b>: ${l.oficina.por_hora} ${ico('diamante', 12)} por hora que falta.`)}
+            ${linha(itemDe(culturas.tomate || { id: 'tomate' }, 36), 'Colher agora', `Toque numa planta crescendo: 1 ${ico('diamante', 12)} e ela fica pronta na hora.`)}
+            ${linha(A.htmlAvatar({ tipo: 'fantasma' }, 36), 'Personagens especiais', 'Soldado, bárbaro, guarda, feiticeiro, fantasma, ciclope, diabinho e morcego: só com diamantes.',
+                '<button type="button" class="botao pequeno creme" data-avatar-editar>Ver</button>')}
+        </div>`;
+    }
+    function usarDiamantes(item, x, y) {
+        const num = (v) => (v == null || v === '' ? null : Number(v));
+        return enfileirar([], async () => {
+            const r = await rpc('fazenda_usar_diamantes', { p_token: token, p_item: item, p_x: num(x), p_y: num(y) });
+            aplicarEstado(r.estado);
+            som.tocar('moeda');
+            const j = r.estado.jogador;
+            const msg = {
+                xp2: `XP em dobro até ${hora(j.xp2_ate)}!`, xp: `+${r.xp} ${ico('xp', 14)}!`,
+                cafe: `Café servido: os ajudantes trabalham em dobro até ${hora(j.cafe_ate)}!`,
+                energia: 'Baterias cheias!', oficina: 'Receita pronta na hora!'
+            }[item];
+            toast(`${ico('diamante', 16)} −${r.diamantes} · ${msg}`, 'festa');
+            if (painelAtual) abrirPainel(painelAtual, true);
+        });
+    }
+
     function htmlLojaDiamantes() {
         const pacotes = S.pacotes_diamantes || [];
-        if (!pacotes.length) return '<p class="vazio-msg">Os diamantes chegam em breve.</p>';
-        return `<p>Você tem <b>${S.jogador.diamantes || 0}</b> ${ico('diamante', 14)}. Cada diamante faz uma planta crescendo ficar pronta na hora.</p>
+        const usar = htmlUsarDiamantes();
+        if (!pacotes.length && !usar) return '<p class="vazio-msg">Os diamantes chegam em breve.</p>';
+        return `<p>Você tem <b>${S.jogador.diamantes || 0}</b> ${ico('diamante', 14)}. Ganha 5 a cada nível${ANUNCIO.ligado ? ' e 1 por anúncio' : ''}.</p>
+            ${usar}${pacotes.length ? `<h3 class="secao-titulo">Comprar diamantes</h3>` : ''}
             <div class="lista">` + pacotes.map((p) => `<div class="item">
                 <span class="ico">${ico('diamante', 36)}</span>
                 <span><span class="nome">${p.diamantes} diamantes</span><span class="det">${p.bonus ? `<span class="bonus-txt">+${p.bonus} de bônus</span>` : ''}<span>colhe ${p.diamantes} plantas na hora</span></span></span>
@@ -3123,8 +3207,11 @@
         if (e.target.closest('[data-av-salvar]') && rascunhoAvatar) {
             const novo = { ...rascunhoAvatar };
             const preco = temAvatar(novo.tipo) ? 0 : precoAvatar(novo.tipo);
-            if (preco > S.jogador.moedas) return toast(ERROS.moedas_insuficientes, 'erro');
-            if (preco) { S.jogador.moedas -= preco; S.jogador.avatares = [...(S.jogador.avatares || []), novo.tipo]; som.tocar('moeda'); }
+            const diam = temAvatar(novo.tipo) ? 0 : diamAvatar(novo.tipo);
+            if (diam > (S.jogador.diamantes || 0)) return toast(ERROS.diamantes_insuficientes, 'erro');
+            if (!diam && preco > S.jogador.moedas) return toast(ERROS.moedas_insuficientes, 'erro');
+            if (diam) { S.jogador.diamantes -= diam; S.jogador.avatares = [...(S.jogador.avatares || []), novo.tipo]; som.tocar('moeda'); }
+            else if (preco) { S.jogador.moedas -= preco; S.jogador.avatares = [...(S.jogador.avatares || []), novo.tipo]; som.tocar('moeda'); }
             S.jogador.avatar = novo;       // aparece na hora; o servidor confirma
             cena.definirAvatar(novo);
             desenharHud();
@@ -3132,7 +3219,9 @@
             enfileirar([], async () => {
                 const r = await rpc('fazenda_avatar', { p_token: token, p_avatar: novo });
                 aplicarEstado(r.estado);
-                toast(r.pagou ? `${A.htmlAvatar(novo, 22)} Comprou o personagem por ${ico('moeda', 14)} ${r.pagou.toLocaleString('pt-BR')}! Agora ele é seu para sempre.` : `${A.htmlAvatar(novo, 22)} Avatar salvo! Os vizinhos já veem o novo visual.`, r.pagou ? 'festa' : undefined);
+                toast(r.pagou_diamantes ? `${A.htmlAvatar(novo, 22)} Comprou o personagem por ${ico('diamante', 14)} ${r.pagou_diamantes}! Agora ele é seu para sempre.`
+                    : r.pagou ? `${A.htmlAvatar(novo, 22)} Comprou o personagem por ${ico('moeda', 14)} ${r.pagou.toLocaleString('pt-BR')}! Agora ele é seu para sempre.`
+                    : `${A.htmlAvatar(novo, 22)} Avatar salvo! Os vizinhos já veem o novo visual.`, r.pagou || r.pagou_diamantes ? 'festa' : undefined);
             });
             return;
         }
@@ -3189,6 +3278,19 @@
                 if (ganho > 0) { toast(`Vendeu por ${ico('moeda', 16)} ${ganho}${xp ? ` e ganhou +${xp} ${ico('xp', 16)}` : ''}!${guardou}`); som.tocar('moeda'); tutorialEvento('vender'); }
                 if (estado) aplicarEstado(estado);
             }).finally(() => { vend.disabled = false; });
+            return;
+        }
+        const ud = e.target.closest('[data-usar-diamante]');
+        if (ud) {
+            if (!ud.dataset.confirmar) {   // o primeiro toque só pede para confirmar (diamante vale dinheiro)
+                ud.dataset.confirmar = '1';
+                ud.dataset.texto = ud.innerHTML;
+                ud.innerHTML = `Confirmar?<br>${ico('diamante', 14)} ${esc(ud.dataset.preco)}`;
+                setTimeout(() => { if (ud.isConnected && ud.dataset.confirmar) { delete ud.dataset.confirmar; ud.innerHTML = ud.dataset.texto; } }, 4000);
+                return;
+            }
+            ud.disabled = true;
+            usarDiamantes(ud.dataset.usarDiamante, ud.dataset.x, ud.dataset.y);
             return;
         }
         const dia = e.target.closest('[data-diamantes]');
