@@ -19,7 +19,7 @@ const MP = 'https://api.mercadopago.com';
 const TOKEN_MP = (Deno.env.get('MP_ACCESS_TOKEN') ?? '').trim();   // (espaço ou quebra de linha colados junto)
 const SITE = 'https://www.jessecoelho.com.br/fazenda.html';
 // ID do cliente OAuth do Google (público: é o mesmo que vai no fazenda.js)
-const GOOGLE_CLIENT_ID = '';
+const GOOGLE_CLIENT_ID = '399889578261-33gg9c2uq7d40v6nba2qf1g3b87qfugj.apps.googleusercontent.com';
 const AVISOS = `${Deno.env.get('SUPABASE_URL')}/functions/v1/fazenda-diamantes/webhook`;
 const sql = postgres(Deno.env.get('SUPABASE_DB_URL')!, { prepare: false, max: 2 });
 

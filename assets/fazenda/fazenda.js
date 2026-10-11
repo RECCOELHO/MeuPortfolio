@@ -16,7 +16,7 @@
     const ANUNCIO = { cliente: 'ca-pub-9193438749452073', ligado: false, teste: true };
     // Login com Google para ligar a fazenda e abrir ela em outro aparelho. É o ID do cliente OAuth
     // (público; o mesmo da Edge Function fazenda-diamantes). Vazio = sem Google.
-    const GOOGLE_CLIENT_ID = '';
+    const GOOGLE_CLIENT_ID = '399889578261-33gg9c2uq7d40v6nba2qf1g3b87qfugj.apps.googleusercontent.com';
 
     // Em localhost dá pra apontar para um backend de teste: fazenda.html?api=http://localhost:8787
     let API = SUPABASE_URL;
