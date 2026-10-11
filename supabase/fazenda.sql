@@ -1287,7 +1287,11 @@ begin
         'de', case when v.de_x is null then null else jsonb_build_array(v.de_x, v.de_y) end,
         'para', case when v.para_x is null then null else jsonb_build_array(v.para_x, v.para_y) end,
         'direto', v.direto, 'em', v.em) order by v.em)
-        from fazenda_viagens v where v.jogador_id = p_jogador and v.em > now() - interval '2 minutes'), '[]'::jsonb),
+        -- fase 44: as criadas nos últimos 2 minutos (o jogo anima cada uma quando recebe, item por
+        -- item; antes eram as com hora marcada nos últimos 2 min, e a entrega de uma receita que
+        -- terminou antes ficava de fora)
+        from (select * from fazenda_viagens where jogador_id = p_jogador and criada_em > now() - interval '2 minutes'
+               order by criada_em desc, id desc limit 300) v), '[]'::jsonb),
     'galinheiro', jsonb_build_object('linhas', fazenda_galinheiro_linhas(p_jogador), 'quer', fazenda_galinheiro_quer(p_jogador)),
     'visitante', fazenda_visitante(p_jogador),
     -- o lago (só com o terreno 3): desde quando o cesto enche, o ritmo, o máximo e as chances
@@ -1842,6 +1846,9 @@ create table if not exists public.fazenda_viagens (
   em          timestamptz not null default now()
 );
 create index if not exists fazenda_viagens_jogador on public.fazenda_viagens (jogador_id, em);
+-- Fase 44: quando a viagem foi criada (o jogo mostra as novas, mesmo as com hora marcada antes)
+alter table public.fazenda_viagens add column if not exists criada_em timestamptz not null default now();
+create index if not exists fazenda_viagens_criada on public.fazenda_viagens (jogador_id, criada_em);
 alter table public.fazenda_bau_itens enable row level security;
 alter table public.fazenda_oficina_itens enable row level security;
 alter table public.fazenda_viagens enable row level security;
@@ -2279,7 +2286,7 @@ declare
   v_sem text;
 begin
   perform fazenda_energia_atualizar(p_jogador);
-  delete from fazenda_viagens where jogador_id = p_jogador and em < now() - interval '10 minutes';
+  delete from fazenda_viagens where jogador_id = p_jogador and criada_em < now() - interval '10 minutes';
   delete from fazenda_bau_itens where jogador_id = p_jogador and quantidade = 0;
   delete from fazenda_oficina_itens where jogador_id = p_jogador and quantidade = 0;
   perform fazenda_baus(p_jogador);   -- baús: colhem os canteiros e cuidam dos cercados encostados (antes das oficinas)

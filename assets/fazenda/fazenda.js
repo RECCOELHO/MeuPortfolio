@@ -1136,9 +1136,17 @@
     const receitaHtml = (it) => Object.entries(it.entradas).map(([item, qtd]) => `${qtd} ${itemDe(culturas[item] || { id: item }, 16)}`).join(' + ') +
         ` → ${itemDe(culturas[it.produz] || { id: it.produz }, 16)} (${fmtDuracao(it.produz_seg)})`;
 
+    let cacheVisitaCons = {};
     function visualConstrucoes() {
         if (!S) return DEMO_CONSTRUCOES;
-        if (visita) return visita.construcoes || [];
+        if (visita) {   // na fazenda do vizinho os canos também ligam uns nos outros (sem a luz: a energia é dele)
+            const cons = visita.construcoes || [];
+            if (cacheVisitaCons.cons !== cons) {
+                const r = cons.some((c) => c.tipo === 'cano') ? redeCanos(cons) : null;
+                cacheVisitaCons = { cons, lista: r ? cons.map((c) => (c.tipo === 'cano' ? { ...c, cano: r.lados.get(c.x + ',' + c.y) } : c)) : cons };
+            }
+            return cacheVisitaCons.lista;
+        }
         // sinal da rede: luz verde pulsando = ligada e com energia; vermelha piscando = sem energia
         const sinal = cargaAgora() >= 1 ? 'ok' : 'sem_energia';
         return (S.construcoes || []).map((c) => {
@@ -1184,10 +1192,12 @@
        ele, para o celeiro ou para um baú. Guarda tudo até as construções mudarem. */
     const VIZINHOS = [[1, 0], [-1, 0], [0, 1], [0, -1]];   // leste, oeste, sul, norte
     const CELEIRO_PEGADA = { x: 1, y: 1, w: 3, h: 6, papel: 'celeiro', tipo: 'celeiro' };
-    let cacheCanos = {};
-    function redeCanos() {
-        const cons = (S && S.construcoes) || [];
-        if (cacheCanos.cons === cons) return cacheCanos;
+    // (a fazenda de quem você visita também tem a dela: cons = as construções de lá)
+    let cacheCanos = {}, cacheCanosVisita = {};
+    function redeCanos(consVisita) {
+        const cons = consVisita || (S && S.construcoes) || [];
+        if (consVisita && cacheCanosVisita.cons === cons) return cacheCanosVisita;
+        if (!consVisita && cacheCanos.cons === cons) return cacheCanos;
         const set = new Set(cons.filter((c) => c.tipo === 'cano').map((c) => c.x + ',' + c.y));
         const redeDoCano = new Map();   // "x,y" do cano → número da rede
         let n = 0;
@@ -1222,8 +1232,9 @@
         }
         const membros = new Map();   // rede → quantas coisas ela liga (com 2 ou mais ela trabalha)
         for (const k of coisas) for (const r of k.redes) membros.set(r, (membros.get(r) || 0) + 1);
-        cacheCanos = { cons, set, redeDoCano, coisas, lados, membros, caminhos: new Map() };
-        return cacheCanos;
+        const r = { cons, set, redeDoCano, coisas, lados, membros, caminhos: new Map() };
+        if (consVisita) cacheCanosVisita = r; else cacheCanos = r;
+        return r;
     }
     // o que está na mesma rede que a coisa em (x, y) (fora ela mesma)
     function vizinhosNaRede(x, y) {
@@ -1266,18 +1277,41 @@
         return { x: p[0], y: p[1], w: t.w, h: t.h };
     };
     const centro = (k) => [k.x + k.w / 2 - 0.5, k.y + Math.min(k.h, 3) / 2 - 0.5];
-    let cacheViagens = {};
+    /* Fase 44: cada unidade anda sozinha, devagar, em fila: 10 girassóis são 10 girassóis passando
+       pelo cano, um atrás do outro (e o produto voltando para o celeiro do mesmo jeito). A viagem
+       entra na fila quando o jogo a recebe pela primeira vez (o servidor manda as criadas nos
+       últimos 2 minutos); quem vai pelo mesmo caminho espera o anterior sair. */
+    const MS_POR_QUADRADO = 900;   // bem devagar: quase 1 segundo para cada quadrado de cano
+    const ESPACO_MS = 650;         // um item sai 0,65 s depois do outro
+    const MAX_POR_VIAGEM = 20, MAX_NA_TELA = 200;
+    let viagensVistas = new Set(), listaVista = null, itensAndando = [];
+    const filaRota = new Map();    // caminho → quando ele fica livre para o próximo item
+    function agendarViagens(lista) {
+        const t0 = agora();
+        itensAndando = itensAndando.filter((v) => v.inicio + v.dur > t0);
+        for (const [k, livre] of filaRota) if (livre < t0) filaRota.delete(k);
+        for (const g of lista) {
+            if (viagensVistas.has(g.id) || itensAndando.length >= MAX_NA_TELA) continue;
+            const de = pegada(g.de), para = pegada(g.para);
+            const pontos = [centro(de), ...(g.direto ? [] : caminhoCanos(de, para)), centro(para)];
+            const dur = Math.max(1800, (pontos.length - 1) * MS_POR_QUADRADO);
+            const rota = `${g.de}>${g.para}`;
+            // a hora marcada só vale se for daqui a pouco (o servidor espalha as viagens em até 15 s)
+            const marcada = Date.parse(g.em);
+            let inicio = Math.max(filaRota.get(rota) || 0, t0, marcada > t0 && marcada < t0 + 20000 ? marcada : 0);
+            for (let n = Math.min(g.qtd || 1, MAX_POR_VIAGEM); n > 0 && itensAndando.length < MAX_NA_TELA; n--) {
+                itensAndando.push({ pontos, icone: A.cultura(g.item).item, inicio, dur, direto: g.direto });
+                inicio += ESPACO_MS;
+            }
+            filaRota.set(rota, inicio);
+        }
+        viagensVistas = new Set(lista.map((g) => g.id));   // as que saem da lista não voltam
+    }
     function visualViagens() {
         if (!S || visita) return [];
         const lista = S.viagens || [];
-        if (cacheViagens.lista === lista && cacheViagens.cons === S.construcoes) return cacheViagens.v;
-        const v = lista.map((g) => {
-            const de = pegada(g.de), para = pegada(g.para);
-            const pontos = [centro(de), ...(g.direto ? [] : caminhoCanos(de, para)), centro(para)];
-            return { pontos, icone: A.cultura(g.item).item, inicio: Date.parse(g.em), dur: Math.max(1200, (pontos.length - 1) * 320), direto: g.direto };
-        });
-        cacheViagens = { lista, cons: S.construcoes, v };
-        return v;
+        if (lista !== listaVista) { listaVista = lista; agendarViagens(lista); }
+        return itensAndando;
     }
 
     let oficinaAberta = null;   // { x, y } da oficina com o painel aberto
