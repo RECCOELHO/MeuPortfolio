@@ -85,6 +85,8 @@
         nao_pronto: 'Ainda não tem nada pra coletar.',
         animal_invalido: 'Esse animal não está mais aqui.',
         limite_animais: 'Você já tem o máximo desse animal.',
+        sem_cercado: 'Esse bicho precisa do cercado dele primeiro (Construir → Bichos).',
+        cercado_com_bichos: 'Esse cercado tem bichos morando: dá para mudar ele de lugar, mas não desmanchar.',
         terreno_max: 'Você já comprou todos os terrenos.',
         nivel_maximo: 'Esse ajudante já está no nível máximo.',
         sem_ingredientes: 'Faltam ingredientes no celeiro (a ração reservada não entra na receita).',
@@ -1026,7 +1028,8 @@
     function linhasGalinheiro(fonte) {
         const n = (fonte.animais || []).filter((a) => ['galinha', 'pato', 'coelho'].includes(a.tipo)
             && !(fonte.construcoes || []).some((c) => c.tipo === 'cercado_' + a.tipo)).length;
-        const quer = n >= 9 ? 4 : n >= 6 ? 3 : 2;
+        const quer = n >= 9 ? 4 : n >= 6 ? 3 : n >= 1 ? 2 : 0;   // fase 45: sem bicho pequeno fora de cercado, não tem galinheiro
+        if (!quer) return { linhas: 0, quer: 0 };
         let linhas = 2;
         while (linhas < quer) {
             const y = 7 + linhas;
@@ -1043,6 +1046,9 @@
         if (!fonte) return;
         const g = !visita && S.galinheiro ? S.galinheiro : linhasGalinheiro(fonte);
         cena.definirGalinheiro(g.linhas);
+        // fase 45: o pasto do começo só fica enquanto tiver bicho grande sem cercado (igual a fazenda_pasto)
+        cena.definirPasto(!visita && S.galinheiro && 'pasto' in S.galinheiro ? S.galinheiro.pasto
+            : (fonte.animais || []).some((a) => ['vaca', 'ovelha', 'porco'].includes(a.tipo) && !(fonte.construcoes || []).some((c) => c.tipo === 'cercado_' + a.tipo)));
         if (!visita && g.quer > g.linhas && !avisouGalinheiro) {
             avisouGalinheiro = true;
             toast(`${spr(A.ANIMAL.galinha, 20)} Os bichos estão apertados! Em Construir → Bichos tem um cercado para cada um (galinhas, coelhos, patos...): coloque onde quiser e eles se mudam para lá.`);
@@ -1624,6 +1630,9 @@
     const maxItem = (it) => it.limite || (it.por_terreno ? it.por_terreno * (1 + ((S && S.jogador.zonas) || 0)) : null);
     // quantos já tem (itens do mesmo grupo dividem o limite; desde a fase 43 cada árvore frutífera conta só ela)
     const quantosTem = (it) => (S.construcoes || []).filter((c) => c.tipo === it.id || (it.grupo && (tipoItem(c.tipo) || {}).grupo === it.grupo)).length;
+    // fase 45: quem já tinha o bicho antes do cercado obrigatório ganha o primeiro cercado dele
+    const cercadoGratis = (it) => !!it && (it.id || '').startsWith('cercado_') && ((S && S.jogador.cercado_gratis) || []).includes(it.id.slice(8));
+    const custoItem = (it) => (cercadoGratis(it) ? 0 : it.custo);
     const descricaoItem = (it) => (it.id === 'canteiro'
         ? `Lugar de plantar. Você tem ${S.canteiros.length} de ${S.jogador.max_canteiros}.`
         : it.descricao || '');
@@ -1649,7 +1658,7 @@
         const sel = tipoItem(constr.tipo);
         if (c) return mostrarStatus(`${A.htmlItem(c.tipo, 22)} ${esc(it ? it.nome : c.tipo)}. ${it && it.descricao ? esc(it.descricao) + ' ' : ''}Use Mover ou Guardar para mudar.`);
         if (sel && sel.id === 'canteiro') return mostrarStatus(`${A.htmlItem('canteiro', 22)} Toque para colocar um canteiro (sobram ${canteirosLivres()}).`);
-        mostrarStatus(sel ? `${A.htmlItem(sel.id, 22)} Toque para colocar ${esc(sel.nome.toLowerCase())} (${moeda(sel.custo)}).` : 'Escolha um item na barra de baixo.');
+        mostrarStatus(sel ? `${A.htmlItem(sel.id, 22)} Toque para colocar ${esc(sel.nome.toLowerCase())} (${cercadoGratis(sel) ? 'de graça' : moeda(sel.custo)}).` : 'Escolha um item na barra de baixo.');
     }
 
     function abrirConstrucao() {
@@ -1690,7 +1699,7 @@
             const sel = constr.modo === 'colocar' && constr.tipo === i.id;
             const max = maxItem(i), tem = max ? quantosTem(i) : 0;
             const preco = i.id === 'canteiro' ? `${S.canteiros.length}/${S.jogador.max_canteiros}`
-                : max && tem >= max ? (i.por_terreno ? `${tem}/${max}` : 'Já tem') : `${ico('moeda', 11)}${i.custo}`;
+                : max && tem >= max ? (i.por_terreno ? `${tem}/${max}` : 'Já tem') : cercadoGratis(i) ? 'Grátis' : `${ico('moeda', 11)}${i.custo}`;
             return `<button type="button" class="paleta-item${sel ? ' selecionado' : ''}${travado ? ' travado' : ''}" data-item="${esc(i.id)}" title="${esc(i.nome)}${i.descricao ? ': ' + esc(i.descricao) : ''}">
                 ${travado ? ico('cadeado', 18) : A.htmlItem(i.id, 32)}
                 <small>${travado ? `Nv ${i.nivel_min}` : preco}</small>
@@ -1740,13 +1749,15 @@
                 return toast(tam.w > 1 ? `Não cabe aqui: ${esc(it.nome.toLowerCase())} precisa de ${tam.w}×${tam.h} quadrados livres.` : ERROS.lugar_ocupado, 'erro');
             }
             if (it.nivel_min > S.jogador.nivel) return toast(`${esc(it.nome)} libera no nível ${it.nivel_min}.`);
-            if (S.jogador.moedas < it.custo) return toast(ERROS.moedas_insuficientes, 'erro');
+            const custo = custoItem(it);
+            if (S.jogador.moedas < custo) return toast(ERROS.moedas_insuficientes, 'erro');
             // aparece na hora; o servidor confirma em seguida
             S.construcoes.push({ x, y, tipo: it.id });
-            S.jogador.moedas -= it.custo;
+            S.jogador.moedas -= custo;
+            if (cercadoGratis(it)) S.jogador.cercado_gratis = S.jogador.cercado_gratis.filter((b) => b !== it.id.slice(8));
             desenharHud();
             som.tocar('construir');
-            flutuarTile(x, y, `−${it.custo} ${ico('moeda', 16)}`);
+            flutuarTile(x, y, custo ? `−${custo} ${ico('moeda', 16)}` : 'De graça!');
             enfileirar([], async () => {
                 const r = await rpc('fazenda_construir', { p_token: token, p_tipo: it.id, p_x: x, p_y: y });
                 aplicarEstado(r.estado);
@@ -2711,7 +2722,7 @@
                     <li>Em <b>Construir → Oficinas</b> tem uma oficina para cada matéria-prima: padaria, queijaria, conservas, prensa de óleo, peixaria, defumadouro, casa de sucos, sorveteria, ateliê de penas, cozinha de moqueca, empório (que usa o óleo da prensa), adega e outras. Toque nela para abrir o painel: guarde ingredientes no <b>estoque</b> (até 10 receitas) e ela trabalha sozinha, uma receita atrás da outra. O painel mostra quanto valem os ingredientes, quanto vale o produto e o <b>lucro</b>. Quando aparecer o balão, toque para pegar.</li>
                     <li>Fruta só dá no pé: em <b>Construir → Pomar</b> tem amoreira, laranjeira, limoeiro, goiabeira e, do nível 26 ao 29, mangueira, abacateiro, cacaueiro e jabuticabeira. Cada árvore dá frutas sozinha: quando aparecer o balão, toque nela para colher. São 2 pés de <b>cada fruta</b> por terreno (2 laranjeiras, 2 limoeiros...): quanto mais terreno, maior o pomar. Para colher sozinho: um <b>baú</b> encostado na árvore, com energia, colhe e guarda (e manda pela rede de canos); ou o <b>Juca</b> (colhedor) colhe as que não têm baú e leva para o celeiro.</li>
                     <li>Em <b>Construir → Máquinas</b>: irrigador, pulverizador e robô capinador evitam seca, pragas e ervas por perto; o alarme protege dos vizinhos; trator e colheitadeira ajudam na fazenda toda.</li>
-                    <li>Na loja tem <b>animais</b> (até 5 de cada; cada um sai 50% mais caro que o anterior). Em <b>Construir → Bichos</b> tem um cercado para cada espécie: coloque onde quiser e eles se mudam para lá. Dê ração (sai do celeiro) e colete ovos, leite e lã. No celeiro, <b>Reservar</b> guarda a ração deles para não ir junto no "Vender tudo".</li>
+                    <li>Na loja tem <b>animais</b> (até 5 de cada; cada um sai 50% mais caro que o anterior). Cada bicho mora no <b>cercado</b> dele: construa o cercado da espécie em <b>Construir → Bichos</b> antes de comprar (quem já tinha bicho sem cercado ganha o primeiro de graça, e os bichos ficam no galinheiro ou no pasto antigo até ele ficar pronto). Cercado com bicho dentro não dá para desmanchar, só mudar de lugar. Dê ração (sai do celeiro) e colete ovos, leite e lã. No celeiro, <b>Reservar</b> guarda a ração deles para não ir junto no "Vender tudo".</li>
                     <li>No botão <b>Construir</b> você coloca cercas, caminhos, árvores, flores e objetos onde quiser. Toque em <b>Pronto</b> para fechar.</li>
                     <li>Toque num item já colocado para ver o que ele faz; o <b>alcance</b> dele (irrigador, alarme, estufa...) aparece marcado no chão. <b>Segure o dedo 3 segundos</b> num item ou canteiro para pegar e levar para outro lugar.</li>
                     <li>A semana tem as 4 <b>estações</b> (42 horas cada), e cada uma muda a cara da fazenda (pétalas na primavera, grama quente no verão, folhas caindo no outono, neve no inverno) e tem uma semente só dela: morango, melancia, abóbora e repolho. O <b>clima</b> muda várias vezes por dia: sol dá +1 na colheita, chuva rega tudo, onda de calor seca mais, nublado não traz problema novo e ventania espalha pragas. Toque no clima, lá em cima, para ver até quando ele vai.</li>
@@ -2888,13 +2899,14 @@
                         <span>dá ${produto ? itemDe(produto, 16) + esc(produto.nome.toLowerCase()) : ''} a cada ${fmtDuracao(t.tempo_seg)}</span>
                         <span>vende ${moeda(produto ? produto.venda : 0)}</span>
                     </span>
-                    ${travado ? '' : `<span class="det"><span>${temCercado(t.id) ? `${A.htmlItem(cercadoDe(t.id), 16)} tem cercado próprio` : `sem cercado: coloque o ${esc(((tipoItem(cercadoDe(t.id)) || {}).nome || 'cercado').toLowerCase())} em Construir → Bichos`}</span>${tem && !cheio ? `<span>o próximo sai 50% mais caro</span>` : ''}</span>`}
+                    ${travado ? '' : `<span class="det"><span${temCercado(t.id) ? '' : ' class="txt"'}>${temCercado(t.id) ? `${A.htmlItem(cercadoDe(t.id), 16)} tem cercado próprio` : `<b>precisa do cercado primeiro</b>: ${esc(((tipoItem(cercadoDe(t.id)) || {}).nome || 'cercado').toLowerCase())} (${cercadoGratis(tipoItem(cercadoDe(t.id))) ? 'o seu sai de graça' : moeda((tipoItem(cercadoDe(t.id)) || {}).custo || 0)}) em Construir → Bichos`}</span>${tem && !cheio ? `<span>o próximo sai 50% mais caro</span>` : ''}</span>`}
                 </span>
                 ${travado ? `<span class="preco">Nível ${t.nivel_min}</span>`
                     : cheio ? '<span class="preco">Completo</span>'
+                    : !temCercado(t.id) ? `<button type="button" class="botao pequeno creme" data-construir-cercado="${esc(cercadoDe(t.id))}">Construir<br>o cercado</button>`
                     : `<button type="button" class="botao pequeno verde" data-comprar="animal:${esc(t.id)}">${ico('moeda', 14)} ${precoAnimal(t, tem).toLocaleString('pt-BR')}</button>`}
             </div>`;
-        }).join('') + '</div>' + htmlRacoes() + '<p class="aviso">Toque no animal com fome para dar a ração (sai do seu celeiro) e volte para coletar o produto. Cada bicho pode ter o seu cercado (Construir → Bichos): quem tem cercado sai do galinheiro e do pasto. Até 5 de cada; cada um sai 50% mais caro que o anterior.</p>';
+        }).join('') + '</div>' + htmlRacoes() + '<p class="aviso">Toque no animal com fome para dar a ração (sai do seu celeiro) e volte para coletar o produto. Cada bicho mora no cercado dele: construa o cercado (Construir → Bichos) antes de comprar. Até 5 de cada; cada um sai 50% mais caro que o anterior.</p>';
     }
     // "1 alface", "2 alfaces", "2 beterrabas"...
     const nomeRacao = (k, n) => { const nome = k.nome.toLowerCase(); return n === 1 || /s$/.test(nome) ? nome : nome + 's'; };
@@ -3408,6 +3420,21 @@
             }).finally(() => { contr.disabled = false; });
             return;
         }
+        // fase 45: o bicho sem cercado na loja leva direto ao modo construir com o cercado dele escolhido
+        const cerc = e.target.closest('[data-construir-cercado]');
+        if (cerc) {
+            const it = tipoItem(cerc.dataset.construirCercado);
+            if (!it) return;
+            if (it.nivel_min > S.jogador.nivel) return toast(`${esc(it.nome)} libera no nível ${it.nivel_min}.`);
+            fecharPainel();
+            abrirConstrucao();
+            constr.aba = 'bichos';
+            constr.tipo = it.id;
+            desenharPaleta();
+            atualizarModo();
+            mostrarStatus(`${A.htmlItem(it.id, 22)} ${esc(it.nome)} (${cercadoGratis(it) ? 'o seu sai de graça' : moeda(it.custo)}): toque num lugar livre para colocar. Depois volte na loja e compre o bicho.`);
+            return;
+        }
         const comp = e.target.closest('[data-comprar]');
         if (comp) {
             const [categoria, tipo] = comp.dataset.comprar.split(':');
@@ -3652,7 +3679,7 @@
             atualizarModo();
             mostrarStatus(it.id === 'canteiro'
                 ? `${A.htmlItem('canteiro', 22)} Canteiro: toque nos quadrados livres (sobram ${canteirosLivres()}). Lado a lado eles viram fileiras.`
-                : `${A.htmlItem(it.id, 22)} ${esc(it.nome)} (${moeda(it.custo)})${it.descricao ? ': ' + esc(it.descricao) : ''} Toque nos quadrados livres.`);
+                : `${A.htmlItem(it.id, 22)} ${esc(it.nome)} (${cercadoGratis(it) ? 'o seu sai de graça' : moeda(it.custo)})${it.descricao ? ': ' + esc(it.descricao) : ''} Toque nos quadrados livres.`);
             return;
         }
         const ferr = e.target.closest('[data-ferramenta]');

@@ -548,14 +548,15 @@ on conflict (id) do update set
   limite = excluded.limite, beleza = excluded.beleza, descricao = excluded.descricao;
 
 -- Fase 23: um cercado para cada bicho (Construir → Bichos). Os bichos daquela espécie moram nele
--- (o desenho e o tamanho ficam em CERCADOS de fazenda-arte.js); sem cercado, ficam no galinheiro/pasto.
+-- (o desenho e o tamanho ficam em CERCADOS de fazenda-arte.js). Fase 45: o cercado vem antes do bicho
+-- (sem ele a loja não vende); o galinheiro e o pasto do começo ficam só para quem já tinha bicho sem cercado.
 insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem, largura, altura, efeito, limite, beleza, descricao) values
-  ('cercado_galinha', 'Cercado das galinhas', 'bichos', 200,  2, 100, 6, 4, 'cercado', 1, 3, 'Casa própria das galinhas: elas saem do galinheiro e vêm morar aqui, sem aperto.'),
-  ('cercado_vaca',    'Curral das vacas',     'bichos', 500,  5, 101, 7, 5, 'cercado', 1, 4, 'Casa própria das vacas, com cocho de água: elas saem do pasto e vêm morar aqui.'),
-  ('cercado_coelho',  'Cercado dos coelhos',  'bichos', 300,  6, 102, 6, 4, 'cercado', 1, 3, 'Casa própria dos coelhos: eles saem do galinheiro e vêm morar aqui.'),
-  ('cercado_ovelha',  'Cercado das ovelhas',  'bichos', 600,  8, 103, 7, 5, 'cercado', 1, 4, 'Casa própria das ovelhas: elas saem do pasto e vêm morar aqui.'),
-  ('cercado_pato',    'Lago dos patos',       'bichos', 400, 11, 104, 6, 4, 'cercado', 1, 5, 'Cercado com laguinho: os patos saem do galinheiro e vêm nadar aqui.'),
-  ('cercado_porco',   'Chiqueiro',            'bichos', 700, 14, 105, 6, 4, 'cercado', 1, 3, 'Cercado com lama: os porcos saem do pasto e vêm morar aqui.')
+  ('cercado_galinha', 'Cercado das galinhas', 'bichos', 200,  2, 100, 6, 4, 'cercado', 1, 3, 'Casa das galinhas: precisa dela para comprar galinhas, e elas moram aqui.'),
+  ('cercado_vaca',    'Curral das vacas',     'bichos', 500,  5, 101, 7, 5, 'cercado', 1, 4, 'Curral com cocho de água: precisa dele para comprar vacas, e elas moram aqui.'),
+  ('cercado_coelho',  'Cercado dos coelhos',  'bichos', 300,  6, 102, 6, 4, 'cercado', 1, 3, 'Casa dos coelhos: precisa dela para comprar coelhos, e eles moram aqui.'),
+  ('cercado_ovelha',  'Cercado das ovelhas',  'bichos', 600,  8, 103, 7, 5, 'cercado', 1, 4, 'Casa das ovelhas: precisa dela para comprar ovelhas, e elas moram aqui.'),
+  ('cercado_pato',    'Lago dos patos',       'bichos', 400, 11, 104, 6, 4, 'cercado', 1, 5, 'Cercado com laguinho: precisa dele para comprar patos, e eles nadam aqui.'),
+  ('cercado_porco',   'Chiqueiro',            'bichos', 700, 14, 105, 6, 4, 'cercado', 1, 3, 'Cercado com lama: precisa dele para comprar porcos, e eles moram aqui.')
 on conflict (id) do update set
   nome = excluded.nome, categoria = excluded.categoria, custo = excluded.custo, nivel_min = excluded.nivel_min,
   ordem = excluded.ordem, largura = excluded.largura, altura = excluded.altura, efeito = excluded.efeito,
@@ -1272,6 +1273,7 @@ begin
       'avatares', j.avatares,
       'avatar_precos', fazenda_avatar_precos(),
       'avatar_diamantes', fazenda_avatar_diamantes(),
+      'cercado_gratis', coalesce(j.cercado_gratis, '{}'),   -- fase 45: espécies com o primeiro cercado de graça
       'moedas', j.moedas,
       'diamantes', j.diamantes,
       -- fase 43: o que os diamantes ligaram (até quando) e quantos pacotes de XP saíram hoje
@@ -1310,7 +1312,8 @@ begin
         -- terminou antes ficava de fora)
         from (select * from fazenda_viagens where jogador_id = p_jogador and criada_em > now() - interval '2 minutes'
                order by criada_em desc, id desc limit 300) v), '[]'::jsonb),
-    'galinheiro', jsonb_build_object('linhas', fazenda_galinheiro_linhas(p_jogador), 'quer', fazenda_galinheiro_quer(p_jogador)),
+    'galinheiro', jsonb_build_object('linhas', fazenda_galinheiro_linhas(p_jogador), 'quer', fazenda_galinheiro_quer(p_jogador),
+                                     'pasto', fazenda_pasto(p_jogador)),   -- fase 45: o pasto do começo ainda existe?
     'visitante', fazenda_visitante(p_jogador),
     -- o lago (só com o terreno 3): desde quando o cesto enche, o ritmo, o máximo e as chances
     'lago', case when j.zonas >= 3 then jsonb_build_object(
@@ -3245,6 +3248,10 @@ begin
     select * into a from fazenda_animais_tipos where id = p_tipo;
     if not found then raise exception 'item_invalido'; end if;
     if fazenda_nivel(j.xp) < a.nivel_min then raise exception 'nivel_insuficiente'; end if;
+    -- fase 45: o bicho precisa da casa dele antes (Construir → Bichos)
+    if not exists (select 1 from fazenda_construcoes where jogador_id = v_id and tipo = 'cercado_' || a.id) then
+      raise exception 'sem_cercado';
+    end if;
     select count(*) into v_n from fazenda_animais where jogador_id = v_id and tipo = a.id;
     if v_n >= a.maximo then
       raise exception 'limite_animais';
@@ -3308,15 +3315,14 @@ $$;
 /* ---------- Modo construir ----------
    O terreno é um mapa fixo de 22 x 13 quadrados. Áreas reservadas
    (precisam bater com MAPA em assets/fazenda/fazenda-arte.js):
-     celeiro x1..3 y1..6 · casa x5..7 y1..3 · galinheiro x0..6 y7..8
-     campo x9..14 y3..6 · pasto x16..21 y0..6 · lago x24..29 y14..18 (terreno 3) */
+     celeiro x1..3 y1..6 · casa x5..7 y1..3 · campo x9..14 y3..6 · lago x24..29 y14..18 (terreno 3).
+     Fase 45: o galinheiro (x0..6 y7..) e o pasto (x16..21 y0..6) só existem enquanto houver bicho
+     sem cercado (quem já tinha antes do cercado obrigatório): ver fazenda_checar_lugar */
 create or replace function public.fazenda_livre(p_x int, p_y int)
 returns boolean language sql immutable as $$
   select p_x between 0 and 47 and p_y between 0 and 31
      and not (p_x between 1 and 3  and p_y between 1 and 6)     -- celeiro
      and not (p_x between 5 and 7  and p_y between 1 and 3)     -- casa
-     and not (p_x between 0 and 6  and p_y between 7 and 8)     -- galinheiro
-     and not (p_x between 16 and 21 and p_y between 0 and 6)    -- pasto
      and not (p_x between 24 and 29 and p_y between 14 and 18); -- lago
 $$;
 
@@ -3326,10 +3332,19 @@ $$;
 -- linhasGalinheiro em fazenda.js.
 create or replace function public.fazenda_galinheiro_quer(p_jogador uuid)
 returns int language sql stable security definer set search_path = public, extensions as $$
-  select case when n >= 9 then 4 when n >= 6 then 3 else 2 end
+  -- fase 45: sem bicho pequeno fora de cercado, não tem galinheiro (0 fileiras)
+  select case when n >= 9 then 4 when n >= 6 then 3 when n >= 1 then 2 else 0 end
     from (select count(*) as n from fazenda_animais a
            where a.jogador_id = p_jogador and a.tipo in ('galinha', 'pato', 'coelho')
              and not exists (select 1 from fazenda_construcoes c where c.jogador_id = p_jogador and c.tipo = 'cercado_' || a.tipo)) x;
+$$;
+
+-- Fase 45: o pasto do começo só existe enquanto houver bicho grande (vaca, ovelha, porco) sem cercado
+create or replace function public.fazenda_pasto(p_jogador uuid)
+returns boolean language sql stable security definer set search_path = public, extensions as $$
+  select exists (select 1 from fazenda_animais a
+                  where a.jogador_id = p_jogador and a.tipo in ('vaca', 'ovelha', 'porco')
+                    and not exists (select 1 from fazenda_construcoes c where c.jogador_id = p_jogador and c.tipo = 'cercado_' || a.tipo));
 $$;
 
 create or replace function public.fazenda_galinheiro_linhas(p_jogador uuid)
@@ -3341,6 +3356,7 @@ declare
   v_quer   int := fazenda_galinheiro_quer(p_jogador);
   v_linhas int := 2;
 begin
+  if v_quer = 0 then return 0; end if;
   while v_linhas < v_quer loop
     exit when exists (select 1 from fazenda_canteiros
                        where jogador_id = p_jogador and y = 7 + v_linhas and x between 0 and 6)
@@ -3362,13 +3378,19 @@ returns void
 language plpgsql security definer
 set search_path = public, extensions
 as $$
+declare
+  v_lin int := fazenda_galinheiro_linhas(p_jogador);
 begin
   if exists (select 1 from generate_series(p_x, p_x + p_w - 1) gx, generate_series(p_y, p_y + p_h - 1) gy
               where not fazenda_livre(gx, gy) or not fazenda_no_terreno(p_zonas, gx, gy)) then
     raise exception 'lugar_reservado';
   end if;
-  -- o galinheiro que cresceu (fileiras 9 e 10) também é reservado
-  if p_x <= 6 and p_y + p_h - 1 >= 9 and p_y <= 6 + fazenda_galinheiro_linhas(p_jogador) then
+  -- fase 45: o galinheiro (y 7 em diante, com as fileiras que cresceram) e o pasto só são
+  -- reservados enquanto houver bicho sem cercado neles
+  if v_lin > 0 and p_x <= 6 and p_y + p_h - 1 >= 7 and p_y <= 6 + v_lin then
+    raise exception 'lugar_reservado';
+  end if;
+  if p_x <= 21 and p_x + p_w - 1 >= 16 and p_y <= 6 and fazenda_pasto(p_jogador) then
     raise exception 'lugar_reservado';
   end if;
   if exists (select 1 from fazenda_construcoes c join fazenda_itens k on k.id = c.tipo
@@ -3395,6 +3417,7 @@ declare
   j     record;
   i     record;
   v_pos int;
+  v_custo int;
 begin
   select * into j from fazenda_jogadores where id = v_id for update;
 
@@ -3430,10 +3453,15 @@ begin
   if (select count(*) from fazenda_construcoes where jogador_id = v_id) >= fazenda_max_construcoes(j.zonas) then
     raise exception 'limite_construcoes';
   end if;
-  if j.moedas < i.custo then raise exception 'moedas_insuficientes'; end if;
+  -- fase 45: quem já tinha o bicho antes do cercado obrigatório ganha o primeiro cercado dele
+  v_custo := case when i.efeito = 'cercado' and substr(i.id, 9) = any(coalesce(j.cercado_gratis, '{}')) then 0 else i.custo end;
+  if j.moedas < v_custo then raise exception 'moedas_insuficientes'; end if;
   -- máquina elétrica nova: fecha a conta da energia antes (ela não gera pelo tempo de antes)
   if i.categoria = 'energia' then perform fazenda_energia_atualizar(v_id); end if;
-  update fazenda_jogadores set moedas = moedas - i.custo where id = v_id;
+  update fazenda_jogadores
+     set moedas = moedas - v_custo,
+         cercado_gratis = case when i.efeito = 'cercado' then array_remove(cercado_gratis, substr(i.id, 9)) else cercado_gratis end
+   where id = v_id;
   insert into fazenda_construcoes (jogador_id, x, y, tipo, colhido_em) values (v_id, p_x, p_y, i.id, now());
   return jsonb_build_object('estado', fazenda_estado(v_id));
 end;
@@ -3491,6 +3519,12 @@ begin
     if c.estado = 'plantado' then raise exception 'canteiro_ocupado'; end if;
     delete from fazenda_canteiros where jogador_id = v_id and posicao = c.posicao;
     return jsonb_build_object('devolvido', 0, 'estado', fazenda_estado(v_id));
+  end if;
+
+  -- fase 45: cercado com bicho dentro não sai (o bicho não tem mais para onde ir)
+  if exists (select 1 from fazenda_construcoes k join fazenda_animais a on a.jogador_id = k.jogador_id and 'cercado_' || a.tipo = k.tipo
+              where k.jogador_id = v_id and k.x = p_x and k.y = p_y) then   -- (k: c é o registro do canteiro)
+    raise exception 'cercado_com_bichos';
   end if;
 
   -- oficina: o estoque (ingredientes) e os produtos prontos voltam para o celeiro
@@ -4340,6 +4374,21 @@ end;
 $$;
 
 -- ------------------------------------------------------------
+-- Fase 45: o cercado vem antes do bicho. O galinheiro na frente do celeiro e o pasto do começo
+-- saem; quem já tinha bicho sem cercado fica com eles (só enquanto tiver bicho lá) e ganha o
+-- primeiro cercado de cada uma dessas espécies de graça. A lista é feita uma vez só (quem tem
+-- cercado_gratis null), para não virar moeda de graça (desmanchar devolve metade do preço).
+-- ------------------------------------------------------------
+alter table public.fazenda_jogadores add column if not exists cercado_gratis text[];
+update public.fazenda_jogadores j
+   set cercado_gratis = coalesce((select array_agg(distinct a.tipo order by a.tipo) from public.fazenda_animais a
+                                   where a.jogador_id = j.id
+                                     and not exists (select 1 from public.fazenda_construcoes c
+                                                      where c.jogador_id = j.id and c.tipo = 'cercado_' || a.tipo)), '{}')
+ where j.cercado_gratis is null;
+alter table public.fazenda_jogadores alter column cercado_gratis set default '{}';
+
+-- ------------------------------------------------------------
 -- Permissões: só a API pública fica executável pela chave anon
 -- ------------------------------------------------------------
 revoke execute on function
@@ -4425,6 +4474,7 @@ revoke execute on function
   public.fazenda_baus(uuid),
   public.fazenda_estoque(text, int, int, int),
   public.fazenda_galinheiro_quer(uuid),
+  public.fazenda_pasto(uuid),
   public.fazenda_galinheiro_linhas(uuid),
   public.fazenda_visitante(uuid),
   public.fazenda_atender(text, boolean),
