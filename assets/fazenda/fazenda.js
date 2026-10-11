@@ -1124,13 +1124,17 @@
         const it = tipoItem(c.tipo);
         if (!it || !it.entradas) return null;
         const produto = culturas[it.produz] || { id: it.produz, nome: it.produz, xp: 0, venda: 0 };
-        const dur = it.produz_seg * 1000, ligada = oficinaLigada(c), auto = temEfeito('automatico') || ligada;
+        // na rede, o produto sai sozinho se tiver para onde ir (celeiro, baú ou oficina que usa ele)
+        const rede = S && !visita ? vizinhosNaRede(c.x, c.y) : null;
+        const ligada = !!rede && (rede.baus.length + rede.oficinas.length > 0 || rede.celeiro);
+        const auto = !!rede && (rede.celeiro || rede.baus.length > 0 || rede.oficinas.some((k) => (tipoItem(k.tipo).entradas || {})[it.produz]));
+        const dur = it.produz_seg * 1000;
         let t = c.iniciado_em ? Date.parse(c.iniciado_em) : null, estoque = c.estoque || 0, prontos = c.prontos || 0;
         for (let n = 0; t != null && agora() >= t + dur && n < 48; n++) {
             if (!auto) prontos += it.produz_qtd;   // com a fábrica automática vai direto para o celeiro
             t = estoque > 0 ? (estoque--, t + dur) : null;
         }
-        const base = { it, produto, estoque, prontos, auto, ligada };
+        const base = { it, produto, estoque, prontos, auto, ligada, rede };
         if (t == null) return { ...base, estado: 'parada' };
         const falta = t + dur - agora();
         return { ...base, estado: 'trabalhando', falta, progresso: 1 - falta / dur, termina: t + dur + estoque * dur };
@@ -1148,10 +1152,8 @@
         if (visita) return visita.construcoes || [];
         return (S.construcoes || []).map((c) => {
             const o = infoOficina(c);
-            if (o) {
-                const cam = o.ligada && o.estado === 'trabalhando' && redeCanos().caminhos.get(c.x + ',' + c.y);
-                const fluxo = cam ? { caminho: cam, entra: A.cultura(Object.keys(o.it.entradas)[0]).item, sai: A.cultura(o.it.produz).item } : null;
-                return { ...c, oficina: { estado: o.prontos > 0 ? 'pronta' : o.estado, trabalhando: o.estado === 'trabalhando', progresso: o.progresso, produto: A.cultura(o.it.produz).item, fluxo } };
+            if (o) {   // (os itens andando nos canos agora vêm das viagens: visualViagens)
+                return { ...c, oficina: { estado: o.prontos > 0 ? 'pronta' : o.estado, trabalhando: o.estado === 'trabalhando', progresso: o.progresso, produto: A.cultura(o.it.produz).item } };
             }
             if (c.tipo === 'cano') return { ...c, cano: redeCanos().lados.get(c.x + ',' + c.y) };
             if (c.iniciado_em && (tipoItem(c.tipo) || {}).efeito === 'biomassa') return { ...c, ligado: true };
@@ -1177,53 +1179,131 @@
         return [...vistos].map((e) => NOME_EFEITO[e]);
     }
 
-    /* ---------- Canos de vidro: ligam oficinas a canteiros, a um baú ou ao celeiro ----------
-       (igual a fazenda_oficina_ligada no SQL). Guarda a rede até as construções ou os canteiros mudarem. */
+    /* ---------- A rede de canos (fase 39; igual a fazenda_rede no SQL) ----------
+       Canos encostados uns nos outros formam uma rede; baús, oficinas, o celeiro (x 1..3, y 1..6)
+       e a fábrica automática encostados num cano dela fazem parte dela. A oficina busca os
+       ingredientes nos baús e no celeiro da rede; o produto vai para outra oficina da rede que usa
+       ele, para o celeiro ou para um baú. Guarda tudo até as construções mudarem. */
     const VIZINHOS = [[1, 0], [-1, 0], [0, 1], [0, -1]];   // leste, oeste, sul, norte
+    const CELEIRO_PEGADA = { x: 1, y: 1, w: 3, h: 6, papel: 'celeiro', tipo: 'celeiro' };
     let cacheCanos = {};
     function redeCanos() {
-        const cons = (S && S.construcoes) || [], cant = (S && S.canteiros) || [];
-        if (cacheCanos.cons === cons && cacheCanos.cant === cant) return cacheCanos;
-        const canos = new Set(cons.filter((c) => c.tipo === 'cano').map((c) => c.x + ',' + c.y));
-        const fonte = (x, y) => (x >= 1 && x <= 3 && y >= 1 && y <= 6) || cant.some((k) => k.x === x && k.y === y)
-            || cons.some((c) => c.tipo === 'bau' && c.x === x && c.y === y);
-        const oficinas = cons.filter((c) => (tipoItem(c.tipo) || {}).entradas);
-        const naOficina = (x, y) => oficinas.some((o) => { const t = tamanhoItem(o.tipo); return x >= o.x && y >= o.y && x < o.x + t.w && y < o.y + t.h; });
-        const lados = new Map();
-        for (const k of canos) {
-            const [x, y] = k.split(',').map(Number);
-            lados.set(k, VIZINHOS.map(([dx, dy]) => canos.has((x + dx) + ',' + (y + dy)) || naOficina(x + dx, y + dy) || fonte(x + dx, y + dy)));
-        }
-        const caminhos = new Map();   // oficina → canos da oficina até a fonte
-        for (const o of oficinas) {
-            const t = tamanhoItem(o.tipo);
-            const inicio = [...canos].filter((k) => {
-                const [x, y] = k.split(',').map(Number);
-                return ((x === o.x - 1 || x === o.x + t.w) && y >= o.y && y < o.y + t.h) || ((y === o.y - 1 || y === o.y + t.h) && x >= o.x && x < o.x + t.w);
-            });
-            const veio = new Map(inicio.map((k) => [k, null]));
-            const fila = [...inicio];
-            let achou = null;
+        const cons = (S && S.construcoes) || [];
+        if (cacheCanos.cons === cons) return cacheCanos;
+        const set = new Set(cons.filter((c) => c.tipo === 'cano').map((c) => c.x + ',' + c.y));
+        const redeDoCano = new Map();   // "x,y" do cano → número da rede
+        let n = 0;
+        for (const k0 of set) {
+            if (redeDoCano.has(k0)) continue;
+            n++;
+            const fila = [k0];
+            redeDoCano.set(k0, n);
             while (fila.length) {
-                const k = fila.shift(), [x, y] = k.split(',').map(Number);
-                if (VIZINHOS.some(([dx, dy]) => fonte(x + dx, y + dy))) { achou = k; break; }
+                const [x, y] = fila.pop().split(',').map(Number);
                 for (const [dx, dy] of VIZINHOS) {
                     const v = (x + dx) + ',' + (y + dy);
-                    if (canos.has(v) && !veio.has(v)) { veio.set(v, k); fila.push(v); }
+                    if (set.has(v) && !redeDoCano.has(v)) { redeDoCano.set(v, n); fila.push(v); }
                 }
             }
-            if (achou) {
-                const cam = [];
-                for (let k = achou; k; k = veio.get(k)) cam.push(k.split(',').map(Number));
-                caminhos.set(o.x + ',' + o.y, cam.reverse());
+        }
+        const coisas = cons.filter((c) => { const it = tipoItem(c.tipo) || {}; return c.tipo === 'bau' || it.entradas || it.efeito === 'automatico'; })
+            .map((c) => { const t = tamanhoItem(c.tipo), it = tipoItem(c.tipo) || {}; return { x: c.x, y: c.y, w: t.w, h: t.h, tipo: c.tipo, papel: c.tipo === 'bau' ? 'bau' : it.entradas ? 'oficina' : 'celeiro' }; });
+        coisas.push(CELEIRO_PEGADA);
+        const dentro = (k, x, y) => x >= k.x && y >= k.y && x < k.x + k.w && y < k.y + k.h;
+        for (const k of coisas) {
+            k.redes = new Set();
+            for (const [ck, r] of redeDoCano) {
+                const [x, y] = ck.split(',').map(Number);
+                if (VIZINHOS.some(([dx, dy]) => dentro(k, x + dx, y + dy))) k.redes.add(r);
             }
         }
-        cacheCanos = { cons, cant, lados, caminhos };
+        const lados = new Map();   // braços de cada cano: para outro cano ou para algo da rede
+        for (const ck of set) {
+            const [x, y] = ck.split(',').map(Number);
+            lados.set(ck, VIZINHOS.map(([dx, dy]) => set.has((x + dx) + ',' + (y + dy)) || coisas.some((k) => dentro(k, x + dx, y + dy))));
+        }
+        cacheCanos = { cons, set, redeDoCano, coisas, lados, caminhos: new Map() };
         return cacheCanos;
     }
-    const oficinaLigada = (c) => !!S && redeCanos().caminhos.has(c.x + ',' + c.y);
+    // o que está na mesma rede que a coisa em (x, y) (fora ela mesma)
+    function vizinhosNaRede(x, y) {
+        const r = redeCanos(), eu = r.coisas.find((k) => k.x === x && k.y === y && k.tipo !== 'celeiro');
+        if (!eu || !eu.redes.size) return null;
+        const outros = r.coisas.filter((k) => k !== eu && [...k.redes].some((n) => eu.redes.has(n)));
+        return { baus: outros.filter((k) => k.papel === 'bau'), oficinas: outros.filter((k) => k.papel === 'oficina'), celeiro: outros.some((k) => k.papel === 'celeiro') };
+    }
+    const oficinaLigada = (c) => { const v = !!S && vizinhosNaRede(c.x, c.y); return !!v && (v.baus.length + v.oficinas.length > 0 || v.celeiro); };
+    // caminho pelos canos de uma pegada até outra (para desenhar a viagem); [] se não achar
+    function caminhoCanos(de, para) {
+        const r = redeCanos(), chave = `${de.x},${de.y}>${para.x},${para.y}`;
+        if (r.caminhos.has(chave)) return r.caminhos.get(chave);
+        const dentro = (k, x, y) => x >= k.x && y >= k.y && x < k.x + k.w && y < k.y + k.h;
+        const encosta = (k, ck) => { const [x, y] = ck.split(',').map(Number); return VIZINHOS.some(([dx, dy]) => dentro(k, x + dx, y + dy)); };
+        const inicio = [...r.set].filter((ck) => encosta(de, ck));
+        const veio = new Map(inicio.map((k) => [k, null]));
+        const fila = [...inicio];
+        let achou = null;
+        while (fila.length) {
+            const k = fila.shift();
+            if (encosta(para, k)) { achou = k; break; }
+            const [x, y] = k.split(',').map(Number);
+            for (const [dx, dy] of VIZINHOS) {
+                const v = (x + dx) + ',' + (y + dy);
+                if (r.set.has(v) && !veio.has(v)) { veio.set(v, k); fila.push(v); }
+            }
+        }
+        const cam = [];
+        for (let k = achou; k; k = veio.get(k)) cam.push(k.split(',').map(Number));
+        cam.reverse();
+        r.caminhos.set(chave, cam);
+        return cam;
+    }
+    // viagens dos itens (estado.viagens): o jogo só desenha cada uma enquanto ela acontece
+    const pegada = (p) => {
+        if (!p) return CELEIRO_PEGADA;
+        const c = (S.construcoes || []).find((k) => k.x === p[0] && k.y === p[1]);
+        const t = c ? tamanhoItem(c.tipo) : { w: 1, h: 1 };
+        return { x: p[0], y: p[1], w: t.w, h: t.h };
+    };
+    const centro = (k) => [k.x + k.w / 2 - 0.5, k.y + Math.min(k.h, 3) / 2 - 0.5];
+    let cacheViagens = {};
+    function visualViagens() {
+        if (!S || visita) return [];
+        const lista = S.viagens || [];
+        if (cacheViagens.lista === lista && cacheViagens.cons === S.construcoes) return cacheViagens.v;
+        const v = lista.map((g) => {
+            const de = pegada(g.de), para = pegada(g.para);
+            const pontos = [centro(de), ...(g.direto ? [] : caminhoCanos(de, para)), centro(para)];
+            return { pontos, icone: A.cultura(g.item).item, inicio: Date.parse(g.em), dur: Math.max(1200, (pontos.length - 1) * 320), direto: g.direto };
+        });
+        cacheViagens = { lista, cons: S.construcoes, v };
+        return v;
+    }
 
     let oficinaAberta = null;   // { x, y } da oficina com o painel aberto
+    let bauAberto = null;       // { x, y } do baú com o painel aberto
+    const BAU_MAX = 200;        // igual a fazenda_bau_livre no SQL
+    // painel do baú: o que ele guardou, de onde recolhe e para onde a rede leva
+    function htmlBau(b) {
+        const itens = Object.entries((S.baus || {})[b.x + ',' + b.y] || {}).filter(([, n]) => n > 0).sort((a, z) => z[1] - a[1]);
+        const total = itens.reduce((a, [, n]) => a + n, 0);
+        const rede = vizinhosNaRede(b.x, b.y);
+        const usam = rede ? new Set(rede.oficinas.flatMap((k) => Object.keys(tipoItem(k.tipo).entradas || {}))) : new Set();
+        const txtRede = !rede || (!rede.oficinas.length && !rede.celeiro)
+            ? `Sem cano até uma oficina ou o celeiro: o que ele recolhe fica guardado aqui. Ligue com <b>canos de vidro</b> (Construir → Energia).`
+            : `Na rede${rede.oficinas.length ? ` com ${rede.oficinas.length} oficina(s)` : ''}${rede.celeiro ? `${rede.oficinas.length ? ' e' : ' com'} o celeiro` : ''}: manda pelo cano o que as oficinas usam${rede.celeiro ? ' e leva o resto para o celeiro (1 ⚡ por viagem)' : ''}.`;
+        return `
+            <p>${total} de ${BAU_MAX} itens guardados</p>
+            <span class="estoque-barra"><i style="width:${Math.min(100, Math.round(total / BAU_MAX * 100))}%"></i></span>
+            ${itens.length ? '<div class="bau-itens">' + itens.map(([item, n]) => `<span class="chip" title="${nomeItem(item)}${usam.has(item) ? ' (uma oficina da rede usa)' : ''}">${itemDe(culturas[item] || { id: item }, 20)}<span>${n}${usam.has(item) ? ` ${A.htmlItem('cano', 12)}` : ''}</span></span>`).join('') + '</div>'
+                : '<p class="vazio-msg">Vazio por enquanto.</p>'}
+            <p class="aviso">${A.htmlItem('cano', 16)} ${txtRede}</p>
+            <p class="det">Com energia, recolhe sozinho o que estiver encostado nele: o bloco de canteiros, um cercado (coleta e dá ração), uma árvore do pomar e o cesto do lago (1 ⚡ cada). Cheio, ele para de recolher.</p>
+            <div class="rodape-painel">
+                <button type="button" class="botao verde" data-bau-esvaziar${total ? '' : ' disabled'}>Levar tudo para o celeiro</button>
+                <button type="button" class="botao creme" data-fechar>Fechar</button>
+            </div>`;
+    }
     const oficinaDoPainel = () => oficinaAberta && S && (S.construcoes || []).find((k) => k.x === oficinaAberta.x && k.y === oficinaAberta.y);
     function acaoOficina(c, o) {
         oficinaAberta = { x: c.x, y: c.y };
@@ -1287,9 +1367,8 @@
             </div>
             ${!cabe ? '<p class="aviso">Estoque cheio.</p>'
                 : falta.length ? `<p class="aviso">Para mais uma receita faltam no celeiro: ${falta.map((f) => `${f.falta} ${itemDe(culturas[f.item] || { id: f.item }, 16)}`).join(', ')}.</p>` : ''}
-            ${o.ligada ? `<p class="aviso">${A.htmlItem('cano', 18)} Ligada por cano: quando o estoque acaba, ela busca os ingredientes no celeiro sozinha (2 ${ico('raio', 12)} por receita) e os produtos voltam pelo cano direto para o celeiro.</p>`
-                : o.auto ? `<p class="aviso">${A.htmlItem('fabrica_auto', 18)} Com a fábrica automática, quando o estoque acaba ela busca ingredientes no celeiro sozinha (8 ${ico('raio', 12)} por receita) e os produtos vão direto para o celeiro.</p>`
-                : S.jogador.nivel >= 16 ? `<p class="det">${A.htmlItem('cano', 16)} Dica: ligue esta oficina com <b>canos de vidro</b> (Construir → Energia) a um canteiro, a um baú ou ao celeiro, e ela se abastece sozinha.</p>` : ''}
+            ${o.ligada ? `<p class="aviso">${A.htmlItem('cano', 18)} Na rede: ${o.rede.baus.length} baú(s)${o.rede.oficinas.length ? `, ${o.rede.oficinas.length} oficina(s)` : ''}${o.rede.celeiro ? ' e o celeiro' : ''}. Quando o estoque acaba, ela busca os ingredientes nos baús${o.rede.celeiro ? ' e no celeiro' : ''} da rede (2 ${ico('raio', 12)} por receita); o produto sai pelo cano para a oficina que usa ele, o celeiro ou um baú.</p>`
+                : S.jogador.nivel >= 16 ? `<p class="det">${A.htmlItem('cano', 16)} Dica: ligue esta oficina com <b>canos de vidro</b> (Construir → Energia) a baús, a outras oficinas e ao celeiro: tudo o que está na mesma rede de canos trabalha junto.</p>` : ''}
             <div class="rodape-painel">
                 ${o.prontos ? `<button type="button" class="botao verde" data-oficina-pegar>Pegar ${o.prontos} ${itemDe(o.produto, 18)}</button>` : '<span></span>'}
                 <button type="button" class="botao creme" data-fechar>Fechar</button>
@@ -1301,6 +1380,7 @@
         if (c && (tipoItem(c.tipo) || {}).efeito === 'biomassa') return alternarGerador(c);
         const o = c && infoOficina(c);
         if (o) return acaoOficina(c, o);
+        if (c && c.tipo === 'bau' && !visita) { bauAberto = { x, y }; return abrirPainel('bau'); }
         const p = c && infoProducao(c);
         if (!p) return;
         if (p.falta > 0) return mostrarStatus(`${A.htmlItem(c.tipo, 22)} ${esc(p.it.nome)}: as próximas ${esc(p.produto.nome.toLowerCase())}s ficam prontas em ${fmtTempo(p.falta)}.`);
@@ -1403,6 +1483,7 @@
     cena.definirVisual(visualCanteiro);
     cena.definirAnimais(visualAnimais);
     cena.definirRelogio(agora);   // a noite do jogo segue o relógio do servidor
+    cena.definirViagens(visualViagens);   // os itens andando pela rede de canos
     cena.definirAjudantes(visualAjudantes);
     cena.definirConstrucoes(visualConstrucoes);
     cena.definirCanteiros(() => ((visita || S) ? (visita || S).canteiros : DEMO_CANTEIROS));
@@ -1884,7 +1965,7 @@
         atualizarTerreno();
         desenharHud();
         if (constr.ativo) desenharPaleta();
-        if (['loja', 'celeiro', 'missoes', 'oficina', 'energia', 'canteiro'].includes(painelAtual)) abrirPainel(painelAtual, true);
+        if (['loja', 'celeiro', 'missoes', 'oficina', 'energia', 'canteiro', 'bau'].includes(painelAtual)) abrirPainel(painelAtual, true);
     }
 
     /* ---------- Diário: quem passou pela sua fazenda ---------- */
@@ -2471,6 +2552,10 @@
         } else if (nome === 'energia') {
             el.painelTitulo.innerHTML = `${ico('raio', 26)} Energia e máquinas`;
             corpo.innerHTML = htmlEnergia();
+        } else if (nome === 'bau') {
+            const b = bauAberto && (S.construcoes || []).find((k) => k.x === bauAberto.x && k.y === bauAberto.y && k.tipo === 'bau');
+            el.painelTitulo.innerHTML = `${A.htmlItem('bau', 32)} Baú`;
+            corpo.innerHTML = b ? htmlBau(b) : '<p class="vazio-msg">Esse baú não está mais aqui.</p>';
         } else if (nome === 'historico') {
             el.painelTitulo.innerHTML = `${ico('sino', 26)} Histórico de avisos`;
             corpo.innerHTML = htmlHistorico() + (historico.length ? `<div class="rodape-painel">
@@ -2501,7 +2586,8 @@
                     <li>Toque num item já colocado para ver o que ele faz; o <b>alcance</b> dele (irrigador, alarme, estufa...) aparece marcado no chão. <b>Segure o dedo 3 segundos</b> num item ou canteiro para pegar e levar para outro lugar.</li>
                     <li>A semana tem as 4 <b>estações</b> (42 horas cada), e cada uma muda a cara da fazenda (pétalas na primavera, grama quente no verão, folhas caindo no outono, neve no inverno) e tem uma semente só dela: morango, melancia, abóbora e repolho. O <b>clima</b> muda várias vezes por dia: sol dá +1 na colheita, chuva rega tudo, onda de calor seca mais, nublado não traz problema novo e ventania espalha pragas. Toque no clima, lá em cima, para ver até quando ele vai.</li>
                     <li>O jogo tem o próprio <b>dia e noite</b>: eles se revezam a cada 2 horas (12 horas de dia e 12 de noite em cada dia de verdade). De noite o mapa escurece, as janelas, os lampiões e as oficinas acendem, aparecem vaga-lumes, e o painel solar não gera energia. Toque no clima para ver quando amanhece.</li>
-                    <li>No nível 16 chegam os <b>canos de vidro</b> (Construir → Energia, 5 cada): ligue uma oficina com canos a um canteiro, a um baú ou ao celeiro e ela busca os ingredientes sozinha (2 ⚡ por receita); dá para ver os itens passando dentro do cano. O <b>baú</b> encostado num bloco de canteiros colhe sozinho o que amadurece, e encostado num cercado coleta e alimenta os bichos (1 ⚡ cada): com baú, canos e oficinas a produção fica toda automática.</li>
+                    <li>O <b>baú</b> guarda em si (até 200 itens) o que recolhe sozinho, com energia, do que estiver encostado nele: o bloco de canteiros, um cercado (coleta e dá ração), uma árvore do pomar e o cesto do lago (1 ⚡ cada). Toque no baú para ver o que tem.</li>
+                    <li>No nível 16 chegam os <b>canos de vidro</b> (Construir → Energia, 5 cada). Canos encostados formam uma <b>rede</b>, e tudo o que encosta num cano dela (baús, oficinas, o celeiro, a fábrica automática) trabalha junto: a oficina busca os ingredientes nos baús e no celeiro da rede (2 ⚡ por receita); o produto vai para outra oficina que usa ele (o óleo da prensa vai para o empório), para o celeiro ou para um baú; e o que nenhuma oficina usa sai do baú para o celeiro (1 ⚡ por viagem). Nada anda sem estar ligado, e cada item aparece passando pelo cano quando viaja.</li>
                     <li>Do nível 16 em diante vem a <b>energia</b> ${ico('raio', 14)}: painel solar, turbina, gerador a biomassa e reator enchem as baterias, e as máquinas elétricas (estufa, triturador, fábrica automática, robô, aspersor) trabalham sozinhas gastando energia. Toque no ${ico('raio', 12)} lá em cima (ou no botão abaixo) para ver o que cada uma faz.</li>
                     ${ANUNCIO.ligado || ehLocal ? `<li>Quando aparecer o botão <b>+30 min</b>, assista a um anúncio até o fim e tudo o que está em andamento (plantas, animais, oficinas, ajudantes e energia) adianta 30 minutos. Cada anúncio também dá 1 ${ico('diamante', 14)} diamante.</li>` : ''}
                     <li>No Perfil (ou em Vizinhos) tem o seu <b>link de convite</b>: quem criar uma fazenda por ele ganha moedas, e você também.</li>
@@ -3040,6 +3126,17 @@
         if (dia) {
             dia.disabled = true;
             comprarDiamantes(dia.dataset.diamantes).finally(() => { dia.disabled = false; });
+            return;
+        }
+        const esv = e.target.closest('[data-bau-esvaziar]');
+        if (esv && bauAberto) {
+            esv.disabled = true;
+            const { x, y } = bauAberto;
+            enfileirar([], async () => {
+                const r = await rpc('fazenda_bau_esvaziar', { p_token: token, p_x: x, p_y: y });
+                if (r.qtd) toast(`${A.htmlItem('bau', 16)} Levou ${r.qtd} itens do baú para o celeiro.`);
+                aplicarEstado(r.estado);
+            }).finally(() => { esv.disabled = false; });
             return;
         }
         if (e.target.closest('[data-historico-limpar]')) {

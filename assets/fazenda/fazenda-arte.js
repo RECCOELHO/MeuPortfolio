@@ -577,8 +577,8 @@
     /* ---------- Ícones pixel (mesma paleta) ---------- */
     const ICONES = {
         moeda: ['..oooo..', '.oyyyyo.', 'oywyyyYo', 'oywyYyYo', 'oyyyYyYo', 'oyyyyYYo', '.oYYYYo.', '..oooo..'],
-        // lua: noite no jogo
-        lua: ['...ooo...', '..obbo...', '.obbo....', '.obo.....', 'obbo.....', 'obbo...o.', '.obbo.obo', '.obbbbbo.', '..ooooo..'],
+        // lua: noite no jogo (meia-lua prateada com brilho, sombra azulada, crateras e uma estrelinha)
+        lua: ['....oooo.y..', '..oowSo.yyy.', '.owsso...y..', '.ossSo......', 'owssSo......', 'owssSo....y.', 'osssSo......', 'osSsso......', 'ossssSo.....', '.ossssSo....', '.ossSssSoo..', '..oossssSoo.', '....ooooo...'],
         // sino: histórico de avisos
         sino: ['....o....', '...oyo...', '..oyyyo..', '..owyyo..', '..owyyo..', '.oyyyyyo.', 'oyyyyyyYo', 'ooooooooo', '...oYo...', '....o....'],
         // diamante: a moeda especial (colher na hora)
@@ -1624,7 +1624,7 @@
 
             const canteiros = listaCanteiros(), mc = mapaCanteiros(canteiros);
             for (const c of canteiros) desenharCanteiro(c, tempo, mc);
-            desenharFluxos(lista, tempo);
+            desenharViagens();
             if (zonaVenda) desenharPlacaVenda(tempo);
 
             for (const a of atores.values()) {
@@ -1909,25 +1909,26 @@
             const img = pacote === 'propria' ? atlasProprio : (atlasDaEstacao && atlasDaEstacao.farm) || atlas.farm;
             q.drawImage(img, (i % COLS) * T, Math.floor(i / COLS) * T, T, T, Math.round(x), Math.round(y), 8, 8);
         }
-        function desenharFluxos(lista, tempo) {
-            for (const c of lista) {
-                const f = c.oficina && c.oficina.fluxo;
-                if (!f || !f.caminho || !f.caminho.length) continue;
-                const cam = f.caminho, n = cam.length;
-                const ponto = (p) => {   // 0 = encostado na oficina, 1 = encostado na fonte
-                    const pos = p * (n - 1), i = Math.min(n - 1, Math.floor(pos)), t = pos - i;
-                    const [ax, ay] = cam[i], [bx, by] = cam[Math.min(n - 1, i + 1)];
-                    return [wx(ax + (bx - ax) * t) + 8, wy(ay + (by - ay) * t) + 8];
-                };
-                const vel = 1400 + n * 450;
-                for (let k = 0; k < 2; k++) {
-                    const [ix, iy] = ponto(1 - (((tempo / vel) + k / 2 + c.x * 0.13) % 1));
-                    miniTile(f.entra, ix - 4, iy - 4);
+        // viagens dos itens pela rede (fase 39): cada item anda do ponto de saída, pelos canos, até
+        // o destino, só enquanto a viagem acontece (o servidor marca a hora). Sem cano (do canteiro,
+        // cercado, árvore ou lago para o baú encostado) ele dá um pulinho.
+        let viagensFn = () => [];
+        function desenharViagens() {
+            const agoraMs = relogio();
+            for (const v of viagensFn()) {
+                const t = (agoraMs - v.inicio) / v.dur;
+                if (t < 0 || t > 1) continue;
+                const p = v.pontos, n = p.length - 1;
+                if (n < 1) continue;
+                const pos = t * n, i = Math.min(n - 1, Math.floor(pos)), f = pos - i;
+                const [ax, ay] = p[i], [bx, by] = p[i + 1];
+                const x = wx(ax + (bx - ax) * f) + 8, y = wy(ay + (by - ay) * f) + 8;
+                const pulo = v.direto ? -Math.round(Math.sin(t * Math.PI) * 7) : 0;
+                if (!v.direto) {   // uma sombrinha dentro do vidro ajuda a ver o item passando
+                    q.fillStyle = 'rgba(63, 38, 49, .25)';
+                    q.fillRect(Math.round(x) - 4, Math.round(y) + 3, 8, 2);
                 }
-                if (f.sai != null) {
-                    const [ox, oy] = ponto(((tempo / vel) + 0.25 + c.y * 0.07) % 1);
-                    miniTile(f.sai, ox - 4, oy - 4);
-                }
+                miniTile(v.icone, x - 4, y - 4 + pulo);
             }
         }
 
@@ -2314,6 +2315,7 @@
             focarTile(tx, ty) { focar(wx(tx) + T / 2, wy(ty) + T / 2); },
             definirClima(c) { clima = c || null; precisaDesenhar = true; },
             definirRelogio(fn) { if (typeof fn === 'function') relogio = fn; },
+            definirViagens(fn) { if (typeof fn === 'function') viagensFn = fn; },
             // seu lago: { prontos, max } (null na visita ou sem o terreno 3)
             definirLago(l) { lago = l || null; },
             // avatar do fazendeiro que anda na fazenda (null = o do pacote)

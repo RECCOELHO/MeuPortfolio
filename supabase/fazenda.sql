@@ -594,7 +594,7 @@ on conflict (id) do update set
 -- baterias e as máquinas elétricas gastam. Os números ficam nas funções fazenda_capacidade,
 -- fazenda_energia_taxa e nos gastos de cada máquina; as descrições aparecem no jogo.
 insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem, efeito, raio, limite, descricao) values
-  ('cano',          'Cano de vidro',      'energia',     5, 16, 79, 'cano',       0, null, 'Ligue uma oficina com canos a um canteiro, ao celeiro ou a um baú: quando o estoque acaba, ela busca os ingredientes sozinha (2 ⚡ por receita) e os produtos voltam pelo cano.'),
+  ('cano',          'Cano de vidro',      'energia',     5, 16, 79, 'cano',       0, null, 'Canos encostados formam uma rede que liga baús, oficinas e o celeiro. A oficina busca os ingredientes nos baús e no celeiro da rede (2 ⚡ por receita); o produto vai para outra oficina que usa ele, para o celeiro ou para um baú; o que sobra no baú vai para o celeiro (1 ⚡ por viagem). Dá para ver cada item passando.'),
   ('painel_solar',  'Painel solar',       'energia',  2500, 16, 80, 'solar',      0, 6, 'Gera até 12 ⚡/h de dia (sol forte: 14; nublado: 5; chuva: 3). À noite, nada: no jogo, o dia e a noite se revezam a cada 2 horas.'),
   ('bateria',       'Banco de baterias',  'energia',  2000, 16, 81, 'bateria',    0, 4, 'Guarda mais 100 ⚡ (sem bateria, a caixa de luz guarda só 50).'),
   ('turbina',       'Turbina eólica',     'energia',  4000, 17, 82, 'eolica',     0, 4, 'Gera 8 ⚡/h de dia e de noite; 30 ⚡/h na ventania e 14 na chuva.'),
@@ -602,7 +602,7 @@ insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem, 
   ('gerador_bio',   'Gerador a biomassa', 'energia',  6000, 19, 84, 'biomassa',   0, 2, 'Ligado, queima 1 milho a cada 30 min: 50 ⚡/h. Toque nele para ligar ou desligar.'),
   ('triturador',    'Triturador',         'energia',  8000, 20, 85, 'triturar',   0, 1, 'As oficinas rendem 2 produtos por receita. Gasta 10 ⚡ por receita.'),
   ('supercap',      'Supercapacitor',     'energia',  9000, 21, 86, 'bateria',    0, 2, 'Guarda mais 500 ⚡.'),
-  ('fabrica_auto',  'Fábrica automática', 'energia', 12000, 22, 87, 'automatico', 0, 1, 'Liga as oficinas ao celeiro: quando o estoque acaba, elas buscam ingredientes sozinhas (sem mexer na ração reservada) e os produtos vão direto para o celeiro. Gasta 8 ⚡ por receita.'),
+  ('fabrica_auto',  'Fábrica automática', 'energia', 12000, 22, 87, 'automatico', 0, 1, 'Um pedaço do celeiro em qualquer lugar: a rede de canos encostada nela leva e traz do celeiro como se o cano chegasse até ele (sem mexer na ração reservada).'),
   ('robo_colheita', 'Robô colheitador',   'energia', 14000, 23, 88, 'robo',       3, 2, 'Colhe, ara e replanta sozinho os canteiros em volta (3). Gasta 3 ⚡ por colheita e 1 por plantio.'),
   ('aspersor',      'Aspersor elétrico',  'energia', 10000, 24, 89, 'aspersor',   3, 4, 'Nenhuma erva, praga ou seca nos canteiros em volta (3). Gasta 1 ⚡ por problema evitado.'),
   ('reator',        'Reator nuclear',     'energia', 30000, 25, 90, 'reator',     0, 1, 'Gera 120 ⚡/h sem parar, de dia e de noite (80 na onda de calor, para não esquentar).')
@@ -658,7 +658,7 @@ update public.fazenda_itens i
     ('alvo',          'sorte',        2,  2, 'Sorte: 15% de chance de colheita em dobro em volta (2 quadrados).', null, null, null),
     ('caixote',       'venda',        0,  2, '+10% no preço de venda (fazenda toda, não acumula).', null, null, null),
     ('colmeia',       'adubo',        2,  3, 'Abelhas: +1 item na colheita em volta (2 quadrados).', null, null, null),
-    ('bau',           'missao',       0,  3, '+25% de moedas nas missões. Com energia: encostado num bloco de canteiros, colhe sozinho o que amadurece; encostado num cercado, coleta e alimenta os bichos (1 ⚡ cada). Com canos, leva tudo para as oficinas.', null, null, null),
+    ('bau',           'missao',       0,  3, '+25% de moedas nas missões. Com energia, guarda em si (até 200 itens) o que recolhe: encostado num bloco de canteiros, colhe o que amadurece; num cercado, coleta e dá ração aos bichos; numa árvore do pomar, colhe as frutas; no lago, pega o cesto do Bira (1 ⚡ cada). Com canos, manda para as oficinas e o celeiro.', null, null, null),
     ('lampiao',       null,           0,  3, 'Acende sozinho de noite e ilumina em volta. +3 de beleza (beleza dá bônus nas vendas).', null, null, null),
     ('casa_vermelha', null,           0, 20, 'Casinha: +20 de beleza (beleza dá bônus nas vendas).', null, null, null),
     ('casa_azul',     null,           0, 30, 'Casinha: +30 de beleza (beleza dá bônus nas vendas).', null, null, null)
@@ -1252,6 +1252,19 @@ begin
     ),
     'zonas_venda', fazenda_zonas(),
     'pacotes_diamantes', fazenda_pacotes_diamantes(),
+    -- fase 39: o que está em cada baú, o que já chegou pelo cano em cada oficina e as viagens
+    -- dos últimos 2 minutos (o jogo desenha o item andando só enquanto ela acontece)
+    'baus', coalesce((select jsonb_object_agg(b.x || ',' || b.y, b.itens) from (
+        select x, y, jsonb_object_agg(item, quantidade) as itens from fazenda_bau_itens
+         where jogador_id = p_jogador and quantidade > 0 group by x, y) b), '{}'::jsonb),
+    'oficina_itens', coalesce((select jsonb_object_agg(o.x || ',' || o.y, o.itens) from (
+        select x, y, jsonb_object_agg(item, quantidade) as itens from fazenda_oficina_itens
+         where jogador_id = p_jogador and quantidade > 0 group by x, y) o), '{}'::jsonb),
+    'viagens', coalesce((select jsonb_agg(jsonb_build_object('id', v.id, 'item', v.item, 'qtd', v.qtd,
+        'de', case when v.de_x is null then null else jsonb_build_array(v.de_x, v.de_y) end,
+        'para', case when v.para_x is null then null else jsonb_build_array(v.para_x, v.para_y) end,
+        'direto', v.direto, 'em', v.em) order by v.em)
+        from fazenda_viagens v where v.jogador_id = p_jogador and v.em > now() - interval '2 minutes'), '[]'::jsonb),
     'galinheiro', jsonb_build_object('linhas', fazenda_galinheiro_linhas(p_jogador), 'quer', fazenda_galinheiro_quer(p_jogador)),
     'visitante', fazenda_visitante(p_jogador),
     -- o lago (só com o terreno 3): desde quando o cesto enche, o ritmo, o máximo e as chances
@@ -1774,27 +1787,268 @@ begin
 end;
 $$;
 
--- Fase 27: canos de vidro. A oficina está ligada se um cano encostado nela leva (por canos
--- encostados uns nos outros) a um canteiro, a um baú ou ao celeiro. Igual a redeCanos em fazenda.js.
-create or replace function public.fazenda_oficina_ligada(p_jogador uuid, p_x int, p_y int, p_w int, p_h int)
+-- ------------------------------------------------------------
+-- Fase 39: a rede de verdade. Cada baú guarda o que recolhe (canteiros, cercados, árvores do
+-- pomar e o cesto do lago). Canos encostados uns nos outros formam uma rede; baús, oficinas, o
+-- celeiro e a fábrica automática encostados num cano dela fazem parte dela. Nada anda sem estar
+-- ligado: a oficina busca os ingredientes nos baús e no celeiro da rede; o produto vai para outra
+-- oficina da rede que usa ele, para o celeiro ou para um baú; e o que sobra num baú (o que
+-- nenhuma oficina da rede usa) vai para o celeiro. Cada movimento vira uma viagem com hora
+-- marcada, e o jogo só mostra o item andando quando ela está acontecendo. (Antes, fase 27: a
+-- oficina com qualquer cano até um canteiro, baú ou o celeiro puxava do celeiro geral.)
+-- Igual a redeCanos em fazenda.js.
+-- ------------------------------------------------------------
+create table if not exists public.fazenda_bau_itens (
+  jogador_id  uuid not null references public.fazenda_jogadores(id) on delete cascade,
+  x           smallint not null,
+  y           smallint not null,
+  item        text not null references public.fazenda_culturas(id),
+  quantidade  int not null default 0 check (quantidade >= 0),
+  primary key (jogador_id, x, y, item)
+);
+-- ingredientes que chegaram pelo cano numa oficina e ainda não fecham uma receita
+create table if not exists public.fazenda_oficina_itens (
+  jogador_id  uuid not null references public.fazenda_jogadores(id) on delete cascade,
+  x           smallint not null,
+  y           smallint not null,
+  item        text not null references public.fazenda_culturas(id),
+  quantidade  int not null default 0 check (quantidade >= 0),
+  primary key (jogador_id, x, y, item)
+);
+create table if not exists public.fazenda_viagens (
+  id          bigserial primary key,
+  jogador_id  uuid not null references public.fazenda_jogadores(id) on delete cascade,
+  item        text not null,
+  qtd         int not null,
+  de_x        smallint, de_y smallint,       -- null = celeiro
+  para_x      smallint, para_y smallint,     -- null = celeiro
+  direto      boolean not null default false, -- sem cano: do canteiro, cercado, árvore ou lago para o baú encostado
+  em          timestamptz not null default now()
+);
+create index if not exists fazenda_viagens_jogador on public.fazenda_viagens (jogador_id, em);
+alter table public.fazenda_bau_itens enable row level security;
+alter table public.fazenda_oficina_itens enable row level security;
+alter table public.fazenda_viagens enable row level security;
+revoke all on public.fazenda_bau_itens, public.fazenda_oficina_itens, public.fazenda_viagens from anon, authenticated;
+drop function if exists public.fazenda_oficina_ligada(uuid, int, int, int, int);
+
+-- Quanto ainda cabe num baú (200 itens ao todo)
+create or replace function public.fazenda_bau_livre(p_jogador uuid, p_x int, p_y int)
+returns int language sql stable security definer set search_path = public as $$
+  select 200 - coalesce(sum(quantidade), 0)::int from fazenda_bau_itens where jogador_id = p_jogador and x = p_x and y = p_y;
+$$;
+
+-- Uma viagem de item. O que acontece agora se espalha pelos próximos 15 s, para não sair tudo junto.
+create or replace function public.fazenda_viagem(p_jogador uuid, p_item text, p_qtd int, p_de_x int, p_de_y int,
+                                                 p_para_x int, p_para_y int, p_direto boolean, p_em timestamptz)
+returns void language sql security definer set search_path = public as $$
+  insert into fazenda_viagens (jogador_id, item, qtd, de_x, de_y, para_x, para_y, direto, em)
+  values (p_jogador, p_item, p_qtd, p_de_x, p_de_y, p_para_x, p_para_y, p_direto,
+          p_em + case when p_em >= now() - interval '1 second' then random() * interval '15 seconds' else interval '0' end);
+$$;
+
+-- O que acabou de chegar no celeiro (colheita, coleta de bicho) passa para o baú encostado
+create or replace function public.fazenda_bau_guardar(p_jogador uuid, p_x int, p_y int, p_item text, p_qtd int, p_de_x int, p_de_y int)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if coalesce(p_qtd, 0) <= 0 then return; end if;
+  update fazenda_celeiro set quantidade = quantidade - p_qtd where jogador_id = p_jogador and item = p_item;
+  insert into fazenda_bau_itens (jogador_id, x, y, item, quantidade) values (p_jogador, p_x, p_y, p_item, p_qtd)
+  on conflict (jogador_id, x, y, item) do update set quantidade = fazenda_bau_itens.quantidade + excluded.quantidade;
+  perform fazenda_viagem(p_jogador, p_item, p_qtd, p_de_x, p_de_y, p_x, p_y, true, now());
+end;
+$$;
+
+-- As redes: cada grupo de canos encostados é uma rede (o número é o do primeiro cano), e as coisas
+-- encostadas num cano dela fazem parte dela. papel: bau, oficina ou celeiro (o celeiro do mapa,
+-- x 1..3 e y 1..6, e a fábrica automática, que leva e traz do celeiro de qualquer lugar).
+create or replace function public.fazenda_rede(p_jogador uuid)
+returns table (rede int, papel text, x int, y int)
+language sql stable security definer set search_path = public as $$
+  with recursive canos as (
+    select c.x, c.y, c.x * 100 + c.y as k from fazenda_construcoes c where c.jogador_id = p_jogador and c.tipo = 'cano'),
+  liga(k, raiz) as (
+    select k, k from canos
+    union
+    select c2.k, l.raiz from liga l join canos c1 on c1.k = l.k join canos c2 on abs(c1.x - c2.x) + abs(c1.y - c2.y) = 1),
+  cano as (select c.x, c.y, min(l.raiz) as rede from canos c join liga l on l.k = c.k group by c.x, c.y),
+  coisas as (
+    select c.x, c.y, i.largura as w, i.altura as h,
+           case when c.tipo = 'bau' then 'bau' when i.entradas is not null then 'oficina' else 'celeiro' end as papel
+      from fazenda_construcoes c join fazenda_itens i on i.id = c.tipo
+     where c.jogador_id = p_jogador and (c.tipo = 'bau' or i.entradas is not null or i.efeito = 'automatico')
+    union all
+    select 1, 1, 3, 6, 'celeiro')
+  select distinct cano.rede, k.papel, k.x, k.y
+    from coisas k join cano on
+         ((cano.x = k.x - 1 or cano.x = k.x + k.w) and cano.y between k.y and k.y + k.h - 1)
+      or ((cano.y = k.y - 1 or cano.y = k.y + k.h) and cano.x between k.x and k.x + k.w - 1);
+$$;
+
+-- As redes em que uma coisa (papel, x, y) está, dentro da lista montada por fazenda_rede
+create or replace function public.fazenda_redes_de(p_membros jsonb, p_papel text, p_x int, p_y int)
+returns int[] language sql immutable as $$
+  select array_agg(distinct (m->>'rede')::int) from jsonb_array_elements(p_membros) m
+   where m->>'papel' = p_papel and (m->>'x')::int = p_x and (m->>'y')::int = p_y;
+$$;
+create or replace function public.fazenda_rede_tem_celeiro(p_membros jsonb, p_redes int[])
+returns boolean language sql immutable as $$
+  select coalesce(p_redes is not null and exists (select 1 from jsonb_array_elements(p_membros) m
+                   where m->>'papel' = 'celeiro' and (m->>'rede')::int = any(p_redes)), false);
+$$;
+
+-- A oficina busca na rede os ingredientes de 1 receita: primeiro o que já chegou nela pelo cano,
+-- depois os baús da rede e por último o celeiro (se a rede chega nele; a ração reservada fica).
+-- Só tira se der a receita inteira. 2 ⚡ por receita; cada saída vira uma viagem.
+create or replace function public.fazenda_rede_puxar(p_jogador uuid, p_x int, p_y int, p_entradas jsonb, p_membros jsonb, p_em timestamptz)
 returns boolean
-language sql stable security definer
+language plpgsql security definer
 set search_path = public, extensions
 as $$
-  with recursive canos as (
-    select x, y from fazenda_construcoes where jogador_id = p_jogador and tipo = 'cano'),
-  rede(x, y) as (
-    select c.x, c.y from canos c
-     where ((c.x = p_x - 1 or c.x = p_x + p_w) and c.y between p_y and p_y + p_h - 1)
-        or ((c.y = p_y - 1 or c.y = p_y + p_h) and c.x between p_x and p_x + p_w - 1)
-    union
-    select c.x, c.y from canos c join rede r on abs(c.x - r.x) + abs(c.y - r.y) = 1)
-  select exists (
-    select 1 from rede r
-     where exists (select 1 from fazenda_canteiros k where k.jogador_id = p_jogador and abs(k.x - r.x) + abs(k.y - r.y) = 1)
-        or exists (select 1 from fazenda_construcoes b where b.jogador_id = p_jogador and b.tipo = 'bau' and abs(b.x - r.x) + abs(b.y - r.y) = 1)
-        or ((r.x = 0 or r.x = 4) and r.y between 1 and 6)      -- encostado no celeiro (x 1..3, y 1..6)
-        or ((r.y = 0 or r.y = 7) and r.x between 1 and 3));
+declare
+  e       record;
+  b       record;
+  v_redes int[] := fazenda_redes_de(p_membros, 'oficina', p_x, p_y);
+  v_cel   boolean;
+  v_falta int;
+  v_tira  int;
+begin
+  if v_redes is null then return false; end if;
+  v_cel := fazenda_rede_tem_celeiro(p_membros, v_redes);
+  for e in select key as item, value::int as qtd from jsonb_each_text(p_entradas) loop
+    if coalesce((select quantidade from fazenda_oficina_itens where jogador_id = p_jogador and x = p_x and y = p_y and item = e.item), 0)
+       + coalesce((select sum(bi.quantidade) from fazenda_bau_itens bi
+                    where bi.jogador_id = p_jogador and bi.item = e.item
+                      and fazenda_redes_de(p_membros, 'bau', bi.x, bi.y) && v_redes), 0)
+       + (case when v_cel then greatest(coalesce((select quantidade from fazenda_celeiro where jogador_id = p_jogador and item = e.item), 0)
+                                       - coalesce((select quantidade from fazenda_reservas where jogador_id = p_jogador and item = e.item), 0), 0)
+               else 0 end)   -- (o case entre parênteses: senão o if do plpgsql para no primeiro then)
+       < e.qtd then
+      return false;
+    end if;
+  end loop;
+  if fazenda_energia_atualizar(p_jogador) < 2 then return false; end if;
+  perform fazenda_gastar_energia(p_jogador, 2);
+  for e in select key as item, value::int as qtd from jsonb_each_text(p_entradas) loop
+    v_falta := e.qtd;
+    select quantidade into v_tira from fazenda_oficina_itens where jogador_id = p_jogador and x = p_x and y = p_y and item = e.item for update;
+    v_tira := least(coalesce(v_tira, 0), v_falta);
+    if v_tira > 0 then
+      update fazenda_oficina_itens set quantidade = quantidade - v_tira where jogador_id = p_jogador and x = p_x and y = p_y and item = e.item;
+      v_falta := v_falta - v_tira;
+    end if;
+    for b in
+      select bi.x, bi.y, bi.quantidade from fazenda_bau_itens bi
+       where bi.jogador_id = p_jogador and bi.item = e.item and bi.quantidade > 0
+         and fazenda_redes_de(p_membros, 'bau', bi.x, bi.y) && v_redes
+       order by bi.quantidade desc, bi.x, bi.y
+         for update
+    loop
+      exit when v_falta <= 0;
+      v_tira := least(b.quantidade, v_falta);
+      update fazenda_bau_itens set quantidade = quantidade - v_tira where jogador_id = p_jogador and x = b.x and y = b.y and item = e.item;
+      perform fazenda_viagem(p_jogador, e.item, v_tira, b.x, b.y, p_x, p_y, false, p_em);
+      v_falta := v_falta - v_tira;
+    end loop;
+    if v_falta > 0 then
+      update fazenda_celeiro set quantidade = quantidade - v_falta where jogador_id = p_jogador and item = e.item;
+      perform fazenda_viagem(p_jogador, e.item, v_falta, null, null, p_x, p_y, false, p_em);
+    end if;
+  end loop;
+  return true;
+end;
+$$;
+
+-- O produto pronto sai pelo cano: para outra oficina da rede que usa ele (até ela ter o bastante
+-- para 2 receitas), senão para o celeiro (se a rede chega nele), senão para um baú da rede com
+-- espaço. Devolve quanto saiu; o resto fica na oficina para você pegar.
+create or replace function public.fazenda_rede_entregar(p_jogador uuid, p_x int, p_y int, p_item text, p_qtd int, p_membros jsonb, p_em timestamptz)
+returns int
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  o       record;
+  b       record;
+  v_redes int[] := fazenda_redes_de(p_membros, 'oficina', p_x, p_y);
+  v_sai   int := 0;
+  v_n     int;
+begin
+  if v_redes is null or coalesce(p_qtd, 0) <= 0 then return 0; end if;
+  for o in
+    select distinct (m->>'x')::int as x, (m->>'y')::int as y, (i.entradas->>p_item)::int as qtd
+      from jsonb_array_elements(p_membros) m
+      join fazenda_construcoes c on c.jogador_id = p_jogador and c.x = (m->>'x')::int and c.y = (m->>'y')::int
+      join fazenda_itens i on i.id = c.tipo
+     where m->>'papel' = 'oficina' and (m->>'rede')::int = any(v_redes) and i.entradas ? p_item
+       and not ((m->>'x')::int = p_x and (m->>'y')::int = p_y)
+  loop
+    exit when v_sai >= p_qtd;
+    v_n := least(greatest(2 * o.qtd - coalesce((select quantidade from fazenda_oficina_itens
+                                                 where jogador_id = p_jogador and x = o.x and y = o.y and item = p_item), 0), 0),
+                 p_qtd - v_sai);
+    if v_n > 0 then
+      insert into fazenda_oficina_itens (jogador_id, x, y, item, quantidade) values (p_jogador, o.x, o.y, p_item, v_n)
+      on conflict (jogador_id, x, y, item) do update set quantidade = fazenda_oficina_itens.quantidade + excluded.quantidade;
+      perform fazenda_viagem(p_jogador, p_item, v_n, p_x, p_y, o.x, o.y, false, p_em);
+      v_sai := v_sai + v_n;
+    end if;
+  end loop;
+  if v_sai < p_qtd and fazenda_rede_tem_celeiro(p_membros, v_redes) then
+    insert into fazenda_celeiro (jogador_id, item, quantidade) values (p_jogador, p_item, p_qtd - v_sai)
+    on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
+    perform fazenda_viagem(p_jogador, p_item, p_qtd - v_sai, p_x, p_y, null, null, false, p_em);
+    v_sai := p_qtd;
+  end if;
+  for b in
+    select distinct (m->>'x')::int as x, (m->>'y')::int as y from jsonb_array_elements(p_membros) m
+     where m->>'papel' = 'bau' and (m->>'rede')::int = any(v_redes) order by 1, 2
+  loop
+    exit when v_sai >= p_qtd;
+    v_n := least(fazenda_bau_livre(p_jogador, b.x, b.y), p_qtd - v_sai);
+    if v_n > 0 then
+      insert into fazenda_bau_itens (jogador_id, x, y, item, quantidade) values (p_jogador, b.x, b.y, p_item, v_n)
+      on conflict (jogador_id, x, y, item) do update set quantidade = fazenda_bau_itens.quantidade + excluded.quantidade;
+      perform fazenda_viagem(p_jogador, p_item, v_n, p_x, p_y, b.x, b.y, false, p_em);
+      v_sai := v_sai + v_n;
+    end if;
+  end loop;
+  return v_sai;
+end;
+$$;
+
+-- O que sobra nos baús ligados ao celeiro (o que nenhuma oficina da rede usa) vai para o celeiro.
+-- 1 ⚡ por viagem (um tipo de item de cada vez); sem energia, espera.
+create or replace function public.fazenda_rede_descarregar(p_jogador uuid, p_membros jsonb)
+returns void
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  b       record;
+  it      record;
+  v_redes int[];
+begin
+  for b in select distinct (m->>'x')::int as x, (m->>'y')::int as y from jsonb_array_elements(p_membros) m where m->>'papel' = 'bau' loop
+    v_redes := fazenda_redes_de(p_membros, 'bau', b.x, b.y);
+    continue when not fazenda_rede_tem_celeiro(p_membros, v_redes);
+    for it in
+      select bi.item, bi.quantidade from fazenda_bau_itens bi
+       where bi.jogador_id = p_jogador and bi.x = b.x and bi.y = b.y and bi.quantidade > 0
+         and not exists (
+           select 1 from jsonb_array_elements(p_membros) m
+             join fazenda_construcoes c on c.jogador_id = p_jogador and c.x = (m->>'x')::int and c.y = (m->>'y')::int
+             join fazenda_itens i on i.id = c.tipo
+            where m->>'papel' = 'oficina' and (m->>'rede')::int = any(v_redes) and i.entradas ? bi.item)
+    loop
+      exit when not fazenda_gastar_energia(p_jogador, 1);
+      update fazenda_bau_itens set quantidade = 0 where jogador_id = p_jogador and x = b.x and y = b.y and item = it.item;
+      insert into fazenda_celeiro (jogador_id, item, quantidade) values (p_jogador, it.item, it.quantidade)
+      on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
+      perform fazenda_viagem(p_jogador, it.item, it.quantidade, b.x, b.y, null, null, false, now());
+    end loop;
+  end loop;
+end;
 $$;
 
 -- Faz as oficinas andarem até agora (roda ao carregar a fazenda e antes de mexer numa oficina)
@@ -1804,30 +2058,30 @@ language plpgsql security definer
 set search_path = public, extensions
 as $$
 declare
-  o      record;
-  v_auto boolean := fazenda_tem_efeito(p_jogador, 'automatico');
-  v_tri  boolean := fazenda_tem_efeito(p_jogador, 'triturar');
-  v_t    timestamptz;
-  v_fim  timestamptz;
-  v_est  int;
-  v_pr   int;
-  v_cel  int;
-  v_n    int;
-  v_qtd  int;
-  v_liga boolean;
-  v_gasto int;
+  o       record;
+  v_tri   boolean := fazenda_tem_efeito(p_jogador, 'triturar');
+  v_membros jsonb := coalesce((select jsonb_agg(to_jsonb(r)) from fazenda_rede(p_jogador) r), '[]'::jsonb);
+  v_t     timestamptz;
+  v_fim   timestamptz;
+  v_est   int;
+  v_pr    int;
+  v_n     int;
+  v_qtd   int;
+  v_rede  boolean;
 begin
   for o in
-    select c.x, c.y, c.iniciado_em, c.estoque, c.prontos, i.produz, i.produz_seg, i.produz_qtd, i.entradas, i.largura, i.altura
+    select c.x, c.y, c.iniciado_em, c.estoque, c.prontos, i.produz, i.produz_seg, i.produz_qtd, i.entradas
       from fazenda_construcoes c join fazenda_itens i on i.id = c.tipo
      where c.jogador_id = p_jogador and i.entradas is not null
+     order by i.ordem, c.x, c.y   -- (a prensa antes do empório: o óleo chega no mesmo passo)
        for update of c
   loop
-    v_t := o.iniciado_em; v_est := o.estoque; v_pr := o.prontos; v_cel := 0; v_fim := null; v_n := 0;
-    -- ligada por cano (2 ⚡ por receita) ou pela fábrica automática (8 ⚡): busca no celeiro e devolve lá
-    v_liga := fazenda_oficina_ligada(p_jogador, o.x, o.y, o.largura, o.altura);
-    v_gasto := case when v_liga then 2 else 8 end;
-    v_liga := v_liga or v_auto;
+    v_t := o.iniciado_em; v_est := o.estoque; v_pr := o.prontos; v_fim := null; v_n := 0;
+    v_rede := fazenda_redes_de(v_membros, 'oficina', o.x, o.y) is not null;
+    -- ligou na rede agora: o que estava pronto esperando já sai pelo cano
+    if v_rede and v_pr > 0 then
+      v_pr := v_pr - fazenda_rede_entregar(p_jogador, o.x, o.y, o.produz, v_pr, v_membros, now());
+    end if;
     loop
       exit when v_n >= 48;
       v_n := v_n + 1;
@@ -1835,27 +2089,25 @@ begin
         exit when now() < v_t + make_interval(secs => o.produz_seg);   -- ainda trabalhando
         v_qtd := o.produz_qtd;
         if v_tri and fazenda_gastar_energia(p_jogador, 10) then v_qtd := v_qtd * 2; end if;   -- triturador
-        if v_liga then v_cel := v_cel + v_qtd; else v_pr := v_pr + v_qtd; end if;
         v_fim := v_t + make_interval(secs => o.produz_seg);
+        -- pronto: sai pela rede (outra oficina, celeiro ou baú); o que não sai fica para você pegar
+        v_pr := v_pr + v_qtd - case when v_rede then fazenda_rede_entregar(p_jogador, o.x, o.y, o.produz, v_qtd, v_membros, v_fim) else 0 end;
         v_t := null;
       end if;
-      -- estoque vazio e ligada (cano: 2 ⚡; fábrica automática: 8 ⚡): busca uma receita no celeiro
-      if v_est <= 0 and v_liga and fazenda_energia_atualizar(p_jogador) >= v_gasto then
-        v_est := fazenda_abastecer(p_jogador, o.entradas, 1);
-        if v_est > 0 then perform fazenda_gastar_energia(p_jogador, v_gasto); end if;
+      -- estoque vazio e na rede: busca uma receita nos baús/celeiro da rede (2 ⚡)
+      if v_est <= 0 and v_rede
+         and fazenda_rede_puxar(p_jogador, o.x, o.y, o.entradas, v_membros, greatest(coalesce(v_fim, now()), now() - interval '12 hours')) then
+        v_est := 1;
       end if;
       exit when v_est <= 0;
       v_est := v_est - 1;
       -- emenda na receita anterior (o tempo fora vale, até 12 horas)
       v_t := greatest(coalesce(v_fim, now()), now() - interval '12 hours');
     end loop;
-    if v_cel > 0 then
-      insert into fazenda_celeiro (jogador_id, item, quantidade) values (p_jogador, o.produz, v_cel)
-      on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
-    end if;
     update fazenda_construcoes set iniciado_em = v_t, estoque = v_est, prontos = least(v_pr, 32000)
      where jogador_id = p_jogador and x = o.x and y = o.y;
   end loop;
+  perform fazenda_rede_descarregar(p_jogador, v_membros);
 end;
 $$;
 
@@ -1868,11 +2120,18 @@ language plpgsql security definer
 set search_path = public, extensions
 as $$
 declare
-  b  record;
-  k  record;
-  m  record;
+  b       record;
+  k       record;
+  m       record;
+  arv     record;
+  e       record;
+  v_qtd   int;
+  v_livre int;
+  v_peixes jsonb;
 begin
   for b in select x, y from fazenda_construcoes where jogador_id = p_jogador and tipo = 'bau' loop
+    v_livre := fazenda_bau_livre(p_jogador, b.x, b.y);
+    -- canteiros: o bloco encostado no baú (canteiros encostados uns nos outros)
     for k in
       with recursive bloco(posicao, x, y) as (
         select c.posicao, c.x, c.y from fazenda_canteiros c
@@ -1880,42 +2139,87 @@ begin
         union
         select c.posicao, c.x, c.y from fazenda_canteiros c join bloco o on abs(c.x - o.x) + abs(c.y - o.y) = 1
          where c.jogador_id = p_jogador)
-      select c.posicao from bloco o
+      select c.posicao, c.cultura, c.x, c.y from bloco o
         join fazenda_canteiros c on c.jogador_id = p_jogador and c.posicao = o.posicao
         join fazenda_culturas u on u.id = c.cultura
        where c.estado = 'plantado'
          and now() >= c.plantado_em + make_interval(secs => u.tempo_seg)
          and now() < c.plantado_em + make_interval(secs => u.tempo_seg + greatest(u.tempo_seg * 2, 3600))
     loop
-      exit when not fazenda_gastar_energia(p_jogador, 1);
-      begin perform fazenda_aplicar(p_jogador, 'colher', k.posicao, null, true);
+      exit when v_livre <= 0 or not fazenda_gastar_energia(p_jogador, 1);
+      begin
+        v_qtd := fazenda_aplicar(p_jogador, 'colher', k.posicao, null, true);   -- cai no celeiro...
+        perform fazenda_bau_guardar(p_jogador, b.x, b.y, k.cultura, v_qtd, k.x, k.y);   -- ...e passa para o baú
+        v_livre := v_livre - v_qtd;
       exception when others then null; end;
     end loop;
 
+    -- cercados encostados: coleta o produto (para o baú) e dá ração (do baú, se ele tiver; senão do celeiro)
     for m in
-      select a.id, a.alimentado_em, t.tempo_seg from fazenda_animais a join fazenda_animais_tipos t on t.id = a.tipo
-       where a.jogador_id = p_jogador and exists (
-         select 1 from fazenda_construcoes p join fazenda_itens i on i.id = p.tipo
-          where p.jogador_id = p_jogador and p.tipo = 'cercado_' || a.tipo
-            and (((b.x = p.x - 1 or b.x = p.x + i.largura) and b.y between p.y and p.y + i.altura - 1)
-              or ((b.y = p.y - 1 or b.y = p.y + i.altura) and b.x between p.x and p.x + i.largura - 1)))
+      select a.id, a.alimentado_em, t.tempo_seg, t.produto, t.racao, t.racao_qtd, p.x as px, p.y as py
+        from fazenda_animais a
+        join fazenda_animais_tipos t on t.id = a.tipo
+        join fazenda_construcoes p on p.jogador_id = p_jogador and p.tipo = 'cercado_' || a.tipo
+        join fazenda_itens i on i.id = p.tipo
+       where a.jogador_id = p_jogador
+         and (((b.x = p.x - 1 or b.x = p.x + i.largura) and b.y between p.y and p.y + i.altura - 1)
+           or ((b.y = p.y - 1 or b.y = p.y + i.altura) and b.x between p.x and p.x + i.largura - 1))
     loop
       begin
         if m.alimentado_em is not null and now() >= m.alimentado_em + make_interval(secs => m.tempo_seg)
-           and fazenda_gastar_energia(p_jogador, 1) then
+           and v_livre > 0 and fazenda_gastar_energia(p_jogador, 1) then
           perform fazenda_animal_um(p_jogador, m.id, 'coletar', true);
+          perform fazenda_bau_guardar(p_jogador, b.x, b.y, m.produto, 1, m.px, m.py);
+          v_livre := v_livre - 1;
           m.alimentado_em := null;
         end if;
       exception when others then null;
       end;
       begin
         if m.alimentado_em is null and fazenda_energia_atualizar(p_jogador) >= 1 then
-          perform fazenda_animal_um(p_jogador, m.id, 'alimentar', true);   -- sem ração no celeiro: pula
+          if coalesce((select quantidade from fazenda_bau_itens where jogador_id = p_jogador and x = b.x and y = b.y and item = m.racao), 0) >= m.racao_qtd then
+            update fazenda_bau_itens set quantidade = quantidade - m.racao_qtd where jogador_id = p_jogador and x = b.x and y = b.y and item = m.racao;
+            insert into fazenda_celeiro (jogador_id, item, quantidade) values (p_jogador, m.racao, m.racao_qtd)   -- passa pelo celeiro
+            on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
+            perform fazenda_viagem(p_jogador, m.racao, m.racao_qtd, b.x, b.y, m.px, m.py, true, now());
+            v_livre := v_livre + m.racao_qtd;
+          end if;
+          perform fazenda_animal_um(p_jogador, m.id, 'alimentar', true);   -- sem ração: pula (e desfaz o de cima)
           perform fazenda_gastar_energia(p_jogador, 1);
         end if;
       exception when others then null;
       end;
     end loop;
+
+    -- árvores do pomar (e a amoreira) encostadas: colhe as frutas prontas
+    for arv in
+      select c.x, c.y, i.produz, i.produz_qtd from fazenda_construcoes c join fazenda_itens i on i.id = c.tipo
+       where c.jogador_id = p_jogador and i.produz is not null and i.entradas is null
+         and abs(c.x - b.x) + abs(c.y - b.y) = 1
+         and (c.colhido_em is null or now() >= c.colhido_em + make_interval(secs => i.produz_seg))
+    loop
+      exit when v_livre <= 0 or not fazenda_gastar_energia(p_jogador, 1);
+      update fazenda_construcoes set colhido_em = now() where jogador_id = p_jogador and x = arv.x and y = arv.y;
+      insert into fazenda_bau_itens (jogador_id, x, y, item, quantidade) values (p_jogador, b.x, b.y, arv.produz, arv.produz_qtd)
+      on conflict (jogador_id, x, y, item) do update set quantidade = fazenda_bau_itens.quantidade + excluded.quantidade;
+      perform fazenda_viagem(p_jogador, arv.produz, arv.produz_qtd, arv.x, arv.y, b.x, b.y, true, now());
+      v_livre := v_livre - arv.produz_qtd;
+    end loop;
+
+    -- encostado no lago (x 24..29, y 14..18): pega o cesto do Bira
+    if ((b.x in (23, 30) and b.y between 14 and 18) or (b.y in (13, 19) and b.x between 24 and 29))
+       and v_livre > 0 and fazenda_energia_atualizar(p_jogador) >= 1 then
+      v_peixes := fazenda_cesto(p_jogador, v_livre);
+      if v_peixes <> '{}'::jsonb then
+        perform fazenda_gastar_energia(p_jogador, 1);
+        for e in select key as item, value::int as qtd from jsonb_each_text(v_peixes) loop
+          insert into fazenda_bau_itens (jogador_id, x, y, item, quantidade) values (p_jogador, b.x, b.y, e.item, e.qtd)
+          on conflict (jogador_id, x, y, item) do update set quantidade = fazenda_bau_itens.quantidade + excluded.quantidade;
+          perform fazenda_viagem(p_jogador, e.item, e.qtd, least(greatest(b.x, 24), 29), least(greatest(b.y, 14), 18), b.x, b.y, true, now());
+          v_livre := v_livre - e.qtd;
+        end loop;
+      end if;
+    end if;
   end loop;
 end;
 $$;
@@ -1934,6 +2238,9 @@ declare
   v_sem text;
 begin
   perform fazenda_energia_atualizar(p_jogador);
+  delete from fazenda_viagens where jogador_id = p_jogador and em < now() - interval '10 minutes';
+  delete from fazenda_bau_itens where jogador_id = p_jogador and quantidade = 0;
+  delete from fazenda_oficina_itens where jogador_id = p_jogador and quantidade = 0;
   perform fazenda_baus(p_jogador);   -- baús: colhem os canteiros e cuidam dos cercados encostados (antes das oficinas)
   perform fazenda_oficinas_andar(p_jogador);   -- oficinas: estoque, prontos e a fábrica automática
 
@@ -3026,6 +3333,9 @@ begin
   update fazenda_construcoes set x = p_nx, y = p_ny
    where jogador_id = v_id and x = p_x and y = p_y;
   if not found then raise exception 'item_invalido'; end if;
+  -- o que está guardado no baú e o que já chegou pelo cano na oficina vão junto (fase 39)
+  update fazenda_bau_itens set x = p_nx, y = p_ny where jogador_id = v_id and x = p_x and y = p_y;
+  update fazenda_oficina_itens set x = p_nx, y = p_ny where jogador_id = v_id and x = p_x and y = p_y;
   return jsonb_build_object('estado', fazenda_estado(v_id));
 end;
 $$;
@@ -3062,6 +3372,16 @@ begin
      where oc.jogador_id = v_id and oc.x = p_x and oc.y = p_y and oi.entradas is not null and oc.prontos > 0
   ) x where x.qtd > 0 group by x.item
   on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
+  -- fase 39: o que estava guardado no baú ou já tinha chegado na oficina volta para o celeiro
+  insert into fazenda_celeiro (jogador_id, item, quantidade)
+  select v_id, x.item, sum(x.quantidade)::int from (
+    select item, quantidade from fazenda_bau_itens where jogador_id = v_id and x = p_x and y = p_y
+    union all
+    select item, quantidade from fazenda_oficina_itens where jogador_id = v_id and x = p_x and y = p_y
+  ) x where x.quantidade > 0 group by x.item
+  on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
+  delete from fazenda_bau_itens where jogador_id = v_id and x = p_x and y = p_y;
+  delete from fazenda_oficina_itens where jogador_id = v_id and x = p_x and y = p_y;
 
   delete from fazenda_construcoes where jogador_id = v_id and x = p_x and y = p_y
   returning tipo into v_tipo;
@@ -3345,32 +3665,28 @@ $$;
 
 -- Tira os peixes do cesto do Bira: 1 a cada 30 min desde lago_em, até 16 (o que passar disso
 -- se perde: o cesto estava cheio). Cada peixe é sorteado pela chance (fazenda_peixes).
-create or replace function public.fazenda_pescar(p_token text)
+-- Tira do cesto do Bira os peixes que já estão nele (no máximo p_max): sorteia cada um, conta
+-- nas estatísticas e anda o relógio do cesto. Devolve {peixe: quantidade}. Usada pela pesca na
+-- mão (fazenda_pescar) e pelo baú encostado no lago (fase 39).
+create or replace function public.fazenda_cesto(p_jogador uuid, p_max int)
 returns jsonb
 language plpgsql security definer
 set search_path = public, extensions
 as $$
 declare
-  v_id      uuid := fazenda_auth(p_token);
   j         record;
   p         record;
-  v_estatua boolean := fazenda_tem_efeito(v_id, 'chico');
+  v_estatua boolean := fazenda_tem_efeito(p_jogador, 'chico');
   v_n       int;
   v_k       int;
   v_r       numeric;
   v_soma    int;
   v_peixes  jsonb := '{}'::jsonb;
-  v_xp      int;
-  v_lend    int;
 begin
-  select zonas, lago_em into j from fazenda_jogadores where id = v_id for update;
-  if j.zonas < 3 then raise exception 'sem_lago'; end if;
-  if j.lago_em is null then
-    update fazenda_jogadores set lago_em = now() where id = v_id;
-    raise exception 'cesto_vazio';
-  end if;
-  v_n := least(floor(extract(epoch from now() - j.lago_em) / 1800)::int, 16);
-  if v_n <= 0 then raise exception 'cesto_vazio'; end if;
+  select zonas, lago_em into j from fazenda_jogadores where id = p_jogador for update;
+  if j.zonas < 3 or j.lago_em is null then return v_peixes; end if;
+  v_n := least(floor(extract(epoch from now() - j.lago_em) / 1800)::int, 16, greatest(coalesce(p_max, 0), 0));
+  if v_n <= 0 then return v_peixes; end if;
   for v_k in 1..v_n loop
     v_r := random() * 100;
     v_soma := 0;
@@ -3382,21 +3698,69 @@ begin
       end if;
     end loop;
   end loop;
+  -- o cesto enche até 16 (8 h): o que passou disso não conta; o que ficou no cesto continua lá
+  update fazenda_jogadores set lago_em = greatest(j.lago_em, now() - interval '8 hours') + make_interval(secs => v_n * 1800)
+   where id = p_jogador;
+  insert into fazenda_estatisticas (jogador_id) values (p_jogador) on conflict do nothing;
+  update fazenda_estatisticas set peixes = peixes + v_n, lendarios = lendarios + coalesce((v_peixes->>'velho_chico')::int, 0)
+   where jogador_id = p_jogador;
+  return v_peixes;
+end;
+$$;
+
+create or replace function public.fazenda_pescar(p_token text)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id      uuid := fazenda_auth(p_token);
+  j         record;
+  v_peixes  jsonb;
+  v_n       int;
+  v_xp      int;
+  v_lend    int;
+begin
+  select zonas, lago_em into j from fazenda_jogadores where id = v_id for update;
+  if j.zonas < 3 then raise exception 'sem_lago'; end if;
+  if j.lago_em is null then
+    update fazenda_jogadores set lago_em = now() where id = v_id;
+    raise exception 'cesto_vazio';
+  end if;
+  v_peixes := fazenda_cesto(v_id, 16);
+  select coalesce(sum(e.value::int), 0)::int into v_n from jsonb_each_text(v_peixes) e;
+  if v_n <= 0 then raise exception 'cesto_vazio'; end if;
   insert into fazenda_celeiro (jogador_id, item, quantidade)
   select v_id, e.key, e.value::int from jsonb_each_text(v_peixes) e
   on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
   select coalesce(sum(k.xp * e.value::int), 0)::int into v_xp
     from jsonb_each_text(v_peixes) e join fazenda_culturas k on k.id = e.key;
   v_lend := coalesce((v_peixes->>'velho_chico')::int, 0);
-  update fazenda_jogadores
-     set xp = xp + v_xp,
-         lago_em = case when now() - j.lago_em >= interval '8 hours' then now()   -- cesto cheio: recomeça agora
-                        else j.lago_em + make_interval(secs => v_n * 1800) end    -- guarda o pedaço do próximo
-   where id = v_id;
-  insert into fazenda_estatisticas (jogador_id) values (v_id) on conflict do nothing;
-  update fazenda_estatisticas set peixes = peixes + v_n, lendarios = lendarios + v_lend where jogador_id = v_id;
+  update fazenda_jogadores set xp = xp + v_xp where id = v_id;
   perform fazenda_missao(v_id, 'colher', v_n);
   return jsonb_build_object('peixes', v_peixes, 'qtd', v_n, 'xp', v_xp, 'lendario', v_lend, 'estado', fazenda_estado(v_id));
+end;
+$$;
+
+-- Leva tudo o que está no baú para o celeiro (na mão: sem cano e sem energia)
+create or replace function public.fazenda_bau_esvaziar(p_token text, p_x int, p_y int)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id  uuid := fazenda_auth(p_token);
+  v_qtd int;
+begin
+  if not exists (select 1 from fazenda_construcoes where jogador_id = v_id and x = p_x and y = p_y and tipo = 'bau') then
+    raise exception 'item_invalido';
+  end if;
+  select coalesce(sum(quantidade), 0)::int into v_qtd from fazenda_bau_itens where jogador_id = v_id and x = p_x and y = p_y;
+  insert into fazenda_celeiro (jogador_id, item, quantidade)
+  select v_id, item, quantidade from fazenda_bau_itens where jogador_id = v_id and x = p_x and y = p_y and quantidade > 0
+  on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
+  delete from fazenda_bau_itens where jogador_id = v_id and x = p_x and y = p_y;
+  return jsonb_build_object('qtd', v_qtd, 'estado', fazenda_estado(v_id));
 end;
 $$;
 
@@ -3766,7 +4130,16 @@ revoke execute on function
   public.fazenda_estoque_max(),
   public.fazenda_abastecer(uuid, jsonb, int),
   public.fazenda_oficinas_andar(uuid),
-  public.fazenda_oficina_ligada(uuid, int, int, int, int),
+  public.fazenda_rede(uuid),
+  public.fazenda_redes_de(jsonb, text, int, int),
+  public.fazenda_rede_tem_celeiro(jsonb, int[]),
+  public.fazenda_rede_puxar(uuid, int, int, jsonb, jsonb, timestamptz),
+  public.fazenda_rede_entregar(uuid, int, int, text, int, jsonb, timestamptz),
+  public.fazenda_rede_descarregar(uuid, jsonb),
+  public.fazenda_viagem(uuid, text, int, int, int, int, int, boolean, timestamptz),
+  public.fazenda_bau_livre(uuid, int, int),
+  public.fazenda_bau_guardar(uuid, int, int, text, int, int, int),
+  public.fazenda_cesto(uuid, int),
   public.fazenda_baus(uuid),
   public.fazenda_estoque(text, int, int, int),
   public.fazenda_galinheiro_quer(uuid),
@@ -3815,5 +4188,6 @@ grant execute on function
   public.fazenda_convite_info(text),
   public.fazenda_pescar(text),
   public.fazenda_compra_status(text, uuid),
-  public.fazenda_google_desligar(text)
+  public.fazenda_google_desligar(text),
+  public.fazenda_bau_esvaziar(text, int, int)
 to anon, authenticated;
