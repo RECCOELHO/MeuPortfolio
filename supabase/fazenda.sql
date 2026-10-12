@@ -1392,6 +1392,13 @@ begin
     -- fase 50: a feira (os seus anúncios abertos e o que vendeu desde a última olhada)
     'feira', jsonb_build_object(
       'regras', fazenda_feira_regras(),
+      'limite', fazenda_feira_limite(p_jogador),   -- fase 51: 1 + 2 por barraca
+      'vendidos', coalesce((select jsonb_agg(v order by (v->>'em') desc) from (
+                    select jsonb_build_object('item', f.item, 'qtd', f.qtd, 'total', f.qtd * f.preco,
+                             'comprador', c.apelido, 'em', f.vendido_em) as v
+                      from fazenda_feira f left join fazenda_jogadores c on c.id = f.comprador_id
+                     where f.vendedor_id = p_jogador and f.vendido_em > now() - interval '7 days'
+                     order by f.vendido_em desc limit 10) x), '[]'::jsonb),
       'meus', coalesce((select jsonb_agg(jsonb_build_object('id', f.id, 'item', f.item, 'qtd', f.qtd, 'preco', f.preco,
                           'ate', f.criado_em + make_interval(hours => (fazenda_feira_regras()->>'horas')::int)) order by f.id)
                           from fazenda_feira f where f.vendedor_id = p_jogador and f.vendido_em is null), '[]'::jsonb),
@@ -4679,12 +4686,21 @@ update public.fazenda_jogadores j
  where j.cercado_gratis is null;
 alter table public.fazenda_jogadores alter column cercado_gratis set default '{}';
 
+-- Fase 51: a barraca da feira (cada uma deixa ter mais 2 anúncios na feira; até 3)
+insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem, efeito, raio, limite, beleza, descricao) values
+  ('barraca', 'Barraca da feira', 'objeto', 800, 5, 31, 'feira', 0, 3, 2,
+   'Banca para vender na feira entre jogadores: cada barraca deixa ter mais 2 anúncios (sem barraca, 1). Mostra em cima o que você está vendendo.')
+on conflict (id) do update set
+  nome = excluded.nome, categoria = excluded.categoria, custo = excluded.custo, nivel_min = excluded.nivel_min, ordem = excluded.ordem,
+  efeito = excluded.efeito, raio = excluded.raio, limite = excluded.limite, beleza = excluded.beleza, descricao = excluded.descricao;
+
 -- ------------------------------------------------------------
 -- Fase 50: a feira entre jogadores (como no SimCity). Cada um anuncia um lote do celeiro (os itens
 -- saem na hora e ficam guardados no anúncio) com o preço por unidade entre metade e o triplo do
 -- preço de venda (para ninguém passar moedas de uma conta para outra com preço absurdo). Outro
--- jogador compra o lote inteiro: o vendedor recebe na hora, menos 5% que ficam com a feira (saem
--- do jogo). O anúncio vale 2 dias; vencido, os itens voltam para o celeiro do vendedor.
+-- jogador compra o lote inteiro e o vendedor recebe na hora, tudo (fase 51: sem taxa; antes, 5%).
+-- Quantos anúncios dá para ter vem das barracas da feira construídas: 1 sem barraca, +2 por barraca.
+-- O anúncio vale 2 dias; vencido, os itens voltam para o celeiro do vendedor.
 -- ------------------------------------------------------------
 create table if not exists public.fazenda_feira (
   id           bigint generated always as identity primary key,
@@ -4705,7 +4721,15 @@ revoke all on public.fazenda_feira from anon, authenticated;
 
 create or replace function public.fazenda_feira_regras()
 returns jsonb language sql immutable as $$
-  select '{"taxa": 5, "min": 0.5, "max": 3, "horas": 48, "anuncios": 5, "compras_dia": 20, "qtd_max": 99}'::jsonb;
+  select '{"taxa": 0, "min": 0.5, "max": 3, "horas": 48, "anuncios": 1, "por_barraca": 2, "compras_dia": 20, "qtd_max": 99}'::jsonb;
+$$;
+
+-- Fase 51: quantos anúncios abertos dá para ter: 1 + 2 por barraca da feira
+create or replace function public.fazenda_feira_limite(p_jogador uuid)
+returns int language sql stable security definer set search_path = public as $$
+  select (fazenda_feira_regras()->>'anuncios')::int
+       + (fazenda_feira_regras()->>'por_barraca')::int
+         * (select count(*) from fazenda_construcoes where jogador_id = p_jogador and tipo = 'barraca')::int;
 $$;
 
 -- o preço mínimo e máximo por unidade de um item
@@ -4744,8 +4768,8 @@ begin
   if v_faixa is null then raise exception 'item_invalido'; end if;
   if p_qtd is null or p_qtd < 1 or p_qtd > (v_r->>'qtd_max')::int then raise exception 'quantidade_invalida'; end if;
   if p_preco is null or p_preco < v_faixa[1] or p_preco > v_faixa[2] then raise exception 'preco_invalido'; end if;
-  if (select count(*) from fazenda_feira where vendedor_id = v_id and vendido_em is null) >= (v_r->>'anuncios')::int then
-    raise exception 'limite_anuncios';
+  if (select count(*) from fazenda_feira where vendedor_id = v_id and vendido_em is null) >= fazenda_feira_limite(v_id) then
+    raise exception 'limite_anuncios';   -- (fase 51: construa mais barracas da feira)
   end if;
   -- a ração reservada para os bichos fica no celeiro
   select ce.quantidade - coalesce((select quantidade from fazenda_reservas where jogador_id = v_id and item = p_item), 0) into v_livre
@@ -4804,7 +4828,9 @@ begin
   insert into fazenda_celeiro (jogador_id, item, quantidade) values (v_id, a.item, a.qtd)
   on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
   update fazenda_feira set comprador_id = v_id, vendido_em = now() where id = p_id;
-  return jsonb_build_object('item', a.item, 'qtd', a.qtd, 'total', v_total, 'estado', fazenda_estado(v_id));
+  return jsonb_build_object('item', a.item, 'qtd', a.qtd, 'total', v_total,
+                            'vendedor', (select apelido from fazenda_jogadores where id = a.vendedor_id),
+                            'estado', fazenda_estado(v_id));
 end;
 $$;
 
@@ -4926,6 +4952,7 @@ revoke execute on function
   public.fazenda_estoque(text, int, int, int),
   public.fazenda_galinheiro_quer(uuid),
   public.fazenda_pasto(uuid),
+  public.fazenda_feira_limite(uuid),
   public.fazenda_feira_regras(),
   public.fazenda_feira_faixa(text),
   public.fazenda_feira_vencidos(uuid),

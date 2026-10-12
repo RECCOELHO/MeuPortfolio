@@ -326,7 +326,9 @@
         // 62 licor de jabuticaba (garrafa roxa)
         ['................', '.......aa.......', '......ayya......', '......aaaa......', '......adVa......', '......adVa......', '.....adVVVa.....', '....adVVVVVa....', '....adUUUUVa....', '....adUssUVa....', '....adUssUVa....', '....adUUUUVa....', '....adVVVVVa....', '....ayyyyyya....', '.....aaaaaa.....', '................'],
         // 63 chocolate (barra, metade no papel)
-        ['................', '................', '.aaaaaaaaaaaaa..', '.ayynayynayyna..', '.aynnaynnaynna..', '.annnannnannna..', '.aaaaaaaaaaaaa..', '.ayynayynayyna..', '.aynnaynnaynna..', '.annnannnannna..', '.aaaaaaaaaaaaa..', '.afffffffffffa..', '.aBBBBBBBBBBBa..', '.aaaaaaaaaaaaa..', '................', '................']
+        ['................', '................', '.aaaaaaaaaaaaa..', '.ayynayynayyna..', '.aynnaynnaynna..', '.annnannnannna..', '.aaaaaaaaaaaaa..', '.ayynayynayyna..', '.aynnaynnaynna..', '.annnannnannna..', '.aaaaaaaaaaaaa..', '.afffffffffffa..', '.aBBBBBBBBBBBa..', '.aaaaaaaaaaaaa..', '................', '................'],
+        // 64 barraca da feira (toldo listrado, frutas no balcão de madeira)
+        ['................', '.aaaaaaaaaaaaaa.', 'aXXddXXddXXddXXa', 'aXXddXXddXXddXXa', 'aZZffZZffZZffZZa', '.aZa.aZa.aZa.aZa', '.ay..........ya.', '.ay..O....h..ya.', '.ay.OrO..hMh.ya.', 'aaaaaaaaaaaaaaaa', 'axxxxxxxxxxxxxxa', 'awwwwwwwwwwwwwwa', 'ayyynyyynyyynyya', 'ayyynyyynyyynyya', 'aaaaaaaaaaaaaaaa', '.aa..........aa.']
     ];
     const atlasProprio = document.createElement('canvas');
     atlasProprio.width = 12 * 16;
@@ -528,6 +530,7 @@
             case 'colmeia': return { p: 'town', i: 94 };
             case 'bau': return { p: 'farm', i: 76 };
             case 'lampiao': return { p: 'farm', i: 1049 };
+            case 'barraca': return { p: 'farm', i: 1064 };
             case 'casa_vermelha': return { p: 'town', w: 3, h: 3, grade: [[52, 53, 55], [64, 65, 67], [84, 85, 75]] };
             case 'casa_azul': return { p: 'town', w: 3, h: 3, grade: [[48, 49, 51], [60, 61, 63], [88, 89, 79]] };
             case 'canteiro': return { p: 'farm', i: 1 };
@@ -1740,6 +1743,13 @@
                 if (Math.floor(tempo / 300) % 3) icone(q, 'brilho', x + 15, by - 3);
             }
 
+            for (const c of lista) {   // fase 51: a barraca da feira mostra o que você está vendendo
+                if (c.vende == null) continue;
+                const x = wx(c.x), by = wy(c.y) - 20;
+                balao(x - 2, by, 20, 18);
+                tile(q, c.vende, x, by + 1);
+                icone(q, 'moeda', x + 12, by - 3);
+            }
             for (const c of lista) {   // baú: barrinha de quanto está cheio (verde → amarelo → vermelho)
                 if (!c.bau || !(c.bau.frac > 0)) continue;
                 const f = Math.min(1, c.bau.frac), x = wx(c.x) + 2, y = wy(c.y) + T - 1;
