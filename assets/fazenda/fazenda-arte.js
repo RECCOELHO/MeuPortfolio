@@ -57,6 +57,9 @@
         // celeiro, casa, galinheiro e pasto: o resto do terreno é livre (até para canteiros)
         // o lago (terreno 3, Vale do sudeste): o tanque e a grama do pescador, à esquerda; igual a fazenda_livre no SQL
         lago: { x: 24, y: 14, w: 6, h: 5 },
+        // fase 51: a feira, numa pracinha de terra na mata à esquerda do celeiro (fora do terreno,
+        // onde não dá para expandir). A 1ª barraca todo mundo tem; as outras são compradas.
+        feira: { x: -5, y: 1, w: 5, h: 6, barracas: [{ x: -2, y: 2 }, { x: -4, y: 2 }, { x: -2, y: 5 }, { x: -4, y: 5 }] },
         reservas: [
             { x: 1, y: 1, w: 3, h: 6 }, { x: 5, y: 1, w: 3, h: 3 }, null,
             { x: 16, y: 0, w: 6, h: 7 }, { x: 24, y: 14, w: 6, h: 5 }
@@ -975,7 +978,7 @@
             const borda = T * 2;   // um pouco de mata (e a placa do terreno à venda)
             const topo = margem.topo / escala, base = margem.base / escala;
             const cx = caixaTerreno();
-            let minX = wx(cx.x0) - borda, maxX = wx(cx.x1) + borda - vw;
+            let minX = Math.min(wx(cx.x0) - borda, wx(MAPA.feira.x - 1)), maxX = wx(cx.x1) + borda - vw;   // (até a feira, na mata à esquerda)
             let minY = wy(cx.y0) - borda - topo, maxY = wy(cx.y1) + borda + base - vh;
             if (maxX < minX) minX = maxX = (minX + maxX) / 2;
             if (maxY < minY) minY = maxY = (minY + maxY) / 2;
@@ -1069,6 +1072,9 @@
 
         /* ---- fundo estático: grama, mata, celeiro, casa, pasto ---- */
         const dentroTerreno = (tx, ty) => noTerreno(tx, ty);
+        // fase 51: a feira (barracas: quantas tem; vende: o que está à venda; vagas: mostra as que dá para comprar)
+        const FEIRA = MAPA.feira;
+        let feira = { barracas: 1, vende: [], vagas: false };
 
         function montarFundo() {
             const r = rng(20261007);
@@ -1142,7 +1148,15 @@
                     } else {
                         a = v < 0.45 ? { p: 'farm', i: 15, topo: 3 } : v < 0.75 ? { p: 'town', i: 16, topo: 4 } : v < 0.85 ? { p: 'farm', i: 27 } : v < 0.93 ? { p: 'town', i: 28 } : { p: 'town', i: 5 };
                     }
-                    arvores.push({ ...a, x: wx(tx) + Math.floor((r() - 0.5) * 6), y: wy(ty) + Math.floor((r() - 0.5) * 4) });
+                    const ax = wx(tx) + Math.floor((r() - 0.5) * 6), ay = wy(ty) + Math.floor((r() - 0.5) * 4);
+                    if (tx >= FEIRA.x - 1 && ty >= FEIRA.y - 1 && tx < FEIRA.x + FEIRA.w && ty <= FEIRA.y + FEIRA.h + 1) continue;   // clareira da feira
+                    arvores.push({ ...a, x: ax, y: ay });
+                }
+            }
+            // o chão de terra batida da feira
+            for (let yy = 0; yy < FEIRA.h; yy++) {
+                for (let xx = 0; xx < FEIRA.w; xx++) {
+                    tile(f, tileTerra(yy > 0, yy < FEIRA.h - 1, xx > 0, xx < FEIRA.w - 1), wx(FEIRA.x + xx), wy(FEIRA.y + yy), false, 'town');
                 }
             }
             arvores.sort((a, b) => a.y - b.y).forEach((a) => {
@@ -1659,6 +1673,10 @@
             for (const c of canteiros) desenharCanteiro(c, tempo, mc);
             desenharViagens();
             if (zonaVenda) desenharPlacaVenda(tempo);
+            FEIRA.barracas.forEach((b, k) => {
+                if (k < feira.barracas) pe.push({ p: 'farm', i: 1064, x: wx(b.x), y: wy(b.y), flip: false, bob: 0 });
+                else if (feira.vagas) { q.globalAlpha = 0.3; tile(q, 1064, wx(b.x), wy(b.y), false, 'farm'); q.globalAlpha = 1; }
+            });
 
             for (const a of atores.values()) {
                 const parado = a.v && a.v.estado !== 'produzindo';
@@ -1743,11 +1761,14 @@
                 if (Math.floor(tempo / 300) % 3) icone(q, 'brilho', x + 15, by - 3);
             }
 
-            for (const c of lista) {   // fase 51: a barraca da feira mostra o que você está vendendo
-                if (c.vende == null) continue;
-                const x = wx(c.x), by = wy(c.y) - 20;
+            // fase 51: cada barraca mostra um anúncio seu (com mais anúncios que barracas, vão passando)
+            const nv = feira.vende.length, nb = Math.min(feira.barracas, FEIRA.barracas.length);
+            for (let k = 0; k < nb && nv; k++) {
+                const item = nv <= nb ? feira.vende[k] : feira.vende[(k + Math.floor(tempo / 4000) * nb) % nv];
+                if (item == null) continue;
+                const b = FEIRA.barracas[k], x = wx(b.x), by = wy(b.y) - 20;
                 balao(x - 2, by, 20, 18);
-                tile(q, c.vende, x, by + 1);
+                tile(q, item, x, by + 1);
                 icone(q, 'moeda', x + 12, by - 3);
             }
             for (const c of lista) {   // baú: barrinha de quanto está cheio (verde → amarelo → vermelho)
@@ -1778,6 +1799,8 @@
             } else if (hover === 'celeiro') {
                 const c = retCeleiro();
                 moldura(c.x, c.y + T, c.w, c.h - T);
+            } else if (hover === 'feira') {
+                moldura(wx(FEIRA.x), wy(FEIRA.y), FEIRA.w * T, FEIRA.h * T);
             } else if (typeof hover === 'string' && hover.startsWith('a:')) {
                 const a = atores.get(idDoHover(hover));
                 if (a) moldura(Math.round(a.x), Math.round(a.y), T, T);
@@ -2231,6 +2254,7 @@
             if (px >= c.x && py >= c.y && px < c.x + c.w && py < c.y + c.h) return 'celeiro';
             // terreno à venda: a placa ou qualquer pedaço de mata dele
             if (zonaVenda && dentroRet(zonaVenda, tx, ty)) return 'venda';
+            if (dentroRet(FEIRA, tx, ty)) return 'feira';
             return null;
         }
 
@@ -2341,6 +2365,7 @@
             if (typeof alvo === 'object' && 'tx' in alvo) { if (cb.aoTile) cb.aoTile(alvo.tx, alvo.ty); }
             else if (alvo === 'celeiro') { if (cb.aoCeleiro) cb.aoCeleiro(); }
             else if (alvo === 'venda') { if (cb.aoVenda) cb.aoVenda(); }
+            else if (alvo === 'feira') { if (cb.aoFeira) cb.aoFeira(); }
             else if (alvo === 'lago') { if (cb.aoLago) cb.aoLago(); }
             else if (alvo === 'visitante') { if (cb.aoVisitante) cb.aoVisitante(); }
             else if (typeof alvo === 'object' && alvo.construcao) { if (cb.aoConstrucao) cb.aoConstrucao(alvo.construcao.x, alvo.construcao.y); }
@@ -2426,6 +2451,8 @@
                 a.espera = 0;
             },
             definirConstrucoes(fn) { construcoesFn = fn; },
+            // fase 51: { barracas, vende: [tile do item de cada anúncio], vagas }
+            definirFeira(f) { feira = { barracas: 1, vende: [], vagas: false, ...(f || {}) }; precisaDesenhar = true; },
             definirCanteiros(fn) { canteirosFn = fn; },
             // terrenos da fazenda na tela e o próximo à venda (número da zona ou null)
             definirTerreno(t) {
