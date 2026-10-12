@@ -1816,36 +1816,66 @@
             }
             return L;
         }
-        let mascaraNoite = null;   // a escuridão, com os furos das luzes (refeita a cada quadro)
+        /* As duas camadas da noite, feitas a partir das luzes e guardadas até elas mudarem:
+           - escuridão: azul, clareando até o branco onde tem luz (multiplica a cena: ali fica a cor do dia)
+           - brilho: a cor quente das luzes (soma por cima)
+           Cada luz é desenhada com 'lighten' em cima de um fundo opaco: onde várias se encontram vale a
+           mais forte, não a soma — muita luz junta não estoura mais (fase 48). */
+        let noiteCache = { chave: null, escuridao: null, brilho: null };
+        function camadasNoite(luzes) {
+            const chave = luzes.map((l) => [l.x, l.y, l.r, l.f, l.ilumina, l.cor].join(',')).join('|');
+            if (noiteCache.chave === chave) return noiteCache;
+            const tela = (c) => {
+                if (c && c.width === MW && c.height === MH) return c;
+                c = document.createElement('canvas');
+                c.width = MW;
+                c.height = MH;
+                return c;
+            };
+            const escuridao = tela(noiteCache.escuridao), brilho = tela(noiteCache.brilho);
+            const e = escuridao.getContext('2d'), b = brilho.getContext('2d');
+            e.globalCompositeOperation = 'source-over';
+            e.fillStyle = '#3e4c8c';
+            e.fillRect(0, 0, MW, MH);
+            b.globalCompositeOperation = 'source-over';
+            b.fillStyle = '#000';
+            b.fillRect(0, 0, MW, MH);
+            e.globalCompositeOperation = 'lighten';
+            b.globalCompositeOperation = 'lighten';
+            const cinza = (v) => { const n = Math.round(255 * Math.max(0, Math.min(1, v))); return `rgb(${n}, ${n}, ${n})`; };
+            for (const l of luzes) {
+                if (l.ilumina) {
+                    const g = e.createRadialGradient(l.x, l.y, 0, l.x, l.y, l.r);
+                    g.addColorStop(0, cinza(l.ilumina));
+                    g.addColorStop(0.55, cinza(l.ilumina * 0.6));
+                    g.addColorStop(1, '#000');
+                    e.fillStyle = g;
+                    e.fillRect(l.x - l.r, l.y - l.r, l.r * 2, l.r * 2);
+                }
+                if (l.f) {
+                    const [r, gr, bl] = l.cor.split(',').map(Number);
+                    const cor = (k) => `rgb(${Math.round(r * k)}, ${Math.round(gr * k)}, ${Math.round(bl * k)})`;
+                    const g = b.createRadialGradient(l.x, l.y, 0, l.x, l.y, l.r);
+                    g.addColorStop(0, cor(Math.min(1, l.f)));
+                    g.addColorStop(0.45, cor(Math.min(1, l.f) * 0.35));
+                    g.addColorStop(1, '#000');
+                    b.fillStyle = g;
+                    b.fillRect(l.x - l.r, l.y - l.r, l.r * 2, l.r * 2);
+                }
+            }
+            noiteCache = { chave, escuridao, brilho };
+            return noiteCache;
+        }
         function desenharNoite(lista, tempo, escuro) {
             const luzes = luzesDaNoite(lista, tempo);
-            // a escuridão é uma camada azul com furos onde tem luz: ali o chão fica com a cor de verdade
-            if (!mascaraNoite || mascaraNoite.width !== MW || mascaraNoite.height !== MH) {
-                mascaraNoite = document.createElement('canvas');
-                mascaraNoite.width = MW;
-                mascaraNoite.height = MH;
-            }
-            const m = mascaraNoite.getContext('2d');
-            m.globalCompositeOperation = 'source-over';
-            m.clearRect(0, 0, MW, MH);
-            m.fillStyle = '#3e4c8c';
-            m.fillRect(0, 0, MW, MH);
-            m.globalCompositeOperation = 'destination-out';
-            for (const l of luzes) {
-                if (!l.ilumina) continue;
-                const g = m.createRadialGradient(l.x, l.y, 0, l.x, l.y, l.r);
-                g.addColorStop(0, `rgba(0, 0, 0, ${l.ilumina.toFixed(3)})`);
-                g.addColorStop(0.55, `rgba(0, 0, 0, ${(l.ilumina * 0.55).toFixed(3)})`);
-                g.addColorStop(1, 'rgba(0, 0, 0, 0)');
-                m.fillStyle = g;
-                m.fillRect(l.x - l.r, l.y - l.r, l.r * 2, l.r * 2);
-            }
+            const camadas = camadasNoite(luzes);
             q.save();
             q.globalCompositeOperation = 'multiply';   // tudo fica mais escuro e azulado, sem perder a cor
             q.globalAlpha = escuro;
-            q.drawImage(mascaraNoite, 0, 0);
+            q.drawImage(camadas.escuridao, 0, 0);
+            q.globalCompositeOperation = 'lighter';    // a cor quente das luzes por cima
+            q.drawImage(camadas.brilho, 0, 0);
             q.globalAlpha = 1;
-            q.globalCompositeOperation = 'lighter';    // as luzes somam por cima
             // canos da rede: a luz verde do anel brilha no escuro (vermelha piscando sem energia)
             for (const c of lista) {
                 if (!c.cano || !c.rede) continue;
@@ -1865,14 +1895,6 @@
                 q.fillRect(cx - 2, cy - 6, 4, 12);
                 q.fillStyle = `rgba(${cor}, ${(a * 0.8).toFixed(3)})`;
                 q.fillRect(cx - 2, cy - 2, 4, 4);
-            }
-            for (const l of luzes) {
-                const g = q.createRadialGradient(l.x, l.y, 0, l.x, l.y, l.r);
-                g.addColorStop(0, `rgba(${l.cor}, ${(l.f * escuro).toFixed(3)})`);
-                g.addColorStop(0.45, `rgba(${l.cor}, ${(l.f * escuro * 0.35).toFixed(3)})`);
-                g.addColorStop(1, `rgba(${l.cor}, 0)`);
-                q.fillStyle = g;
-                q.fillRect(l.x - l.r, l.y - l.r, l.r * 2, l.r * 2);
             }
             // vaga-lumes: cada um passeia em volta de um ponto fixo e pisca no seu ritmo
             for (let k = 0; k < 32; k++) {
