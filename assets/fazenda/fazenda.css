@@ -1928,6 +1928,33 @@ body.construindo .status {
     transform: scale(.8);
 }
 
+/* fase 50: a feira (filtros por item e o formulário de anunciar) */
+.feira-filtros {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+
+.feira-form {
+    display: grid;
+    gap: 10px;
+}
+
+.feira-form label {
+    display: grid;
+    gap: 4px;
+    font-weight: 700;
+}
+
+.feira-form select,
+.feira-form input {
+    font: inherit;
+    padding: 8px 10px;
+    border: 2px solid var(--o);
+    background: #fff;
+}
+
 /* metas de nível em dia (+50% de XP): a borda da barra fica verde-clara; meta feita fica apagada */
 .xpbar.bonus {
     box-shadow: 0 -2px 0 #6ee68c, 0 2px 0 #6ee68c, -2px 0 0 #6ee68c, 2px 0 0 #6ee68c;

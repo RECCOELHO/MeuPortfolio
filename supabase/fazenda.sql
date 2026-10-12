@@ -1389,6 +1389,17 @@ begin
     'zonas_venda', fazenda_zonas(),
     'pacotes_diamantes', fazenda_pacotes_diamantes(),
     'loja_diamantes', fazenda_loja_diamantes(),
+    -- fase 50: a feira (os seus anúncios abertos e o que vendeu desde a última olhada)
+    'feira', jsonb_build_object(
+      'regras', fazenda_feira_regras(),
+      'meus', coalesce((select jsonb_agg(jsonb_build_object('id', f.id, 'item', f.item, 'qtd', f.qtd, 'preco', f.preco,
+                          'ate', f.criado_em + make_interval(hours => (fazenda_feira_regras()->>'horas')::int)) order by f.id)
+                          from fazenda_feira f where f.vendedor_id = p_jogador and f.vendido_em is null), '[]'::jsonb),
+      'vendas_novas', coalesce((select jsonb_agg(jsonb_build_object('item', f.item, 'qtd', f.qtd, 'total', f.qtd * f.preco,
+                          'recebeu', f.qtd * f.preco - ceil(f.qtd * f.preco * (fazenda_feira_regras()->>'taxa')::int / 100.0)::int,
+                          'comprador', c.apelido) order by f.vendido_em)
+                          from fazenda_feira f left join fazenda_jogadores c on c.id = f.comprador_id
+                         where f.vendedor_id = p_jogador and f.vendido_em is not null and not f.visto), '[]'::jsonb)),
     'metas', v_metas,
     -- fase 39: o que está em cada baú, o que já chegou pelo cano em cada oficina e as viagens
     -- dos últimos 2 minutos (o jogo desenha o item andando só enquanto ela acontece)
@@ -1505,6 +1516,7 @@ begin
   -- o relatório (o que fizeram enquanto você estava fora) aparece uma vez só
   update fazenda_ajudantes set relatorio = 0 where jogador_id = p_jogador and relatorio > 0;
   update fazenda_convites set visto = true where dono_id = p_jogador and not visto;   -- idem os amigos novos
+  update fazenda_feira set visto = true where vendedor_id = p_jogador and vendido_em is not null and not visto;   -- e as vendas da feira
   return v_json;
 end;
 $$;
@@ -2739,6 +2751,7 @@ begin
   perform fazenda_tick(v_id);
   perform fazenda_trabalhar(v_id);
   perform fazenda_industria(v_id);
+  perform fazenda_feira_vencidos(v_id);   -- fase 50: anúncio vencido volta para o celeiro
   return fazenda_estado(v_id);
 end;
 $$;
@@ -4667,6 +4680,166 @@ update public.fazenda_jogadores j
 alter table public.fazenda_jogadores alter column cercado_gratis set default '{}';
 
 -- ------------------------------------------------------------
+-- Fase 50: a feira entre jogadores (como no SimCity). Cada um anuncia um lote do celeiro (os itens
+-- saem na hora e ficam guardados no anúncio) com o preço por unidade entre metade e o triplo do
+-- preço de venda (para ninguém passar moedas de uma conta para outra com preço absurdo). Outro
+-- jogador compra o lote inteiro: o vendedor recebe na hora, menos 5% que ficam com a feira (saem
+-- do jogo). O anúncio vale 2 dias; vencido, os itens voltam para o celeiro do vendedor.
+-- ------------------------------------------------------------
+create table if not exists public.fazenda_feira (
+  id           bigint generated always as identity primary key,
+  vendedor_id  uuid not null references public.fazenda_jogadores(id) on delete cascade,
+  item         text not null references public.fazenda_culturas(id),
+  qtd          int  not null check (qtd > 0),
+  preco        int  not null check (preco > 0),   -- por unidade
+  criado_em    timestamptz not null default now(),
+  comprador_id uuid references public.fazenda_jogadores(id) on delete set null,
+  vendido_em   timestamptz,
+  visto        boolean not null default false     -- o vendedor já foi avisado da venda
+);
+create index if not exists fazenda_feira_abertos on public.fazenda_feira (item, preco) where vendido_em is null;
+create index if not exists fazenda_feira_vendedor on public.fazenda_feira (vendedor_id, vendido_em);
+create index if not exists fazenda_feira_comprador on public.fazenda_feira (comprador_id, vendido_em);
+alter table public.fazenda_feira enable row level security;
+revoke all on public.fazenda_feira from anon, authenticated;
+
+create or replace function public.fazenda_feira_regras()
+returns jsonb language sql immutable as $$
+  select '{"taxa": 5, "min": 0.5, "max": 3, "horas": 48, "anuncios": 5, "compras_dia": 20, "qtd_max": 99}'::jsonb;
+$$;
+
+-- o preço mínimo e máximo por unidade de um item
+create or replace function public.fazenda_feira_faixa(p_item text)
+returns int[] language sql stable security definer set search_path = public as $$
+  select array[greatest(1, floor(k.venda * (fazenda_feira_regras()->>'min')::numeric))::int,
+               greatest(1, ceil(k.venda * (fazenda_feira_regras()->>'max')::numeric))::int]
+    from fazenda_culturas k where k.id = p_item and k.venda > 0;
+$$;
+
+-- o que venceu sem vender volta para o celeiro do vendedor
+create or replace function public.fazenda_feira_vencidos(p_jogador uuid)
+returns void language sql security definer set search_path = public as $$
+  with v as (
+    delete from fazenda_feira
+     where vendedor_id = p_jogador and vendido_em is null
+       and criado_em < now() - make_interval(hours => (fazenda_feira_regras()->>'horas')::int)
+    returning item, qtd)
+  insert into fazenda_celeiro (jogador_id, item, quantidade)
+  select p_jogador, item, sum(qtd)::int from v group by item
+  on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
+$$;
+
+create or replace function public.fazenda_feira_anunciar(p_token text, p_item text, p_qtd int, p_preco int)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id    uuid := fazenda_auth(p_token);
+  v_r     jsonb := fazenda_feira_regras();
+  v_faixa int[] := fazenda_feira_faixa(p_item);
+  v_livre int;
+begin
+  perform fazenda_feira_vencidos(v_id);
+  if v_faixa is null then raise exception 'item_invalido'; end if;
+  if p_qtd is null or p_qtd < 1 or p_qtd > (v_r->>'qtd_max')::int then raise exception 'quantidade_invalida'; end if;
+  if p_preco is null or p_preco < v_faixa[1] or p_preco > v_faixa[2] then raise exception 'preco_invalido'; end if;
+  if (select count(*) from fazenda_feira where vendedor_id = v_id and vendido_em is null) >= (v_r->>'anuncios')::int then
+    raise exception 'limite_anuncios';
+  end if;
+  -- a ração reservada para os bichos fica no celeiro
+  select ce.quantidade - coalesce((select quantidade from fazenda_reservas where jogador_id = v_id and item = p_item), 0) into v_livre
+    from fazenda_celeiro ce where ce.jogador_id = v_id and ce.item = p_item for update;
+  if coalesce(v_livre, 0) < p_qtd then raise exception 'sem_itens'; end if;
+  update fazenda_celeiro set quantidade = quantidade - p_qtd where jogador_id = v_id and item = p_item;
+  insert into fazenda_feira (vendedor_id, item, qtd, preco) values (v_id, p_item, p_qtd, p_preco);
+  return jsonb_build_object('estado', fazenda_estado(v_id));
+end;
+$$;
+
+create or replace function public.fazenda_feira_cancelar(p_token text, p_id bigint)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id uuid := fazenda_auth(p_token);
+  a    record;
+begin
+  delete from fazenda_feira where id = p_id and vendedor_id = v_id and vendido_em is null returning item, qtd into a;
+  if not found then raise exception 'anuncio_invalido'; end if;
+  insert into fazenda_celeiro (jogador_id, item, quantidade) values (v_id, a.item, a.qtd)
+  on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
+  return jsonb_build_object('estado', fazenda_estado(v_id));
+end;
+$$;
+
+create or replace function public.fazenda_feira_comprar(p_token text, p_id bigint)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id    uuid := fazenda_auth(p_token);
+  v_r     jsonb := fazenda_feira_regras();
+  a       record;
+  v_total int;
+  v_taxa  int;
+begin
+  select * into a from fazenda_feira where id = p_id for update;
+  if not found or a.vendido_em is not null
+     or a.criado_em < now() - make_interval(hours => (v_r->>'horas')::int) then
+    raise exception 'anuncio_invalido';   -- já vendido, cancelado ou vencido
+  end if;
+  if a.vendedor_id = v_id then raise exception 'anuncio_seu'; end if;
+  if (select count(*) from fazenda_feira where comprador_id = v_id and vendido_em > now() - interval '1 day')
+     >= (v_r->>'compras_dia')::int then
+    raise exception 'limite_compras';
+  end if;
+  v_total := a.qtd * a.preco;
+  v_taxa := ceil(v_total * (v_r->>'taxa')::int / 100.0)::int;
+  if (select moedas from fazenda_jogadores where id = v_id for update) < v_total then raise exception 'moedas_insuficientes'; end if;
+  update fazenda_jogadores set moedas = moedas - v_total where id = v_id;
+  update fazenda_jogadores set moedas = moedas + v_total - v_taxa where id = a.vendedor_id;
+  insert into fazenda_celeiro (jogador_id, item, quantidade) values (v_id, a.item, a.qtd)
+  on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
+  update fazenda_feira set comprador_id = v_id, vendido_em = now() where id = p_id;
+  return jsonb_build_object('item', a.item, 'qtd', a.qtd, 'total', v_total, 'estado', fazenda_estado(v_id));
+end;
+$$;
+
+-- as ofertas abertas dos outros (as mais baratas primeiro; com p_item, só daquele item) e as suas
+create or replace function public.fazenda_feira_lista(p_token text, p_item text default null)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id uuid := fazenda_auth(p_token);
+  v_r  jsonb := fazenda_feira_regras();
+begin
+  perform fazenda_feira_vencidos(v_id);
+  return jsonb_build_object(
+    'regras', v_r,
+    'ofertas', coalesce((
+      select jsonb_agg(o order by (o->>'preco')::int, (o->>'id')::bigint) from (
+        select jsonb_build_object('id', f.id, 'item', f.item, 'qtd', f.qtd, 'preco', f.preco, 'vendedor', j.apelido,
+                                  'avatar', j.avatar, 'ate', f.criado_em + make_interval(hours => (v_r->>'horas')::int)) as o
+          from fazenda_feira f join fazenda_jogadores j on j.id = f.vendedor_id
+         where f.vendido_em is null and f.vendedor_id <> v_id
+           and f.criado_em >= now() - make_interval(hours => (v_r->>'horas')::int)
+           and (p_item is null or f.item = p_item)
+         order by f.preco, f.id
+         limit 60) x), '[]'::jsonb),
+    'itens', coalesce((
+      select jsonb_agg(distinct f.item) from fazenda_feira f
+       where f.vendido_em is null and f.vendedor_id <> v_id
+         and f.criado_em >= now() - make_interval(hours => (v_r->>'horas')::int)), '[]'::jsonb),
+    'compras_hoje', (select count(*) from fazenda_feira where comprador_id = v_id and vendido_em > now() - interval '1 day'));
+end;
+$$;
+
+-- ------------------------------------------------------------
 -- Permissões: só a API pública fica executável pela chave anon
 -- ------------------------------------------------------------
 revoke execute on function
@@ -4753,6 +4926,9 @@ revoke execute on function
   public.fazenda_estoque(text, int, int, int),
   public.fazenda_galinheiro_quer(uuid),
   public.fazenda_pasto(uuid),
+  public.fazenda_feira_regras(),
+  public.fazenda_feira_faixa(text),
+  public.fazenda_feira_vencidos(uuid),
   public.fazenda_metas(uuid, int),
   public.fazenda_vento_calmo(timestamptz),
   public.fazenda_vento_previsao(timestamptz),
@@ -4815,5 +4991,9 @@ grant execute on function
   public.fazenda_google_desligar(text),
   public.fazenda_bau_esvaziar(text, int, int),
   public.fazenda_usar_diamantes(text, text, int, int),
-  public.fazenda_vizinho_bicho(text, uuid, bigint[])
+  public.fazenda_vizinho_bicho(text, uuid, bigint[]),
+  public.fazenda_feira_anunciar(text, text, int, int),
+  public.fazenda_feira_cancelar(text, bigint),
+  public.fazenda_feira_comprar(text, bigint),
+  public.fazenda_feira_lista(text, text)
 to anon, authenticated;

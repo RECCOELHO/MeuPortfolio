@@ -83,6 +83,12 @@
         limite_pegadas: 'Você já pegou demais hoje. Volte amanhã.',
         sem_racao: 'Falta ração no celeiro.',
         ja_salvou: 'Você já salvou uma planta nessa fazenda hoje. Volte amanhã!',
+        preco_invalido: 'Preço fora da faixa da feira (entre metade e o triplo da venda normal).',
+        limite_anuncios: 'Você já tem 5 anúncios abertos na feira. Espere vender ou cancele um.',
+        sem_itens: 'Não tem tudo isso livre no celeiro (a ração reservada fica).',
+        anuncio_invalido: 'Esse lote já foi vendido, cancelado ou acabou.',
+        anuncio_seu: 'Esse anúncio é seu.',
+        limite_compras: 'Hoje você já comprou 20 lotes na feira. Amanhã tem mais!',
         limite_bichos: 'Você já deu ração a 10 bichos nessa fazenda hoje.',
         ja_alimentado: 'Esse bicho já comeu.',
         nao_pronto: 'Ainda não tem nada pra coletar.',
@@ -2193,6 +2199,7 @@
         if (longe) avisarAjudantes(estado);
         else trabalhoDosAjudantes(antes, estado);
         avisarConvites(estado);
+        avisarFeira(estado);
         desenharClima();
         agendarAvisos();
         energiaEm = agora();
@@ -2791,6 +2798,10 @@
                         <button type="button" class="botao verde" data-vender="${soFinais ? 'finais' : '*'}"${total ? '' : ' disabled'}>${soFinais ? 'Vender produtos finais' : 'Vender tudo'}</button>
                     </div>`;
             }
+        } else if (nome === 'feira') {
+            el.painelTitulo.innerHTML = `${ico('moeda', 26)} Feira`;
+            corpo.innerHTML = htmlFeira();
+            if (abaFeira === 'comprar' && !soAtualizar) carregarFeira();
         } else if (nome === 'metas') {
             el.painelTitulo.innerHTML = `${ico('medalha', 26)} Metas de nível`;
             corpo.innerHTML = htmlMetas();
@@ -2943,6 +2954,7 @@
                 <ul class="ajuda">
                     <li>Toque num canteiro e ele faz a ação certa: <b>arar</b>, <b>plantar</b>, <b>cuidar</b> ou <b>colher</b>.</li>
                     <li><b>XP das plantas:</b> colher dá o XP de cada planta (aparece na loja), em qualquer nível. O mesmo canteiro dá XP de colheita no máximo uma vez a cada 8 minutos: a alface, que cresce em 2, dá XP de 4 em 4 colheitas. Cuidar dá +1 XP. Arar dá XP só até o nível 5.</li>
+                    <li>Na <b>Feira</b> (no menu) os jogadores vendem uns para os outros: anuncie um lote do celeiro com o seu preço (entre metade e o triplo da venda normal) e compre de outros o que falta para as suas receitas. A feira fica com 5% de cada venda; o anúncio dura 2 dias.</li>
                     <li>Em <b>Metas</b> (no menu) está tudo o que o seu nível libera: construir cada oficina, máquina e cercado, ter cada bicho, contratar cada ajudante, comprar os terrenos e ocupar os canteiros. Com tudo em dia, <b>+50% de XP</b> até o próximo nível; o que ficou dos níveis de trás também aparece lá.</li>
                     <li>Toque numa planta crescendo para abrir o menu dela: quanto falta, <b>colher agora</b> por 1 ${ico('diamante', 14)} diamante (fica pronta na hora e vai para o celeiro), <b>arrancar</b>, ou arrancar e plantar a semente escolhida. Você começa com 10 diamantes e ganha 5 a cada nível. Em <b>Loja → Diamantes</b> eles também compram <b>XP em dobro</b> por 1 hora, um <b>pacote de XP</b> (até 3 por dia), o <b>café dos ajudantes</b> (em dobro por 2 horas), <b>energia</b> cheia na hora, uma <b>oficina terminando agora</b> e <b>personagens especiais</b> para o avatar.</li>
                     <li>As plantas crescem em tempo real, mesmo com a página fechada.</li>
@@ -3256,6 +3268,72 @@
                 '<button type="button" class="botao pequeno creme" data-avatar-editar>Ver</button>')}
         </div>`;
     }
+    /* ---------- A feira entre jogadores (fase 50) ----------
+       Anunciar tira o lote do celeiro na hora; outro jogador compra o lote inteiro e você recebe na
+       hora, menos 5% da feira. Preço por unidade entre metade e o triplo do preço de venda; o anúncio
+       vale 2 dias (vencido, volta para o celeiro). As ofertas vêm de fazenda_feira_lista. */
+    let abaFeira = 'comprar', feiraDados = null, feiraFiltro = null, feiraItem = null;
+    const regrasFeira = () => (S && S.feira && S.feira.regras) || { taxa: 5, min: 0.5, max: 3, horas: 48, anuncios: 5, qtd_max: 99 };
+    const faixaFeira = (k) => { const r = regrasFeira(); return [Math.max(1, Math.floor(k.venda * r.min)), Math.max(1, Math.ceil(k.venda * r.max))]; };
+    // o que dá para anunciar: o que tem no celeiro (fora a ração reservada) e vale alguma coisa
+    const livreFeira = (id) => Math.max(0, naCeleiro(id) - reservaDe(id));
+    const itensFeira = () => Object.keys(S.celeiro || {}).filter((id) => culturas[id] && culturas[id].venda > 0 && livreFeira(id) > 0)
+        .sort((a, b) => culturas[a].nome.localeCompare(culturas[b].nome));
+    function carregarFeira() {
+        enfileirar([], async () => {
+            feiraDados = await rpc('fazenda_feira_lista', { p_token: token, p_item: feiraFiltro });
+            if (painelAtual === 'feira') abrirPainel('feira', true);
+        });
+    }
+    function htmlFeira() {
+        const r = regrasFeira();
+        const abas = `<div class="painel-abas" role="tablist">${[['comprar', 'Comprar'], ['vender', 'Vender'], ['meus', `Meus anúncios${(S.feira && S.feira.meus.length) ? ` (${S.feira.meus.length})` : ''}`]].map(([id, txt]) =>
+            `<button type="button" role="tab" data-aba-feira="${id}" class="${abaFeira === id ? 'ativa' : ''}">${txt}</button>`).join('')}</div>`;
+        const nomeK = (id) => esc((culturas[id] || { nome: id }).nome);
+        const resta = (ate) => fmtTempo(Date.parse(ate) - agora());
+        let corpo = '';
+        if (abaFeira === 'comprar') {
+            if (!feiraDados) corpo = '<p class="vazio-msg">Abrindo a feira…</p>';
+            else {
+                const filtros = feiraDados.itens.length ? `<div class="feira-filtros">${[null, ...feiraDados.itens].map((id) =>
+                    `<button type="button" class="botao pequeno ${feiraFiltro === id ? 'verde' : 'creme'}" data-feira-filtro="${id || ''}">${id ? `${itemDe(culturas[id] || { id }, 16)} ${nomeK(id)}` : 'Tudo'}</button>`).join('')}</div>` : '';
+                corpo = filtros + (feiraDados.ofertas.length ? '<div class="lista">' + feiraDados.ofertas.map((o) => {
+                    const total = o.qtd * o.preco, k = culturas[o.item] || { id: o.item, nome: o.item, venda: 0 };
+                    return `<div class="item"><span class="ico">${itemDe(k, 36)}</span>
+                        <span><span class="nome">${o.qtd} × ${nomeK(o.item)}</span>
+                            <span class="det"><span>${moeda(o.preco)} cada (na venda normal, ${k.venda})</span><span>de ${A.htmlAvatar(o.avatar, 16)} ${esc(o.vendedor)}</span><span>acaba em ${resta(o.ate)}</span></span></span>
+                        <button type="button" class="botao pequeno verde" data-feira-comprar="${o.id}"${S.jogador.moedas >= total ? '' : ' disabled'}>Comprar<br>${ico('moeda', 14)} ${total}</button></div>`;
+                }).join('') + '</div>' : '<p class="vazio-msg">Ninguém está vendendo isso agora. Volte daqui a pouco!</p>');
+            }
+        } else if (abaFeira === 'vender') {
+            const itens = itensFeira();
+            if (!itens.length) corpo = '<p class="vazio-msg">O seu celeiro não tem nada para anunciar agora (a ração reservada fica).</p>';
+            else {
+                if (!itens.includes(feiraItem)) feiraItem = itens[0];
+                const k = culturas[feiraItem], [min, max] = faixaFeira(k), livre = livreFeira(feiraItem);
+                corpo = `<div class="feira-form">
+                    <label>Item <select data-feira-item>${itens.map((id) => `<option value="${esc(id)}"${id === feiraItem ? ' selected' : ''}>${nomeK(id)} (${livreFeira(id)})</option>`).join('')}</select></label>
+                    <label>Quantidade <input type="number" id="feiraQtd" min="1" max="${Math.min(livre, r.qtd_max)}" value="${Math.min(livre, 10)}"></label>
+                    <label>Preço de cada <input type="number" id="feiraPreco" min="${min}" max="${max}" value="${Math.min(max, Math.max(min, Math.round(k.venda * 1.2)))}"></label>
+                    <p class="det"><span class="txt">${itemDe(k, 16)} Na venda normal, ${moeda(k.venda)} cada. Na feira, entre ${min} e ${max}. A feira fica com ${r.taxa}%.</span></p>
+                    <button type="button" class="botao verde" data-feira-anunciar>Anunciar</button>
+                </div>`;
+            }
+        } else {
+            const meus = (S.feira && S.feira.meus) || [];
+            corpo = meus.length ? '<div class="lista">' + meus.map((a) => `<div class="item"><span class="ico">${itemDe(culturas[a.item] || { id: a.item }, 36)}</span>
+                <span><span class="nome">${a.qtd} × ${nomeK(a.item)}</span><span class="det"><span>${moeda(a.preco)} cada · total ${a.qtd * a.preco}</span><span>acaba em ${resta(a.ate)}</span></span></span>
+                <button type="button" class="botao pequeno creme" data-feira-cancelar="${a.id}">Cancelar</button></div>`).join('') + '</div>'
+                : '<p class="vazio-msg">Nenhum anúncio aberto. Na aba Vender você coloca um lote do celeiro à venda.</p>';
+        }
+        return abas + corpo + `<p class="aviso">Na feira você compra de outros jogadores o que falta para as suas receitas e vende o que sobra. Preço entre metade e o triplo da venda normal; até ${r.anuncios} anúncios de ${r.horas / 24} dias (vencido, volta para o celeiro); a feira fica com ${r.taxa}% de cada venda.</p>`;
+    }
+    function avisarFeira(estado) {
+        for (const v of (estado.feira && estado.feira.vendas_novas) || []) {
+            toast(`${ico('moeda', 16)} <b>${esc(v.comprador || 'Alguém')}</b> comprou na feira os seus ${v.qtd} ${itemDe(culturas[v.item] || { id: v.item }, 16)}: +${v.recebeu} ${ico('moeda', 14)}`, 'festa', 'importante');
+        }
+    }
+
     /* ---------- Metas de nível (fase 49) ----------
        Tudo o que cada nível libera vira meta (estado.metas, montado no servidor): construir cada
        oficina, máquina, coisa de energia, cercado e árvore do pomar; ter cada bicho; contratar cada
@@ -3616,6 +3694,48 @@
             }).finally(() => { vend.disabled = false; });
             return;
         }
+        const af = e.target.closest('[data-aba-feira]');
+        if (af) { abaFeira = af.dataset.abaFeira; abrirPainel('feira', true); if (abaFeira === 'comprar') carregarFeira(); return; }
+        const ff = e.target.closest('[data-feira-filtro]');
+        if (ff) { feiraFiltro = ff.dataset.feiraFiltro || null; carregarFeira(); return; }
+        const fc = e.target.closest('[data-feira-comprar]');
+        if (fc) {
+            fc.disabled = true;
+            enfileirar([], async () => {
+                const r = await rpc('fazenda_feira_comprar', { p_token: token, p_id: Number(fc.dataset.feiraComprar) });
+                som.tocar('moeda');
+                toast(`${itemDe(culturas[r.item] || { id: r.item }, 18)} Comprou ${r.qtd} na feira por ${r.total} ${ico('moeda', 14)}: já está no celeiro.`, 'festa');
+                aplicarEstado(r.estado);
+                carregarFeira();
+            });
+            return;
+        }
+        const fx = e.target.closest('[data-feira-cancelar]');
+        if (fx) {
+            fx.disabled = true;
+            enfileirar([], async () => {
+                const r = await rpc('fazenda_feira_cancelar', { p_token: token, p_id: Number(fx.dataset.feiraCancelar) });
+                aplicarEstado(r.estado);
+                toast('Anúncio cancelado: os itens voltaram para o celeiro.', undefined, 'leve');
+                abrirPainel('feira', true);
+            });
+            return;
+        }
+        if (e.target.closest('[data-feira-anunciar]')) {
+            const qtd = Number(($('feiraQtd') || {}).value), preco = Number(($('feiraPreco') || {}).value);
+            const k = culturas[feiraItem], [min, max] = faixaFeira(k);
+            if (!(qtd >= 1 && qtd <= livreFeira(feiraItem))) return toast(`Quantidade entre 1 e ${livreFeira(feiraItem)}.`, 'erro');
+            if (!(preco >= min && preco <= max)) return toast(`Preço de cada entre ${min} e ${max}.`, 'erro');
+            enfileirar([], async () => {
+                const r = await rpc('fazenda_feira_anunciar', { p_token: token, p_item: feiraItem, p_qtd: qtd, p_preco: preco });
+                aplicarEstado(r.estado);
+                som.tocar('moeda');
+                toast(`${itemDe(k, 18)} ${qtd} × ${esc(k.nome.toLowerCase())} na feira por ${preco} cada.`);
+                abaFeira = 'meus';
+                abrirPainel('feira', true);
+            });
+            return;
+        }
         const mc = e.target.closest('[data-meta-construir]');
         if (mc) { irConstruir(mc.dataset.metaConstruir); return; }
         const ml = e.target.closest('[data-meta-loja]');
@@ -3858,6 +3978,10 @@
         }
     });
 
+    el.painelCorpo.addEventListener('change', (e) => {   // fase 50: trocar o item a anunciar na feira
+        const sel = e.target.closest('[data-feira-item]');
+        if (sel) { feiraItem = sel.value; abrirPainel('feira', true); }
+    });
     el.painelFechar.addEventListener('click', fecharPainel);
     el.painel.addEventListener('click', (e) => { if (e.target === el.painel) fecharPainel(); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && painelAtual) fecharPainel(); });
