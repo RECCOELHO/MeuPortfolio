@@ -1791,37 +1791,82 @@
            estufa) e uns vaga-lumes piscam pela fazenda. "escuro" vai de 0 a 1 (faseDoDia). */
         let relogio = () => Date.now();
         const LUZ_QUENTE = '255, 196, 110';
+        // cada luz: f = brilho por cima; ilumina = quanto ela tira da escuridão (o chão volta à cor do dia)
         function luzesDaNoite(lista, tempo) {
-            const L = [{ x: wx(MAPA.casa.x) + 1.5 * T, y: wy(MAPA.casa.y) + 2 * T, r: 3 * T, cor: LUZ_QUENTE, f: 0.55 }];
+            const L = [{ x: wx(MAPA.casa.x) + 1.5 * T, y: wy(MAPA.casa.y) + 2 * T, r: 3.5 * T, cor: LUZ_QUENTE, f: 0.3, ilumina: 0.6 }];
             const cel = retCeleiro();
-            L.push({ x: cel.x + cel.w / 2, y: cel.y + cel.h - T, r: 2.5 * T, cor: LUZ_QUENTE, f: 0.45 });
+            L.push({ x: cel.x + cel.w / 2, y: cel.y + cel.h - T, r: 3 * T, cor: LUZ_QUENTE, f: 0.25, ilumina: 0.55 });
             for (const c of lista) {
                 const x = wx(c.x), y = wy(c.y);
-                if (c.tipo === 'lampiao') {
-                    const tremor = 0.9 + 0.1 * Math.sin(tempo / 140 + c.x * 7 + c.y * 3);   // chama tremendo
-                    L.push({ x: x + T / 2, y: y + 5, r: 3.5 * T, cor: '255, 210, 120', f: 0.6 * tremor });
+                if (c.tipo === 'lampiao') {   // o poste: luz fixa (sem tremer) que ilumina uma área grande em volta
+                    L.push({ x: x + T / 2, y: y + 5, r: 8 * T, cor: '255, 210, 120', f: 0.3, ilumina: 0.9 });
                 } else if (c.tipo === 'casa_vermelha' || c.tipo === 'casa_azul') {
-                    L.push({ x: x + 1.5 * T, y: y + 2 * T, r: 3 * T, cor: LUZ_QUENTE, f: 0.5 });
-                } else if (c.oficina && c.oficina.trabalhando) {
-                    const a = arteItem(c.tipo, EST);
-                    L.push({ x: x + (a.w || 1) * T / 2, y: y + (a.h || 1) * T * 0.65, r: 2.5 * T, cor: LUZ_QUENTE, f: 0.45 });
+                    L.push({ x: x + 1.5 * T, y: y + 2 * T, r: 3.5 * T, cor: LUZ_QUENTE, f: 0.28, ilumina: 0.6 });
+                } else if (c.oficina) {   // fábricas: janela acesa sempre; trabalhando, bem mais forte
+                    const a = arteItem(c.tipo, EST), forte = c.oficina.trabalhando;
+                    L.push({ x: x + (a.w || 1) * T / 2, y: y + (a.h || 1) * T * 0.65, r: (forte ? 4.5 : 3) * T, cor: LUZ_QUENTE,
+                             f: forte ? 0.28 : 0.15, ilumina: forte ? 0.75 : 0.45 });
+                } else if (c.tipo === 'fabrica_auto') {
+                    L.push({ x: x + T, y: y + T, r: 4 * T, cor: LUZ_QUENTE, f: 0.28, ilumina: 0.7 });
                 } else if (c.tipo === 'reator') {
-                    L.push({ x: x + T, y: y + T, r: 3.5 * T, cor: '120, 255, 150', f: 0.5 });
+                    L.push({ x: x + T, y: y + T, r: 4 * T, cor: '120, 255, 150', f: 0.5, ilumina: 0.7 });
                 } else if (c.tipo === 'estufa') {
-                    L.push({ x: x + T, y: y + T, r: 3 * T, cor: '205, 165, 255', f: 0.4 });
+                    L.push({ x: x + T, y: y + T, r: 3 * T, cor: '205, 165, 255', f: 0.4, ilumina: 0.55 });
                 }
             }
             return L;
         }
+        let mascaraNoite = null;   // a escuridão, com os furos das luzes (refeita a cada quadro)
         function desenharNoite(lista, tempo, escuro) {
+            const luzes = luzesDaNoite(lista, tempo);
+            // a escuridão é uma camada azul com furos onde tem luz: ali o chão fica com a cor de verdade
+            if (!mascaraNoite || mascaraNoite.width !== MW || mascaraNoite.height !== MH) {
+                mascaraNoite = document.createElement('canvas');
+                mascaraNoite.width = MW;
+                mascaraNoite.height = MH;
+            }
+            const m = mascaraNoite.getContext('2d');
+            m.globalCompositeOperation = 'source-over';
+            m.clearRect(0, 0, MW, MH);
+            m.fillStyle = '#3e4c8c';
+            m.fillRect(0, 0, MW, MH);
+            m.globalCompositeOperation = 'destination-out';
+            for (const l of luzes) {
+                if (!l.ilumina) continue;
+                const g = m.createRadialGradient(l.x, l.y, 0, l.x, l.y, l.r);
+                g.addColorStop(0, `rgba(0, 0, 0, ${l.ilumina.toFixed(3)})`);
+                g.addColorStop(0.55, `rgba(0, 0, 0, ${(l.ilumina * 0.55).toFixed(3)})`);
+                g.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                m.fillStyle = g;
+                m.fillRect(l.x - l.r, l.y - l.r, l.r * 2, l.r * 2);
+            }
             q.save();
             q.globalCompositeOperation = 'multiply';   // tudo fica mais escuro e azulado, sem perder a cor
             q.globalAlpha = escuro;
-            q.fillStyle = '#3e4c8c';
-            q.fillRect(0, 0, MW, MH);
+            q.drawImage(mascaraNoite, 0, 0);
             q.globalAlpha = 1;
             q.globalCompositeOperation = 'lighter';    // as luzes somam por cima
-            for (const l of luzesDaNoite(lista, tempo)) {
+            // canos da rede: a luz verde do anel brilha no escuro (vermelha piscando sem energia)
+            for (const c of lista) {
+                if (!c.cano || !c.rede) continue;
+                const cx = wx(c.x) + 8, cy = wy(c.y) + 8;
+                let cor, a;
+                if (c.rede === 'ok') {
+                    const onda = (Math.sin(tempo / 260 - (c.x + c.y) * 0.9) + 1) / 2;   // a mesma onda do anel
+                    cor = '110, 230, 140'; a = escuro * (0.45 + 0.55 * onda);
+                } else {
+                    if (!(Math.floor(tempo / 500) % 2)) continue;
+                    cor = '232, 67, 74'; a = escuro * 0.8;
+                }
+                q.fillStyle = `rgba(${cor}, ${(a * 0.12).toFixed(3)})`;
+                q.fillRect(cx - 8, cy - 8, 16, 16);
+                q.fillStyle = `rgba(${cor}, ${(a * 0.3).toFixed(3)})`;
+                q.fillRect(cx - 6, cy - 2, 12, 4);
+                q.fillRect(cx - 2, cy - 6, 4, 12);
+                q.fillStyle = `rgba(${cor}, ${(a * 0.8).toFixed(3)})`;
+                q.fillRect(cx - 2, cy - 2, 4, 4);
+            }
+            for (const l of luzes) {
                 const g = q.createRadialGradient(l.x, l.y, 0, l.x, l.y, l.r);
                 g.addColorStop(0, `rgba(${l.cor}, ${(l.f * escuro).toFixed(3)})`);
                 g.addColorStop(0.45, `rgba(${l.cor}, ${(l.f * escuro * 0.35).toFixed(3)})`);
@@ -1873,7 +1918,7 @@
                     }
                     q.globalAlpha = 1;
                 } else if (tipo === 'luz') {
-                    if (Math.floor(t / 450) % 2) {
+                    if (!c.desligado && Math.floor(t / 450) % 2) {   // (alarme sem energia: desligado)
                         q.globalAlpha = 0.35; px(x + 5, y - 1, '#ff6b5a', 6, 4); q.globalAlpha = 1;
                         px(x + 7, y, '#ff3b2f', 2, 2);
                     }
@@ -1975,14 +2020,11 @@
                 const [ax, ay] = p[i], [bx, by] = p[i + 1];
                 const x = wx(ax + (bx - ax) * f) + 8, y = wy(ay + (by - ay) * f) + 8;
                 const pulo = v.direto ? -Math.round(Math.sin(t * Math.PI) * 7) : 0;
-                // fase 44: item grande (12 px) numa bolinha clara, para dar para ver no celular
-                const cx = Math.round(x), cy = Math.round(y) + pulo;
-                q.fillStyle = 'rgba(63, 38, 49, .3)';   // sombra embaixo
-                q.fillRect(cx - 5, Math.round(y) + 6, 10, 2);
-                q.fillStyle = 'rgba(255, 255, 255, .8)';
-                q.fillRect(cx - 6, cy - 7, 12, 14);
-                q.fillRect(cx - 7, cy - 6, 14, 12);
-                miniTile(v.icone, cx - 6, cy - 6, 12);
+                if (!v.direto) {   // uma sombrinha dentro do vidro ajuda a ver o item passando
+                    q.fillStyle = 'rgba(63, 38, 49, .25)';
+                    q.fillRect(Math.round(x) - 4, Math.round(y) + 3, 8, 2);
+                }
+                miniTile(v.icone, x - 4, y - 4 + pulo);   // (fase 47: de volta ao item pequeno dentro do cano)
             }
         }
 
