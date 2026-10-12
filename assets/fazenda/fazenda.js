@@ -31,7 +31,8 @@
     const LS = {
         token: 'fazenda_token', codigo: 'fazenda_codigo', semente: 'fazenda_semente',
         diarioVisto: 'fazenda_diario_visto', mudo: 'fazenda_mudo', tutorial: 'fazenda_tutorial', avisos: 'fazenda_avisos', convite: 'fazenda_convite',
-        historico: 'fazenda_historico', historicoVisto: 'fazenda_historico_visto'
+        historico: 'fazenda_historico', historicoVisto: 'fazenda_historico_visto',
+        volMusica: 'fazenda_vol_musica', volEfeitos: 'fazenda_vol_efeitos', faixaMusica: 'fazenda_faixa_musica'
     };
     const store = {
         get(k) { try { return localStorage.getItem(k); } catch { return null; } },
@@ -168,11 +169,23 @@
     document.querySelectorAll('[data-spr]').forEach((s) => { s.outerHTML = spr(Number(s.dataset.spr), Number(s.dataset.px) || 32, s.dataset.pack || 'farm'); });
     document.querySelectorAll('[data-ico]').forEach((s) => { s.outerHTML = ico(s.dataset.ico, Number(s.dataset.px) || 18); });
 
-    /* ---------- Sons 8-bit (sintetizados na hora, sem arquivos) ---------- */
+    /* ---------- Sons 8-bit e Trilha Sonora ---------- */
     const som = (() => {
         let ctx = null;
         let mudo = store.get(LS.mudo) === '1';
         let pausado = false;   // durante o anúncio
+        let volMusica = store.get(LS.volMusica) !== null ? Math.max(0, Math.min(100, Number(store.get(LS.volMusica)))) : 35;
+        let volEfeitos = store.get(LS.volEfeitos) !== null ? Math.max(0, Math.min(100, Number(store.get(LS.volEfeitos)))) : 80;
+        let faixaAtual = Number(store.get(LS.faixaMusica)) || 0; // 0: Tema da Roça 1, 1: Tema da Roça 2
+
+        const FAIXAS = [
+            { nome: 'Fazenda Secreta (Tema 1)', src: 'assets/music/fazenda-tema-1.mp3' },
+            { nome: 'Fazenda Secreta (Tema 2)', src: 'assets/music/fazenda-tema-2.mp3' }
+        ];
+
+        let musicaAudio = null;
+        let desbloqueado = false;
+
         function audio() {
             if (!ctx) {
                 const C = window.AudioContext || window.webkitAudioContext;
@@ -182,18 +195,60 @@
             if (ctx.state === 'suspended') ctx.resume();
             return ctx;
         }
+
+        function aplicarVolumeMusica() {
+            if (!musicaAudio) return;
+            musicaAudio.volume = (mudo || pausado) ? 0 : (volMusica / 100);
+        }
+
+        function tocarMusica() {
+            if (!musicaAudio) {
+                musicaAudio = new Audio();
+                musicaAudio.loop = true;
+                musicaAudio.preload = 'auto';
+            }
+            const faixa = FAIXAS[faixaAtual] || FAIXAS[0];
+            const srcAtual = musicaAudio.getAttribute('src');
+            if (srcAtual !== faixa.src) {
+                musicaAudio.src = faixa.src;
+            }
+            aplicarVolumeMusica();
+            if (!mudo && !pausado && volMusica > 0) {
+                const prom = musicaAudio.play();
+                if (prom && typeof prom.catch === 'function') {
+                    prom.catch(() => { /* aguarda interação do usuário */ });
+                }
+            }
+        }
+
+        function desbloquearAudio() {
+            if (desbloqueado) return;
+            desbloqueado = true;
+            try { audio(); } catch {}
+            if (!mudo && !pausado && volMusica > 0) {
+                tocarMusica();
+            }
+        }
+
+        // Tenta iniciar a música na primeira interação do jogador com a página
+        ['click', 'keydown', 'touchstart'].forEach((ev) => {
+            window.addEventListener(ev, desbloquearAudio, { once: true, passive: true });
+        });
+
         function nota(freq, ini, dur, tipo = 'square', vol = 0.05) {
             const c = audio();
-            if (!c) return;
+            if (!c || mudo || pausado || volEfeitos <= 0) return;
             const o = c.createOscillator(), g = c.createGain(), t = c.currentTime + ini;
+            const ganhoReal = vol * (volEfeitos / 100);
             o.type = tipo;
             o.frequency.setValueAtTime(freq, t);
-            g.gain.setValueAtTime(vol, t);
+            g.gain.setValueAtTime(ganhoReal, t);
             g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
             o.connect(g).connect(c.destination);
             o.start(t);
             o.stop(t + dur + 0.02);
         }
+
         const SONS = {
             arar: () => { nota(180, 0, 0.08, 'triangle', 0.09); nota(130, 0.06, 0.09, 'triangle', 0.07); },
             plantar: () => { nota(523, 0, 0.07); nota(784, 0.06, 0.1); },
@@ -204,11 +259,55 @@
             erro: () => { nota(170, 0, 0.12, 'sawtooth', 0.035); nota(120, 0.1, 0.16, 'sawtooth', 0.035); },
             festa: () => { [523, 659, 784, 1047].forEach((f, n) => nota(f, n * 0.09, 0.14)); }
         };
+
         return {
             tocar(nome) { if (!mudo && !pausado && SONS[nome]) { try { SONS[nome](); } catch { /* sem áudio */ } } },
-            pausar(p) { pausado = p; },
-            alternar() { mudo = !mudo; store.set(LS.mudo, mudo ? '1' : '0'); return mudo; },
-            get mudo() { return mudo; }
+            pausar(p) {
+                pausado = p;
+                aplicarVolumeMusica();
+                if (musicaAudio) {
+                    if (pausado) musicaAudio.pause();
+                    else if (!mudo && volMusica > 0) musicaAudio.play().catch(() => {});
+                }
+            },
+            alternar() {
+                mudo = !mudo;
+                store.set(LS.mudo, mudo ? '1' : '0');
+                aplicarVolumeMusica();
+                if (!mudo && volMusica > 0 && musicaAudio) {
+                    musicaAudio.play().catch(() => {});
+                }
+                return mudo;
+            },
+            definirVolMusica(v) {
+                volMusica = Math.max(0, Math.min(100, Number(v) || 0));
+                store.set(LS.volMusica, String(volMusica));
+                aplicarVolumeMusica();
+                if (!mudo && !pausado && volMusica > 0 && musicaAudio && musicaAudio.paused) {
+                    musicaAudio.play().catch(() => {});
+                }
+            },
+            definirVolEfeitos(v) {
+                volEfeitos = Math.max(0, Math.min(100, Number(v) || 0));
+                store.set(LS.volEfeitos, String(volEfeitos));
+            },
+            trocarFaixa(idx) {
+                faixaAtual = (idx >= 0 && idx < FAIXAS.length) ? idx : 0;
+                store.set(LS.faixaMusica, String(faixaAtual));
+                if (musicaAudio) {
+                    musicaAudio.src = FAIXAS[faixaAtual].src;
+                    aplicarVolumeMusica();
+                    if (!mudo && !pausado && volMusica > 0) {
+                        musicaAudio.play().catch(() => {});
+                    }
+                }
+            },
+            desbloquear: desbloquearAudio,
+            get mudo() { return mudo; },
+            get volMusica() { return volMusica; },
+            get volEfeitos() { return volEfeitos; },
+            get faixaAtual() { return faixaAtual; },
+            get faixas() { return FAIXAS; }
         };
     })();
     const SOM_DA_ACAO = { arar: 'arar', plantar: 'plantar', colher: 'colher', agora: 'colher', erva: 'cuidar', praga: 'cuidar', seco: 'cuidar' };
@@ -2676,11 +2775,58 @@
                     ${boasVindas
                         ? '<span></span><button type="button" class="botao verde" data-fechar>Começar a jogar</button>'
                         : `<button type="button" class="botao creme" data-painel-ir="ajuda">${ico('ajuda', 16)} Como jogar</button>
-                    <button type="button" class="botao creme" data-som>${som.mudo ? 'Ligar sons' : 'Desligar sons'}</button>
+                    <button type="button" class="botao creme" data-painel-ir="som">${ico('som', 16)} Som e Música</button>
                     <a class="botao creme" href="indexversao2.html">Voltar ao portfólio</a>
                     <button type="button" class="botao vermelho" data-sair>Sair desta fazenda</button>`}
                 </div>`;
             botaoGoogle(corpo.querySelector('[data-google-botao]'), 'ligar');
+        } else if (nome === 'som') {
+            el.painelTitulo.innerHTML = `${ico('som', 26)} Som e Música`;
+            corpo.innerHTML = `
+                <div class="painel-som">
+                    <div class="som-bloco">
+                        <div class="som-linha-titulo">
+                            <b>Música de Fundo</b>
+                            <span id="txtVolMusica">${som.volMusica}%</span>
+                        </div>
+                        <p class="det">Trilha sonora relaxante da sua fazenda.</p>
+                        <div class="som-controle-range">
+                            <input type="range" id="rngVolMusica" min="0" max="100" value="${som.volMusica}" aria-label="Volume da música">
+                        </div>
+                    </div>
+
+                    <div class="som-bloco">
+                        <div class="som-linha-titulo">
+                            <b>Efeitos Sonoros (SFX)</b>
+                            <span id="txtVolEfeitos">${som.volEfeitos}%</span>
+                        </div>
+                        <p class="det">Sons 8-bit de colheita, arar, plantar e moedas.</p>
+                        <div class="som-controle-range">
+                            <input type="range" id="rngVolEfeitos" min="0" max="100" value="${som.volEfeitos}" aria-label="Volume dos efeitos">
+                        </div>
+                    </div>
+
+                    <div class="som-bloco">
+                        <b>Escolher Música</b>
+                        <div class="som-faixas">
+                            ${som.faixas.map((f, idx) => `
+                                <button type="button" class="botao pequeno ${som.faixaAtual === idx ? 'verde' : 'creme'}" data-faixa="${idx}">
+                                    ${som.faixaAtual === idx ? '▶ ' : ''}${esc(f.nome)}
+                                </button>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <div class="som-bloco som-linha-mudo">
+                        <button type="button" class="botao ${som.mudo ? 'vermelho' : 'verde'}" data-som-silenciar>
+                            ${ico(som.mudo ? 'mudo' : 'som', 20)} ${som.mudo ? 'Áudio Mudo (Ativar Som)' : 'Silenciar Tudo'}
+                        </button>
+                    </div>
+                </div>
+                <div class="rodape-painel">
+                    <span></span>
+                    <button type="button" class="botao verde" data-fechar>Pronto</button>
+                </div>`;
         } else if (nome === 'avatar') {
             el.painelTitulo.innerHTML = `${A.htmlAvatar(rascunhoAvatar, 32)} Seu avatar`;
             corpo.innerHTML = htmlEditorAvatar();
@@ -3498,6 +3644,19 @@
             iniciarTutorial();
             return;
         }
+        const bSomSilenciar = e.target.closest('[data-som-silenciar]');
+        if (bSomSilenciar) {
+            som.alternar();
+            atualizarBotaoSom();
+            abrirPainel('som', true);
+            return;
+        }
+        const bFaixa = e.target.closest('[data-faixa]');
+        if (bFaixa) {
+            som.trocarFaixa(Number(bFaixa.dataset.faixa));
+            abrirPainel('som', true);
+            return;
+        }
         const bSom = e.target.closest('[data-som]');
         if (bSom) {
             som.alternar();
@@ -3611,10 +3770,33 @@
     const btnSom = $('btnSom');
     function atualizarBotaoSom() {
         btnSom.innerHTML = ico(som.mudo ? 'mudo' : 'som', 22) + `<em>${som.mudo ? 'Sem som' : 'Som'}</em>`;
-        btnSom.setAttribute('aria-label', som.mudo ? 'Ligar sons' : 'Desligar sons');
+        btnSom.setAttribute('aria-label', som.mudo ? 'Ligar sons ou ajustar volume' : 'Ajustar som e música');
     }
-    btnSom.addEventListener('click', () => { som.alternar(); atualizarBotaoSom(); som.tocar('moeda'); });
+    btnSom.addEventListener('click', () => {
+        som.desbloquear();
+        abrirPainel('som');
+    });
     atualizarBotaoSom();
+
+    // Controles de volume em tempo real (arrastar o slider)
+    el.painelCorpo.addEventListener('input', (e) => {
+        if (e.target.id === 'rngVolMusica') {
+            const val = Number(e.target.value) || 0;
+            som.definirVolMusica(val);
+            const txt = $('txtVolMusica');
+            if (txt) txt.textContent = val + '%';
+        } else if (e.target.id === 'rngVolEfeitos') {
+            const val = Number(e.target.value) || 0;
+            som.definirVolEfeitos(val);
+            const txt = $('txtVolEfeitos');
+            if (txt) txt.textContent = val + '%';
+        }
+    });
+    el.painelCorpo.addEventListener('change', (e) => {
+        if (e.target.id === 'rngVolEfeitos') {
+            som.tocar('moeda');
+        }
+    });
 
     /* ---------- tutorial (primeira vez na fazenda) ---------- */
     const TUTORIAL = [

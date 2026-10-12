@@ -1425,6 +1425,70 @@ body.construindo .status {
     padding: 6px 10px;
 }
 
+/* ---------- Painel de Som e Música ---------- */
+.painel-som {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin: 6px 0 16px;
+}
+
+.som-bloco {
+    padding: 12px 14px;
+    background: var(--creme-2);
+    box-shadow: 0 -2px 0 var(--o), 0 2px 0 var(--o), -2px 0 0 var(--o), 2px 0 0 var(--o);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.som-linha-titulo {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 16px;
+}
+
+.som-linha-titulo span {
+    font-family: var(--fonte-pixel);
+    font-size: 18px;
+    color: var(--o);
+    background: var(--ouro);
+    padding: 2px 8px;
+    box-shadow: 0 -1px 0 var(--o), 0 1px 0 var(--o), -1px 0 0 var(--o), 1px 0 0 var(--o);
+}
+
+.som-controle-range input[type="range"] {
+    width: 100%;
+    accent-color: var(--grama);
+    cursor: pointer;
+    height: 8px;
+}
+
+.som-faixas {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.som-faixas .botao {
+    flex: 1 1 calc(50% - 8px);
+    text-align: center;
+    justify-content: center;
+}
+
+.som-linha-mudo {
+    align-items: center;
+    padding: 8px;
+}
+
+.som-linha-mudo .botao {
+    width: 100%;
+    justify-content: center;
+    gap: 8px;
+}
+
 @media (max-width: 760px) {
     .tutorial {
         top: 124px;
