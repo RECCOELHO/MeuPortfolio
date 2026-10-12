@@ -82,6 +82,8 @@
         nada_pra_pegar: 'Esse canteiro já foi bem visitado… não sobrou nada.',
         limite_pegadas: 'Você já pegou demais hoje. Volte amanhã.',
         sem_racao: 'Falta ração no celeiro.',
+        ja_salvou: 'Você já salvou uma planta nessa fazenda hoje. Volte amanhã!',
+        limite_bichos: 'Você já deu ração a 10 bichos nessa fazenda hoje.',
         ja_alimentado: 'Esse bicho já comeu.',
         nao_pronto: 'Ainda não tem nada pra coletar.',
         animal_invalido: 'Esse animal não está mais aqui.',
@@ -448,6 +450,7 @@
         const dia = A.faseDoDia(agora());
         mostrarStatus(`${ico('raio', 18)} <b>Energia</b>: ${Math.floor(cargaAgora())} de ${S.energia.capacidade} ⚡. ` +
             (ph > 0 ? `Entrando ${ph} ⚡/h agora.` : ph < 0 ? `Saindo ${-ph} ⚡/h agora (os alarmes gastam 1 ⚡ por hora cada)${temSol && dia.noite ? `; o painel solar volta a gerar às ${hora(dia.fim)}` : ''}.` : `Nada entrando agora${temSol && dia.noite ? ` (é noite no jogo: o painel solar volta a gerar às ${hora(dia.fim)})` : ''}.`) +
+            (S.energia.calmo && (S.construcoes || []).some((c) => c.tipo === 'turbina') ? ' Calmaria agora: sem vento, a turbina eólica quase parou (1 ⚡/h).' : '') +
             ' Baterias guardam mais; as máquinas elétricas gastam ao trabalhar.');
     }
     // Energia e máquinas: o que você tem, quanto gera e gasta, e o que vem nos próximos níveis
@@ -467,7 +470,7 @@
         const grupo = (titulo, lista) => lista.length ? `<h3 class="secao-titulo">${titulo}</h3><div class="lista">${lista.map(linha).join('')}</div>` : '';
         const en = S.energia || {}, carga = Math.floor(cargaAgora()), cap = en.capacidade || 50;
         return `
-            ${temEletrico() ? `<p>${ico('raio', 16)} Agora: <b>${carga}</b> de ${cap} ⚡ · entrando <b>${Math.round(Number(en.por_hora) || 0)}</b> ⚡ por hora.</p>
+            ${temEletrico() ? `<p>${ico('raio', 16)} Agora: <b>${carga}</b> de ${cap} ⚡ · entrando <b>${Math.round(Number(en.por_hora) || 0)}</b> ⚡ por hora.${en.calmo && (S.construcoes || []).some((c) => c.tipo === 'turbina') ? ' <b>Calmaria</b>: sem vento, a turbina quase parou.' : ''}</p>
                 <span class="estoque-barra"><i style="width:${Math.round(carga / cap * 100)}%"></i></span>
                 ${precoEnergiaDiamantes() > 0 ? `<p class="det">Com pressa? ${botaoDiamante('energia', precoEnergiaDiamantes(), 'Encher agora')} O <b>eletricista</b> (Loja → Ajudantes) faz tudo gastar menos.</p>` : ''}` : ''}
             <p class="aviso">Do nível 16 em diante a fazenda vira indústria: <b>geradores</b> enchem as <b>baterias</b>, e as <b>máquinas elétricas</b> gastam essa energia para trabalhar sozinhas por você. Sem energia elas só param; o resto da fazenda continua igual.</p>
@@ -581,8 +584,8 @@
         if (!novos.length) return;
         const com = novos.filter((n) => n.premiado), sem = novos.filter((n) => !n.premiado);
         const nomes = (l) => l.map((n) => esc(n.apelido)).join(', ');
-        if (com.length) toast(`${ico('coracao', 16)} ${nomes(com)} entrou pelo seu convite: +${com.length * premioConvite().dono} ${ico('moeda', 14)}!`, 'festa');
-        if (sem.length) toast(`${nomes(sem)} entrou pelo seu convite (os prêmios de hoje já acabaram, volta amanhã).`);
+        if (com.length) toast(`${ico('coracao', 16)} ${nomes(com)} entrou pelo seu convite: +${com.length * premioConvite().dono} ${ico('moeda', 14)}!`, 'festa', 'importante');
+        if (sem.length) toast(`${ico('coracao', 16)} ${nomes(sem)} entrou pelo seu convite (os prêmios de hoje já acabaram, volta amanhã).`, undefined, 'importante');
     }
     // tela de entrada aberta por um convite: mostra de quem é e o presente
     async function mostrarFaixaConvite() {
@@ -894,6 +897,7 @@
     }
     function acaoVisita(c) {
         const i = info(c);
+        if (i.fase === 'murcho' && visita && visita.pode_salvar !== false && 'pode_salvar' in visita) return 'salvar';   // fase 48
         if ((i.fase === 'crescendo' || i.fase === 'maduro') && i.probs.length) return 'ajudar';
         if (podePegar(c, i)) return 'pegar';
         return null;
@@ -978,7 +982,7 @@
             const [verbo, coisa] = UNIDADE[t.funcao];
             return `${esc(t.nome)} ${verbo} ${h.relatorio} ${h.relatorio === 1 ? coisa.replace(/s$/, '') : coisa}`;
         }).filter(Boolean);
-        if (partes.length) toast(`${retratoAjudante((estado.ajudantes.find((h) => h.relatorio > 0) || {}).tipo, 20)} Seus ajudantes trabalharam: ${partes.join(' · ')}`);
+        if (partes.length) toast(`${retratoAjudante((estado.ajudantes.find((h) => h.relatorio > 0) || {}).tipo, 20)} Seus ajudantes trabalharam: ${partes.join(' · ')}`, undefined, 'importante');
     }
 
     // compara o estado antigo com o novo e manda cada ajudante até o que mudou por conta dele
@@ -1270,7 +1274,7 @@
             return cacheVisitaCons.lista;
         }
         // sinal da rede: luz verde pulsando = ligada e com energia; vermelha piscando = sem energia
-        const sinal = cargaAgora() >= 2 ? 'ok' : 'sem_energia';
+        const sinal = cargaAgora() >= 3 ? 'ok' : 'sem_energia';
         return (S.construcoes || []).map((c) => {
             const o = infoOficina(c);
             if (o) {   // (os itens andando nos canos agora vêm das viagens: visualViagens)
@@ -1297,7 +1301,7 @@
         seco: 'sem seca', praga: 'sem pragas', erva: 'sem ervas', crescer: 'cresce 10% mais rápido',
         adubo: '+1 item', xp: '+1 XP', sorte: 'sorte (colheita em dobro às vezes)', cerca: 'vizinho pega no máximo 1',
         alarme: 'protegido do vizinho', estufa: 'estufa: qualquer estação e +25% rápido (5 ⚡)',
-        robo: 'o robô colhe e replanta', aspersor: 'sem nenhum problema (aspersor, 2 ⚡)'
+        robo: 'o robô colhe e replanta', aspersor: 'sem nenhum problema (aspersor, 3 ⚡)'
     };
     function bonusDoCanteiro(c, fonte) {
         const vistos = new Set();
@@ -1449,14 +1453,14 @@
         const usam = rede ? new Set(rede.oficinas.flatMap((k) => Object.keys(tipoItem(k.tipo).entradas || {}))) : new Set();
         const txtRede = !rede || (!rede.oficinas.length && !rede.celeiro)
             ? `Sem cano até uma oficina ou o celeiro: o que ele recolhe fica guardado aqui. Ligue com <b>canos de vidro</b> (Construir → Energia).`
-            : `Na rede${rede.oficinas.length ? ` com ${rede.oficinas.length} oficina(s)` : ''}${rede.celeiro ? `${rede.oficinas.length ? ' e' : ' com'} o celeiro` : ''}: manda pelo cano o que as oficinas usam${rede.celeiro ? ' e leva o resto para o celeiro (2 ⚡ por viagem)' : ''}.`;
+            : `Na rede${rede.oficinas.length ? ` com ${rede.oficinas.length} oficina(s)` : ''}${rede.celeiro ? `${rede.oficinas.length ? ' e' : ' com'} o celeiro` : ''}: manda pelo cano o que as oficinas usam${rede.celeiro ? ' e leva o resto para o celeiro (3 ⚡ por viagem)' : ''}.`;
         return `
             <p>${total} de ${BAU_MAX} itens guardados</p>
             <span class="estoque-barra"><i style="width:${Math.min(100, Math.round(total / BAU_MAX * 100))}%"></i></span>
             ${itens.length ? '<div class="bau-itens">' + itens.map(([item, n]) => `<span class="chip" title="${nomeItem(item)}${usam.has(item) ? ' (uma oficina da rede usa)' : ''}">${itemDe(culturas[item] || { id: item }, 20)}<span>${n}${usam.has(item) ? ` ${A.htmlItem('cano', 12)}` : ''}</span></span>`).join('') + '</div>'
                 : '<p class="vazio-msg">Vazio por enquanto.</p>'}
             <p class="aviso">${A.htmlItem('cano', 16)} ${txtRede}</p>
-            <p class="det">Com energia, recolhe sozinho o que estiver encostado nele: o bloco de canteiros, um cercado (coleta e dá ração), uma árvore do pomar e o cesto do lago (2 ⚡ cada). Cheio, ele para de recolher.</p>
+            <p class="det">Com energia, recolhe sozinho o que estiver encostado nele: o bloco de canteiros, um cercado (coleta e dá ração), uma árvore do pomar e o cesto do lago (3 ⚡ cada). Cheio, ele para de recolher.</p>
             <div class="rodape-painel">
                 <button type="button" class="botao verde" data-bau-esvaziar${total ? '' : ' disabled'}>Levar tudo para o celeiro</button>
                 <button type="button" class="botao creme" data-fechar>Fechar</button>
@@ -1506,7 +1510,7 @@
             return `esperando ${listaFalta(falta)} chegar pelo cano (quem faz na rede: ${nomes}).`;
         }
         if (falta.length) return `falta na rede ${listaFalta(semFonte)}. Guarde ${onde} da rede e ela enche o estoque sozinha.`;
-        if (cargaAgora() < 2) return `a rede está sem energia (2 ${ico('raio', 12)} por receita).`;
+        if (cargaAgora() < 3) return `a rede está sem energia (3 ${ico('raio', 12)} por receita).`;
         return null;
     }
     function htmlOficinaAgora(o) {
@@ -1550,7 +1554,7 @@
             <h3 class="secao-titulo">Estoque: ${o.estoque} receita${o.estoque === 1 ? '' : 's'} guardada${o.estoque === 1 ? '' : 's'}${o.estado === 'trabalhando' ? ' + 1 fazendo' : ''} (cabem ${max})</h3>
             <span class="estoque-barra"><i style="width:${Math.round(ocupado / max * 100)}%"></i></span>
             <p class="det">${o.ligada && (o.rede.baus.length || o.rede.celeiro)
-                ? `${A.htmlItem('cano', 14)} <b>A rede enche este estoque sozinha</b> (até ${max} receitas, 2 ${ico('raio', 12)} cada) com o que tem nos baús${o.rede.celeiro ? ' e no celeiro' : ''} da rede. Você também pode guardar do celeiro aqui.`
+                ? `${A.htmlItem('cano', 14)} <b>A rede enche este estoque sozinha</b> (até ${max} receitas, 3 ${ico('raio', 12)} cada) com o que tem nos baús${o.rede.celeiro ? ' e no celeiro' : ''} da rede. Você também pode guardar do celeiro aqui.`
                 : 'Guardar tira os ingredientes do celeiro agora (a ração reservada fica). Ela trabalha sozinha até o estoque acabar.'}</p>
             <div class="estoque-botoes">
                 <button type="button" class="botao pequeno creme" data-estoque="1"${pode >= 1 ? '' : ' disabled'}>+1</button>
@@ -1563,7 +1567,7 @@
             ${o.ligada ? `<p class="aviso">${A.htmlItem('cano', 18)} Na rede: ${o.rede.baus.length} baú(s)${o.rede.oficinas.length ? `, ${o.rede.oficinas.length} oficina(s)` : ''}${o.rede.celeiro ? ' e o celeiro' : ''}. O produto sai pelo cano para a oficina que usa ele, o celeiro ou um baú. Luz verde nos canos: a rede está trabalhando; vermelha piscando: falta energia.</p>
                 ${o.rede.celeiro ? '' : `<p class="det">O celeiro não está nesta rede: ela só pega o que está nos baús. Para usar o que está no celeiro, encoste um cano no próprio celeiro (o prédio grande no canto de cima, à esquerda).</p>`}`
                 : S.jogador.nivel >= 16 ? `<p class="det">${A.htmlItem('cano', 16)} Dica: ligue esta oficina com <b>canos de vidro</b> (Construir → Energia) a baús, a outras oficinas e ao celeiro: tudo o que está na mesma rede de canos trabalha junto.</p>` : ''}
-            ${lojaD() && o.ligada && cargaAgora() < 2 && precoEnergiaDiamantes() > 0
+            ${lojaD() && o.ligada && cargaAgora() < 3 && precoEnergiaDiamantes() > 0
                 ? `<p class="det">${ico('raio', 14)} Sem energia a rede para. ${botaoDiamante('energia', precoEnergiaDiamantes(), 'Encher a energia')}</p>` : ''}
             <div class="rodape-painel">
                 ${o.prontos ? `<button type="button" class="botao verde" data-oficina-pegar>Pegar ${o.prontos} ${itemDe(o.produto, 18)}</button>` : '<span></span>'}
@@ -1845,7 +1849,7 @@
 
         if (constr.modo === 'colocar') {
             const it = tipoItem(constr.tipo);
-            if (!it) return toast('Escolha um item na barra de baixo.');
+            if (!it) return toast('Escolha um item na barra de baixo.', undefined, 'leve');
             const max = maxItem(it), tem = quantosTem(it);
             if (max && tem >= max) return toast(it.por_terreno ? `Já tem ${tem} de ${max} ${esc(it.nome.toLowerCase())}s: compre mais terrenos (Loja → Terrenos) para plantar mais: cada fruta tem 1 pé, +1 a cada 2 terrenos (até 4). As outras frutas têm o limite delas.` : ERROS.limite_maquina, 'erro');            const tam = tamanhoItem(it.id);
             if (!cabeAqui(x, y, tam.w, tam.h)) {
@@ -2012,7 +2016,10 @@
         if (i.fase === 'bloqueado') return `${ico('cadeado', 12)} Canteiro bloqueado do vizinho.`;
         if (i.fase === 'vazio' || i.fase === 'arado') return 'Canteiro livre. Nada pra fazer aqui.';
         const item = itemDe(i.k);
-        if (i.fase === 'murcho') return `O ${esc(i.k.nome.toLowerCase())} do vizinho murchou.`;
+        if (i.fase === 'murcho') return 'pode_salvar' in visita
+            ? (visita.pode_salvar ? `${ico('coracao', 14)} O ${esc(i.k.nome.toLowerCase())} do vizinho murchou. Toque para <b>salvar</b> (1 por dia em cada fazenda): ela volta madura e você ganha +${3 * (visita.premio_ajuda || 1)} ${ico('xp', 14)}.`
+                : `O ${esc(i.k.nome.toLowerCase())} do vizinho murchou. Você já salvou uma planta aqui hoje.`)
+            : `O ${esc(i.k.nome.toLowerCase())} do vizinho murchou.`;
         let txt;
         if (i.fase === 'maduro') {
             if (c.ja_peguei) txt = `${item} Você já pegou desse ${esc(i.k.nome.toLowerCase())}.`;
@@ -2022,7 +2029,7 @@
         } else {
             txt = `${item} ${esc(i.k.nome)} do vizinho · pronto em ${fmtTempo(i.resta)}.`;
         }
-        if (i.probs.length) txt += ` Ajude com ${probsHtml(i.probs)} e ganhe +${i.probs.length} ${ico('xp', 14)} e ${moeda(i.probs.length)}.`;
+        if (i.probs.length) txt += ` Ajude com ${probsHtml(i.probs)} e ganhe +${i.probs.length * (visita.premio_ajuda || 1)} ${ico('xp', 14)}.`;
         return txt;
     }
 
@@ -2039,7 +2046,7 @@
                 txt = k ? `${itemDe(k)} Toque para plantar ${esc(k.nome.toLowerCase())} (${moeda(k.custo)}).` : 'Pronto para plantar.';
                 break;
             }
-            case 'murcho': txt = `${spr(A.cultura(i.k.id).murcho, 22)} ${esc(i.k.nome)} murchou. Toque para limpar.`; break;
+            case 'murcho': txt = `${spr(A.cultura(i.k.id).murcho, 22)} ${esc(i.k.nome)} murchou. ${(S.jogador.diamantes || 0) >= 1 ? `Toque para salvar (1 ${ico('diamante', 12)} salva todas as murchas) ou arar.` : 'Toque para limpar.'}`; break;
             case 'maduro': txt = `${itemDe(i.k)} ${esc(i.k.nome)} pronto! Toque para colher. Murcha em ${fmtTempo(i.resta)}.`; break;
             default: txt = `${itemDe(i.k)} ${esc(i.k.nome)} · ${Math.floor(i.prog * 100)}% · pronto em ${fmtTempo(i.resta)}.`;
         }
@@ -2061,6 +2068,11 @@
         const racao = culturas[i.t.racao], produto = culturas[i.t.produto];
         const nome = esc(i.t.nome);
         if (visita) {
+            if (i.estado === 'fome' && 'bichos_hoje' in visita) {
+                return mostrarStatus(visita.bichos_hoje < 10
+                    ? `${spr(A.ANIMAL[a.tipo], 22)} ${nome} do vizinho com fome: toque para dar ração (do celeiro dele) e ganhe +${visita.premio_ajuda || 1} ${ico('xp', 14)}.`
+                    : `${spr(A.ANIMAL[a.tipo], 22)} ${nome} do vizinho com fome. Você já deu ração a 10 bichos aqui hoje.`);
+            }
             return mostrarStatus(`${spr(A.ANIMAL[a.tipo], 22)} ${nome} do vizinho.`);
         }
         if (i.estado === 'fome') {
@@ -2076,7 +2088,14 @@
     }
 
     function clicarAnimal(id) {
-        if (!S || painelAtual || visita) return;
+        if (!S || painelAtual) return;
+        if (visita) {   // fase 48: na visita, toque no bicho com fome dá ração
+            if (typeof id === 'string') return;
+            descreverAnimal(id);
+            const a = (visita.animais || []).find((x) => x.id === id);
+            if (a && infoAnimal(a).estado === 'fome' && 'bichos_hoje' in visita && visita.bichos_hoje < 10) alimentarBichosVizinho([id]);
+            return;
+        }
         if (typeof id === 'string' && id.startsWith('h:')) return descreverAjudante(id.slice(2));
         descreverAnimal(id);
         const a = S.animais.find((x) => x.id === id);
@@ -2183,6 +2202,8 @@
     function textoDiario(d) {
         const k = culturas[d.cultura];
         const item = k ? `${itemDe(k, 18)}${esc(k.nome.toLowerCase())}` : esc(d.cultura);
+        if (d.tipo === 'salvar') return `<b>${esc(d.apelido)}</b> salvou o seu ${item} que tinha murchado!`;
+        if (d.tipo === 'bicho') return `<b>${esc(d.apelido)}</b> deu ração (${item}) para um bicho seu.`;
         return d.tipo === 'roubo'
             ? `<b>${esc(d.apelido)}</b> pegou ${d.qtd} ${item} da sua fazenda!`
             : `<b>${esc(d.apelido)}</b> cuidou do seu ${item} (${d.qtd} problema${d.qtd > 1 ? 's' : ''}).`;
@@ -2206,7 +2227,10 @@
         if (!ineditos.length) return;
         ultimoAvisoDiario = Math.max(...ineditos.map(quando));
         const d = ineditos[0];
-        toast((d.tipo === 'roubo' ? ico('guaxinim', 20) : ico('coracao', 16)) + ' ' + textoDiario(d) + (ineditos.length > 1 ? ` (+${ineditos.length - 1} no diário)` : ''));
+        const linha = (x) => (x.tipo === 'roubo' ? ico('guaxinim', 20) : ico('coracao', 16)) + ' ' + textoDiario(x);
+        // cada visita fica no histórico (Importantes); na tela aparece só a mais nova
+        for (const x of ineditos.slice(1).reverse()) guardarAviso(linha(x), undefined, true);
+        toast(linha(d) + (ineditos.length > 1 ? ` (+${ineditos.length - 1} no diário)` : ''), undefined, 'importante');
     }
 
     function marcarDiarioVisto() {
@@ -2222,11 +2246,14 @@
        painel Histórico; o contador do menu mostra quantos chegaram desde a última vez. */
     const HIST_MAX = 60;
     let historico = [];
-    try { historico = JSON.parse(store.get(LS.historico) || '[]').filter((h) => h && h.html).slice(0, HIST_MAX); } catch { historico = []; }
+    // (os avisos leves de antes, como "Semente escolhida", saem: o histórico é para o que importa)
+    const LEVES = /^(Semente escolhida|Nada pronto ainda|Nenhum canteiro (precisa ser arado|arado livre)|Tudo em ordem por aqui|Escolha um item)/;
+    try { historico = JSON.parse(store.get(LS.historico) || '[]').filter((h) => h && h.html && !LEVES.test(h.html)).slice(0, HIST_MAX); } catch { historico = []; }
     let histVisto = Number(store.get(LS.historicoVisto)) || 0;
     const histNovos = () => historico.filter((h) => h.em > histVisto).length;
-    function guardarAviso(html, tipo) {
-        historico.unshift({ em: Date.now(), html, tipo: tipo || '' });
+    // importante = o que aconteceu com você sem você fazer nada: visitas, convites, ajudantes
+    function guardarAviso(html, tipo, importante) {
+        historico.unshift({ em: Date.now(), html, tipo: tipo || '', ...(importante ? { imp: true } : {}) });
         if (historico.length > HIST_MAX) historico.length = HIST_MAX;
         store.set(LS.historico, JSON.stringify(historico));
         if (painelAtual === 'historico') marcarHistoricoVisto();
@@ -2241,10 +2268,16 @@
         const n = histNovos(), c = $('hudHistorico');
         if (c) { c.textContent = n > 99 ? '99+' : n; c.hidden = !n; }
     }
+    let abaHistorico = 'importantes';
     function htmlHistorico() {
         if (!historico.length) return '<p class="vazio-msg">Nenhum aviso ainda. Tudo o que aparecer no topo da tela fica guardado aqui.</p>';
         const hoje = new Date().toDateString();
-        return '<ul class="historico">' + historico.map((h) => {
+        const imp = historico.filter((h) => h.imp);
+        const lista = abaHistorico === 'importantes' ? imp : historico;
+        const abas = `<div class="painel-abas" role="tablist">${[['importantes', `Importantes${imp.length ? ` (${imp.length})` : ''}`], ['tudo', 'Tudo']].map(([id, txt]) =>
+            `<button type="button" role="tab" data-aba-historico="${id}" class="${abaHistorico === id ? 'ativa' : ''}">${txt}</button>`).join('')}</div>`;
+        if (!lista.length) return abas + '<p class="vazio-msg">Nada importante por enquanto. Aqui ficam quem visitou a sua fazenda, quem entrou pelo seu convite e o que os ajudantes fizeram enquanto você estava fora.</p>';
+        return abas + '<ul class="historico">' + lista.map((h) => {
             const d = new Date(h.em);
             const quando = d.toDateString() === hoje
                 ? d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
@@ -2253,9 +2286,10 @@
         }).join('') + '</ul>';
     }
 
-    function toast(html, tipo) {
+    // extra: 'leve' = só aparece (não vai para o histórico); 'importante' = vai para a aba Importantes
+    function toast(html, tipo, extra) {
         if (tipo === 'erro') som.tocar('erro');
-        guardarAviso(html, tipo);
+        if (extra !== 'leve') guardarAviso(html, tipo, extra === 'importante');
         const t = document.createElement('div');
         t.className = 'toast' + (tipo === 'erro' ? ' erro-t' : tipo === 'festa' ? ' festa' : '');
         t.innerHTML = html;
@@ -2339,6 +2373,8 @@
         }
         const acao = acaoPara(canteiro(p));
         if (!acao) return abrirMenuCanteiro(p);
+        // fase 48: murcha e com diamante: pergunta se salva (todas por 1 💎) antes de arar
+        if (info(canteiro(p)).fase === 'murcho' && (S.jogador.diamantes || 0) >= 1 && lojaD() && lojaD().murchas) return abrirMenuCanteiro(p);
         let k = null;
         if (acao === 'plantar') {
             k = validarPlantio();
@@ -2359,7 +2395,7 @@
     // planta crescendo: o toque abre o menu dela (quanto falta, colher agora com diamante, arrancar)
     let menuCanteiro = null;
     function abrirMenuCanteiro(p) {
-        if (info(canteiro(p)).fase !== 'crescendo') return;
+        if (!['crescendo', 'murcho'].includes(info(canteiro(p)).fase)) return;
         menuCanteiro = p;
         abrirPainel('canteiro');
     }
@@ -2496,7 +2532,7 @@
             const prontos = (S.animais || []).filter((a) => infoAnimal(a).estado === 'pronto').map((a) => a.id);
             // nada pronto, mas tem planta crescendo e diamante: pergunta se quer colher tudo agora
             if (!ps.length && !prontos.length && planoColherTudo().crescendo.length && (S.jogador.diamantes || 0) > 0) return abrirPainel('colherTudo');
-            if (!ps.length && !prontos.length) return toast('Nada pronto ainda.');
+            if (!ps.length && !prontos.length) return toast('Nada pronto ainda.', undefined, 'leve');
             if (ps.length) executar('colher', ps);
             if (prontos.length) {
                 const r = await executarAnimal('coletar', prontos);
@@ -2504,11 +2540,11 @@
             }
         } else if (tipo === 'arar') {
             const ps = posicoesOnde((c, i) => i.fase === 'vazio' || i.fase === 'murcho');
-            if (!ps.length) return toast('Nenhum canteiro precisa ser arado.');
+            if (!ps.length) return toast('Nenhum canteiro precisa ser arado.', undefined, 'leve');
             executar('arar', ps);
         } else if (tipo === 'plantar') {
             let ps = posicoesOnde((c, i) => i.fase === 'arado');
-            if (!ps.length) return toast('Nenhum canteiro arado livre.');
+            if (!ps.length) return toast('Nenhum canteiro arado livre.', undefined, 'leve');
             const k = validarPlantio();
             if (!k) return;
             if (!daEstacao(k)) {   // fora de época: só os canteiros da estufa
@@ -2541,7 +2577,7 @@
                 const r = await executarAnimal('alimentar', famintos);
                 if (r && r.feitos) toast(`Alimentou ${r.feitos} animal(is).`);
             }
-            if (!algum) toast('Tudo em ordem por aqui.');
+            if (!algum) toast('Tudo em ordem por aqui.', undefined, 'leve');
             else if (total) toast(`${spr(84, 22)} Resolveu ${total} problema(s)!`);
         }
     }
@@ -2608,7 +2644,8 @@
                 const k = c && culturas[c.cultura];
                 flutuar(Number(pos), acao === 'pegar'
                     ? `+${qtd} ${k ? itemDe(k, 20) : ''}`
-                    : `+${qtd} ${ico('xp', 16)} +${qtd} ${ico('moeda', 16)}`, n * 70);
+                    : acao === 'salvar' ? `Salvou! ${qtd ? `+${qtd} ${ico('xp', 16)}` : ''}`
+                    : qtd ? `+${qtd} ${ico('xp', 16)}` : `${ico('coracao', 16)}`, n * 70);   // (fase 48: o XP de ajudar vem do servidor)
             });
             aplicarEstado(r.estado);
             if (visita && visita.id === dono) mostrarVisita(r.vizinho);
@@ -2616,11 +2653,25 @@
                 const total = Object.values(r.resultado).reduce((a, b) => a + b, 0);
                 toast(acao === 'pegar'
                     ? `${ico('mao', 18)} Pegou ${total} itens de ${r.feitos} canteiro(s)!`
-                    : `${ico('coracao', 16)} Resolveu ${total} problema(s) do vizinho!`);
+                    : `${ico('coracao', 16)} Ajudou em ${r.feitos} canteiro(s) do vizinho: +${total} ${ico('xp', 14)}`);
             } else if (posicoes.length === 1) {
                 descrever(posicoes[0]);
             }
             return r;
+        });
+    }
+
+    // fase 48: o visitante dá ração aos bichos com fome (sai do celeiro do dono; até 10 por dia em cada fazenda)
+    function alimentarBichosVizinho(ids) {
+        const dono = visita.id;
+        return enfileirar([], async () => {
+            const r = await rpc('fazenda_vizinho_bicho', { p_token: token, p_vizinho: dono, p_animais: ids });
+            if (r.feitos) {
+                som.tocar('cuidar');
+                toast(`${ico('coracao', 16)} Deu ração a ${r.feitos} bicho(s) do vizinho: +${r.xp} ${ico('xp', 14)}`);
+            }
+            aplicarEstado(r.estado);
+            if (visita && visita.id === dono) mostrarVisita(r.vizinho);
         });
     }
 
@@ -2632,7 +2683,16 @@
             const i = info(c);
             return tipo === 'pegar' ? podePegar(c, i) : (i.fase === 'crescendo' || i.fase === 'maduro') && i.probs.length > 0;
         }).map((c) => c.posicao);
-        if (!ps.length) return toast(tipo === 'pegar' ? 'Nada pra pegar aqui agora.' : 'A fazenda do vizinho está em ordem.');
+        if (tipo === 'ajudar') {   // fase 48: ajudar tudo também salva a murcha do dia e dá ração aos bichos
+            const murcha = visita.pode_salvar && visita.canteiros.find((c) => info(c).fase === 'murcho');
+            const famintos = 'bichos_hoje' in visita && visita.bichos_hoje < 10 ? (visita.animais || []).filter((a) => infoAnimal(a).estado === 'fome').map((a) => a.id) : [];
+            if (!ps.length && !murcha && !famintos.length) return toast('A fazenda do vizinho está em ordem.', undefined, 'leve');
+            if (ps.length) executarVisita('ajudar', ps);
+            if (murcha) executarVisita('salvar', [murcha.posicao]);
+            if (famintos.length) alimentarBichosVizinho(famintos);
+            return;
+        }
+        if (!ps.length) return toast('Nada pra pegar aqui agora.', undefined, 'leve');
         executarVisita(tipo, ps);
     }
 
@@ -2736,6 +2796,13 @@
                         ${diam < 1 && (S.pacotes_diamantes || []).length ? `<button type="button" class="botao creme" data-ir-diamantes>${ico('diamante', 18)} Comprar diamantes</button>` : ''}
                         ${troca ? `<button type="button" class="botao creme" data-canteiro="trocar">Arrancar e plantar ${itemDe(troca, 18)} ${esc(troca.nome.toLowerCase())} (${moeda(troca.custo)})</button>` : ''}
                         <button type="button" class="botao creme" data-canteiro="arrancar">Arrancar (a planta se perde)</button>
+                    </div>`;
+            } else if (i.fase === 'murcho') {
+                const n = S.canteiros.filter((x) => info(x).fase === 'murcho').length;
+                corpo.innerHTML = `<p>${esc(i.k.nome)} murchou${n > 1 ? ` (e mais ${n - 1} murcha${n > 2 ? 's' : ''})` : ''}. Com 1 ${ico('diamante', 14)} ${n > 1 ? `as ${n} voltam` : 'ela volta'} madura${n > 1 ? 's' : ''}, sem erva, praga ou seca, pronta${n > 1 ? 's' : ''} para colher.</p>
+                    <div class="menu-canteiro">
+                        ${botaoDiamante('murchas', 1, n > 1 ? `Salvar as ${n} murchas` : 'Salvar a murcha')}
+                        <button type="button" class="botao creme" data-canteiro="arar">Arar (a planta se perde)</button>
                     </div>`;
             } else if (i.fase === 'maduro') {
                 corpo.innerHTML = `<p>${esc(i.k.nome)} pronto para colher!</p>
@@ -2877,8 +2944,8 @@
                     <li>Toque num item já colocado para ver o que ele faz; o <b>alcance</b> dele (irrigador, alarme, estufa...) aparece marcado no chão. <b>Segure o dedo 3 segundos</b> num item ou canteiro para pegar e levar para outro lugar.</li>
                     <li>A semana tem as 4 <b>estações</b> (42 horas cada), e cada uma muda a cara da fazenda (pétalas na primavera, grama quente no verão, folhas caindo no outono, neve no inverno) e tem uma semente só dela: morango, melancia, abóbora e repolho. O <b>clima</b> muda várias vezes por dia: sol dá +1 na colheita, chuva rega tudo, onda de calor seca mais, nublado não traz problema novo e ventania espalha pragas. Toque no clima, lá em cima, para ver até quando ele vai.</li>
                     <li>O jogo tem o próprio <b>dia e noite</b>: eles se revezam a cada 2 horas (12 horas de dia e 12 de noite em cada dia de verdade). De noite o mapa escurece, as janelas, os lampiões e as oficinas acendem, aparecem vaga-lumes, e o painel solar não gera energia. Toque no clima para ver quando amanhece.</li>
-                    <li>O <b>baú</b> guarda em si (até 200 itens) o que recolhe sozinho, com energia, do que estiver encostado nele: o bloco de canteiros, um cercado (coleta e dá ração), uma árvore do pomar e o cesto do lago (2 ⚡ cada). Toque no baú para ver o que tem.</li>
-                    <li>No nível 16 chegam os <b>canos de vidro</b> (Construir → Energia, 20 cada). Canos encostados formam uma <b>rede</b>, e tudo o que encosta num cano dela (baús, oficinas, o celeiro, a fábrica automática) trabalha junto: a rede <b>enche sozinha o estoque das oficinas</b> (até 10 receitas, 2 ⚡ cada) com o que tem nos baús e no celeiro da rede, dividindo entre todas; o produto vai para outra oficina que usa ele (o óleo da prensa vai para o empório), para o celeiro ou para um baú; e o que nenhuma oficina usa sai do baú para o celeiro (2 ⚡ por viagem). Para o celeiro fazer parte, o cano tem que encostar no próprio prédio do celeiro. Nada anda sem estar ligado. Como saber se está funcionando: a <b>luz no meio do cano</b> fica verde pulsando quando a rede liga duas coisas ou mais (vermelha piscando = sem energia), a oficina na rede ganha um selinho de cano no balão, o baú mostra uma barrinha de quanto está cheio, e cada item aparece passando pelo cano quando viaja.</li>
+                    <li>O <b>baú</b> guarda em si (até 200 itens) o que recolhe sozinho, com energia, do que estiver encostado nele: o bloco de canteiros, um cercado (coleta e dá ração), uma árvore do pomar e o cesto do lago (3 ⚡ cada). Toque no baú para ver o que tem.</li>
+                    <li>No nível 16 chegam os <b>canos de vidro</b> (Construir → Energia, 30 cada). Canos encostados formam uma <b>rede</b>, e tudo o que encosta num cano dela (baús, oficinas, o celeiro, a fábrica automática) trabalha junto: a rede <b>enche sozinha o estoque das oficinas</b> (até 10 receitas, 3 ⚡ cada) com o que tem nos baús e no celeiro da rede, dividindo entre todas; o produto vai para outra oficina que usa ele (o óleo da prensa vai para o empório), para o celeiro ou para um baú; e o que nenhuma oficina usa sai do baú para o celeiro (3 ⚡ por viagem). Para o celeiro fazer parte, o cano tem que encostar no próprio prédio do celeiro. Nada anda sem estar ligado. Como saber se está funcionando: a <b>luz no meio do cano</b> fica verde pulsando quando a rede liga duas coisas ou mais (vermelha piscando = sem energia), a oficina na rede ganha um selinho de cano no balão, o baú mostra uma barrinha de quanto está cheio, e cada item aparece passando pelo cano quando viaja.</li>
                     <li>Do nível 16 em diante vem a <b>energia</b> ${ico('raio', 14)}: painel solar, turbina, gerador a biomassa e reator enchem as baterias, e as máquinas elétricas (estufa, triturador, fábrica automática, robô, aspersor, baús e a rede de canos) trabalham sozinhas gastando energia. O <b>eletricista</b> (ajudante, nível 17) faz tudo gastar menos, e dá para encher as baterias com diamantes. Toque no ${ico('raio', 12)} lá em cima (ou no botão abaixo) para ver o que cada uma faz.</li>
                     ${ANUNCIO.ligado || ehLocal ? `<li>Quando aparecer o botão <b>+30 min</b>, assista a um anúncio até o fim e tudo o que está em andamento (plantas, animais, oficinas, ajudantes e energia) adianta 30 minutos. Cada anúncio também dá 1 ${ico('diamante', 14)} diamante.</li>` : ''}
                     <li>No Perfil (ou em Vizinhos) tem o seu <b>link de convite</b>: quem criar uma fazenda por ele ganha moedas, e você também.</li>
@@ -3164,6 +3231,8 @@
             ${linha(ico('raio', 36), 'Encher a energia', `Baterias cheias na hora: 1 ${ico('diamante', 12)} a cada ${l.energia.por} ⚡ que faltam.`,
                 pe == null ? info('Sem energia ainda') : pe === 0 ? info('Já está cheia') : botaoDiamante('energia', pe, 'Encher'))}
             ${linha(A.htmlItem('prensa_oleo', 36), 'Oficina na hora', `Na oficina trabalhando, toque em <b>Terminar agora</b>: ${l.oficina.por_hora} ${ico('diamante', 12)} por hora que falta.`)}
+            ${l.murchas ? linha(ico('diamante', 36), 'Salvar as plantas murchas', `Todas as murchas voltam maduras, sem erva, praga ou seca: ${l.murchas.preco} ${ico('diamante', 12)} por todas.`,
+                S.canteiros.some((x) => info(x).fase === 'murcho') ? botaoDiamante('murchas', l.murchas.preco, 'Salvar') : info('Nada murcho')) : ''}
             ${linha(itemDe(culturas.tomate || { id: 'tomate' }, 36), 'Colher agora', `Toque numa planta crescendo: 1 ${ico('diamante', 12)} e ela fica pronta na hora. Ou colha todas de uma vez (1 ${ico('diamante', 12)} por planta).`,
                 planoColherTudo().crescendo.length ? `<button type="button" class="botao pequeno verde" data-colher-tudo${j.diamantes > 0 ? '' : ' disabled'}>Colher todas<br>${ico('diamante', 14)} ${planoColherTudo().crescendo.length}</button>` : info('Nada crescendo'))}
             ${linha(A.htmlAvatar({ tipo: 'fantasma' }, 36), 'Personagens especiais', 'Soldado, bárbaro, guarda, feiticeiro, fantasma, ciclope, diabinho e morcego: só com diamantes.',
@@ -3180,7 +3249,7 @@
             const msg = {
                 xp2: `XP em dobro até ${hora(j.xp2_ate)}!`, xp: `+${r.xp} ${ico('xp', 14)}!`,
                 cafe: `Café servido: os ajudantes trabalham em dobro até ${hora(j.cafe_ate)}!`,
-                energia: 'Baterias cheias!', oficina: 'Receita pronta na hora!'
+                energia: 'Baterias cheias!', oficina: 'Receita pronta na hora!', murchas: 'As plantas murchas voltaram, prontas para colher!'
             }[item];
             toast(`${ico('diamante', 16)} −${r.diamantes} · ${msg}`, 'festa');
             if (painelAtual) abrirPainel(painelAtual, true);
@@ -3389,7 +3458,7 @@
             store.set(LS.semente, semente);
             desenharHud();
             fecharPainel();
-            toast(`Semente escolhida: ${itemDe(k)} ${esc(k.nome)}`);
+            toast(`Semente escolhida: ${itemDe(k)} ${esc(k.nome)}`, undefined, 'leve');
             return;
         }
         if (e.target.closest('[data-avatar-editar]')) {
@@ -3512,6 +3581,8 @@
             }).finally(() => { esv.disabled = false; });
             return;
         }
+        const abaH = e.target.closest('[data-aba-historico]');
+        if (abaH) { abaHistorico = abaH.dataset.abaHistorico; abrirPainel('historico', true); return; }
         if (e.target.closest('[data-historico-limpar]')) {
             historico = [];
             store.del(LS.historico);
@@ -3532,7 +3603,7 @@
             abrirPainel('loja');
             return;
         }
-        const menuC = e.target.closest('[data-canteiro]');
+        const menuC = e.target.closest('[data-canteiro]');   // (fase 48: 'arar' vem do menu da murcha)
         if (menuC) {
             const p = menuCanteiro, o = menuC.dataset.canteiro;
             fecharPainel();
