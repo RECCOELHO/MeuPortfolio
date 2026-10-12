@@ -84,7 +84,8 @@
         sem_racao: 'Falta ração no celeiro.',
         ja_salvou: 'Você já salvou uma planta nessa fazenda hoje. Volte amanhã!',
         preco_invalido: 'Preço fora da faixa da feira (entre metade e o triplo da venda normal).',
-        limite_anuncios: 'Você já tem 5 anúncios abertos na feira. Espere vender ou cancele um.',
+        limite_anuncios: 'Os seus lugares na feira estão todos ocupados. Cada barraca nova (no painel da Feira, até 4) dá mais 2; ou espere vender ou cancele um.',
+        limite_barracas: 'A sua feira já tem as 4 barracas.',
         sem_itens: 'Não tem tudo isso livre no celeiro (a ração reservada fica).',
         anuncio_invalido: 'Esse lote já foi vendido, cancelado ou acabou.',
         anuncio_seu: 'Esse anúncio é seu.',
@@ -1674,6 +1675,11 @@
         aoTile: (x, y) => tocarTile(x, y),
         aoCeleiro: () => { if (S && !painelAtual) abrirPainel('celeiro'); },
         aoVenda: () => { if (S && !painelAtual) { abaLoja = 'terrenos'; abrirPainel('loja'); } },
+        aoFeira: () => {   // fase 51: a pracinha da feira, na mata
+            if (!S || painelAtual) return;
+            abaFeira = !visita && S.feira && S.feira.meus.length ? 'meus' : 'comprar';
+            abrirPainel('feira');
+        },
         aoLago: () => { if (S && !painelAtual && !visita) pescar(); },
         aoVisitante: () => { if (S && !painelAtual && visitaAgora()) abrirPainel('visitante'); },
         aoConstrucao: (x, y) => {
@@ -1686,6 +1692,8 @@
         aoPassar: (alvo) => {
             if (!S || alvo == null) return;
             if (alvo === 'celeiro') mostrarStatus(`${spr(11, 22)} Celeiro: toque para ver e vender a colheita.`);
+            else if (alvo === 'feira') mostrarStatus(visita ? `${A.htmlItem('barraca', 22)} <b>Feira</b>: toque para comprar dos outros jogadores.`
+                : `${A.htmlItem('barraca', 22)} <b>Feira</b>: ${barracas()} barraca${barracas() > 1 ? 's' : ''}, até ${limiteFeira()} anúncios. Toque para comprar e vender com outros jogadores.`);
             else if (alvo === 'venda') descreverVenda();
             else if (alvo === 'lago') descreverLago();
             else if (alvo === 'visitante') descreverVisitante();
@@ -2207,6 +2215,7 @@
         atualizarBotaoAnuncio();
         atualizarLago();
         atualizarGalinheiro();
+        atualizarFeiraMapa();
         atualizarVisitante();
         if (!visita) cena.definirAvatar(estado.jogador.avatar);
         atualizarTerreno();
@@ -2608,6 +2617,7 @@
         visita = v;
         atualizarTerreno();
         atualizarGalinheiro();
+        atualizarFeiraMapa();
         atualizarVisitante();
         cena.definirAvatar(v.avatar);
         const va = document.getElementById('visitaAvatar');
@@ -2641,6 +2651,7 @@
         visita = null;
         atualizarTerreno();
         atualizarGalinheiro();
+        atualizarFeiraMapa();
         if (S) cena.definirAvatar(S.jogador.avatar);
         document.body.classList.remove('visitando');
         el.faixaVisita.hidden = true;
@@ -2954,7 +2965,7 @@
                 <ul class="ajuda">
                     <li>Toque num canteiro e ele faz a ação certa: <b>arar</b>, <b>plantar</b>, <b>cuidar</b> ou <b>colher</b>.</li>
                     <li><b>XP das plantas:</b> colher dá o XP de cada planta (aparece na loja), em qualquer nível. O mesmo canteiro dá XP de colheita no máximo uma vez a cada 8 minutos: a alface, que cresce em 2, dá XP de 4 em 4 colheitas. Cuidar dá +1 XP. Arar dá XP só até o nível 5.</li>
-                    <li>Na <b>Feira</b> (no menu) os jogadores vendem uns para os outros: anuncie um lote do celeiro com o seu preço (entre metade e o triplo da venda normal) e compre de outros o que falta para as suas receitas. A feira fica com 5% de cada venda; o anúncio dura 2 dias.</li>
+                    <li>Na <b>Feira</b> (no menu) os jogadores vendem uns para os outros: anuncie um lote do celeiro com o seu preço (entre metade e o triplo da venda normal) e compre de outros o que falta para as suas receitas. Quem vende recebe tudo; o anúncio dura 2 dias. Toda fazenda já tem uma <b>barraca na feira</b>, na clareira da mata à esquerda do celeiro: cada barraca dá 2 anúncios e mostra em cima o que você vende. Do nível 5 em diante dá para comprar mais 3 no painel da Feira.</li>
                     <li>Em <b>Metas</b> (no menu) está tudo o que o seu nível libera: construir cada oficina, máquina e cercado, ter cada bicho, contratar cada ajudante, comprar os terrenos e ocupar os canteiros. Com tudo em dia, <b>+50% de XP</b> até o próximo nível; o que ficou dos níveis de trás também aparece lá.</li>
                     <li>Toque numa planta crescendo para abrir o menu dela: quanto falta, <b>colher agora</b> por 1 ${ico('diamante', 14)} diamante (fica pronta na hora e vai para o celeiro), <b>arrancar</b>, ou arrancar e plantar a semente escolhida. Você começa com 10 diamantes e ganha 5 a cada nível. Em <b>Loja → Diamantes</b> eles também compram <b>XP em dobro</b> por 1 hora, um <b>pacote de XP</b> (até 3 por dia), o <b>café dos ajudantes</b> (em dobro por 2 horas), <b>energia</b> cheia na hora, uma <b>oficina terminando agora</b> e <b>personagens especiais</b> para o avatar.</li>
                     <li>As plantas crescem em tempo real, mesmo com a página fechada.</li>
@@ -3270,10 +3281,30 @@
     }
     /* ---------- A feira entre jogadores (fase 50) ----------
        Anunciar tira o lote do celeiro na hora; outro jogador compra o lote inteiro e você recebe na
-       hora, menos 5% da feira. Preço por unidade entre metade e o triplo do preço de venda; o anúncio
-       vale 2 dias (vencido, volta para o celeiro). As ofertas vêm de fazenda_feira_lista. */
+       hora, tudo (fase 51: sem taxa). Preço por unidade entre metade e o triplo do preço de venda; o
+       anúncio vale 2 dias (vencido, volta para o celeiro). Quantos anúncios: 2 por barraca; as
+       barracas ficam numa pracinha na mata (A.MAPA.feira): 1 de saída, compra até 4. As ofertas vêm
+       de fazenda_feira_lista. */
     let abaFeira = 'comprar', feiraDados = null, feiraFiltro = null, feiraItem = null;
-    const regrasFeira = () => (S && S.feira && S.feira.regras) || { taxa: 5, min: 0.5, max: 3, horas: 48, anuncios: 5, qtd_max: 99 };
+    const regrasFeira = () => (S && S.feira && S.feira.regras)
+        || { taxa: 0, min: 0.5, max: 3, horas: 48, por_barraca: 2, barracas_max: 4, barraca_nivel: 5, barraca_precos: [800, 1600, 2400], qtd_max: 99 };
+    const limiteFeira = () => (S.feira && S.feira.limite) || 2;
+    const barracas = () => (S.feira && S.feira.barracas) || 1;
+    // comprar mais uma barraca na feira (até 4)
+    function dicaBarraca() {
+        const r = regrasFeira(), n = barracas(), max = r.barracas_max || 4;
+        if (n >= max) return '';
+        const preco = (r.barraca_precos || [])[n - 1] || 0, nivel = r.barraca_nivel || 5;
+        return S.jogador.nivel < nivel
+            ? `<p class="det"><span class="txt">${A.htmlItem('barraca', 16)} No nível ${nivel} dá para comprar mais barracas na feira: cada uma dá mais ${r.por_barraca || 2} anúncios.</span></p>`
+            : `<p class="det"><span class="txt">${A.htmlItem('barraca', 16)} Você tem ${n} de ${max} barracas na feira. Cada barraca nova dá mais ${r.por_barraca || 2} anúncios e mostra o que você vende.</span></p>
+               <button type="button" class="botao pequeno verde" data-feira-barraca${S.jogador.moedas >= preco ? '' : ' disabled'}>Comprar barraca (${ico('moeda', 14)} ${preco})</button>`;
+    }
+    // fase 51: as barracas na pracinha da mata (na visita, só a primeira, sem o que está à venda)
+    function atualizarFeiraMapa() {
+        const f = !visita && S && S.feira;
+        cena.definirFeira({ barracas: f ? f.barracas || 1 : 1, vende: f ? (f.meus || []).map((a) => A.cultura(a.item).item) : [], vagas: !!f });
+    }
     const faixaFeira = (k) => { const r = regrasFeira(); return [Math.max(1, Math.floor(k.venda * r.min)), Math.max(1, Math.ceil(k.venda * r.max))]; };
     // o que dá para anunciar: o que tem no celeiro (fora a ração reservada) e vale alguma coisa
     const livreFeira = (id) => Math.max(0, naCeleiro(id) - reservaDe(id));
@@ -3287,7 +3318,7 @@
     }
     function htmlFeira() {
         const r = regrasFeira();
-        const abas = `<div class="painel-abas" role="tablist">${[['comprar', 'Comprar'], ['vender', 'Vender'], ['meus', `Meus anúncios${(S.feira && S.feira.meus.length) ? ` (${S.feira.meus.length})` : ''}`]].map(([id, txt]) =>
+        const abas = `<div class="painel-abas" role="tablist">${[['comprar', 'Comprar'], ['vender', 'Vender'], ['meus', `Meus anúncios (${(S.feira && S.feira.meus.length) || 0}/${limiteFeira()})`]].map(([id, txt]) =>
             `<button type="button" role="tab" data-aba-feira="${id}" class="${abaFeira === id ? 'ativa' : ''}">${txt}</button>`).join('')}</div>`;
         const nomeK = (id) => esc((culturas[id] || { nome: id }).nome);
         const resta = (ate) => fmtTempo(Date.parse(ate) - agora());
@@ -3308,25 +3339,32 @@
         } else if (abaFeira === 'vender') {
             const itens = itensFeira();
             if (!itens.length) corpo = '<p class="vazio-msg">O seu celeiro não tem nada para anunciar agora (a ração reservada fica).</p>';
-            else {
+            else if (((S.feira && S.feira.meus) || []).length >= limiteFeira()) {
+                corpo = `<p class="vazio-msg">Os seus ${limiteFeira() === 1 ? 'lugar' : `${limiteFeira()} lugares`} na feira ${limiteFeira() === 1 ? 'está ocupado' : 'estão ocupados'}. Espere vender ou cancele um em Meus anúncios.</p>` + dicaBarraca();
+            } else {
                 if (!itens.includes(feiraItem)) feiraItem = itens[0];
                 const k = culturas[feiraItem], [min, max] = faixaFeira(k), livre = livreFeira(feiraItem);
                 corpo = `<div class="feira-form">
                     <label>Item <select data-feira-item>${itens.map((id) => `<option value="${esc(id)}"${id === feiraItem ? ' selected' : ''}>${nomeK(id)} (${livreFeira(id)})</option>`).join('')}</select></label>
                     <label>Quantidade <input type="number" id="feiraQtd" min="1" max="${Math.min(livre, r.qtd_max)}" value="${Math.min(livre, 10)}"></label>
                     <label>Preço de cada <input type="number" id="feiraPreco" min="${min}" max="${max}" value="${Math.min(max, Math.max(min, Math.round(k.venda * 1.2)))}"></label>
-                    <p class="det"><span class="txt">${itemDe(k, 16)} Na venda normal, ${moeda(k.venda)} cada. Na feira, entre ${min} e ${max}. A feira fica com ${r.taxa}%.</span></p>
+                    <p class="det"><span class="txt">${itemDe(k, 16)} Na venda normal, ${moeda(k.venda)} cada. Na feira, entre ${min} e ${max}, e você recebe tudo.</span></p>
                     <button type="button" class="botao verde" data-feira-anunciar>Anunciar</button>
                 </div>`;
             }
         } else {
-            const meus = (S.feira && S.feira.meus) || [];
+            const meus = (S.feira && S.feira.meus) || [], vendidos = (S.feira && S.feira.vendidos) || [];
             corpo = meus.length ? '<div class="lista">' + meus.map((a) => `<div class="item"><span class="ico">${itemDe(culturas[a.item] || { id: a.item }, 36)}</span>
                 <span><span class="nome">${a.qtd} × ${nomeK(a.item)}</span><span class="det"><span>${moeda(a.preco)} cada · total ${a.qtd * a.preco}</span><span>acaba em ${resta(a.ate)}</span></span></span>
                 <button type="button" class="botao pequeno creme" data-feira-cancelar="${a.id}">Cancelar</button></div>`).join('') + '</div>'
                 : '<p class="vazio-msg">Nenhum anúncio aberto. Na aba Vender você coloca um lote do celeiro à venda.</p>';
+            corpo += dicaBarraca();
+            // fase 51: quem comprou (os últimos 7 dias)
+            if (vendidos.length) corpo += '<h3 class="secao-titulo">Vendidos</h3><div class="lista">' + vendidos.map((v) => `<div class="item"><span class="ico">${itemDe(culturas[v.item] || { id: v.item }, 28)}</span>
+                <span><span class="nome"><b>${esc(v.comprador || 'Alguém')}</b> comprou ${v.qtd} × ${nomeK(v.item)}</span><span class="det"><span>+${moeda(v.total)}</span><span>há ${fmtTempo(agora() - Date.parse(v.em))}</span></span></span></div>`).join('') + '</div>';
         }
-        return abas + corpo + `<p class="aviso">Na feira você compra de outros jogadores o que falta para as suas receitas e vende o que sobra. Preço entre metade e o triplo da venda normal; até ${r.anuncios} anúncios de ${r.horas / 24} dias (vencido, volta para o celeiro); a feira fica com ${r.taxa}% de cada venda.</p>`;
+        const lim = limiteFeira();
+        return abas + corpo + `<p class="aviso">Na feira você compra de outros jogadores o que falta para as suas receitas e vende o que sobra, recebendo tudo. Preço entre metade e o triplo da venda normal; o anúncio dura ${r.horas / 24} dias (vencido, volta para o celeiro). Você pode ter ${lim} anúncios: ${r.por_barraca || 2} por barraca (as suas ficam na mata, à esquerda do celeiro).</p>`;
     }
     function avisarFeira(estado) {
         for (const v of (estado.feira && estado.feira.vendas_novas) || []) {
@@ -3704,9 +3742,21 @@
             enfileirar([], async () => {
                 const r = await rpc('fazenda_feira_comprar', { p_token: token, p_id: Number(fc.dataset.feiraComprar) });
                 som.tocar('moeda');
-                toast(`${itemDe(culturas[r.item] || { id: r.item }, 18)} Comprou ${r.qtd} na feira por ${r.total} ${ico('moeda', 14)}: já está no celeiro.`, 'festa');
+                toast(`${itemDe(culturas[r.item] || { id: r.item }, 18)} Comprou ${r.qtd} de <b>${esc(r.vendedor || 'alguém')}</b> na feira por ${r.total} ${ico('moeda', 14)}: já está no celeiro.`, 'festa', 'importante');
                 aplicarEstado(r.estado);
                 carregarFeira();
+            });
+            return;
+        }
+        const fb = e.target.closest('[data-feira-barraca]');
+        if (fb) {   // fase 51: mais uma barraca na feira
+            fb.disabled = true;
+            enfileirar([], async () => {
+                const r = await rpc('fazenda_feira_barraca', { p_token: token });
+                som.tocar('moeda');
+                aplicarEstado(r.estado);
+                toast(`${A.htmlItem('barraca', 18)} Barraca nova na feira! Agora você pode ter ${limiteFeira()} anúncios.`, 'festa');
+                abrirPainel('feira', true);
             });
             return;
         }
