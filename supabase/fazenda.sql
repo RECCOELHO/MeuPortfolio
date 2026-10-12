@@ -511,7 +511,7 @@ insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem) 
   ('alvo',          'Alvo',                'objeto',    80, 6, 26),
   ('caixote',       'Caixote de tomate',   'objeto',   100, 7, 27),
   ('colmeia',       'Colmeia',             'objeto',   120, 8, 28),
-  ('bau',           'Baú',                 'objeto',   225, 11, 29),
+  ('bau',           'Baú',                 'objeto',   200, 11, 29),
   ('lampiao',       'Lampião',             'objeto',    70, 4, 30)
 on conflict (id) do update set
   nome = excluded.nome, categoria = excluded.categoria, custo = excluded.custo,
@@ -601,7 +601,7 @@ delete from public.fazenda_canteiros where x between 24 and 29 and y between 14 
 insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem, efeito, raio, limite, descricao) values
   ('irrigador',     'Irrigador',         'maquina',  150, 3, 50, 'seco',     2, null, 'Sem seca nos canteiros em volta (2 quadrados).'),
   ('pulverizador',  'Pulverizador',      'maquina',  300, 5, 51, 'praga',    2, null, 'Sem pragas nos canteiros em volta (2 quadrados).'),
-  ('alarme',        'Alarme antiladrão', 'maquina',  600, 6, 52, 'alarme',   3, null, 'Vizinhos não pegam nada dos canteiros em volta (3 quadrados). Com energia elétrica na fazenda, gasta 1 ⚡ por hora e desliga se a bateria zerar.'),
+  ('alarme',        'Alarme antiladrão', 'maquina',  500, 6, 52, 'alarme',   3, null, 'Vizinhos não pegam nada dos canteiros em volta (3 quadrados). Com energia elétrica na fazenda, gasta 1 ⚡ por hora e desliga se a bateria zerar.'),
   ('robo_capina',   'Robô capinador',    'maquina',  500, 8, 53, 'erva',     2, null, 'Sem ervas daninhas nos canteiros em volta (2 quadrados).'),
   ('trator',        'Trator',            'maquina', 1200, 9, 54, 'arar',     0, 1,    'Depois da colheita o canteiro já fica arado (fazenda toda).'),
   ('colheitadeira', 'Colheitadeira',     'maquina', 2500, 12, 55, 'colheita', 0, 1,    '+1 item em cada colheita (fazenda toda).')
@@ -614,17 +614,17 @@ on conflict (id) do update set
 -- baterias e as máquinas elétricas gastam. Os números ficam nas funções fazenda_capacidade,
 -- fazenda_energia_taxa e nos gastos de cada máquina; as descrições aparecem no jogo.
 insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem, efeito, raio, limite, descricao) values
-  ('cano',          'Cano de vidro',      'energia',    30, 16, 79, 'cano',       0, null, 'Canos encostados formam uma rede que liga baús, oficinas e o celeiro. A rede enche sozinha o estoque das oficinas com o que tem nos baús e no celeiro (3 ⚡ por receita); o produto vai para outra oficina que usa ele, para o celeiro ou para um baú; o que sobra no baú vai para o celeiro (3 ⚡ por viagem). Dá para ver cada item passando.'),
-  ('painel_solar',  'Painel solar',       'energia',  2500, 16, 80, 'solar',      0, 6, 'Gera até 12 ⚡/h de dia (sol forte: 14; nublado: 5; chuva: 3). À noite, nada: no jogo, o dia e a noite se revezam a cada 2 horas.'),
-  ('bateria',       'Banco de baterias',  'energia',  2000, 16, 81, 'bateria',    0, 4, 'Guarda mais 100 ⚡ (sem bateria, a caixa de luz guarda só 50).'),
-  ('turbina',       'Turbina eólica',     'energia',  4000, 17, 82, 'eolica',     0, 4, 'Gera 8 ⚡/h de dia e de noite; 30 ⚡/h na ventania e 14 na chuva. Na calmaria (sem vento, uns 30% do tempo fora da ventania e da chuva), cai para 1 ⚡/h.'),
-  ('estufa',        'Estufa elétrica',    'energia',  7500, 18, 83, 'estufa',     2, 3, 'Canteiros em volta (2) aceitam sementes de qualquer estação e crescem 25% mais rápido. Gasta 8 ⚡ por plantio.'),
+  ('cano',          'Cano de vidro',      'energia',    25, 16, 79, 'cano',       0, null, 'Canos encostados formam uma rede que liga baús, oficinas e o celeiro. A rede enche sozinha o estoque das oficinas com o que tem nos baús e no celeiro (2 ⚡ por receita); o produto vai para outra oficina que usa ele, para o celeiro ou para um baú; o que sobra no baú vai para o celeiro (2 ⚡ por viagem). Dá para ver cada item passando.'),
+  ('painel_solar',  'Painel solar',       'energia',  2500, 16, 80, 'solar',      0, 8, 'Gera até 12 ⚡/h de dia (sol forte: 14; nublado: 5; chuva: 3). À noite, nada: no jogo, o dia e a noite se revezam a cada 2 horas.'),
+  ('bateria',       'Banco de baterias',  'energia',  2000, 16, 81, 'bateria',    0, 4, 'Guarda mais 150 ⚡ (sem bateria, a caixa de luz guarda só 50). Bateria cheia: o que sobra é vendido, 1 moeda a cada 5 ⚡.'),
+  ('turbina',       'Turbina eólica',     'energia',  4000, 17, 82, 'eolica',     0, 6, 'Gera 8 ⚡/h de dia e de noite; 30 ⚡/h na ventania e 14 na chuva. Na calmaria (sem vento, uns 25% do tempo fora da ventania e da chuva), cai para 3 ⚡/h: o painel de energia avisa quando vem.'),
+  ('estufa',        'Estufa elétrica',    'energia',  6000, 18, 83, 'estufa',     2, 3, 'Canteiros em volta (2) aceitam sementes de qualquer estação e crescem 25% mais rápido. Gasta 5 ⚡ por plantio.'),
   ('gerador_bio',   'Gerador a biomassa', 'energia',  6000, 19, 84, 'biomassa',   0, 2, 'Ligado, queima 1 milho a cada 30 min: 50 ⚡/h. Toque nele para ligar ou desligar.'),
-  ('triturador',    'Triturador',         'energia', 12000, 20, 85, 'triturar',   0, 1, 'As oficinas rendem 2 produtos por receita. Gasta 15 ⚡ por receita.'),
+  ('triturador',    'Triturador',         'energia', 10000, 20, 85, 'triturar',   0, 1, 'As oficinas rendem 2 produtos por receita. Gasta 10 ⚡ por receita.'),
   ('supercap',      'Supercapacitor',     'energia',  9000, 21, 86, 'bateria',    0, 2, 'Guarda mais 500 ⚡.'),
-  ('fabrica_auto',  'Fábrica automática', 'energia', 18000, 22, 87, 'automatico', 0, 1, 'Um pedaço do celeiro em qualquer lugar: a rede de canos encostada nela leva e traz do celeiro como se o cano chegasse até ele (sem mexer na ração reservada).'),
-  ('robo_colheita', 'Robô colheitador',   'energia', 21000, 23, 88, 'robo',       3, 2, 'Colhe, ara e replanta sozinho os canteiros em volta (3). Gasta 6 ⚡ por colheita e 3 por plantio.'),
-  ('aspersor',      'Aspersor elétrico',  'energia', 15000, 24, 89, 'aspersor',   3, 4, 'Nenhuma erva, praga ou seca nos canteiros em volta (3). Gasta 3 ⚡ por problema evitado.'),
+  ('fabrica_auto',  'Fábrica automática', 'energia', 15000, 22, 87, 'automatico', 0, 1, 'Um pedaço do celeiro em qualquer lugar: a rede de canos encostada nela leva e traz do celeiro como se o cano chegasse até ele (sem mexer na ração reservada).'),
+  ('robo_colheita', 'Robô colheitador',   'energia', 18000, 23, 88, 'robo',       3, 2, 'Colhe, ara e replanta sozinho os canteiros em volta (3). Gasta 4 ⚡ por colheita e 2 por plantio.'),
+  ('aspersor',      'Aspersor elétrico',  'energia', 12000, 24, 89, 'aspersor',   3, 4, 'Nenhuma erva, praga ou seca nos canteiros em volta (3). Gasta 2 ⚡ por problema evitado.'),
   ('reator',        'Reator nuclear',     'energia', 30000, 25, 90, 'reator',     0, 1, 'Gera 120 ⚡/h sem parar, de dia e de noite (80 na onda de calor, para não esquentar).')
 on conflict (id) do update set
   nome = excluded.nome, categoria = excluded.categoria, custo = excluded.custo,
@@ -678,7 +678,7 @@ update public.fazenda_itens i
     ('alvo',          'sorte',        2,  2, 'Sorte: 15% de chance de colheita em dobro em volta (2 quadrados).', null, null, null),
     ('caixote',       'venda',        0,  2, '+10% no preço de venda (fazenda toda, não acumula).', null, null, null),
     ('colmeia',       'adubo',        2,  3, 'Abelhas: +1 item na colheita em volta (2 quadrados).', null, null, null),
-    ('bau',           'missao',       0,  3, '+25% de moedas nas missões. Com energia, guarda em si (até 200 itens) o que recolhe: encostado num bloco de canteiros, colhe o que amadurece; num cercado, coleta e dá ração aos bichos; numa árvore do pomar, colhe as frutas; no lago, pega o cesto do Bira (3 ⚡ cada). Com canos, manda para as oficinas e o celeiro.', null, null, null),
+    ('bau',           'missao',       0,  3, '+25% de moedas nas missões. Com energia, guarda em si (até 200 itens) o que recolhe: encostado num bloco de canteiros, colhe o que amadurece; num cercado, coleta e dá ração aos bichos; numa árvore do pomar, colhe as frutas; no lago, pega o cesto do Bira (2 ⚡ cada). Com canos, manda para as oficinas e o celeiro.', null, null, null),
     ('lampiao',       null,           0,  3, 'Acende sozinho de noite e ilumina em volta. +3 de beleza (beleza dá bônus nas vendas).', null, null, null),
     ('casa_vermelha', null,           0, 20, 'Casinha: +20 de beleza (beleza dá bônus nas vendas).', null, null, null),
     ('casa_azul',     null,           0, 30, 'Casinha: +30 de beleza (beleza dá bônus nas vendas).', null, null, null)
@@ -1043,7 +1043,7 @@ $$;
 -- ⚡ que cabe nas baterias: 50 da caixa de luz + 100 por banco de baterias + 500 por supercapacitor
 create or replace function public.fazenda_capacidade(p_jogador uuid)
 returns int language sql stable security definer set search_path = public as $$
-  select 50 + coalesce(sum(case c.tipo when 'bateria' then 100 when 'supercap' then 500 else 0 end), 0)::int
+  select 50 + coalesce(sum(case c.tipo when 'bateria' then 150 when 'supercap' then 500 else 0 end), 0)::int
     from fazenda_construcoes c where c.jogador_id = p_jogador;
 $$;
 
@@ -1062,12 +1062,28 @@ $$;
 
 -- ⚡ por hora que sol, vento e reator geram num momento (o painel solar só de dia: fazenda_dia_em)
 -- Fase 48: calmaria. Em blocos de 72 min do dia (duas fatias de 36 min do clima, então a conta da
--- energia fecha nas mesmas fronteiras), uns 30% ficam sem vento; nunca na ventania nem na chuva
+-- energia fecha nas mesmas fronteiras), uns 25% ficam sem vento; nunca na ventania nem na chuva
 create or replace function public.fazenda_vento_calmo(p_t timestamptz)
 returns boolean language sql stable as $$
   select fazenda_clima_em(p_t) not in ('vento', 'chuva')
-     and ('x' || substr(md5(l::date::text || ':' || ((extract(hour from l)::int * 60 + extract(minute from l)::int) / 72)::text), 1, 4))::bit(16)::int % 10 < 3
+     and ('x' || substr(md5(l::date::text || ':' || ((extract(hour from l)::int * 60 + extract(minute from l)::int) / 72)::text), 1, 4))::bit(16)::int % 4 = 0
     from (select p_t at time zone 'America/Sao_Paulo' as l) x;
+$$;
+
+-- Fase 48: a calmaria de agora (até quando) e a próxima nas próximas 24 h, para o jogo avisar
+create or replace function public.fazenda_vento_previsao(p_t timestamptz)
+returns jsonb language sql stable as $$
+  with b as (
+    select g as ini
+      from generate_series(
+             (date_trunc('day', p_t at time zone 'America/Sao_Paulo')
+               + make_interval(mins => ((extract(hour from p_t at time zone 'America/Sao_Paulo')::int * 60
+                                         + extract(minute from p_t at time zone 'America/Sao_Paulo')::int) / 72) * 72)) at time zone 'America/Sao_Paulo',
+             p_t + interval '24 hours', interval '72 minutes') g)
+  select jsonb_build_object(
+    'calmo', fazenda_vento_calmo(p_t),
+    'muda_em', (select min(ini) from b where ini > p_t),
+    'proxima', (select min(ini) from b where ini > p_t and fazenda_vento_calmo(ini + interval '1 minute')));
 $$;
 
 create or replace function public.fazenda_energia_taxa(p_jogador uuid, p_t timestamptz)
@@ -1076,7 +1092,7 @@ returns real language sql stable security definer set search_path = public as $$
            when 'solar' then case when fazenda_dia_em(p_t)
                                   then case x.clima when 'sol' then 12 when 'calor' then 14 when 'vento' then 10 when 'nublado' then 5 else 3 end
                                   else 0 end
-           when 'eolica' then case when fazenda_vento_calmo(p_t) then 1   -- fase 48: calmaria
+           when 'eolica' then case when fazenda_vento_calmo(p_t) then 3   -- fase 48: calmaria
                                    else case x.clima when 'vento' then 30 when 'chuva' then 14 when 'nublado' then 10 when 'sol' then 8 else 5 end end
            when 'reator' then case x.clima when 'calor' then 80 else 120 end
            else 0 end), 0)::real
@@ -1367,6 +1383,7 @@ begin
     'energia', jsonb_build_object(
       'carga', round(v_ener::numeric, 1),
       'calmo', fazenda_vento_calmo(now()),   -- fase 48: sem vento agora (a turbina quase para)
+      'vento', fazenda_vento_previsao(now()),
       'capacidade', fazenda_capacidade(p_jogador),
       'por_hora', fazenda_energia_taxa(p_jogador, now()) + 50 * (
         select count(*) from fazenda_construcoes c join fazenda_itens i on i.id = c.tipo
@@ -1560,7 +1577,7 @@ begin
       raise exception 'moedas_insuficientes';
     end if;
     if v_estufa then
-      v_estufa := fazenda_gastar_energia(p_jogador, 8);   -- sem energia, a estufa não ajuda
+      v_estufa := fazenda_gastar_energia(p_jogador, 5);   -- sem energia, a estufa não ajuda
     end if;
     if v_fora and not v_estufa then
       raise exception 'sem_energia';
@@ -1763,6 +1780,7 @@ declare
   v_tempo  int;
   v_milho  int;
   v_queima int;
+  v_moedas int := 0;
 begin
   select energia, energia_em into j from fazenda_jogadores where id = p_jogador for update;
   if j.energia_em is not null and j.energia_em >= now() then
@@ -1787,6 +1805,8 @@ begin
     v_e := v_e + fazenda_energia_taxa(p_jogador, v_t) * extract(epoch from v_prox - v_t)::real / 3600;
     v_t := v_prox;
   end loop;
+  -- fase 48: bateria cheia, a sobra do sol, do vento e do reator é vendida (1 moeda a cada 5 ⚡)
+  v_moedas := floor(greatest(v_e - v_cap, 0) / 5)::int;
   -- gerador a biomassa ligado: 1 milho a cada 30 min vira 25 ⚡ (acabou o milho, desliga)
   for g in
     select c.x, c.y, c.iniciado_em from fazenda_construcoes c join fazenda_itens i on i.id = c.tipo
@@ -1810,7 +1830,7 @@ begin
      where jogador_id = p_jogador and x = g.x and y = g.y;
   end loop;
   v_e := least(greatest(v_e, 0), v_cap);
-  update fazenda_jogadores set energia = v_e, energia_em = now() where id = p_jogador;
+  update fazenda_jogadores set energia = v_e, energia_em = now(), moedas = moedas + v_moedas where id = p_jogador;
   return v_e;
 end;
 $$;
@@ -1850,7 +1870,7 @@ begin
   if not fazenda_protegido(p_jogador, 'aspersor', p_x, p_y) then
     return false;
   end if;
-  return fazenda_gastar_energia(p_jogador, 3);
+  return fazenda_gastar_energia(p_jogador, 2);
 end;
 $$;
 
@@ -2030,7 +2050,7 @@ begin
     end if;
   end loop;
   -- 2 ⚡ por receita (fase 43; na 42 foi 1): a rede enche o estoque inteiro, então pesa na energia
-  if not fazenda_gastar_energia(p_jogador, 3) then return false; end if;
+  if not fazenda_gastar_energia(p_jogador, 2) then return false; end if;
   for e in select key as item, value::int as qtd from jsonb_each_text(p_entradas) loop
     v_falta := e.qtd;
     select quantidade into v_tira from fazenda_oficina_itens where jogador_id = p_jogador and x = p_x and y = p_y and item = e.item for update;
@@ -2143,7 +2163,7 @@ begin
              join fazenda_itens i on i.id = c.tipo
             where m->>'papel' = 'oficina' and (m->>'rede')::int = any(v_redes) and i.entradas ? bi.item)
     loop
-      exit when not fazenda_gastar_energia(p_jogador, 3);
+      exit when not fazenda_gastar_energia(p_jogador, 2);
       update fazenda_bau_itens set quantidade = 0 where jogador_id = p_jogador and x = b.x and y = b.y and item = it.item;
       insert into fazenda_celeiro (jogador_id, item, quantidade) values (p_jogador, it.item, it.quantidade)
       on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
@@ -2192,7 +2212,7 @@ begin
       if v_t is not null then
         exit when now() < v_t + make_interval(secs => o.produz_seg);   -- ainda trabalhando
         v_qtd := o.produz_qtd;
-        if v_tri and fazenda_gastar_energia(p_jogador, 15) then v_qtd := v_qtd * 2; end if;   -- triturador
+        if v_tri and fazenda_gastar_energia(p_jogador, 10) then v_qtd := v_qtd * 2; end if;   -- triturador
         v_fim := v_t + make_interval(secs => o.produz_seg);
         -- pronto: sai pela rede (outra oficina, celeiro ou baú); o que não sai fica para você pegar
         v_pr := v_pr + v_qtd - case when v_rede then fazenda_rede_entregar(p_jogador, o.x, o.y, o.produz, v_qtd, v_membros, v_fim) else 0 end;
@@ -2275,7 +2295,7 @@ begin
          and now() >= c.plantado_em + make_interval(secs => u.tempo_seg)
          and now() < c.plantado_em + make_interval(secs => u.tempo_seg + greatest(u.tempo_seg * 2, 3600))
     loop
-      exit when v_livre <= 0 or not fazenda_gastar_energia(p_jogador, 3);
+      exit when v_livre <= 0 or not fazenda_gastar_energia(p_jogador, 2);
       begin
         v_qtd := fazenda_aplicar(p_jogador, 'colher', k.posicao, null, true);   -- cai no celeiro...
         perform fazenda_bau_guardar(p_jogador, b.x, b.y, k.cultura, v_qtd, k.x, k.y);   -- ...e passa para o baú
@@ -2296,7 +2316,7 @@ begin
     loop
       begin
         if m.alimentado_em is not null and now() >= m.alimentado_em + make_interval(secs => m.tempo_seg)
-           and v_livre > 0 and fazenda_gastar_energia(p_jogador, 3) then
+           and v_livre > 0 and fazenda_gastar_energia(p_jogador, 2) then
           perform fazenda_animal_um(p_jogador, m.id, 'coletar', true);
           perform fazenda_bau_guardar(p_jogador, b.x, b.y, m.produto, 1, m.px, m.py);
           v_livre := v_livre - 1;
@@ -2305,7 +2325,7 @@ begin
       exception when others then null;
       end;
       begin
-        if m.alimentado_em is null and fazenda_energia_atualizar(p_jogador) >= fazenda_energia_preco(p_jogador, 3) then
+        if m.alimentado_em is null and fazenda_energia_atualizar(p_jogador) >= fazenda_energia_preco(p_jogador, 2) then
           if coalesce((select quantidade from fazenda_bau_itens where jogador_id = p_jogador and x = b.x and y = b.y and item = m.racao), 0) >= m.racao_qtd then
             update fazenda_bau_itens set quantidade = quantidade - m.racao_qtd where jogador_id = p_jogador and x = b.x and y = b.y and item = m.racao;
             insert into fazenda_celeiro (jogador_id, item, quantidade) values (p_jogador, m.racao, m.racao_qtd)   -- passa pelo celeiro
@@ -2314,7 +2334,7 @@ begin
             v_livre := v_livre + m.racao_qtd;
           end if;
           perform fazenda_animal_um(p_jogador, m.id, 'alimentar', true);   -- sem ração: pula (e desfaz o de cima)
-          perform fazenda_gastar_energia(p_jogador, 3);
+          perform fazenda_gastar_energia(p_jogador, 2);
         end if;
       exception when others then null;
       end;
@@ -2327,7 +2347,7 @@ begin
          and abs(c.x - b.x) + abs(c.y - b.y) = 1
          and (c.colhido_em is null or now() >= c.colhido_em + make_interval(secs => i.produz_seg))
     loop
-      exit when v_livre <= 0 or not fazenda_gastar_energia(p_jogador, 3);
+      exit when v_livre <= 0 or not fazenda_gastar_energia(p_jogador, 2);
       update fazenda_construcoes set colhido_em = now() where jogador_id = p_jogador and x = arv.x and y = arv.y;
       insert into fazenda_bau_itens (jogador_id, x, y, item, quantidade) values (p_jogador, b.x, b.y, arv.produz, arv.produz_qtd)
       on conflict (jogador_id, x, y, item) do update set quantidade = fazenda_bau_itens.quantidade + excluded.quantidade;
@@ -2337,10 +2357,10 @@ begin
 
     -- encostado no lago (x 24..29, y 14..18): pega o cesto do Bira
     if ((b.x in (23, 30) and b.y between 14 and 18) or (b.y in (13, 19) and b.x between 24 and 29))
-       and v_livre > 0 and fazenda_energia_atualizar(p_jogador) >= fazenda_energia_preco(p_jogador, 3) then
+       and v_livre > 0 and fazenda_energia_atualizar(p_jogador) >= fazenda_energia_preco(p_jogador, 2) then
       v_peixes := fazenda_cesto(p_jogador, v_livre);
       if v_peixes <> '{}'::jsonb then
-        perform fazenda_gastar_energia(p_jogador, 3);
+        perform fazenda_gastar_energia(p_jogador, 2);
         for e in select key as item, value::int as qtd from jsonb_each_text(v_peixes) loop
           insert into fazenda_bau_itens (jogador_id, x, y, item, quantidade) values (p_jogador, b.x, b.y, e.item, e.qtd)
           on conflict (jogador_id, x, y, item) do update set quantidade = fazenda_bau_itens.quantidade + excluded.quantidade;
@@ -2389,7 +2409,7 @@ begin
     loop
       if cc.maduro then
         begin   -- colhe (e ara, se não tiver trator): 4 ⚡ (fase 43; era 3)
-          if not fazenda_gastar_energia(p_jogador, 6) then exit; end if;
+          if not fazenda_gastar_energia(p_jogador, 4) then exit; end if;
           perform fazenda_aplicar(p_jogador, 'colher', cc.posicao, null, true);
           if (select estado from fazenda_canteiros where jogador_id = p_jogador and posicao = cc.posicao) = 'vazio' then
             perform fazenda_aplicar(p_jogador, 'arar', cc.posicao, null, true);
@@ -2397,14 +2417,14 @@ begin
         exception when others then null;
         end;
         begin   -- replanta a mesma semente (paga com suas moedas): 2 ⚡
-          if fazenda_gastar_energia(p_jogador, 3) then
+          if fazenda_gastar_energia(p_jogador, 2) then
             perform fazenda_aplicar(p_jogador, 'plantar', cc.posicao, cc.cultura, true);
           end if;
         exception when others then null;
         end;
       elsif cc.estado = 'arado' and v_sem is not null then
         begin   -- canteiro arado vazio: planta a última semente que você usou (2 ⚡)
-          if fazenda_gastar_energia(p_jogador, 3) then
+          if fazenda_gastar_energia(p_jogador, 2) then
             perform fazenda_aplicar(p_jogador, 'plantar', cc.posicao, v_sem, true);
           end if;
         exception when others then null;
@@ -4685,6 +4705,7 @@ revoke execute on function
   public.fazenda_galinheiro_quer(uuid),
   public.fazenda_pasto(uuid),
   public.fazenda_vento_calmo(timestamptz),
+  public.fazenda_vento_previsao(timestamptz),
   public.fazenda_premio_ajuda(uuid),
   public.fazenda_premiar_ajuda(uuid, int),
   public.fazenda_salvar_um(uuid, uuid, int),
