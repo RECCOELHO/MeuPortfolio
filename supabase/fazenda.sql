@@ -296,6 +296,8 @@ alter table public.fazenda_jogadores add column if not exists diamantes int not 
 alter table public.fazenda_jogadores add column if not exists xp2_ate timestamptz;
 alter table public.fazenda_jogadores add column if not exists cafe_de timestamptz;
 alter table public.fazenda_jogadores add column if not exists cafe_ate timestamptz;
+-- Fase 49: com todas as metas de nível em dia, +50% de XP até o próximo nível (bonus_nivel = o nível em que vale)
+alter table public.fazenda_jogadores add column if not exists bonus_nivel int;
 -- última semente que o jogador plantou (a semeadora usa a mesma)
 alter table public.fazenda_jogadores add column if not exists semente text references public.fazenda_culturas(id);
 
@@ -1275,6 +1277,38 @@ begin
 end;
 $$;
 
+-- Fase 49: as metas de cada nível = tudo o que ele libera: construir cada oficina, máquina, coisa de
+-- energia, cercado e árvore do pomar (e o baú); ter cada bicho; contratar cada ajudante; comprar cada
+-- terreno; e ocupar todos os canteiros do nível. Vêm as do nível de agora e as que ficaram para trás.
+create or replace function public.fazenda_metas(p_jogador uuid, p_nivel int)
+returns jsonb language sql stable security definer set search_path = public as $$
+  with j as (select zonas from fazenda_jogadores where id = p_jogador),
+       mx as (select fazenda_limite_canteiros(p_nivel, (select zonas from j)) as max,
+                     (select count(*) from fazenda_canteiros where jogador_id = p_jogador)::int as tem)
+  select coalesce(jsonb_agg(m order by (m->>'nivel')::int, m->>'tipo', m->>'id'), '[]'::jsonb) from (
+    select jsonb_build_object('tipo', 'construir', 'id', i.id, 'nivel', i.nivel_min,
+             'feito', exists (select 1 from fazenda_construcoes c where c.jogador_id = p_jogador and c.tipo = i.id)) as m
+      from fazenda_itens i
+     where i.nivel_min <= p_nivel and (i.categoria in ('oficina', 'maquina', 'energia', 'bichos', 'pomar') or i.id = 'bau')
+    union all
+    select jsonb_build_object('tipo', 'bicho', 'id', t.id, 'nivel', t.nivel_min,
+             'feito', exists (select 1 from fazenda_animais a where a.jogador_id = p_jogador and a.tipo = t.id))
+      from fazenda_animais_tipos t where t.nivel_min <= p_nivel
+    union all
+    select jsonb_build_object('tipo', 'ajudante', 'id', h.id, 'nivel', h.nivel_min,
+             'feito', exists (select 1 from fazenda_ajudantes a where a.jogador_id = p_jogador and a.tipo = h.id))
+      from fazenda_ajudantes_tipos h where h.nivel_min <= p_nivel
+    union all
+    select jsonb_build_object('tipo', 'terreno', 'id', z->>'n', 'nivel', (z->>'nivel')::int,
+             'feito', (select zonas from j) >= (z->>'n')::int)
+      from jsonb_array_elements(fazenda_zonas()) z where (z->>'nivel')::int <= p_nivel
+    union all
+    select jsonb_build_object('tipo', 'canteiros', 'id', 'canteiros', 'nivel', p_nivel,
+             'feito', mx.tem >= mx.max, 'tem', mx.tem, 'max', mx.max)
+      from mx
+  ) x;
+$$;
+
 create or replace function public.fazenda_estado(p_jogador uuid)
 returns jsonb
 language plpgsql security definer
@@ -1287,6 +1321,8 @@ declare
   v_json  jsonb;
   v_ener  real;
   v_clima jsonb := fazenda_clima_previsao(now());
+  v_metas jsonb;
+  v_bonus int;
 begin
   perform fazenda_checar_conquistas(p_jogador);
   select * into j from fazenda_jogadores where id = p_jogador;
@@ -1310,6 +1346,13 @@ begin
   end if;
   -- canteiros não aparecem mais sozinhos: o jogador coloca no modo construir até este limite
   v_max := fazenda_limite_canteiros(v_nivel, j.zonas);
+  -- fase 49: as metas de nível; com todas em dia, o bônus de XP vale neste nível (só grava se mudou)
+  v_metas := fazenda_metas(p_jogador, v_nivel);
+  v_bonus := case when v_nivel < 30 and not exists (select 1 from jsonb_array_elements(v_metas) m where not (m->>'feito')::boolean)
+                  then v_nivel end;
+  if v_bonus is distinct from j.bonus_nivel then
+    update fazenda_jogadores set bonus_nivel = v_bonus where id = p_jogador;
+  end if;
   v_ener := fazenda_energia_atualizar(p_jogador);
 
   perform fazenda_gerar_missoes(p_jogador);
@@ -1336,6 +1379,7 @@ begin
       'nivel', v_nivel,
       'xp_nivel', fazenda_xp_nivel(v_nivel),
       'xp_proximo', fazenda_xp_nivel(v_nivel + 1),
+      'bonus_nivel', v_bonus,   -- fase 49: +50% de XP neste nível (metas em dia)
       'max_canteiros', v_max,
       'max_construcoes', fazenda_max_construcoes(j.zonas),
       'zonas', j.zonas,
@@ -1345,6 +1389,7 @@ begin
     'zonas_venda', fazenda_zonas(),
     'pacotes_diamantes', fazenda_pacotes_diamantes(),
     'loja_diamantes', fazenda_loja_diamantes(),
+    'metas', v_metas,
     -- fase 39: o que está em cada baú, o que já chegou pelo cano em cada oficina e as viagens
     -- dos últimos 2 minutos (o jogo desenha o item andando só enquanto ela acontece)
     'baus', coalesce((select jsonb_object_agg(b.x || ',' || b.y, b.itens) from (
@@ -4490,12 +4535,16 @@ $$;
 
 -- XP em dobro: todo XP que entra enquanto vale (colher, bichos, vender, missões...) vem dobrado.
 -- O pacote de XP liga fazenda.xp_puro para não dobrar.
+-- Fase 49: e +50% com as metas de nível em dia (bonus_nivel = o nível de agora); os dois somam
 create or replace function public.fazenda_xp_dobro()
 returns trigger language plpgsql set search_path = public as $$
+declare
+  v_mult real := 1;
 begin
-  if new.xp > old.xp and new.xp2_ate is not null and new.xp2_ate > now()
-     and coalesce(current_setting('fazenda.xp_puro', true), '') <> '1' then
-    new.xp := old.xp + 2 * (new.xp - old.xp);
+  if new.xp > old.xp and coalesce(current_setting('fazenda.xp_puro', true), '') <> '1' then
+    if new.xp2_ate is not null and new.xp2_ate > now() then v_mult := v_mult + 1; end if;
+    if new.bonus_nivel is not null and new.bonus_nivel = fazenda_nivel(old.xp) then v_mult := v_mult + 0.5; end if;
+    if v_mult > 1 then new.xp := old.xp + round((new.xp - old.xp) * v_mult)::int; end if;
   end if;
   return new;
 end;
@@ -4704,6 +4753,7 @@ revoke execute on function
   public.fazenda_estoque(text, int, int, int),
   public.fazenda_galinheiro_quer(uuid),
   public.fazenda_pasto(uuid),
+  public.fazenda_metas(uuid, int),
   public.fazenda_vento_calmo(timestamptz),
   public.fazenda_vento_previsao(timestamptz),
   public.fazenda_premio_ajuda(uuid),

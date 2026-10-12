@@ -1977,8 +1977,13 @@
         // XP em dobro ligado (diamantes): a barra fica dourada e o texto ganha um ×2
         const dobro = j.xp2_ate && Date.parse(j.xp2_ate) > agora();
         el.xpBar.parentElement.classList.toggle('dobro', !!dobro);
-        el.xpBar.parentElement.title = dobro ? `XP em dobro até ${hora(j.xp2_ate)}` : 'Experiência';
+        const bonusM = j.bonus_nivel != null && j.bonus_nivel === j.nivel;   // fase 49: metas em dia
+        el.xpBar.parentElement.classList.toggle('bonus', bonusM);
+        el.xpBar.parentElement.title = [dobro ? `XP em dobro até ${hora(j.xp2_ate)}` : '', bonusM ? 'Metas em dia: +50% de XP até o próximo nível' : ''].filter(Boolean).join(' · ') || 'Experiência';
         if (dobro) el.xp.textContent += ' ×2';
+        if (bonusM) el.xp.textContent += ' +50%';
+        const cm = $('hudMetas'), fm = metasDoNivelFaltando();
+        if (cm) { cm.textContent = fm; cm.hidden = !fm; }
         if (el.hudPerfil) {
             const prox = j.nivel < NIVEL_MAX ? liberaNoNivel(j.nivel + 1).slice(0, 3).map((x) => x.nome).join(', ') : '';
             el.hudPerfil.title = j.nivel < NIVEL_MAX
@@ -2786,6 +2791,9 @@
                         <button type="button" class="botao verde" data-vender="${soFinais ? 'finais' : '*'}"${total ? '' : ' disabled'}>${soFinais ? 'Vender produtos finais' : 'Vender tudo'}</button>
                     </div>`;
             }
+        } else if (nome === 'metas') {
+            el.painelTitulo.innerHTML = `${ico('medalha', 26)} Metas de nível`;
+            corpo.innerHTML = htmlMetas();
         } else if (nome === 'colherTudo') {
             el.painelTitulo.innerHTML = `${ico('diamante', 26)} Colher tudo agora?`;
             corpo.innerHTML = htmlColherTudo();
@@ -2935,6 +2943,7 @@
                 <ul class="ajuda">
                     <li>Toque num canteiro e ele faz a ação certa: <b>arar</b>, <b>plantar</b>, <b>cuidar</b> ou <b>colher</b>.</li>
                     <li><b>XP das plantas:</b> colher dá o XP de cada planta (aparece na loja), em qualquer nível. O mesmo canteiro dá XP de colheita no máximo uma vez a cada 8 minutos: a alface, que cresce em 2, dá XP de 4 em 4 colheitas. Cuidar dá +1 XP. Arar dá XP só até o nível 5.</li>
+                    <li>Em <b>Metas</b> (no menu) está tudo o que o seu nível libera: construir cada oficina, máquina e cercado, ter cada bicho, contratar cada ajudante, comprar os terrenos e ocupar os canteiros. Com tudo em dia, <b>+50% de XP</b> até o próximo nível; o que ficou dos níveis de trás também aparece lá.</li>
                     <li>Toque numa planta crescendo para abrir o menu dela: quanto falta, <b>colher agora</b> por 1 ${ico('diamante', 14)} diamante (fica pronta na hora e vai para o celeiro), <b>arrancar</b>, ou arrancar e plantar a semente escolhida. Você começa com 10 diamantes e ganha 5 a cada nível. Em <b>Loja → Diamantes</b> eles também compram <b>XP em dobro</b> por 1 hora, um <b>pacote de XP</b> (até 3 por dia), o <b>café dos ajudantes</b> (em dobro por 2 horas), <b>energia</b> cheia na hora, uma <b>oficina terminando agora</b> e <b>personagens especiais</b> para o avatar.</li>
                     <li>As plantas crescem em tempo real, mesmo com a página fechada.</li>
                     <li>Aparecem ${ico('erva', 14)} ervas, ${ico('praga', 14)} pragas e ${ico('seco', 12)} seca: cada problema deixado custa 1 item na colheita.</li>
@@ -3247,6 +3256,56 @@
                 '<button type="button" class="botao pequeno creme" data-avatar-editar>Ver</button>')}
         </div>`;
     }
+    /* ---------- Metas de nível (fase 49) ----------
+       Tudo o que cada nível libera vira meta (estado.metas, montado no servidor): construir cada
+       oficina, máquina, coisa de energia, cercado e árvore do pomar; ter cada bicho; contratar cada
+       ajudante; comprar cada terreno; ocupar os canteiros. Com tudo em dia até o nível de agora,
+       +50% de XP até o próximo (jogador.bonus_nivel). */
+    const bonusMetas = () => !!S && S.jogador.bonus_nivel != null && S.jogador.bonus_nivel === S.jogador.nivel;
+    const metasDoNivelFaltando = () => (S && S.metas ? S.metas.filter((m) => m.nivel === S.jogador.nivel && !m.feito).length : 0);
+    function descreverMeta(m) {
+        if (m.tipo === 'construir') { const it = tipoItem(m.id) || { nome: m.id }; return { icone: A.htmlItem(m.id, 32), txt: `Construa: <b>${esc(it.nome)}</b>`, ir: `data-meta-construir="${esc(m.id)}"` }; }
+        if (m.tipo === 'bicho') { const t = tipoAnimal(m.id) || { nome: m.id }; return { icone: spr(A.ANIMAL[m.id], 32), txt: `Tenha: <b>${esc(t.nome)}</b> (precisa do cercado)`, ir: 'data-meta-loja="animais"' }; }
+        if (m.tipo === 'ajudante') { const h = tipoAjudante(m.id) || { nome: m.id, papel: '' }; return { icone: retratoAjudante(m.id, 32), txt: `Contrate: <b>${esc(h.nome)}</b> ${h.papel ? `(${esc(h.papel.toLowerCase())})` : ''}`, ir: 'data-meta-loja="ajudantes"' }; }
+        if (m.tipo === 'terreno') { const z = zonasVenda().find((x) => String(x.n) === String(m.id)) || { nome: `Terreno ${m.id}` }; return { icone: spr(39, 32), txt: `Compre o terreno: <b>${esc(z.nome)}</b>`, ir: 'data-meta-loja="terrenos"' }; }
+        return { icone: A.htmlItem('canteiro', 32), txt: `Use todos os canteiros do nível: <b>${m.tem} de ${m.max}</b>`, ir: 'data-meta-construir="canteiro"' };
+    }
+    function htmlMetas() {
+        const metas = S.metas || [], n = S.jogador.nivel;
+        if (!metas.length) return '<p class="vazio-msg">As metas chegam em breve.</p>';
+        const linha = (m) => {
+            const d = descreverMeta(m);
+            return `<div class="item${m.feito ? ' meta-feita' : ''}"><span class="ico">${d.icone}</span>
+                <span><span class="nome">${d.txt}</span><span class="det"><span>Nível ${m.nivel}</span></span></span>
+                ${m.feito ? '<span class="preco">✓ Feito</span>' : `<button type="button" class="botao pequeno verde" ${d.ir}>Ir</button>`}</div>`;
+        };
+        const doNivel = metas.filter((m) => m.nivel === n);
+        const deTras = metas.filter((m) => m.nivel < n && !m.feito);
+        const feitas = metas.filter((m) => m.nivel < n && m.feito).length;
+        const faltam = metas.filter((m) => !m.feito).length;
+        return `${bonusMetas()
+                ? `<p class="aviso"><b>Tudo em dia!</b> Até o nível ${n + 1}, todo XP vem com <b>+50%</b>. No próximo nível chegam metas novas: cumpra de novo para manter o bônus.</p>`
+                : `<p class="aviso">Faltam <b>${faltam}</b> meta${faltam === 1 ? '' : 's'}. Com tudo o que o seu nível libera em dia, você ganha <b>+50% de XP</b> até o próximo nível.</p>`}
+            <h3 class="secao-titulo">Nível ${n}</h3><div class="lista">${doNivel.map(linha).join('')}</div>
+            ${deTras.length ? `<h3 class="secao-titulo">Ficaram para trás (${deTras.length})</h3><div class="lista">${deTras.map(linha).join('')}</div>` : ''}
+            ${feitas ? `<p class="det">${feitas} meta${feitas === 1 ? '' : 's'} dos níveis anteriores já cumprida${feitas === 1 ? '' : 's'}.</p>` : ''}`;
+    }
+    // leva direto ao modo construir com o item escolhido
+    function irConstruir(id) {
+        const it = tipoItem(id);
+        if (!it) return;
+        if (it.nivel_min > S.jogador.nivel) return toast(`${esc(it.nome)} libera no nível ${it.nivel_min}.`);
+        fecharPainel();
+        abrirConstrucao();
+        constr.aba = id === 'canteiro' ? 'plantacao' : it.categoria;
+        constr.tipo = it.id;
+        desenharPaleta();
+        atualizarModo();
+        mostrarStatus(id === 'canteiro'
+            ? `${A.htmlItem('canteiro', 22)} Canteiro: toque nos quadrados livres (sobram ${canteirosLivres()}).`
+            : `${A.htmlItem(it.id, 22)} ${esc(it.nome)} (${cercadoGratis(it) ? 'o seu sai de graça' : moeda(it.custo)}): toque num lugar livre para colocar.`);
+    }
+
     function usarDiamantes(item, x, y) {
         const num = (v) => (v == null || v === '' ? null : Number(v));
         return enfileirar([], async () => {
@@ -3557,6 +3616,10 @@
             }).finally(() => { vend.disabled = false; });
             return;
         }
+        const mc = e.target.closest('[data-meta-construir]');
+        if (mc) { irConstruir(mc.dataset.metaConstruir); return; }
+        const ml = e.target.closest('[data-meta-loja]');
+        if (ml) { abaLoja = ml.dataset.metaLoja; abrirPainel('loja'); return; }
         if (e.target.closest('[data-colher-tudo]')) { abrirPainel('colherTudo'); return; }
         if (e.target.closest('[data-colher-tudo-agora]')) { colherTudoAgora(); return; }
         const ud = e.target.closest('[data-usar-diamante]');
@@ -3652,16 +3715,7 @@
         // fase 45: o bicho sem cercado na loja leva direto ao modo construir com o cercado dele escolhido
         const cerc = e.target.closest('[data-construir-cercado]');
         if (cerc) {
-            const it = tipoItem(cerc.dataset.construirCercado);
-            if (!it) return;
-            if (it.nivel_min > S.jogador.nivel) return toast(`${esc(it.nome)} libera no nível ${it.nivel_min}.`);
-            fecharPainel();
-            abrirConstrucao();
-            constr.aba = 'bichos';
-            constr.tipo = it.id;
-            desenharPaleta();
-            atualizarModo();
-            mostrarStatus(`${A.htmlItem(it.id, 22)} ${esc(it.nome)} (${cercadoGratis(it) ? 'o seu sai de graça' : moeda(it.custo)}): toque num lugar livre para colocar. Depois volte na loja e compre o bicho.`);
+            irConstruir(cerc.dataset.construirCercado);
             return;
         }
         const comp = e.target.closest('[data-comprar]');
