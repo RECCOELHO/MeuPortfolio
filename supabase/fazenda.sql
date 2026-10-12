@@ -598,7 +598,7 @@ delete from public.fazenda_canteiros where x between 24 and 29 and y between 14 
 insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem, efeito, raio, limite, descricao) values
   ('irrigador',     'Irrigador',         'maquina',  150, 3, 50, 'seco',     2, null, 'Sem seca nos canteiros em volta (2 quadrados).'),
   ('pulverizador',  'Pulverizador',      'maquina',  300, 5, 51, 'praga',    2, null, 'Sem pragas nos canteiros em volta (2 quadrados).'),
-  ('alarme',        'Alarme antiladrão', 'maquina',  400, 6, 52, 'alarme',   3, null, 'Vizinhos não pegam nada dos canteiros em volta (3 quadrados).'),
+  ('alarme',        'Alarme antiladrão', 'maquina',  400, 6, 52, 'alarme',   3, null, 'Vizinhos não pegam nada dos canteiros em volta (3 quadrados). Com energia elétrica na fazenda, gasta 1 ⚡ por hora e desliga se a bateria zerar.'),
   ('robo_capina',   'Robô capinador',    'maquina',  500, 8, 53, 'erva',     2, null, 'Sem ervas daninhas nos canteiros em volta (2 quadrados).'),
   ('trator',        'Trator',            'maquina', 1200, 9, 54, 'arar',     0, 1,    'Depois da colheita o canteiro já fica arado (fazenda toda).'),
   ('colheitadeira', 'Colheitadeira',     'maquina', 2500, 12, 55, 'colheita', 0, 1,    '+1 item em cada colheita (fazenda toda).')
@@ -665,7 +665,7 @@ update public.fazenda_itens i
     ('arvore',        'seco',         1,  4, 'Sombra: sem seca nos canteiros encostados.', null, null, null),
     ('arvore_outono', 'crescer',      1,  4, 'Folhas viram adubo: plantas encostadas crescem 10% mais rápido.', null, null, null),
     ('pinheiro',      'praga',        2,  4, 'Passarinhos: sem pragas em volta (2 quadrados).', null, null, null),
-    ('amoreira',      null,           0,  3, 'Dá 4 amoras a cada 5 horas: toque nela para colher. Até 2 amoreiras por terreno (cada fruta tem o seu limite).', 'morango', 18000, 4),
+    ('amoreira',      null,           0,  3, 'Dá 4 amoras a cada 5 horas: toque nela para colher. Pomar: 1 pé de cada fruta, +1 a cada 2 terrenos (até 4).', 'morango', 18000, 4),
     ('pedras',        'erva',         1,  1, 'Cobertura de pedras: sem erva daninha nos canteiros encostados.', null, null, null),
     ('tora',          'crescer',      1,  2, 'Minhocas: plantas encostadas crescem 10% mais rápido.', null, null, null),
     ('placa',         'cerca',        2,  1, '"Proibido pegar": vizinhos pegam no máximo 1 item em volta (2 quadrados).', null, null, null),
@@ -685,7 +685,7 @@ update public.fazenda_itens i
 -- Fase 26: o pomar — fruta só dá no pé. Árvores frutíferas: 4 por terreno no total (fazenda inicial
 -- + cada terreno comprado), de qualquer tipo, contando a amoreira. Algumas ficam depois do nível 25.
 -- fase 43: o limite do pomar é de cada fruta (2 pés por terreno), não de todas juntas: grupo null
-update public.fazenda_itens set limite = null, por_terreno = 2, grupo = null where id = 'amoreira';
+update public.fazenda_itens set limite = null, por_terreno = 1, grupo = null where id = 'amoreira';
 insert into public.fazenda_culturas (id, nome, emoji, tempo_seg, custo, venda, rendimento, xp, nivel_min, ordem, tipo) values
   ('laranja', 'Laranja', '🍊', 1, 0, 15, 1, 3, 5, 50, 'produto'),
   ('limao', 'Limão', '🍊', 1, 0, 14, 1, 3, 8, 51, 'produto'),
@@ -697,13 +697,13 @@ insert into public.fazenda_culturas (id, nome, emoji, tempo_seg, custo, venda, r
 on conflict (id) do update set
   nome = excluded.nome, venda = excluded.venda, xp = excluded.xp, nivel_min = excluded.nivel_min, ordem = excluded.ordem, tipo = excluded.tipo;
 insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem, beleza, produz, produz_seg, produz_qtd, por_terreno, grupo, descricao) values
-  ('laranjeira', 'Laranjeira', 'pomar', 300, 5, 110, 3, 'laranja', 14400, 4, 2, null, 'Dá 4 laranjas a cada 4 horas: toque nela para colher. Até 2 laranjeiras por terreno (cada fruta tem o seu limite).'),
-  ('limoeiro', 'Limoeiro', 'pomar', 450, 8, 111, 3, 'limao', 21600, 6, 2, null, 'Dá 6 limões a cada 6 horas: toque nela para colher. Até 2 limoeiros por terreno (cada fruta tem o seu limite).'),
-  ('goiabeira', 'Goiabeira', 'pomar', 700, 12, 112, 3, 'goiaba', 18000, 4, 2, null, 'Dá 4 goiabas a cada 5 horas: toque nela para colher. Até 2 goiabeiras por terreno (cada fruta tem o seu limite).'),
-  ('mangueira', 'Mangueira', 'pomar', 3000, 26, 113, 3, 'manga', 18000, 5, 2, null, 'Dá 5 mangas a cada 5 horas: toque nela para colher. Até 2 mangueiras por terreno (cada fruta tem o seu limite).'),
-  ('abacateiro', 'Abacateiro', 'pomar', 4000, 27, 114, 3, 'abacate', 21600, 4, 2, null, 'Dá 4 abacates a cada 6 horas: toque nela para colher. Até 2 abacateiros por terreno (cada fruta tem o seu limite).'),
-  ('cacaueiro', 'Cacaueiro', 'pomar', 5000, 28, 115, 3, 'cacau', 21600, 6, 2, null, 'Dá 6 cacaus a cada 6 horas: toque nela para colher. Até 2 cacaueiros por terreno (cada fruta tem o seu limite).'),
-  ('jabuticabeira', 'Jabuticabeira', 'pomar', 6000, 29, 116, 3, 'jabuticaba', 28800, 12, 2, null, 'Dá 12 jabuticabas a cada 8 horas: toque nela para colher. Até 2 jabuticabeiras por terreno (cada fruta tem o seu limite).')
+  ('laranjeira', 'Laranjeira', 'pomar', 300, 5, 110, 3, 'laranja', 14400, 4, 1, null, 'Dá 4 laranjas a cada 4 horas: toque nela para colher. Pomar: 1 pé de cada fruta, +1 a cada 2 terrenos (até 4).'),
+  ('limoeiro', 'Limoeiro', 'pomar', 450, 8, 111, 3, 'limao', 21600, 6, 1, null, 'Dá 6 limões a cada 6 horas: toque nela para colher. Pomar: 1 pé de cada fruta, +1 a cada 2 terrenos (até 4).'),
+  ('goiabeira', 'Goiabeira', 'pomar', 700, 12, 112, 3, 'goiaba', 18000, 4, 1, null, 'Dá 4 goiabas a cada 5 horas: toque nela para colher. Pomar: 1 pé de cada fruta, +1 a cada 2 terrenos (até 4).'),
+  ('mangueira', 'Mangueira', 'pomar', 3000, 26, 113, 3, 'manga', 18000, 5, 1, null, 'Dá 5 mangas a cada 5 horas: toque nela para colher. Pomar: 1 pé de cada fruta, +1 a cada 2 terrenos (até 4).'),
+  ('abacateiro', 'Abacateiro', 'pomar', 4000, 27, 114, 3, 'abacate', 21600, 4, 1, null, 'Dá 4 abacates a cada 6 horas: toque nela para colher. Pomar: 1 pé de cada fruta, +1 a cada 2 terrenos (até 4).'),
+  ('cacaueiro', 'Cacaueiro', 'pomar', 5000, 28, 115, 3, 'cacau', 21600, 6, 1, null, 'Dá 6 cacaus a cada 6 horas: toque nela para colher. Pomar: 1 pé de cada fruta, +1 a cada 2 terrenos (até 4).'),
+  ('jabuticabeira', 'Jabuticabeira', 'pomar', 6000, 29, 116, 3, 'jabuticaba', 28800, 12, 1, null, 'Dá 12 jabuticabas a cada 8 horas: toque nela para colher. Pomar: 1 pé de cada fruta, +1 a cada 2 terrenos (até 4).')
 on conflict (id) do update set
   nome = excluded.nome, categoria = excluded.categoria, custo = excluded.custo, nivel_min = excluded.nivel_min, ordem = excluded.ordem,
   beleza = excluded.beleza, produz = excluded.produz, produz_seg = excluded.produz_seg, produz_qtd = excluded.produz_qtd,
@@ -1067,10 +1067,28 @@ returns real language sql stable security definer set search_path = public as $$
            when 'eolica' then case x.clima when 'vento' then 30 when 'chuva' then 14 when 'nublado' then 10 when 'sol' then 8 else 5 end
            when 'reator' then case x.clima when 'calor' then 80 else 120 end
            else 0 end), 0)::real
+         -- fase 47: cada alarme gasta 1 ⚡ por hora (a conta só roda para quem tem energia elétrica)
+         - (select count(*) from fazenda_construcoes a where a.jogador_id = p_jogador and a.tipo = 'alarme')::real
     from fazenda_construcoes c
     join fazenda_itens i on i.id = c.tipo
     cross join (select fazenda_clima_em(p_t) as clima) x
    where c.jogador_id = p_jogador and i.efeito in ('solar', 'eolica', 'reator');
+$$;
+
+-- Fase 47: o alarme funciona? Sem nada elétrico na fazenda ele é o de sempre (de graça); com
+-- energia elétrica, ele gasta 1 ⚡ por hora (fazenda_energia_taxa) e desliga com a bateria zerada.
+create or replace function public.fazenda_alarme_ligado(p_jogador uuid)
+returns boolean
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+begin
+  if not exists (select 1 from fazenda_construcoes c join fazenda_itens i on i.id = c.tipo
+                  where c.jogador_id = p_jogador and i.categoria = 'energia') then
+    return true;
+  end if;
+  return fazenda_energia_atualizar(p_jogador) >= 1;
+end;
 $$;
 
 -- Prêmio do convite: quem entra pelo link e quem chamou (igual ao que o jogo mostra, que vem
@@ -2878,7 +2896,7 @@ begin
   if now() >= v_maduro + make_interval(secs => greatest(k.tempo_seg * 2, 3600)) then
     raise exception 'murchou';
   end if;
-  if fazenda_protegido(p_dono, 'alarme', c.x, c.y) then
+  if fazenda_protegido(p_dono, 'alarme', c.x, c.y) and fazenda_alarme_ligado(p_dono) then
     raise exception 'alarme';
   end if;
   if exists (select 1 from fazenda_visitas
@@ -3482,11 +3500,12 @@ begin
      and (select count(*) from fazenda_construcoes where jogador_id = v_id and tipo = i.id) >= i.limite then
     raise exception 'limite_maquina';
   end if;
-  -- itens por terreno (amoreira): mais terreno, mais pés (igual a maxItem em fazenda.js)
+  -- itens por terreno (amoreira): mais terreno, mais pés (igual a maxItem em fazenda.js); fase 47: no
+  -- pomar, cada fruta tem 1 pé e +1 a cada 2 terrenos (até 4); quem já passou fica com as que tem
   if i.por_terreno is not null
      and (select count(*) from fazenda_construcoes c join fazenda_itens k on k.id = c.tipo
            where c.jogador_id = v_id and (c.tipo = i.id or (i.grupo is not null and k.grupo = i.grupo)))
-         >= i.por_terreno * (1 + j.zonas) then
+         >= (case when i.categoria = 'pomar' then i.por_terreno * (1 + j.zonas / 2) else i.por_terreno * (1 + j.zonas) end) then
     raise exception 'limite_terreno';
   end if;
   if (select count(*) from fazenda_construcoes where jogador_id = v_id) >= fazenda_max_construcoes(j.zonas) then
@@ -4518,6 +4537,7 @@ revoke execute on function
   public.fazenda_estoque(text, int, int, int),
   public.fazenda_galinheiro_quer(uuid),
   public.fazenda_pasto(uuid),
+  public.fazenda_alarme_ligado(uuid),
   public.fazenda_ajudantes_fechar(uuid, text),
   public.fazenda_galinheiro_linhas(uuid),
   public.fazenda_visitante(uuid),

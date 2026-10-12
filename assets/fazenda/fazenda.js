@@ -104,7 +104,7 @@
         cesto_vazio: 'O cesto ainda está vazio: o Bira tira um peixe a cada 30 minutos.',
         limite_canteiros: 'Você já usou todos os seus canteiros. Suba de nível ou compre terrenos para ter mais.',
         limite_maquina: 'Você já tem essa máquina (uma basta para a fazenda toda).',
-        limite_terreno: 'Já tem o máximo dessa árvore: compre outro terreno para plantar mais (2 pés de cada fruta por terreno).',
+        limite_terreno: 'Já tem o máximo dessa árvore: cada fruta tem 1 pé, +1 a cada 2 terrenos comprados (até 4).',
         alarme: 'O alarme disparou! Esse canteiro está protegido.',
         item_invalido: 'Item inválido.',
         lugar_reservado: 'Esse lugar é reservado (celeiro, casa, pasto, galinheiro) ou fica na mata fora do seu terreno.',
@@ -327,7 +327,8 @@
     function cargaAgora() {
         const en = S && S.energia;
         if (!en) return 0;
-        return Math.min(en.capacidade, Number(en.carga) + Number(en.por_hora) * Math.max(0, agora() - energiaEm) / 3600000);
+        // (pode cair: à noite, sem sol, os alarmes gastam 1 ⚡ por hora cada)
+        return Math.max(0, Math.min(en.capacidade, Number(en.carga) + Number(en.por_hora) * Math.max(0, agora() - energiaEm) / 3600000));
     }
     function desenharEnergia() {
         if (!el.energia) return;
@@ -347,7 +348,7 @@
         const temSol = (S.construcoes || []).some((c) => c.tipo === 'painel_solar');
         const dia = A.faseDoDia(agora());
         mostrarStatus(`${ico('raio', 18)} <b>Energia</b>: ${Math.floor(cargaAgora())} de ${S.energia.capacidade} ⚡. ` +
-            (ph > 0 ? `Entrando ${ph} ⚡/h agora.` : `Nada entrando agora${temSol && dia.noite ? ` (é noite no jogo: o painel solar volta a gerar às ${hora(dia.fim)})` : ''}.`) +
+            (ph > 0 ? `Entrando ${ph} ⚡/h agora.` : ph < 0 ? `Saindo ${-ph} ⚡/h agora (os alarmes gastam 1 ⚡ por hora cada)${temSol && dia.noite ? `; o painel solar volta a gerar às ${hora(dia.fim)}` : ''}.` : `Nada entrando agora${temSol && dia.noite ? ` (é noite no jogo: o painel solar volta a gerar às ${hora(dia.fim)})` : ''}.`) +
             ' Baterias guardam mais; as máquinas elétricas gastam ao trabalhar.');
     }
     // Energia e máquinas: o que você tem, quanto gera e gasta, e o que vem nos próximos níveis
@@ -1180,6 +1181,8 @@
                 const r = redeCanos(), k = c.x + ',' + c.y;
                 return { ...c, cano: r.lados.get(k), rede: (r.membros.get(r.redeDoCano.get(k)) || 0) >= 2 ? sinal : null };
             }
+            // fase 47: com energia elétrica, o alarme gasta 1 ⚡/h; bateria zerada = desligado (a luz para)
+            if (c.tipo === 'alarme' && temEletrico() && cargaAgora() < 1) return { ...c, desligado: true };
             if (c.tipo === 'bau') {
                 const total = Object.values((S.baus || {})[c.x + ',' + c.y] || {}).reduce((a, n) => a + n, 0);
                 return total > 0 ? { ...c, bau: { frac: total / BAU_MAX } } : c;
@@ -1627,7 +1630,8 @@
         return true;
     }
     // quantos dá para ter: limite fixo, ou por terreno (amoreira: 4 na fazenda inicial + 4 por terreno comprado)
-    const maxItem = (it) => it.limite || (it.por_terreno ? it.por_terreno * (1 + ((S && S.jogador.zonas) || 0)) : null);
+    // (fase 47: no pomar, cada fruta tem 1 pé e +1 a cada 2 terrenos, até 4; igual a fazenda_construir)
+    const maxItem = (it) => it.limite || (it.por_terreno ? it.por_terreno * (1 + (it.categoria === 'pomar' ? Math.floor(((S && S.jogador.zonas) || 0) / 2) : ((S && S.jogador.zonas) || 0))) : null);
     // quantos já tem (itens do mesmo grupo dividem o limite; desde a fase 43 cada árvore frutífera conta só ela)
     const quantosTem = (it) => (S.construcoes || []).filter((c) => c.tipo === it.id || (it.grupo && (tipoItem(c.tipo) || {}).grupo === it.grupo)).length;
     // fase 45: quem já tinha o bicho antes do cercado obrigatório ganha o primeiro cercado dele
@@ -1744,7 +1748,7 @@
             const it = tipoItem(constr.tipo);
             if (!it) return toast('Escolha um item na barra de baixo.');
             const max = maxItem(it), tem = quantosTem(it);
-            if (max && tem >= max) return toast(it.por_terreno ? `Já tem ${tem} de ${max} ${esc(it.nome.toLowerCase())}s: compre outro terreno (Loja → Terrenos) para plantar mais. São ${it.por_terreno} pés de cada fruta por terreno (as outras frutas têm o limite delas).` : ERROS.limite_maquina, 'erro');            const tam = tamanhoItem(it.id);
+            if (max && tem >= max) return toast(it.por_terreno ? `Já tem ${tem} de ${max} ${esc(it.nome.toLowerCase())}s: compre mais terrenos (Loja → Terrenos) para plantar mais: cada fruta tem 1 pé, +1 a cada 2 terrenos (até 4). As outras frutas têm o limite delas.` : ERROS.limite_maquina, 'erro');            const tam = tamanhoItem(it.id);
             if (!cabeAqui(x, y, tam.w, tam.h)) {
                 return toast(tam.w > 1 ? `Não cabe aqui: ${esc(it.nome.toLowerCase())} precisa de ${tam.w}×${tam.h} quadrados livres.` : ERROS.lugar_ocupado, 'erro');
             }
@@ -2720,7 +2724,7 @@
                     <li>Todo item do Construir faz alguma coisa: evita seca, praga ou erva, adianta o crescimento, dá itens e XP extras, protege dos vizinhos ou aumenta a <b>beleza</b> (bônus nas vendas). Toque num item para ver o que ele faz.</li>
                     <li>Na loja, aba <b>Ajudantes</b>: contrate pessoas que aram, plantam, cuidam, colhem e tratam dos animais sozinhas (12 tarefas por hora no nível 1, 30 no 2 e 90 no 3). O <b>Seu Zé</b> também aduba os canteiros crescendo: +1 item na colheita; o <b>Juca</b> colhe também o pomar. A <b>Dona Lurdes</b> (operária, nível 12) cuida das oficinas: leva o que ficou pronto para o celeiro e enche o estoque delas; o <b>Faísca</b> (eletricista, nível 17) faz tudo o que é elétrico gastar menos. Ajudante não gasta energia. Com a fazenda aberta, dá para ver cada um indo até onde trabalhou.</li>
                     <li>Em <b>Construir → Oficinas</b> tem uma oficina para cada matéria-prima: padaria, queijaria, conservas, prensa de óleo, peixaria, defumadouro, casa de sucos, sorveteria, ateliê de penas, cozinha de moqueca, empório (que usa o óleo da prensa), adega e outras. Toque nela para abrir o painel: guarde ingredientes no <b>estoque</b> (até 10 receitas) e ela trabalha sozinha, uma receita atrás da outra. O painel mostra quanto valem os ingredientes, quanto vale o produto e o <b>lucro</b>. Quando aparecer o balão, toque para pegar.</li>
-                    <li>Fruta só dá no pé: em <b>Construir → Pomar</b> tem amoreira, laranjeira, limoeiro, goiabeira e, do nível 26 ao 29, mangueira, abacateiro, cacaueiro e jabuticabeira. Cada árvore dá frutas sozinha: quando aparecer o balão, toque nela para colher. São 2 pés de <b>cada fruta</b> por terreno (2 laranjeiras, 2 limoeiros...): quanto mais terreno, maior o pomar. Para colher sozinho: um <b>baú</b> encostado na árvore, com energia, colhe e guarda (e manda pela rede de canos); ou o <b>Juca</b> (colhedor) colhe as que não têm baú e leva para o celeiro.</li>
+                    <li>Fruta só dá no pé: em <b>Construir → Pomar</b> tem amoreira, laranjeira, limoeiro, goiabeira e, do nível 26 ao 29, mangueira, abacateiro, cacaueiro e jabuticabeira. Cada árvore dá frutas sozinha: quando aparecer o balão, toque nela para colher. Cada fruta tem <b>1 pé</b>, e mais 1 a cada 2 terrenos comprados (até 4 de cada): quanto mais terreno, maior o pomar. Para colher sozinho: um <b>baú</b> encostado na árvore, com energia, colhe e guarda (e manda pela rede de canos); ou o <b>Juca</b> (colhedor) colhe as que não têm baú e leva para o celeiro.</li>
                     <li>Em <b>Construir → Máquinas</b>: irrigador, pulverizador e robô capinador evitam seca, pragas e ervas por perto; o alarme protege dos vizinhos; trator e colheitadeira ajudam na fazenda toda.</li>
                     <li>Na loja tem <b>animais</b> (até 5 de cada; cada um sai 50% mais caro que o anterior). Cada bicho mora no <b>cercado</b> dele: construa o cercado da espécie em <b>Construir → Bichos</b> antes de comprar (quem já tinha bicho sem cercado ganha o primeiro de graça, e os bichos ficam no galinheiro ou no pasto antigo até ele ficar pronto). Cercado com bicho dentro não dá para desmanchar, só mudar de lugar. Dê ração (sai do celeiro) e colete ovos, leite e lã. No celeiro, <b>Reservar</b> guarda a ração deles para não ir junto no "Vender tudo".</li>
                     <li>No botão <b>Construir</b> você coloca cercas, caminhos, árvores, flores e objetos onde quiser. Toque em <b>Pronto</b> para fechar.</li>
