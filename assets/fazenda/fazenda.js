@@ -1306,8 +1306,8 @@
        pelo cano, um atrás do outro (e o produto voltando para o celeiro do mesmo jeito). A viagem
        entra na fila quando o jogo a recebe pela primeira vez (o servidor manda as criadas nos
        últimos 2 minutos); quem vai pelo mesmo caminho espera o anterior sair. */
-    const MS_POR_QUADRADO = 300;   // dá para acompanhar com o olho sem ficar parado (0,3 s por quadrado)
-    const ESPACO_MS = 220;         // um logo atrás do outro: 10 itens viram uma fileira passando
+    const MS_POR_QUADRADO = 390;   // dá para acompanhar com o olho sem ficar parado (0,39 s por quadrado)
+    const ESPACO_MS = 290;         // um logo atrás do outro: 10 itens viram uma fileira passando
     const MAX_POR_VIAGEM = 20, MAX_NA_TELA = 200;
     let viagensVistas = new Set(), listaVista = null, itensAndando = [];
     const filaRota = new Map();    // caminho → quando ele fica livre para o próximo item
@@ -1319,7 +1319,7 @@
             if (viagensVistas.has(g.id) || itensAndando.length >= MAX_NA_TELA) continue;
             const de = pegada(g.de), para = pegada(g.para);
             const pontos = [centro(de), ...(g.direto ? [] : caminhoCanos(de, para)), centro(para)];
-            const dur = Math.max(700, (pontos.length - 1) * MS_POR_QUADRADO);
+            const dur = Math.max(900, (pontos.length - 1) * MS_POR_QUADRADO);
             const rota = `${g.de}>${g.para}`;
             // a hora marcada só vale se for daqui a pouco (o servidor espalha as viagens em até 15 s)
             const marcada = Date.parse(g.em);
