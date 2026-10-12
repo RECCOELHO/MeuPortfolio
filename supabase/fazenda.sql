@@ -300,6 +300,9 @@ alter table public.fazenda_jogadores add column if not exists semente text refer
 -- O gerador a biomassa usa construcoes.iniciado_em: null = desligado.
 alter table public.fazenda_jogadores add column if not exists energia real not null default 0;
 alter table public.fazenda_jogadores add column if not exists energia_em timestamptz;
+-- Fase 46: a energia gasta soma aqui, na mesma gravação que tira a energia (antes era uma linha a mais
+-- em fazenda_estatisticas a cada gasto); o total para conquista e perfil = estatisticas.energia + isto
+alter table public.fazenda_jogadores add column if not exists energia_gasta real not null default 0;
 alter table public.fazenda_estatisticas add column if not exists energia int not null default 0;
 
 -- Fase 12: curva de XP. 1 = a antiga (25·(n-1)² em todos os níveis), 2 = a nova (mais
@@ -1386,7 +1389,8 @@ begin
     'estoque_max', fazenda_estoque_max(),
     'itens', (
       select jsonb_agg(to_jsonb(t) order by t.ordem) from fazenda_itens t),
-    'estatisticas', (select to_jsonb(e) - 'jogador_id' from fazenda_estatisticas e where e.jogador_id = p_jogador),
+    'estatisticas', (select to_jsonb(e) - 'jogador_id' || jsonb_build_object('energia', e.energia + floor(j.energia_gasta)::int)
+                       from fazenda_estatisticas e where e.jogador_id = p_jogador),
     'conquistas', coalesce((
       select jsonb_agg(jsonb_build_object('id', conquista, 'em', obtida_em) order by obtida_em)
         from fazenda_conquistas where jogador_id = p_jogador), '[]'::jsonb),
@@ -1725,7 +1729,11 @@ begin
   end if;
   if not exists (select 1 from fazenda_construcoes c join fazenda_itens i on i.id = c.tipo
                   where c.jogador_id = p_jogador and i.categoria = 'energia') then
-    update fazenda_jogadores set energia_em = now() where id = p_jogador;
+    -- fase 46: sem máquina não tem o que contar: grava a hora no máximo de hora em hora (a primeira
+    -- máquina acerta a hora em fazenda_construir)
+    if j.energia_em is null or j.energia_em < now() - interval '1 hour' then
+      update fazenda_jogadores set energia_em = now() where id = p_jogador;
+    end if;
     return j.energia;
   end if;
   v_cap := fazenda_capacidade(p_jogador);
@@ -1786,8 +1794,7 @@ begin
   if fazenda_energia_atualizar(p_jogador) < v_qtd then
     return false;
   end if;
-  update fazenda_jogadores set energia = energia - v_qtd where id = p_jogador;
-  update fazenda_estatisticas set energia = energia + ceil(v_qtd)::int where jogador_id = p_jogador;
+  update fazenda_jogadores set energia = energia - v_qtd, energia_gasta = energia_gasta + v_qtd where id = p_jogador;
   return true;
 end;
 $$;
@@ -2160,8 +2167,11 @@ begin
       -- emenda na receita anterior (o tempo fora vale, até 12 horas)
       v_t := greatest(coalesce(v_fim, now()), now() - interval '12 hours');
     end loop;
-    update fazenda_construcoes set iniciado_em = v_t, estoque = v_est, prontos = least(v_pr, 32000)
-     where jogador_id = p_jogador and x = o.x and y = o.y;
+    -- fase 46: só grava se mudou (rodava em toda carga para toda oficina)
+    if v_t is distinct from o.iniciado_em or v_est <> o.estoque or least(v_pr, 32000) <> o.prontos then
+      update fazenda_construcoes set iniciado_em = v_t, estoque = v_est, prontos = least(v_pr, 32000)
+       where jogador_id = p_jogador and x = o.x and y = o.y;
+    end if;
   end loop;
   -- Fase 42: a rede enche o estoque das oficinas sozinha (até o máximo), uma receita por vez em
   -- rodízio, para dividir o que tem entre todas; a oficina parada que ganhou ingrediente já começa
@@ -2572,10 +2582,37 @@ begin
       end loop;
     end if;
 
-    update fazenda_ajudantes
-       set credito = v_cred - v_feito, atualizado_em = now(), relatorio = relatorio + v_feito
-     where jogador_id = p_jogador and tipo = a.tipo;
+    -- fase 46: quem não fez nada não é regravado: o crédito continua saindo do tempo desde
+    -- atualizado_em (até 8 h), igual; contratar/evoluir e o café fecham a conta antes (fazenda_ajudantes_fechar)
+    if v_feito > 0 then
+      update fazenda_ajudantes
+         set credito = v_cred - v_feito, atualizado_em = now(), relatorio = relatorio + v_feito
+       where jogador_id = p_jogador and tipo = a.tipo;
+    end if;
   end loop;
+end;
+$$;
+
+-- Fase 46: grava o crédito que os ajudantes juntaram até agora (no ritmo de agora, com o café) e
+-- zera o relógio deles. Antes de mudar o ritmo (evoluir) ou o café.
+create or replace function public.fazenda_ajudantes_fechar(p_jogador uuid, p_tipo text)
+returns void
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_cafe_de  timestamptz;
+  v_cafe_ate timestamptz;
+begin
+  select cafe_de, cafe_ate into v_cafe_de, v_cafe_ate from fazenda_jogadores where id = p_jogador;
+  update fazenda_ajudantes h
+     set credito = least(h.credito + (extract(epoch from now() - h.atualizado_em)::real
+                          + case when v_cafe_ate is null then 0
+                                 else greatest(extract(epoch from least(now(), v_cafe_ate) - greatest(h.atualizado_em, v_cafe_de))::real, 0) end)
+                         / 3600 * fazenda_ritmo(h.nivel),
+                         fazenda_ritmo(h.nivel) * 8),
+         atualizado_em = now()
+   where h.jogador_id = p_jogador and (p_tipo is null or h.tipo = p_tipo);
 end;
 $$;
 
@@ -2614,6 +2651,7 @@ begin
   if not found then raise exception 'item_invalido'; end if;
   if fazenda_nivel(j.xp) < t.nivel_min then raise exception 'nivel_insuficiente'; end if;
   perform fazenda_trabalhar(v_id);   -- fecha o trabalho no ritmo antigo antes de mudar
+  perform fazenda_ajudantes_fechar(v_id, p_tipo);   -- (fase 46: quem não trabalhou também)
   select nivel into v_nivel from fazenda_ajudantes where jogador_id = v_id and tipo = p_tipo;
   if v_nivel >= 3 then raise exception 'nivel_maximo'; end if;
   v_custo := case coalesce(v_nivel, 0) when 0 then t.custo when 1 then t.custo * 2 else t.custo * 4 end;
@@ -2806,7 +2844,8 @@ begin
         from fazenda_construcoes where jogador_id = p_dono), '[]'::jsonb),
     'perfil', jsonb_build_object(
       'criado_em', j.criado_em,
-      'estatisticas', (select to_jsonb(e) - 'jogador_id' from fazenda_estatisticas e where e.jogador_id = p_dono),
+      'estatisticas', (select to_jsonb(e) - 'jogador_id' || jsonb_build_object('energia', e.energia + floor(g.energia_gasta)::int)
+                         from fazenda_estatisticas e join fazenda_jogadores g on g.id = e.jogador_id where e.jogador_id = p_dono),
       'conquistas', coalesce((select jsonb_agg(conquista order by obtida_em)
                                 from fazenda_conquistas where jogador_id = p_dono), '[]'::jsonb))
   );
@@ -3155,7 +3194,7 @@ begin
       when 'animal' then s.animal
       when 'ajudar' then s.ajudar
       when 'pegar' then s.pegar
-      when 'energia' then s.energia
+      when 'energia' then s.energia + floor((select energia_gasta from fazenda_jogadores where id = p_jogador))::int
       when 'convites' then v_conv
       when 'peixes' then s.peixes
       when 'lendarios' then s.lendarios
@@ -3457,7 +3496,10 @@ begin
   v_custo := case when i.efeito = 'cercado' and substr(i.id, 9) = any(coalesce(j.cercado_gratis, '{}')) then 0 else i.custo end;
   if j.moedas < v_custo then raise exception 'moedas_insuficientes'; end if;
   -- máquina elétrica nova: fecha a conta da energia antes (ela não gera pelo tempo de antes)
-  if i.categoria = 'energia' then perform fazenda_energia_atualizar(v_id); end if;
+  if i.categoria = 'energia' then
+    perform fazenda_energia_atualizar(v_id);
+    update fazenda_jogadores set energia_em = now() where id = v_id;   -- (fase 46: a conta começa agora)
+  end if;
   update fazenda_jogadores
      set moedas = moedas - v_custo,
          cercado_gratis = case when i.efeito = 'cercado' then array_remove(cercado_gratis, substr(i.id, 9)) else cercado_gratis end
@@ -4333,6 +4375,7 @@ begin
     if j.diamantes < v_preco then raise exception 'diamantes_insuficientes'; end if;
     if not exists (select 1 from fazenda_ajudantes where jogador_id = v_id) then raise exception 'sem_ajudantes'; end if;
     perform fazenda_trabalhar(v_id);   -- fecha o trabalho de antes no ritmo de antes
+    perform fazenda_ajudantes_fechar(v_id, null);   -- (fase 46: quem não trabalhou também)
     update fazenda_jogadores
        set diamantes = diamantes - v_preco,
            cafe_de = case when cafe_ate > now() then cafe_de else now() end,
@@ -4475,6 +4518,7 @@ revoke execute on function
   public.fazenda_estoque(text, int, int, int),
   public.fazenda_galinheiro_quer(uuid),
   public.fazenda_pasto(uuid),
+  public.fazenda_ajudantes_fechar(uuid, text),
   public.fazenda_galinheiro_linhas(uuid),
   public.fazenda_visitante(uuid),
   public.fazenda_atender(text, boolean),
