@@ -1928,6 +1928,15 @@ body.construindo .status {
     transform: scale(.8);
 }
 
+/* metas de nível em dia (+50% de XP): a borda da barra fica verde-clara; meta feita fica apagada */
+.xpbar.bonus {
+    box-shadow: 0 -2px 0 #6ee68c, 0 2px 0 #6ee68c, -2px 0 0 #6ee68c, 2px 0 0 #6ee68c;
+}
+
+.item.meta-feita {
+    opacity: .6;
+}
+
 /* XP em dobro (comprado com diamantes): o enchimento fica dourado */
 .xpbar.dobro i {
     background: var(--ouro);
