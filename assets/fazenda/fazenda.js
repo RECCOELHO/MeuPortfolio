@@ -26,6 +26,7 @@
     } catch { /* ignora */ }
 
     const POLL_MS = 60000;   // de quanto em quanto a fazenda aberta busca o estado (cada busca grava no banco)
+    const POLL_PARADO_MS = 300000;   // aba aberta e ninguém mexe há 5 min: busca de 5 em 5 min
 
     /* ---------- Armazenamento local (protegido) ---------- */
     const LS = {
@@ -43,6 +44,8 @@
     /* ---------- Mensagens de erro do servidor ---------- */
     const ERROS = {
         token_invalido: 'Sessão expirada. Entre de novo com seu código.',
+        lento: 'A fazenda está demorando para responder (o servidor está lento agora). Tente de novo daqui a pouco.',
+        servidor: 'O servidor da fazenda está sobrecarregado agora. Tente de novo daqui a pouco.',
         apelido_invalido: 'O apelido precisa ter de 2 a 20 letras.',
         codigo_invalido: 'Código não encontrado. Confira e tente de novo.',
         canteiro_bloqueado: 'Esse canteiro ainda está bloqueado.',
@@ -125,8 +128,13 @@
         missao_incompleta: 'Termine a missão antes de resgatar.'
     };
 
+    // Com o servidor lento, desiste depois de 25 s (senão a fila de ações trava esperando). Criar
+    // fazenda espera o quanto for: o código de recuperação só vem nessa resposta.
+    const RPC_ESPERA_MS = 25000;
     async function rpc(fn, args) {
         let res;
+        const parar = new AbortController();
+        const relogio = fn === 'fazenda_criar' ? null : setTimeout(() => parar.abort(), RPC_ESPERA_MS);
         try {
             res = await fetch(`${API}/rest/v1/rpc/${fn}`, {
                 method: 'POST',
@@ -135,14 +143,19 @@
                     Authorization: 'Bearer ' + SUPABASE_KEY,
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify(args)
+                body: JSON.stringify(args),
+                signal: parar.signal
             });
         } catch {
+            clearTimeout(relogio);
+            if (parar.signal.aborted) throw Object.assign(new Error(ERROS.lento), { code: 'lento' });
             throw Object.assign(new Error('Sem conexão com a fazenda. Tente de novo.'), { code: 'rede' });
         }
+        clearTimeout(relogio);
         const data = await res.json().catch(() => null);
         if (!res.ok) {
-            const code = data && data.message;
+            let code = data && data.message;
+            if (res.status >= 500 && !ERROS[code]) code = 'servidor';   // banco sobrecarregado, tempo esgotado...
             throw Object.assign(new Error(ERROS[code] || 'Algo deu errado na fazenda.'), { code });
         }
         return data;
@@ -2727,14 +2740,27 @@
         executarVisita(tipo, ps);
     }
 
+    // Uma busca de cada vez (com o servidor lento elas se acumulavam) e, com ele falhando, cada vez
+    // mais devagar; parada há 5 min, a aba busca de 5 em 5 min (mexeu, volta ao normal na hora).
+    let buscando = false, buscasFalhas = 0, mexeuEm = Date.now();
+    function intervaloBusca() {
+        const base = Date.now() - mexeuEm > 5 * 60000 ? POLL_PARADO_MS : POLL_MS;
+        return base * 2 ** Math.min(buscasFalhas, 3);
+    }
+    ['pointerdown', 'keydown'].forEach((ev) => document.addEventListener(ev, () => { mexeuEm = Date.now(); }, { passive: true }));
     async function recarregar() {
-        if (!token || pendentes) return;
+        if (!token || pendentes || buscando) return;
+        buscando = true;
         try {
             aplicarEstado(await rpc('fazenda_carregar', { p_token: token }));
             if (visita) mostrarVisita(await rpc('fazenda_visitar', { p_token: token, p_vizinho: visita.id }));
+            buscasFalhas = 0;
         } catch (e) {
             if (e.code === 'token_invalido') tratarErro(e);
             else if (e.code === 'vizinho_invalido') voltarCasa();
+            else buscasFalhas++;
+        } finally {
+            buscando = false;
         }
     }
 
@@ -4239,6 +4265,7 @@
     async function enviarEntrada(form, fn, args, aoEntrar) {
         const btn = form.querySelector('button');
         btn.disabled = true;
+        clearTimeout(tentarDeNovo);
         mostrarErroEntrada('');
         try {
             const r = await rpc(fn, args);
@@ -4295,7 +4322,7 @@
             if (alvo && i.fase === 'crescendo') alvo.innerHTML = htmlCanteiroAgora(i);
             else if (alvo) abrirPainel('canteiro', true);
         }
-        if (document.visibilityState === 'visible' && Date.now() - ultimoPoll > POLL_MS) {
+        if (document.visibilityState === 'visible' && Date.now() - ultimoPoll > intervaloBusca()) {
             ultimoPoll = Date.now();
             recarregar();
         }
@@ -4303,7 +4330,7 @@
 
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible' && S) {
-            ultimoPoll = Date.now();
+            ultimoPoll = mexeuEm = Date.now();
             recarregar();
         }
     });
@@ -4320,20 +4347,43 @@
         ajustarMargens();
         iniciarAnuncios();
         if (!token) return mostrarEntrada();
+        abrirFazendaSalva(0);
+    })();
+
+    // Abre a fazenda do token salvo. Servidor lento ou fora do ar não é sessão expirada: fica na
+    // porteira tentando de novo (10 s, 20 s, 40 s, depois de minuto em minuto) em vez de cair na
+    // tela de entrada, que parecia "deslogou".
+    let tentarDeNovo = null;
+    async function abrirFazendaSalva(tentativa) {
+        clearTimeout(tentarDeNovo);
+        el.entradaCarregando.hidden = false;
+        el.entradaCarregando.textContent = tentativa ? 'Tentando de novo…' : 'Abrindo a porteira…';
         try {
             aplicarEstado(await rpc('fazenda_carregar', { p_token: token }));
-            mostrarFazenda();
-            if (compraDoLink) acompanharCompra(compraDoLink);
-            if (conviteDoLink) {
-                store.del(LS.convite);
-                toast('Esse convite é para quem ainda não tem fazenda. Você pode chamar os seus amigos pelo Perfil!');
-            }
-            const salvo = store.get(LS.tutorial);
-            if (salvo !== null && salvo !== 'feito') { passoTutorial = Number(salvo) || 0; mostrarPasso(); }
         } catch (e) {
-            if (e.code === 'token_invalido') sair(false);
-            mostrarEntrada();
-            mostrarErroEntrada(e.message);
+            if (e.code === 'token_invalido' || !token) {
+                if (token) sair(false);
+                mostrarEntrada();
+                return mostrarErroEntrada(e.message);
+            }
+            const espera = Math.min(60, 10 * 2 ** tentativa);
+            el.entradaCarregando.innerHTML = `<p>${esc(e.message)}</p><p>Sua fazenda está guardada. Tentando de novo em ${espera} s…</p>
+                <p><button type="button" class="botao pequeno verde" data-tentar-agora>Tentar agora</button>
+                <button type="button" class="botao pequeno creme" data-entrar-codigo>Entrar com o código</button></p>`;
+            tentarDeNovo = setTimeout(() => abrirFazendaSalva(tentativa + 1), espera * 1000);
+            return;
         }
-    })();
+        mostrarFazenda();
+        if (compraDoLink) acompanharCompra(compraDoLink);
+        if (conviteDoLink) {
+            store.del(LS.convite);
+            toast('Esse convite é para quem ainda não tem fazenda. Você pode chamar os seus amigos pelo Perfil!');
+        }
+        const salvo = store.get(LS.tutorial);
+        if (salvo !== null && salvo !== 'feito') { passoTutorial = Number(salvo) || 0; mostrarPasso(); }
+    }
+    el.entradaCarregando.addEventListener('click', (e) => {
+        if (e.target.closest('[data-tentar-agora]')) abrirFazendaSalva(0);
+        else if (e.target.closest('[data-entrar-codigo]')) { clearTimeout(tentarDeNovo); mostrarEntrada(); }
+    });
 })();
