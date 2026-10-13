@@ -26,6 +26,7 @@
     } catch { /* ignora */ }
 
     const POLL_MS = 60000;   // de quanto em quanto a fazenda aberta busca o estado (cada busca grava no banco)
+    const POLL_PARADO_MS = 300000;   // aba aberta e ninguém mexe há 5 min: busca de 5 em 5 min
 
     /* ---------- Armazenamento local (protegido) ---------- */
     const LS = {
@@ -2739,14 +2740,27 @@
         executarVisita(tipo, ps);
     }
 
+    // Uma busca de cada vez (com o servidor lento elas se acumulavam) e, com ele falhando, cada vez
+    // mais devagar; parada há 5 min, a aba busca de 5 em 5 min (mexeu, volta ao normal na hora).
+    let buscando = false, buscasFalhas = 0, mexeuEm = Date.now();
+    function intervaloBusca() {
+        const base = Date.now() - mexeuEm > 5 * 60000 ? POLL_PARADO_MS : POLL_MS;
+        return base * 2 ** Math.min(buscasFalhas, 3);
+    }
+    ['pointerdown', 'keydown'].forEach((ev) => document.addEventListener(ev, () => { mexeuEm = Date.now(); }, { passive: true }));
     async function recarregar() {
-        if (!token || pendentes) return;
+        if (!token || pendentes || buscando) return;
+        buscando = true;
         try {
             aplicarEstado(await rpc('fazenda_carregar', { p_token: token }));
             if (visita) mostrarVisita(await rpc('fazenda_visitar', { p_token: token, p_vizinho: visita.id }));
+            buscasFalhas = 0;
         } catch (e) {
             if (e.code === 'token_invalido') tratarErro(e);
             else if (e.code === 'vizinho_invalido') voltarCasa();
+            else buscasFalhas++;
+        } finally {
+            buscando = false;
         }
     }
 
@@ -4308,7 +4322,7 @@
             if (alvo && i.fase === 'crescendo') alvo.innerHTML = htmlCanteiroAgora(i);
             else if (alvo) abrirPainel('canteiro', true);
         }
-        if (document.visibilityState === 'visible' && Date.now() - ultimoPoll > POLL_MS) {
+        if (document.visibilityState === 'visible' && Date.now() - ultimoPoll > intervaloBusca()) {
             ultimoPoll = Date.now();
             recarregar();
         }
@@ -4316,7 +4330,7 @@
 
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible' && S) {
-            ultimoPoll = Date.now();
+            ultimoPoll = mexeuEm = Date.now();
             recarregar();
         }
     });
