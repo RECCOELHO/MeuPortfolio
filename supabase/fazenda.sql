@@ -2046,19 +2046,49 @@ begin
 end;
 $$;
 
--- As redes: cada grupo de canos encostados é uma rede (o número é o do primeiro cano), e as coisas
--- encostadas num cano dela fazem parte dela. papel: bau, oficina ou celeiro (o celeiro do mapa,
--- x 1..3 e y 1..6, e a fábrica automática, que leva e traz do celeiro de qualquer lugar).
+-- As redes: cada grupo de canos encostados é uma rede (o número é o do primeiro cano, o menor
+-- x*100+y), e as coisas encostadas num cano dela fazem parte dela. papel: bau, oficina ou celeiro
+-- (o celeiro do mapa, x 1..3 e y 1..6, e a fábrica automática, que leva e traz do celeiro de
+-- qualquer lugar).
+-- Fase 52: era um recursivo que ligava cada cano a todos os da rede (com 200 canos, 40 mil pares,
+-- em todo carregamento e ação: o que mais gastava o banco). Agora uma busca em largura que passa
+-- uma vez por cano; o resultado é o mesmo.
 create or replace function public.fazenda_rede(p_jogador uuid)
 returns table (rede int, papel text, x int, y int)
-language sql stable security definer set search_path = public as $$
-  with recursive canos as (
-    select c.x, c.y, c.x * 100 + c.y as k from fazenda_construcoes c where c.jogador_id = p_jogador and c.tipo = 'cano'),
-  liga(k, raiz) as (
-    select k, k from canos
-    union
-    select c2.k, l.raiz from liga l join canos c1 on c1.k = l.k join canos c2 on abs(c1.x - c2.x) + abs(c1.y - c2.y) = 1),
-  cano as (select c.x, c.y, min(l.raiz) as rede from canos c join liga l on l.k = c.k group by c.x, c.y),
+language plpgsql stable security definer set search_path = public as $$
+#variable_conflict use_column
+declare
+  v_lbl  int[] := array_fill(-2, array[10000], array[0]);   -- k = x*100+y: -2 sem cano, -1 cano sem rede, senão a rede
+  v_ks   int[];
+  v_fila int[];
+  v_i    int;
+  v_k    int;
+  v_n    int;
+  v_viz  int;
+begin
+  select coalesce(array_agg(c.x * 100 + c.y order by c.x * 100 + c.y), '{}') into v_ks
+    from fazenda_construcoes c
+   where c.jogador_id = p_jogador and c.tipo = 'cano' and c.x between 0 and 99 and c.y between 0 and 99;
+  foreach v_k in array v_ks loop v_lbl[v_k] := -1; end loop;
+  -- do menor cano para o maior: quem começa uma rede é o menor dela
+  foreach v_k in array v_ks loop
+    continue when v_lbl[v_k] <> -1;
+    v_lbl[v_k] := v_k;
+    v_fila := array[v_k];
+    v_i := 1;
+    while v_i <= cardinality(v_fila) loop
+      v_n := v_fila[v_i];
+      v_i := v_i + 1;
+      foreach v_viz in array array[v_n + 100, v_n - 100, v_n + 1, v_n - 1] loop
+        if v_viz between 0 and 9999 and v_lbl[v_viz] = -1 then
+          v_lbl[v_viz] := v_k;
+          v_fila := v_fila || v_viz;
+        end if;
+      end loop;
+    end loop;
+  end loop;
+  return query
+  with cano as (select u.k / 100 as x, u.k % 100 as y, v_lbl[u.k] as rede from unnest(v_ks) u(k)),
   coisas as (
     select c.x, c.y, i.largura as w, i.altura as h,
            case when c.tipo = 'bau' then 'bau' when i.entradas is not null then 'oficina' else 'celeiro' end as papel
@@ -2066,10 +2096,11 @@ language sql stable security definer set search_path = public as $$
      where c.jogador_id = p_jogador and (c.tipo = 'bau' or i.entradas is not null or i.efeito = 'automatico')
     union all
     select 1, 1, 3, 6, 'celeiro')
-  select distinct cano.rede, k.papel, k.x, k.y
+  select distinct cano.rede::int, k.papel::text, k.x::int, k.y::int
     from coisas k join cano on
          ((cano.x = k.x - 1 or cano.x = k.x + k.w) and cano.y between k.y and k.y + k.h - 1)
       or ((cano.y = k.y - 1 or cano.y = k.y + k.h) and cano.x between k.x and k.x + k.w - 1);
+end;
 $$;
 
 -- As redes em que uma coisa (papel, x, y) está, dentro da lista montada por fazenda_rede
