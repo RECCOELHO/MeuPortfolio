@@ -2382,3 +2382,91 @@ body.construindo .status {
     margin: 4px 0;
     font-size: .9em;
 }
+
+/* ---------- Celular em pé: o topo em duas linhas (ideia de jogador) ----------
+   Em cima o perfil (com o XP em números) e o ☰; embaixo moedas e diamantes lado a lado, o clima
+   com o nome e a energia com o máximo, dividindo a largura. O que fica embaixo do topo desce junto. */
+@media (max-width: 760px) and (orientation: portrait) {
+    .hud {
+        flex-wrap: wrap;
+        align-items: stretch;
+        gap: 8px;
+    }
+
+    .hud-perfil {
+        flex: 1 1 calc(100% - 70px);
+        padding: 6px 12px 6px 6px;
+    }
+
+    .perfil-info {
+        flex: 1;
+    }
+
+    .apelido {
+        max-width: none;
+    }
+
+    .nivel .xpbar {
+        flex: 1;
+        width: auto;
+        min-width: 50px;
+    }
+
+    .xp-txt {
+        display: inline;
+        white-space: nowrap;
+    }
+
+    .menu-btn {
+        order: 1;
+    }
+
+    /* moedas e energia do tamanho do que mostram; o clima fica com o resto (e corta o nome se faltar) */
+    .hud-moedas,
+    .hud-clima,
+    .hud-energia {
+        order: 2;
+        flex: 0 0 auto;
+        justify-content: center;
+    }
+
+    .hud-clima {
+        flex: 1 1 0;
+        min-width: 0;
+    }
+
+    .hud-moedas {
+        display: flex;
+        margin-left: 0;
+        gap: 6px;
+        padding: 6px 8px;
+    }
+
+    .hud-diamantes {
+        padding: 0 0 0 8px;
+        margin-top: 0;
+        border-top: 0;
+        border-left: 2px solid rgba(63, 38, 49, .2);
+    }
+
+    .hud-clima span,
+    .hud-energia small {
+        display: inline;
+    }
+
+    .hud-clima span {
+        min-width: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .toasts,
+    .faixa-visita {
+        top: calc(var(--hud-fundo, 120px) + 6px);
+    }
+
+    .tutorial {
+        top: calc(var(--hud-fundo, 120px) + 60px);
+    }
+}
