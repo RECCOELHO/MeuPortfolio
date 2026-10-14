@@ -475,16 +475,16 @@ on conflict (id) do update set
 
 -- Ajudantes (fase 8): um por função e um por animal. Caros de contratar e de evoluir.
 insert into public.fazenda_ajudantes_tipos (id, nome, papel, funcao, alvo, custo, nivel_min, descricao, ordem) values
-  ('granjeira',  'Dona Cida', 'Granjeira',          'animal',  'galinha', 1500,  5, 'Dá a ração e coleta os ovos das galinhas.', 1),
+  ('granjeira',  'Dona Cida', 'Granjeira',          'animal',  'galinha', 1500,  5, 'Dá a ração e coleta os ovos das galinhas. Cada nível deixa os bichos dela mais rápidos: −10%, −20% e −30% no tempo (soma com o feno).', 1),
   ('lavrador',   'Seu Zé',    'Lavrador',           'arar',    null,      2000,  6, 'Ara os canteiros vazios, limpa os murchos e, com o tempo que sobra, aduba os que estão crescendo: +1 item na colheita de cada um.', 2),
   ('jardineiro', 'Tião',      'Jardineiro',         'cuidar',  null,      2500,  7, 'Tira erva daninha, praga e seca dos canteiros.', 3),
-  ('coelheira',  'Nina',      'Cuidadora de coelhos','animal', 'coelho',  2000,  8, 'Dá a ração e coleta o pelo dos coelhos.', 4),
-  ('vaqueiro',   'Bento',     'Vaqueiro',           'animal',  'vaca',    3000,  9, 'Dá a ração e tira o leite das vacas.', 5),
+  ('coelheira',  'Nina',      'Cuidadora de coelhos','animal', 'coelho',  2000,  8, 'Dá a ração e coleta o pelo dos coelhos. Cada nível deixa os bichos dela mais rápidos: −10%, −20% e −30% no tempo (soma com o feno).', 4),
+  ('vaqueiro',   'Bento',     'Vaqueiro',           'animal',  'vaca',    3000,  9, 'Dá a ração e tira o leite das vacas. Cada nível deixa os bichos dele mais rápidos: −10%, −20% e −30% no tempo (soma com o feno).', 5),
   ('colhedor',   'Juca',      'Colhedor',           'colher',  null,      4000, 10, 'Colhe tudo o que estiver maduro, antes de murchar. Com o tempo que sobra, colhe as frutas do pomar (menos as das árvores encostadas num baú, que são do baú).', 6),
   ('semeadora',  'Dona Rosa', 'Semeadora',          'plantar', null,      4000, 11, 'Quando você está fora, planta os canteiros arados em rodízio com todas as sementes da estação que o seu nível libera, a menos plantada primeiro. Paga com suas moedas e pula as que o dinheiro não dá. Com você na fazenda, ela descansa: quem escolhe é você.', 7),
-  ('patinheiro', 'Pedrinho',  'Cuidador de patos',  'animal',  'pato',    3000, 12, 'Dá a ração e junta as penas dos patos.', 8),
-  ('pastora',    'Lia',       'Pastora',            'animal',  'ovelha',  4000, 13, 'Dá a ração e tosquia a lã das ovelhas.', 9),
-  ('porqueiro',  'Tonho',     'Porqueiro',          'animal',  'porco',   5000, 15, 'Dá a ração e acha as trufas dos porcos.', 10),
+  ('patinheiro', 'Pedrinho',  'Cuidador de patos',  'animal',  'pato',    3000, 12, 'Dá a ração e junta as penas dos patos. Cada nível deixa os bichos dele mais rápidos: −10%, −20% e −30% no tempo (soma com o feno).', 8),
+  ('pastora',    'Lia',       'Pastora',            'animal',  'ovelha',  4000, 13, 'Dá a ração e tosquia a lã das ovelhas. Cada nível deixa os bichos dela mais rápidos: −10%, −20% e −30% no tempo (soma com o feno).', 9),
+  ('porqueiro',  'Tonho',     'Porqueiro',          'animal',  'porco',   5000, 15, 'Dá a ração e acha as trufas dos porcos. Cada nível deixa os bichos dele mais rápidos: −10%, −20% e −30% no tempo (soma com o feno).', 10),
   ('operaria',   'Dona Lurdes','Operária',          'oficina', null,      6000, 12, 'Cuida das oficinas sem gastar energia: leva para o celeiro o que ficou pronto (o XP do produto vem quando você vende) e enche o estoque delas com o que tem no celeiro, uma receita de cada vez em rodízio (a ração reservada fica). Trabalha depois da rede de canos.', 11),
   ('eletricista','Faísca',    'Eletricista',        'energia', null,      8000, 17, 'Cuida das máquinas: tudo o que gasta energia gasta menos. Nível 1: −20%; nível 2: −35%; nível 3: metade.', 12)
 on conflict (id) do update set
@@ -514,7 +514,7 @@ insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem) 
   ('caixote',       'Caixote de tomate',   'objeto',   100, 7, 27),
   ('colmeia',       'Colmeia',             'objeto',   120, 8, 28),
   ('bau',           'Baú',                 'objeto',   200, 11, 29),
-  ('lampiao',       'Lampião',             'objeto',    70, 4, 30)
+  ('lampiao',       'Lampião',             'objeto',    70, 1, 30)   -- fase 54: era nível 4 (quem começa de noite ficava no escuro)
 on conflict (id) do update set
   nome = excluded.nome, categoria = excluded.categoria, custo = excluded.custo,
   nivel_min = excluded.nivel_min, ordem = excluded.ordem;
@@ -1773,6 +1773,9 @@ begin
   -- Começa com 6 canteiros já arados
   insert into fazenda_canteiros (jogador_id, posicao, estado, x, y)
   select v_id, g, 'arado', 9 + g, 4 from generate_series(0, 5) g;
+  -- fase 54: e com um lampião aceso do lado da casa (quem começa de noite não fica no escuro)
+  insert into fazenda_construcoes (jogador_id, x, y, tipo, colhido_em) values (v_id, 8, 3, 'lampiao', now());
+  update fazenda_jogadores set ganhou_poste = true where id = v_id;
 
   -- Veio por um convite: os dois ganham moedas (quem chamou, até o limite do dia)
   if nullif(btrim(p_convite), '') is not null then
@@ -3496,7 +3499,7 @@ declare
   r      record;
   v_tem  int;
 begin
-  select a.id, a.alimentado_em, t.produto, t.tempo_seg, t.racao, t.racao_qtd, k.xp as produto_xp
+  select a.id, a.tipo, a.alimentado_em, t.produto, t.tempo_seg, t.racao, t.racao_qtd, k.xp as produto_xp
     into r
     from fazenda_animais a
     join fazenda_animais_tipos t on t.id = a.tipo
@@ -3519,10 +3522,12 @@ begin
     end if;
     update fazenda_celeiro set quantidade = quantidade - r.racao_qtd
      where jogador_id = p_jogador and item = r.racao;
-    -- com fardo de feno na fazenda, o animal produz 20% mais rápido
+    -- com fardo de feno na fazenda, o animal produz 20% mais rápido; fase 54: o cuidador dele, mais
+    -- 10% por nível (o bicho já começa adiantado, como com o feno)
     update fazenda_animais
-       set alimentado_em = now() - case when fazenda_tem_efeito(p_jogador, 'feno')
-                                        then make_interval(secs => r.tempo_seg * 0.2) else interval '0' end
+       set alimentado_em = now() - make_interval(secs => r.tempo_seg * (
+                             case when fazenda_tem_efeito(p_jogador, 'feno') then 0.2 else 0 end
+                             + fazenda_cuidador_adianta(p_jogador, r.tipo)))
      where id = p_animal;
     return 0;
 
@@ -5058,6 +5063,44 @@ end;
 $$;
 
 -- ------------------------------------------------------------
+-- Fase 54: poste para quem começa e cuidadores que aceleram os bichos.
+-- O lampião libera no nível 1 (era 4) e toda fazenda nova já nasce com um aceso do lado da casa;
+-- quem ainda não tem nenhum ganha um, uma vez só (ganhou_poste), no primeiro lugar livre perto da casa.
+-- Cuidador de bicho: no máximo 5 de cada espécie, então até o nível 1 (12 tarefas por hora) já dava
+-- conta e evoluir não servia para nada. Agora cada nível deixa a espécie dele mais rápida: 10% por
+-- nível no tempo de produção (soma com o feno, 20%), na hora de comer.
+-- ------------------------------------------------------------
+alter table public.fazenda_jogadores add column if not exists ganhou_poste boolean not null default false;
+
+create or replace function public.fazenda_cuidador_adianta(p_jogador uuid, p_tipo text)
+returns numeric language sql stable security definer set search_path = public as $$
+  select coalesce((select 0.1 * h.nivel from fazenda_ajudantes h join fazenda_ajudantes_tipos t on t.id = h.tipo
+                    where h.jogador_id = p_jogador and t.funcao = 'animal' and t.alvo = p_tipo
+                    order by h.nivel desc limit 1), 0)::numeric;
+$$;
+
+do $$
+declare
+  j  record;
+  p  int[];
+begin
+  for j in select g.id, g.zonas from public.fazenda_jogadores g
+            where not g.ganhou_poste
+              and not exists (select 1 from public.fazenda_construcoes c where c.jogador_id = g.id and c.tipo = 'lampiao') loop
+    foreach p slice 1 in array array[[8, 3], [8, 2], [8, 5], [4, 4], [8, 1], [15, 3], [15, 5], [4, 5], [8, 6], [16, 8]] loop
+      begin
+        perform public.fazenda_checar_lugar(j.id, j.zonas, p[1], p[2], 1, 1);
+        insert into public.fazenda_construcoes (jogador_id, x, y, tipo, colhido_em) values (j.id, p[1], p[2], 'lampiao', now());
+        exit;
+      exception when others then null;   -- lugar ocupado: tenta o próximo
+      end;
+    end loop;
+  end loop;
+  update public.fazenda_jogadores set ganhou_poste = true where not ganhou_poste;
+end;
+$$;
+
+-- ------------------------------------------------------------
 -- Permissões: só a API pública fica executável pela chave anon
 -- ------------------------------------------------------------
 revoke execute on function
@@ -5144,6 +5187,7 @@ revoke execute on function
   public.fazenda_estoque(text, int, int, int),
   public.fazenda_galinheiro_quer(uuid),
   public.fazenda_pasto(uuid),
+  public.fazenda_cuidador_adianta(uuid, text),
   public.fazenda_admin_id(text, boolean),
   public.fazenda_feira_limite(uuid),
   public.fazenda_feira_regras(),

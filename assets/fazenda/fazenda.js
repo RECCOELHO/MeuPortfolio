@@ -985,7 +985,14 @@
     const tipoAjudante = (id) => S && (S.ajudantes_tipos || []).find((t) => t.id === id);
     const meuAjudante = (id) => S && (S.ajudantes || []).find((h) => h.tipo === id);
     const RITMO = [0, 12, 30, 90];
-    const DESCONTO_ELETRICISTA = ['', '−20%', '−35%', '−50%'];   // igual a fazenda_energia_preco                                 // tarefas por hora (igual a fazenda_ritmo)
+    const DESCONTO_ELETRICISTA = ['', '−20%', '−35%', '−50%'];   // igual a fazenda_energia_preco
+    // fase 54: cuidador de bicho (no máximo 5 de cada, então o ritmo não importa): quanto ele adianta
+    // a espécie dele no tempo de produção (igual a fazenda_cuidador_adianta)
+    const ADIANTA_CUIDADOR = ['', '−10%', '−20%', '−30%'];
+    // o que o nível do ajudante faz, em texto
+    const efeitoAjudante = (t, nivel) => t.funcao === 'energia' ? DESCONTO_ELETRICISTA[nivel] + ' de energia'
+        : t.funcao === 'animal' ? ADIANTA_CUIDADOR[nivel] + ' no tempo dos bichos'
+        : RITMO[nivel] + ' por hora';
     const custoAjudante = (t, nivel) => t.custo * [1, 2, 4][nivel || 0];   // contratar, nível 2, nível 3
     const retratoAjudante = (id, px) => {
         const a = A.AJUDANTE_ARTE[id] || { p: 'factory', i: 120 };
@@ -1004,7 +1011,7 @@
     function descreverAjudante(id) {
         const t = tipoAjudante(id), h = meuAjudante(id);
         if (!t || !h) return;
-        mostrarStatus(`${retratoAjudante(id, 22)} <b>${esc(t.nome)}</b>, ${esc(t.papel.toLowerCase())} nível ${h.nivel}: ${esc(t.descricao)} (${t.funcao === 'energia' ? DESCONTO_ELETRICISTA[h.nivel] + ' de energia' : RITMO[h.nivel] + ' por hora'})`);
+        mostrarStatus(`${retratoAjudante(id, 22)} <b>${esc(t.nome)}</b>, ${esc(t.papel.toLowerCase())} nível ${h.nivel}: ${esc(t.descricao)} (${efeitoAjudante(t, h.nivel)})`);
     }
     // o que os ajudantes fizeram desde a última olhada (vem uma vez só do servidor)
     function avisarAjudantes(estado) {
@@ -3021,7 +3028,7 @@
                     <li>Os canteiros ficam onde você quiser: <b>Construir → Plantação</b> para colocar, <b>Mover</b> para mudar de lugar. Lado a lado eles viram fileiras.</li>
                     <li>Na loja, aba <b>Terrenos</b>, compre pedaços da mata em volta para a fazenda crescer (e ganhar mais canteiros). São 6 terrenos, e os três últimos são grandes.</li>
                     <li>Todo item do Construir faz alguma coisa: evita seca, praga ou erva, adianta o crescimento, dá itens e XP extras, protege dos vizinhos ou aumenta a <b>beleza</b> (bônus nas vendas). Toque num item para ver o que ele faz.</li>
-                    <li>Na loja, aba <b>Ajudantes</b>: contrate pessoas que aram, plantam, cuidam, colhem e tratam dos animais sozinhas (12 tarefas por hora no nível 1, 30 no 2 e 90 no 3). O <b>Seu Zé</b> também aduba os canteiros crescendo: +1 item na colheita; o <b>Juca</b> colhe também o pomar. A <b>Dona Lurdes</b> (operária, nível 12) cuida das oficinas: leva o que ficou pronto para o celeiro e enche o estoque delas; o <b>Faísca</b> (eletricista, nível 17) faz tudo o que é elétrico gastar menos. Ajudante não gasta energia. Com a fazenda aberta, dá para ver cada um indo até onde trabalhou.</li>
+                    <li>Na loja, aba <b>Ajudantes</b>: contrate pessoas que aram, plantam, cuidam, colhem e tratam dos animais sozinhas (12 tarefas por hora no nível 1, 30 no 2 e 90 no 3). Os cuidadores de bicho (Dona Cida, Nina, Bento, Pedrinho, Lia e Tonho) deixam a espécie deles mais rápida: −10% no tempo por nível, somando com o fardo de feno. O <b>Seu Zé</b> também aduba os canteiros crescendo: +1 item na colheita; o <b>Juca</b> colhe também o pomar. A <b>Dona Lurdes</b> (operária, nível 12) cuida das oficinas: leva o que ficou pronto para o celeiro e enche o estoque delas; o <b>Faísca</b> (eletricista, nível 17) faz tudo o que é elétrico gastar menos. Ajudante não gasta energia. Com a fazenda aberta, dá para ver cada um indo até onde trabalhou.</li>
                     <li>Em <b>Construir → Oficinas</b> tem uma oficina para cada matéria-prima: padaria, queijaria, conservas, prensa de óleo, peixaria, defumadouro, casa de sucos, sorveteria, ateliê de penas, cozinha de moqueca, empório (que usa o óleo da prensa), adega e outras. Toque nela para abrir o painel: guarde ingredientes no <b>estoque</b> (até 10 receitas) e ela trabalha sozinha, uma receita atrás da outra. O painel mostra quanto valem os ingredientes, quanto vale o produto e o <b>lucro</b>. Quando aparecer o balão, toque para pegar.</li>
                     <li>Fruta só dá no pé: em <b>Construir → Pomar</b> tem amoreira, laranjeira, limoeiro, goiabeira e, do nível 26 ao 29, mangueira, abacateiro, cacaueiro e jabuticabeira. Cada árvore dá frutas sozinha: quando aparecer o balão, toque nela para colher. Cada fruta tem <b>1 pé</b>, e mais 1 a cada 2 terrenos comprados (até 4 de cada): quanto mais terreno, maior o pomar. Para colher sozinho: um <b>baú</b> encostado na árvore, com energia, colhe e guarda (e manda pela rede de canos); ou o <b>Juca</b> (colhedor) colhe as que não têm baú e leva para o celeiro.</li>
                     <li>Em <b>Construir → Máquinas</b>: irrigador, pulverizador e robô capinador evitam seca, pragas e ervas por perto; o alarme protege dos vizinhos; trator e colheitadeira ajudam na fazenda toda.</li>
@@ -3239,8 +3246,7 @@
             const h = meuAjudante(t.id), nivel = h ? h.nivel : 0;
             const travado = !h && t.nivel_min > S.jogador.nivel;
             const estrelas = [1, 2, 3].map((n) => (n <= nivel ? '★' : '☆')).join('');
-            const ritmo = t.funcao === 'energia' ? DESCONTO_ELETRICISTA[nivel || 1] + ' de energia' + (nivel && nivel < 3 ? ` (nível ${nivel + 1}: ${DESCONTO_ELETRICISTA[nivel + 1]})` : '')
-                : nivel ? `${RITMO[nivel]} por hora${nivel < 3 ? ` (nível ${nivel + 1}: ${RITMO[nivel + 1]})` : ''}` : `${RITMO[1]} por hora`;
+            const ritmo = efeitoAjudante(t, nivel || 1) + (nivel && nivel < 3 ? ` (nível ${nivel + 1}: ${efeitoAjudante(t, nivel + 1).split(' ')[0]})` : '');
             const acao = travado ? `<span class="preco">Nível ${t.nivel_min}</span>`
                 : nivel >= 3 ? '<span class="preco">Nível máximo</span>'
                 : `<button type="button" class="botao pequeno verde" data-contratar="${esc(t.id)}">${nivel ? 'Evoluir' : 'Contratar'}<br>${ico('moeda', 14)} ${custoAjudante(t, nivel)}</button>`;
@@ -4019,7 +4025,7 @@
                 aplicarEstado(r.estado);
                 toast(r.nivel === 1
                     ? `${retratoAjudante(t.id, 22)} ${esc(t.nome)} começou a trabalhar na sua fazenda!`
-                    : `${retratoAjudante(t.id, 22)} ${esc(t.nome)} subiu para o nível ${r.nivel}: agora faz ${RITMO[r.nivel]} por hora.`, 'festa');
+                    : `${retratoAjudante(t.id, 22)} ${esc(t.nome)} subiu para o nível ${r.nivel}: agora ${t.funcao === 'animal' ? 'os bichos dele(a) ficam ' + ADIANTA_CUIDADOR[r.nivel] + ' no tempo' : t.funcao === 'energia' ? 'é ' + DESCONTO_ELETRICISTA[r.nivel] + ' de energia' : 'faz ' + RITMO[r.nivel] + ' por hora'}.`, 'festa');
                 som.tocar('festa');
                 if (painelAtual === 'loja') abrirPainel('loja', true);
             }).finally(() => { contr.disabled = false; });
