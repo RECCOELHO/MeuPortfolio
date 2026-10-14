@@ -1191,6 +1191,10 @@ begin
   if v_id is null then
     raise exception 'token_invalido';
   end if;
+  -- fase 53: conta banida pelos admins não entra (nenhuma chamada passa daqui)
+  if exists (select 1 from fazenda_jogadores where id = v_id and banido_em is not null) then
+    raise exception 'conta_banida';
+  end if;
   -- visto_em só serve para "jogou nos últimos 30 dias": grava no máximo 1 vez por hora
   -- (cada chamada gravando pesava no orçamento de disco do Supabase)
   update fazenda_jogadores set visto_em = now() where id = v_id and visto_em < now() - interval '1 hour';
@@ -1375,6 +1379,7 @@ begin
       'xp_compras_hoje', fazenda_diamantes_hoje(p_jogador, 'xp'),
       -- conta Google ligada (só aparece para o dono; null = não ligada)
       'google', case when j.google_sub is not null then coalesce(j.google_email, 'sua conta Google') end,
+      'admin', j.admin,   -- fase 53: 'dono', 'admin' ou null
       'xp', j.xp,
       'nivel', v_nivel,
       'xp_nivel', fazenda_xp_nivel(v_nivel),
@@ -1819,6 +1824,7 @@ begin
   if v_id is null then
     raise exception 'codigo_invalido';
   end if;
+  if exists (select 1 from fazenda_jogadores where id = v_id and banido_em is not null) then raise exception 'conta_banida'; end if;
   perform fazenda_tick(v_id);
   return jsonb_build_object(
     'token', fazenda_nova_sessao(v_id),
@@ -3199,8 +3205,8 @@ begin
   return jsonb_build_object(
     -- mesmo critério de desempate da lista: quem chegou antes fica na frente
     'minha_posicao', (select count(*) + 1 from fazenda_jogadores
-                       where xp > v_xp or (xp = v_xp and criado_em < v_desde)),
-    'total', (select count(*) from fazenda_jogadores),
+                       where (xp > v_xp or (xp = v_xp and criado_em < v_desde)) and banido_em is null),
+    'total', (select count(*) from fazenda_jogadores where banido_em is null),
     'ranking', coalesce((
       select jsonb_agg(jsonb_build_object(
                'id', r.id, 'apelido', r.apelido, 'avatar', r.avatar, 'nivel', fazenda_nivel(r.xp), 'xp', r.xp,
@@ -3210,7 +3216,7 @@ begin
                   where ce.jogador_id = r.id), 0),
                'eu', r.id = v_id)
              order by r.xp desc, r.criado_em)
-        from (select * from fazenda_jogadores order by xp desc, criado_em limit 50) r), '[]'::jsonb)
+        from (select * from fazenda_jogadores where banido_em is null order by xp desc, criado_em limit 200) r), '[]'::jsonb)   -- (fase 53: eram 50)
   );
 end;
 $$;
@@ -3230,6 +3236,7 @@ begin
       from fazenda_jogadores j
      where j.id <> v_id
        and j.visto_em > now() - interval '30 days'
+       and j.banido_em is null
      order by exists (
                select 1 from fazenda_canteiros c join fazenda_culturas k on k.id = c.cultura
                 where c.jogador_id = j.id and c.estado = 'plantado'
@@ -3241,7 +3248,7 @@ begin
     end if;
   elsif v_dono = v_id then
     raise exception 'propria_fazenda';
-  elsif not exists (select 1 from fazenda_jogadores where id = v_dono) then
+  elsif not exists (select 1 from fazenda_jogadores where id = v_dono and banido_em is null) then
     raise exception 'vizinho_invalido';
   end if;
 
@@ -3266,7 +3273,7 @@ begin
   if p_vizinho is null or p_vizinho = v_id then
     raise exception 'propria_fazenda';
   end if;
-  if not exists (select 1 from fazenda_jogadores where id = p_vizinho) then
+  if not exists (select 1 from fazenda_jogadores where id = p_vizinho and banido_em is null) then
     raise exception 'vizinho_invalido';
   end if;
   if p_acao not in ('pegar', 'ajudar', 'salvar') then
@@ -3325,7 +3332,7 @@ declare
   v_racao text;
 begin
   if p_vizinho is null or p_vizinho = v_id then raise exception 'propria_fazenda'; end if;
-  if not exists (select 1 from fazenda_jogadores where id = p_vizinho) then raise exception 'vizinho_invalido'; end if;
+  if not exists (select 1 from fazenda_jogadores where id = p_vizinho and banido_em is null) then raise exception 'vizinho_invalido'; end if;
   if p_animais is null or array_length(p_animais, 1) is null or array_length(p_animais, 1) > 50 then raise exception 'nada_a_fazer'; end if;
   select count(*) into v_hoje from fazenda_visitas
    where ator_id = v_id and dono_id = p_vizinho and tipo = 'bicho' and criado_em > now() - interval '1 day';
@@ -4531,6 +4538,7 @@ declare
 begin
   select id into v_id from fazenda_jogadores where google_sub = p_sub and coalesce(p_sub, '') <> '';
   if v_id is null then raise exception 'google_sem_fazenda'; end if;
+  if exists (select 1 from fazenda_jogadores where id = v_id and banido_em is not null) then raise exception 'conta_banida'; end if;
   perform fazenda_tick(v_id);
   return jsonb_build_object('token', fazenda_nova_sessao(v_id), 'estado', fazenda_estado(v_id));
 end;
@@ -4923,6 +4931,133 @@ end;
 $$;
 
 -- ------------------------------------------------------------
+-- Fase 53: administração do jogo. admin = 'dono' (escolhe quem é admin; começa com o cjesse) ou
+-- 'admin' (bane e desbane). Conta banida não entra mais (fazenda_auth, recuperar e Google), some do
+-- ranking, das visitas e da feira (os anúncios abertos voltam para o celeiro dela). Admin não bane
+-- admin: o dono tira o admin antes. Tudo fica anotado em fazenda_admin_log.
+-- ------------------------------------------------------------
+alter table public.fazenda_jogadores add column if not exists admin text;
+alter table public.fazenda_jogadores drop constraint if exists fazenda_jogadores_admin_check;
+alter table public.fazenda_jogadores add constraint fazenda_jogadores_admin_check check (admin in ('dono', 'admin'));
+alter table public.fazenda_jogadores add column if not exists banido_em timestamptz;
+alter table public.fazenda_jogadores add column if not exists banido_motivo text;
+create table if not exists public.fazenda_admin_log (
+  id        bigint generated always as identity primary key,
+  admin_id  uuid references public.fazenda_jogadores(id) on delete set null,
+  alvo_id   uuid references public.fazenda_jogadores(id) on delete set null,
+  acao      text not null,   -- banir, desbanir, dar_admin, tirar_admin
+  motivo    text,
+  em        timestamptz not null default now()
+);
+alter table public.fazenda_admin_log enable row level security;
+revoke all on public.fazenda_admin_log from anon, authenticated;
+-- o primeiro dono: o cjesse (o de mais XP, se tiver mais de um com esse apelido), só se ainda não houver dono
+update public.fazenda_jogadores set admin = 'dono'
+ where id = (select id from public.fazenda_jogadores where lower(btrim(apelido)) = 'cjesse' order by xp desc limit 1)
+   and not exists (select 1 from public.fazenda_jogadores where admin = 'dono');
+
+-- quem chama é admin? devolve o id (senão, sem_permissao)
+create or replace function public.fazenda_admin_id(p_token text, p_dono boolean default false)
+returns uuid
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id    uuid := fazenda_auth(p_token);
+  v_papel text := (select admin from fazenda_jogadores where id = v_id);
+begin
+  if v_papel is null or (p_dono and v_papel <> 'dono') then raise exception 'sem_permissao'; end if;
+  return v_id;
+end;
+$$;
+
+-- a lista para o painel: sem busca, os banidos primeiro e depois os mais novos; com busca, pelo apelido
+create or replace function public.fazenda_admin_jogadores(p_token text, p_busca text default null)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id    uuid := fazenda_admin_id(p_token);
+  v_busca text := nullif(btrim(coalesce(p_busca, '')), '');
+begin
+  return jsonb_build_object(
+    'total', (select count(*) from fazenda_jogadores),
+    'banidos', (select count(*) from fazenda_jogadores where banido_em is not null),
+    'jogadores', coalesce((select jsonb_agg(jsonb_build_object(
+        'id', j.id, 'apelido', j.apelido, 'avatar', j.avatar, 'nivel', fazenda_nivel(j.xp),
+        'criado_em', j.criado_em, 'visto_em', j.visto_em, 'admin', j.admin,
+        'banido_em', j.banido_em, 'banido_motivo', j.banido_motivo, 'eu', j.id = v_id) order by j.ordem)
+      from (select k.*, row_number() over (order by
+                     case when v_busca is null then (k.banido_em is null)::int end,
+                     case when v_busca is not null then -k.xp end,
+                     k.criado_em desc) as ordem
+              from fazenda_jogadores k
+             where v_busca is null
+                or k.apelido ilike '%' || replace(replace(replace(v_busca, '\', '\\'), '%', '\%'), '_', '\_') || '%'
+             order by ordem limit 60) j), '[]'::jsonb),
+    'log', coalesce((select jsonb_agg(jsonb_build_object(
+        'acao', l.acao, 'motivo', l.motivo, 'em', l.em,
+        'admin', (select apelido from fazenda_jogadores where id = l.admin_id),
+        'alvo', (select apelido from fazenda_jogadores where id = l.alvo_id)) order by l.em desc)
+      from (select * from fazenda_admin_log order by em desc limit 20) l), '[]'::jsonb)
+  );
+end;
+$$;
+
+-- banir (com motivo) ou desbanir; banir tira os anúncios da feira (os itens voltam para o celeiro dele)
+create or replace function public.fazenda_admin_banir(p_token text, p_jogador uuid, p_banir boolean, p_motivo text default null)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id     uuid := fazenda_admin_id(p_token);
+  v_motivo text := left(nullif(btrim(coalesce(p_motivo, '')), ''), 200);
+  a        record;
+begin
+  if p_jogador = v_id then raise exception 'admin_propria_conta'; end if;
+  select * into a from fazenda_jogadores where id = p_jogador for update;
+  if not found then raise exception 'vizinho_invalido'; end if;
+  if a.admin is not null then raise exception 'admin_alvo_admin'; end if;
+  if p_banir then
+    if v_motivo is null then raise exception 'admin_motivo'; end if;
+    update fazenda_jogadores set banido_em = now(), banido_motivo = v_motivo where id = p_jogador;
+    with v as (delete from fazenda_feira where vendedor_id = p_jogador and vendido_em is null returning item, qtd)
+    insert into fazenda_celeiro (jogador_id, item, quantidade)
+    select p_jogador, item, sum(qtd)::int from v group by item
+    on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
+  else
+    update fazenda_jogadores set banido_em = null, banido_motivo = null where id = p_jogador;
+  end if;
+  insert into fazenda_admin_log (admin_id, alvo_id, acao, motivo)
+  values (v_id, p_jogador, case when p_banir then 'banir' else 'desbanir' end, v_motivo);
+  return jsonb_build_object('apelido', a.apelido, 'banido', p_banir);
+end;
+$$;
+
+-- só o dono: dá ou tira o admin de alguém (o dono continua dono)
+create or replace function public.fazenda_admin_definir(p_token text, p_jogador uuid, p_admin boolean)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id uuid := fazenda_admin_id(p_token, true);
+  a    record;
+begin
+  if p_jogador = v_id then raise exception 'admin_propria_conta'; end if;
+  select * into a from fazenda_jogadores where id = p_jogador for update;
+  if not found then raise exception 'vizinho_invalido'; end if;
+  if a.admin = 'dono' then raise exception 'admin_propria_conta'; end if;
+  if p_admin and a.banido_em is not null then raise exception 'admin_banido'; end if;
+  update fazenda_jogadores set admin = case when p_admin then 'admin' end where id = p_jogador;
+  insert into fazenda_admin_log (admin_id, alvo_id, acao) values (v_id, p_jogador, case when p_admin then 'dar_admin' else 'tirar_admin' end);
+  return jsonb_build_object('apelido', a.apelido, 'admin', p_admin);
+end;
+$$;
+
+-- ------------------------------------------------------------
 -- Permissões: só a API pública fica executável pela chave anon
 -- ------------------------------------------------------------
 revoke execute on function
@@ -5009,6 +5144,7 @@ revoke execute on function
   public.fazenda_estoque(text, int, int, int),
   public.fazenda_galinheiro_quer(uuid),
   public.fazenda_pasto(uuid),
+  public.fazenda_admin_id(text, boolean),
   public.fazenda_feira_limite(uuid),
   public.fazenda_feira_regras(),
   public.fazenda_feira_faixa(text),
@@ -5080,5 +5216,8 @@ grant execute on function
   public.fazenda_feira_cancelar(text, bigint),
   public.fazenda_feira_comprar(text, bigint),
   public.fazenda_feira_lista(text, text),
-  public.fazenda_feira_barraca(text)
+  public.fazenda_feira_barraca(text),
+  public.fazenda_admin_jogadores(text, text),
+  public.fazenda_admin_banir(text, uuid, boolean, text),
+  public.fazenda_admin_definir(text, uuid, boolean)
 to anon, authenticated;

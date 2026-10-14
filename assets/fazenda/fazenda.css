@@ -2326,3 +2326,59 @@ body.construindo .status {
     gap: 6px;
     margin: 10px 0;
 }
+
+/* fase 53: painel de admin (busca, etiquetas dono/admin/banido, motivo do banimento, log) */
+.admin-busca {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.admin-busca input,
+.admin-motivo input {
+    flex: 1;
+    min-width: 0;
+    font: inherit;
+    padding: 8px 10px;
+    border: 2px solid var(--o);
+    background: #fff;
+}
+
+.admin-linha.banido {
+    background: #f6d9d2;
+}
+
+.admin-botoes {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.admin-motivo {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    grid-column: 1 / -1;
+}
+
+.tag-admin {
+    display: inline-block;
+    padding: 0 6px;
+    font-size: .75em;
+    font-weight: 700;
+    color: #fff;
+    background: #3b5dc9;
+}
+
+.tag-admin.dono {
+    background: #e38628;
+}
+
+.tag-admin.banido {
+    background: #c34b35;
+}
+
+.admin-log p {
+    margin: 4px 0;
+    font-size: .9em;
+}
