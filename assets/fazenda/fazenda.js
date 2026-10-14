@@ -44,6 +44,12 @@
     /* ---------- Mensagens de erro do servidor ---------- */
     const ERROS = {
         token_invalido: 'Sessão expirada. Entre de novo com seu código.',
+        conta_banida: 'Esta fazenda foi suspensa por desrespeitar as regras do jogo.',
+        sem_permissao: 'Só os admins do jogo podem fazer isso.',
+        admin_propria_conta: 'Isso não vale para a sua própria conta (nem para a do dono).',
+        admin_alvo_admin: 'Essa conta é admin: o dono tira o admin antes de banir.',
+        admin_motivo: 'Escreva o motivo do banimento.',
+        admin_banido: 'Conta banida não pode ser admin.',
         lento: 'A fazenda está demorando para responder (o servidor está lento agora). Tente de novo daqui a pouco.',
         servidor: 'O servidor da fazenda está sobrecarregado agora. Tente de novo daqui a pouco.',
         apelido_invalido: 'O apelido precisa ter de 2 a 20 letras.',
@@ -1988,6 +1994,8 @@
         }
         el.apelido.textContent = j.apelido;
         el.nivel.textContent = j.nivel;
+        const btnAdmin = document.getElementById('btnAdmin');
+        if (btnAdmin) btnAdmin.hidden = !j.admin;
         const faixa = j.xp_proximo - j.xp_nivel;
         const prog = (j.xp - j.xp_nivel) / faixa;
         el.xpBar.style.width = `${Math.min(100, prog * 100)}%`;
@@ -2369,8 +2377,9 @@
         return execucao;
     }
 
+    const saiuDoJogo = (e) => e && (e.code === 'token_invalido' || e.code === 'conta_banida');
     function tratarErro(e) {
-        if (e && e.code === 'token_invalido') {
+        if (saiuDoJogo(e)) {
             sair(false);
             mostrarEntrada();
             mostrarErroEntrada(e.message);
@@ -2756,7 +2765,7 @@
             if (visita) mostrarVisita(await rpc('fazenda_visitar', { p_token: token, p_vizinho: visita.id }));
             buscasFalhas = 0;
         } catch (e) {
-            if (e.code === 'token_invalido') tratarErro(e);
+            if (saiuDoJogo(e)) tratarErro(e);
             else if (e.code === 'vizinho_invalido') voltarCasa();
             else buscasFalhas++;
         } finally {
@@ -2839,6 +2848,10 @@
             el.painelTitulo.innerHTML = `${ico('moeda', 26)} Feira`;
             corpo.innerHTML = htmlFeira();
             if (abaFeira === 'comprar' && !soAtualizar) carregarFeira();
+        } else if (nome === 'admin') {
+            el.painelTitulo.innerHTML = `${ico('escudo', 26)} Admin`;
+            corpo.innerHTML = htmlAdmin();
+            if (!soAtualizar) carregarAdmin();
         } else if (nome === 'metas') {
             el.painelTitulo.innerHTML = `${ico('medalha', 26)} Metas de nível`;
             corpo.innerHTML = htmlMetas();
@@ -3092,7 +3105,8 @@
                 <h3 class="secao-titulo">Conquistas (${(p.conquistas || []).length}/${(S.conquistas_tipos || []).length})</h3>
                 ${htmlConquistas(p.conquistas || [])}
                 <h3 class="secao-titulo">Números</h3>
-                ${htmlEstatisticas(p.estatisticas)}`;
+                ${htmlEstatisticas(p.estatisticas)}
+                ${S.jogador.admin ? `<p><button type="button" class="botao pequeno creme" data-admin-perfil="${esc(visita.id)}" data-apelido="${esc(visita.apelido)}">${ico('escudo', 14)} Banir esta fazenda</button></p>` : ''}`;
         } else if (nome === 'vizinhos') {
             el.painelTitulo.innerHTML = `${spr(108, 32)} Vizinhos`;
             const novos = diarioNovos().length;
@@ -3635,7 +3649,7 @@
         try {
             const r = await rpc('fazenda_ranking', { p_token: token });
             if (painelAtual !== 'vizinhos' || abaVizinhos !== 'ranking') return;
-            alvo.innerHTML = `<p class="det" style="margin:0 0 12px">Você está em <b>${r.minha_posicao}º</b> de ${r.total} fazendas.</p>
+            alvo.innerHTML = `<p class="det" style="margin:0 0 12px">Você está em <b>${r.minha_posicao}º</b> de ${r.total} fazendas.${r.ranking.length < r.total ? ` Mostrando as ${r.ranking.length} primeiras.` : ''}</p>
                 <div class="lista">` + r.ranking.map((j, n) => `
                     <div class="rank${j.eu ? ' eu' : ''}">
                         <span class="pos">${n + 1}º</span>
@@ -3648,6 +3662,56 @@
         } catch (e) {
             alvo.innerHTML = `<p class="vazio-msg">${esc(e.message)}</p>`;
         }
+    }
+
+    /* ---------- Admin (fase 53) ----------
+       O dono (cjesse) escolhe quem é admin; os admins banem (com motivo) e desbanem. Conta banida não
+       entra mais, some do ranking, das visitas e da feira. Tudo fica no log do painel. */
+    let adminDados = null, adminBusca = '', adminBanindo = null;
+    function carregarAdmin() {
+        enfileirar([], async () => {
+            adminDados = await rpc('fazenda_admin_jogadores', { p_token: token, p_busca: adminBusca || null });
+            if (painelAtual === 'admin') abrirPainel('admin', true);
+        });
+    }
+    const ACAO_ADMIN = { banir: 'baniu', desbanir: 'desbaniu', dar_admin: 'deu admin para', tirar_admin: 'tirou o admin de' };
+    function htmlAdmin() {
+        const dono = S.jogador.admin === 'dono';
+        const busca = `<form class="admin-busca" data-admin-busca>
+                <input type="search" id="adminBusca" placeholder="Buscar pelo apelido" value="${esc(adminBusca)}" autocomplete="off">
+                <button type="submit" class="botao pequeno verde">Buscar</button>
+            </form>`;
+        if (!adminDados) return busca + '<p class="vazio-msg">Carregando…</p>';
+        const d = adminDados;
+        const lista = d.jogadores.length ? '<div class="lista">' + d.jogadores.map((j) => {
+            const tags = [j.admin === 'dono' ? 'dono' : j.admin ? 'admin' : '', j.banido_em ? 'banido' : ''].filter(Boolean)
+                .map((t) => `<small class="tag-admin ${t}">${t}</small>`).join(' ');
+            const botoes = j.eu || j.admin === 'dono' ? '' : [
+                j.admin ? '' : j.banido_em
+                    ? `<button type="button" class="botao pequeno creme" data-admin-desbanir="${esc(j.id)}" data-apelido="${esc(j.apelido)}">Desbanir</button>`
+                    : `<button type="button" class="botao pequeno vermelho" data-admin-banir="${esc(j.id)}">Banir</button>`,
+                dono && !j.banido_em ? `<button type="button" class="botao pequeno creme" data-admin-cargo="${esc(j.id)}" data-apelido="${esc(j.apelido)}" data-dar="${j.admin ? '' : '1'}">${j.admin ? 'Tirar admin' : 'Tornar admin'}</button>` : ''
+            ].join('');
+            const banindo = adminBanindo === j.id ? `<div class="admin-motivo">
+                    <input type="text" id="adminMotivo" maxlength="200" placeholder="Motivo (ex.: apelido ofensivo)">
+                    <button type="button" class="botao pequeno vermelho" data-admin-confirmar="${esc(j.id)}" data-apelido="${esc(j.apelido)}">Banir</button>
+                    <button type="button" class="botao pequeno creme" data-admin-cancelar>Cancelar</button>
+                </div>` : '';
+            return `<div class="item admin-linha${j.banido_em ? ' banido' : ''}">
+                <span class="ico">${A.htmlAvatar(j.avatar, 32)}</span>
+                <span style="min-width:0"><span class="nome">${esc(j.apelido)}${j.eu ? ' (você)' : ''} ${tags}</span>
+                    <span class="det"><span>Nível ${j.nivel}</span><span>desde ${desde(j.criado_em)}</span><span>visto há ${fmtTempo(agora() - Date.parse(j.visto_em))}</span></span>
+                    ${j.banido_em ? `<span class="det"><span class="txt">Banido há ${fmtTempo(agora() - Date.parse(j.banido_em))}${j.banido_motivo ? ': ' + esc(j.banido_motivo) : ''}</span></span>` : ''}
+                </span>
+                <span class="admin-botoes">${botoes}</span>
+                ${banindo}
+            </div>`;
+        }).join('') + '</div>' : `<p class="vazio-msg">Ninguém com "${esc(adminBusca)}" no apelido.</p>`;
+        const log = d.log.length ? '<h3 class="secao-titulo">Últimas ações</h3><div class="admin-log">' + d.log.map((l) =>
+            `<p><b>${esc(l.admin || '?')}</b> ${ACAO_ADMIN[l.acao] || esc(l.acao)} <b>${esc(l.alvo || '?')}</b>${l.motivo ? ` · ${esc(l.motivo)}` : ''} <small>há ${fmtTempo(agora() - Date.parse(l.em))}</small></p>`).join('') + '</div>' : '';
+        return busca + `<p class="det"><span class="txt">${d.total} fazendas, ${d.banidos} banida${d.banidos === 1 ? '' : 's'}. ${adminBusca ? 'Mostrando a busca.' : 'Sem busca: as banidas primeiro, depois as mais novas.'}</span></p>`
+            + lista + log
+            + `<p class="aviso">Conta banida não entra mais no jogo (nem com o código ou o Google), some do ranking, das visitas e da feira. Desbanir devolve tudo como estava.${dono ? ' Como dono, você escolhe quem é admin: admin bane e desbane, mas não mexe em outros admins.' : ''}</p>`;
     }
 
     function fecharPainel() {
@@ -3784,6 +3848,52 @@
                 toast(`${A.htmlItem('barraca', 18)} Barraca nova na feira! Agora você pode ter ${limiteFeira()} anúncios.`, 'festa');
                 abrirPainel('feira', true);
             });
+            return;
+        }
+        // fase 53: admin
+        const ab = e.target.closest('[data-admin-banir]');
+        if (ab) { adminBanindo = ab.dataset.adminBanir; abrirPainel('admin', true); const m = $('adminMotivo'); if (m) m.focus(); return; }
+        if (e.target.closest('[data-admin-cancelar]')) { adminBanindo = null; abrirPainel('admin', true); return; }
+        const ac = e.target.closest('[data-admin-confirmar]');
+        if (ac) {
+            const motivo = (($('adminMotivo') || {}).value || '').trim();
+            if (!motivo) return toast(ERROS.admin_motivo, 'erro');
+            ac.disabled = true;
+            enfileirar([], async () => {
+                await rpc('fazenda_admin_banir', { p_token: token, p_jogador: ac.dataset.adminConfirmar, p_banir: true, p_motivo: motivo });
+                adminBanindo = null;
+                toast(`${ico('escudo', 14)} <b>${esc(ac.dataset.apelido)}</b> foi banido(a).`, '', 'importante');
+                carregarAdmin();
+            });
+            return;
+        }
+        const ad = e.target.closest('[data-admin-desbanir]');
+        if (ad) {
+            if (!confirm(`Desbanir ${ad.dataset.apelido}? A conta volta a entrar no jogo.`)) return;
+            enfileirar([], async () => {
+                await rpc('fazenda_admin_banir', { p_token: token, p_jogador: ad.dataset.adminDesbanir, p_banir: false, p_motivo: null });
+                toast(`${ico('escudo', 14)} <b>${esc(ad.dataset.apelido)}</b> foi desbanido(a).`, '', 'importante');
+                carregarAdmin();
+            });
+            return;
+        }
+        const ag = e.target.closest('[data-admin-cargo]');
+        if (ag) {
+            const dar = ag.dataset.dar === '1';
+            if (!confirm(dar ? `Tornar ${ag.dataset.apelido} admin? Admin pode banir e desbanir jogadores.` : `Tirar o admin de ${ag.dataset.apelido}?`)) return;
+            enfileirar([], async () => {
+                await rpc('fazenda_admin_definir', { p_token: token, p_jogador: ag.dataset.adminCargo, p_admin: dar });
+                toast(`${ico('escudo', 14)} ${dar ? 'Agora' : 'Não é mais'} admin: <b>${esc(ag.dataset.apelido)}</b>.`, '', 'importante');
+                carregarAdmin();
+            });
+            return;
+        }
+        const ap = e.target.closest('[data-admin-perfil]');
+        if (ap) {   // do perfil de quem você visita: abre o painel já com essa fazenda e o motivo para escrever
+            adminBusca = ap.dataset.apelido;
+            adminBanindo = ap.dataset.adminPerfil;
+            adminDados = null;
+            abrirPainel('admin');
             return;
         }
         const fx = e.target.closest('[data-feira-cancelar]');
@@ -4054,6 +4164,13 @@
         }
     });
 
+    el.painelCorpo.addEventListener('submit', (e) => {   // fase 53: busca do painel de admin
+        if (!e.target.closest('[data-admin-busca]')) return;
+        e.preventDefault();
+        adminBusca = (($('adminBusca') || {}).value || '').trim();
+        adminBanindo = null;
+        carregarAdmin();
+    });
     el.painelCorpo.addEventListener('change', (e) => {   // fase 50: trocar o item a anunciar na feira
         const sel = e.target.closest('[data-feira-item]');
         if (sel) { feiraItem = sel.value; abrirPainel('feira', true); }
@@ -4361,7 +4478,7 @@
         try {
             aplicarEstado(await rpc('fazenda_carregar', { p_token: token }));
         } catch (e) {
-            if (e.code === 'token_invalido' || !token) {
+            if (saiuDoJogo(e) || !token) {
                 if (token) sair(false);
                 mostrarEntrada();
                 return mostrarErroEntrada(e.message);
