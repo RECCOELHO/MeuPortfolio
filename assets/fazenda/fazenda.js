@@ -1967,6 +1967,8 @@
     const alturaDe = (barra) => (barra ? window.innerHeight - barra.getBoundingClientRect().top : 0);
     function ajustarMargens(manter) {
         const topo = el.hud.hidden ? 24 : el.hud.getBoundingClientRect().bottom + 8;
+        // o que fica logo abaixo do topo (mensagens, faixa de visita, tutorial) acompanha a altura dele
+        if (!el.hud.hidden) document.documentElement.style.setProperty('--hud-fundo', `${Math.round(el.hud.getBoundingClientRect().bottom)}px`);
         const barra = barraDeBaixo();
         cena.definirMargens(Math.round(topo), Math.round(barra ? alturaDe(barra) + 44 : 24), manter === true);
         posicionarStatus();
@@ -1982,6 +1984,11 @@
         const ro = new ResizeObserver(posicionarStatus);
         ro.observe(el.barra);
         ro.observe(el.barraConstr);
+        let alturaHud = 0;
+        new ResizeObserver(() => {
+            const h = Math.round(el.hud.getBoundingClientRect().height);
+            if (h && h !== alturaHud) { alturaHud = h; ajustarMargens(true); }
+        }).observe(el.hud);
     }
 
     /* ---------- HUD e status ---------- */
