@@ -2973,7 +2973,7 @@ $$;
 
 create or replace function public.fazenda_limite_roubo(p_rendimento int)
 returns int language sql immutable as $$
-  select floor(p_rendimento * 0.4)::int;
+  select floor(p_rendimento * 0.5)::int;
 $$;
 
 -- Fazenda de um vizinho vista por quem está visitando
@@ -2996,9 +2996,11 @@ begin
     'nivel', v_nivel,
     'max_canteiros', fazenda_max_canteiros(v_nivel),
     'zonas', j.zonas,
-    -- fase 48: hoje o visitante ainda pode salvar 1 planta murcha e dar ração a até 10 bichos aqui
-    'pode_salvar', not exists (select 1 from fazenda_visitas where ator_id = p_ator and dono_id = p_dono and tipo = 'salvar'
-                                 and criado_em > now() - interval '1 day'),
+    -- fase 48: hoje o visitante ainda pode salvar até 2 plantas murchas e dar ração a até 10 bichos aqui
+    'salvos_hoje', (select count(*) from fazenda_visitas where ator_id = p_ator and dono_id = p_dono and tipo = 'salvar'
+                     and criado_em > now() - interval '1 day'),
+    'pode_salvar', (select count(*) from fazenda_visitas where ator_id = p_ator and dono_id = p_dono and tipo = 'salvar'
+                     and criado_em > now() - interval '1 day') < 2,
     'bichos_hoje', (select count(*) from fazenda_visitas where ator_id = p_ator and dono_id = p_dono and tipo = 'bicho'
                      and criado_em > now() - interval '1 day'),
     'premio_ajuda', fazenda_premio_ajuda(p_ator),
@@ -3067,11 +3069,11 @@ begin
     raise exception 'nada_pra_pegar';
   end if;
   if (select count(*) from fazenda_visitas
-       where ator_id = p_ator and tipo = 'roubo' and criado_em > now() - interval '1 day') >= 30 then
+       where ator_id = p_ator and tipo = 'roubo' and criado_em > now() - interval '1 day') >= 40 then
     raise exception 'limite_pegadas';
   end if;
 
-  v_qtd := least(1 + (random() < 0.4)::int, fazenda_limite_roubo(k.rendimento) - c.roubado);
+  v_qtd := least(2 + (random() < 0.4)::int, fazenda_limite_roubo(k.rendimento) - c.roubado);
   if fazenda_protegido(p_dono, 'cerca', c.x, c.y) then
     v_qtd := least(v_qtd, 1);   -- cerca ou placa por perto
   end if;
@@ -3137,8 +3139,8 @@ begin
   if now() < c.plantado_em + make_interval(secs => k.tempo_seg + greatest(k.tempo_seg * 2, 3600)) then
     raise exception 'nada_a_fazer';   -- não está murcha
   end if;
-  if exists (select 1 from fazenda_visitas where ator_id = p_ator and dono_id = p_dono and tipo = 'salvar'
-               and criado_em > now() - interval '1 day') then
+  if (select count(*) from fazenda_visitas where ator_id = p_ator and dono_id = p_dono and tipo = 'salvar'
+        and criado_em > now() - interval '1 day') >= 2 then
     raise exception 'ja_salvou';
   end if;
   update fazenda_canteiros
@@ -4770,7 +4772,7 @@ revoke all on public.fazenda_feira from anon, authenticated;
 create or replace function public.fazenda_feira_regras()
 returns jsonb language sql immutable as $$
   select '{"taxa": 0, "min": 0.5, "max": 3, "horas": 48, "por_barraca": 2, "barracas_max": 4, "barraca_nivel": 5,
-           "barraca_precos": [800, 1600, 2400], "compras_dia": 20, "qtd_max": 99}'::jsonb;
+           "barraca_precos": [800, 1600, 2400], "compras_dia": 40, "qtd_max": 99}'::jsonb;
 $$;
 
 -- Fase 51: quantos anúncios abertos dá para ter: 2 por barraca da feira

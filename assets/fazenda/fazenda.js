@@ -91,14 +91,14 @@
         nada_pra_pegar: 'Esse canteiro já foi bem visitado… não sobrou nada.',
         limite_pegadas: 'Você já pegou demais hoje. Volte amanhã.',
         sem_racao: 'Falta ração no celeiro.',
-        ja_salvou: 'Você já salvou uma planta nessa fazenda hoje. Volte amanhã!',
+        ja_salvou: 'Você já salvou duas plantas nessa fazenda hoje. Volte amanhã!',
         preco_invalido: 'Preço fora da faixa da feira (entre metade e o triplo da venda normal).',
         limite_anuncios: 'Os seus lugares na feira estão todos ocupados. Cada barraca nova (no painel da Feira, até 4) dá mais 2; ou espere vender ou cancele um.',
         limite_barracas: 'A sua feira já tem as 4 barracas.',
         sem_itens: 'Não tem tudo isso livre no celeiro (a ração reservada fica).',
         anuncio_invalido: 'Esse lote já foi vendido, cancelado ou acabou.',
         anuncio_seu: 'Esse anúncio é seu.',
-        limite_compras: 'Hoje você já comprou 20 lotes na feira. Amanhã tem mais!',
+        limite_compras: 'Hoje você já comprou 40 lotes na feira. Amanhã tem mais!',
         limite_bichos: 'Você já deu ração a 10 bichos nessa fazenda hoje.',
         ja_alimentado: 'Esse bicho já comeu.',
         nao_pronto: 'Ainda não tem nada pra coletar.',
@@ -917,7 +917,7 @@
     }
 
     // Visitando: o que dá pra fazer no canteiro do vizinho
-    const limitePegar = (k) => Math.floor(k.rendimento * 0.4);
+    const limitePegar = (k) => Math.floor(k.rendimento * 0.5);
     // canteiro do vizinho no alcance de um alarme antiladrão?
     function protegidoAlarme(c) {
         if (!visita) return false;
@@ -2079,15 +2079,15 @@
         if (i.fase === 'vazio' || i.fase === 'arado') return 'Canteiro livre. Nada pra fazer aqui.';
         const item = itemDe(i.k);
         if (i.fase === 'murcho') return 'pode_salvar' in visita
-            ? (visita.pode_salvar ? `${ico('coracao', 14)} O ${esc(i.k.nome.toLowerCase())} do vizinho murchou. Toque para <b>salvar</b> (1 por dia em cada fazenda): ela volta madura e você ganha +${3 * (visita.premio_ajuda || 1)} ${ico('xp', 14)}.`
-                : `O ${esc(i.k.nome.toLowerCase())} do vizinho murchou. Você já salvou uma planta aqui hoje.`)
+            ? (visita.pode_salvar ? `${ico('coracao', 14)} O ${esc(i.k.nome.toLowerCase())} do vizinho murchou. Toque para <b>salvar</b> (até 2 por dia em cada fazenda): ela volta madura e você ganha +${3 * (visita.premio_ajuda || 1)} ${ico('xp', 14)}.`
+                : `O ${esc(i.k.nome.toLowerCase())} do vizinho murchou. Você já salvou duas plantas aqui hoje.`)
             : `O ${esc(i.k.nome.toLowerCase())} do vizinho murchou.`;
         let txt;
         if (i.fase === 'maduro') {
             if (c.ja_peguei) txt = `${item} Você já pegou desse ${esc(i.k.nome.toLowerCase())}.`;
             else if (protegidoAlarme(c)) txt = `${item} ${esc(i.k.nome)} protegido pelo alarme antiladrão do vizinho.`;
             else if (c.roubado >= limitePegar(i.k)) txt = `${item} Já pegaram bastante desse ${esc(i.k.nome.toLowerCase())}.`;
-            else txt = `${item} ${esc(i.k.nome)} maduro! Toque para pegar 1 ou 2 ${ico('mao', 16)}`;
+            else txt = `${item} ${esc(i.k.nome)} maduro! Toque para pegar até 3 ${ico('mao', 16)}`;
         } else {
             txt = `${item} ${esc(i.k.nome)} do vizinho · pronto em ${fmtTempo(i.resta)}.`;
         }
@@ -2720,6 +2720,8 @@
                 const total = Object.values(r.resultado).reduce((a, b) => a + b, 0);
                 toast(acao === 'pegar'
                     ? `${ico('mao', 18)} Pegou ${total} itens de ${r.feitos} canteiro(s)!`
+                    : acao === 'salvar'
+                    ? `${ico('coracao', 16)} Salvou ${r.feitos} planta(s) murcha(s) do vizinho: +${total} ${ico('xp', 14)}`
                     : `${ico('coracao', 16)} Ajudou em ${r.feitos} canteiro(s) do vizinho: +${total} ${ico('xp', 14)}`);
             } else if (posicoes.length === 1) {
                 descrever(posicoes[0]);
@@ -2750,12 +2752,14 @@
             const i = info(c);
             return tipo === 'pegar' ? podePegar(c, i) : (i.fase === 'crescendo' || i.fase === 'maduro') && i.probs.length > 0;
         }).map((c) => c.posicao);
-        if (tipo === 'ajudar') {   // fase 48: ajudar tudo também salva a murcha do dia e dá ração aos bichos
-            const murcha = visita.pode_salvar && visita.canteiros.find((c) => info(c).fase === 'murcho');
+        if (tipo === 'ajudar') {   // fase 48: ajudar tudo também salva as murchas do dia (até 2) e dá ração aos bichos
+            const salvos = visita.salvos_hoje != null ? visita.salvos_hoje : (visita.pode_salvar ? 0 : 2);
+            const vagasSalvar = Math.max(0, 2 - salvos);
+            const murchas = vagasSalvar > 0 && visita.pode_salvar !== false ? visita.canteiros.filter((c) => info(c).fase === 'murcho').slice(0, vagasSalvar) : [];
             const famintos = 'bichos_hoje' in visita && visita.bichos_hoje < 10 ? (visita.animais || []).filter((a) => infoAnimal(a).estado === 'fome').map((a) => a.id) : [];
-            if (!ps.length && !murcha && !famintos.length) return toast('A fazenda do vizinho está em ordem.', undefined, 'leve');
+            if (!ps.length && !murchas.length && !famintos.length) return toast('A fazenda do vizinho está em ordem.', undefined, 'leve');
             if (ps.length) executarVisita('ajudar', ps);
-            if (murcha) executarVisita('salvar', [murcha.posicao]);
+            if (murchas.length) executarVisita('salvar', murchas.map((c) => c.posicao));
             if (famintos.length) alimentarBichosVizinho(famintos);
             return;
         }
@@ -3340,7 +3344,7 @@
        de fazenda_feira_lista. */
     let abaFeira = 'comprar', feiraDados = null, feiraFiltro = null, feiraItem = null;
     const regrasFeira = () => (S && S.feira && S.feira.regras)
-        || { taxa: 0, min: 0.5, max: 3, horas: 48, por_barraca: 2, barracas_max: 4, barraca_nivel: 5, barraca_precos: [800, 1600, 2400], qtd_max: 99 };
+        || { taxa: 0, min: 0.5, max: 3, horas: 48, por_barraca: 2, barracas_max: 4, barraca_nivel: 5, barraca_precos: [800, 1600, 2400], compras_dia: 40, qtd_max: 99 };
     const limiteFeira = () => (S.feira && S.feira.limite) || 2;
     const barracas = () => (S.feira && S.feira.barracas) || 1;
     // comprar mais uma barraca na feira (até 4)
