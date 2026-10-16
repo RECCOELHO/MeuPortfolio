@@ -164,6 +164,9 @@
         baunilha: { fases: [52, 53, 1075], murcho: 55, item: 1076, semente: 1076 },
         acucar: { item: 1077 }, cafe_torrado: { item: 1078 }, fio: { item: 1079 }, cappuccino: { item: 1080 },
         roupa: { item: 1081 }, vinho: { item: 1082 }, molho_picante: { item: 1083 }, bombom: { item: 1084 },
+        // fase 60: materiais raros do píer
+        madeira_nobre: { item: 1085 }, corda_naval: { item: 1086 }, pedra_cantaria: { item: 1087 },
+        ferro_forjado: { item: 1088 }, ancora: { item: 1089 },
         // sementes da estação (broto e meio do pacote; madura e fruta próprias)
         moranguinho: { fases: [52, 53, 1013], murcho: 55, item: 1014, semente: 1014 },
         melancia: { fases: [52, 53, 1015], murcho: 55, item: 1016, semente: 1016 },
@@ -381,7 +384,18 @@
         // 83 molho picante (frasco)
         ['................', '.......aa.......', '......avva......', '......aaaa......', '......adXa......', '.....adXXXa.....', '....adXXXXXa....', '....adXXXXXa....', '....adsssssa....', '....adsXXXsa....', '....adsXdXsa....', '....adsXXXsa....', '....adsssssa....', '....aXXXXXZa....', '.....aaaaaa.....', '................'],
         // 84 bombom (papel dourado)
-        ['................', '................', '................', '................', '.aa..........aa.', '.aga.aaaaaa.aga.', '.aggaynnnnyaaga.', '.aHgaynydnnyaHa.', '.aHgaynnnnnyaga.', '.aggaynnnnyaaga.', '.aHa.aaaaaa.aHa.', '.aa..........aa.', '................', '................', '................', '................']
+        ['................', '................', '................', '................', '.aa..........aa.', '.aga.aaaaaa.aga.', '.aggaynnnnyaaga.', '.aHgaynydnnyaHa.', '.aHgaynnnnnyaga.', '.aggaynnnnyaaga.', '.aHa.aaaaaa.aHa.', '.aa..........aa.', '................', '................', '................', '................'],
+        // fase 60: materiais raros do píer (85..89)
+        // 85 madeira nobre (tábuas escuras amarradas)
+        ['................', '................', '................', '..aaaaaaaaaaaa..', '.anyyyyyyyyyyna.', '.aaaaaaaaaaaaaa.', '.aynnnnynnnnnya.', '.aaaaGaaaaGaaaa.', '.anyyyGyyyGyyna.', '.aaaaGaaaaGaaaa.', '.aynnnGnnnGnnya.', '.aaaaaaaaaaaaaa.', '..aynnnnnnnnya..', '...aaaaaaaaaa...', '................', '................'],
+        // 86 corda naval (rolo)
+        ['................', '................', '......aaaa......', '....aawxxwaa....', '...axwaaaawxa...', '..awxa....axwa..', '..axa.aaaa.axa..', '.awxa.axxa.awxa.', '.axwa.awwa.axwa.', '..axa.aaaa.axa..', '..awxa....axwa..', '...axwaaaawxa...', '....aawxxwaa..a.', '......aaaaaaaxa.', '.............aa.', '................'],
+        // 87 pedra de cantaria (bloco lavrado)
+        ['................', '................', '................', '....aaaaaaaaa...', '...adffffffdla..', '..adffffffdlla..', '..aaaaaaaaalla..', '..afffllfffala..', '..aflffffflala..', '..affffllffala..', '..aflfffffflaa..', '..afffflffffa...', '..aaaaaaaaaaa...', '................', '................', '................'],
+        // 88 ferro forjado (barras)
+        ['................', '................', '................', '................', '.....aaaaaaaa...', '....afddffffla..', '...aaaaaaaaaala.', '...afdffffflaaa.', '..aaaaaaaaaaalla', '..afdfffffflala.', '.afdffffffflaa..', '.aKKKKKKKKKKa...', '.aaaaaaaaaaaa...', '................', '................', '................'],
+        // 89 âncora
+        ['................', '.......aa.......', '......affa......', '......afla......', '.......aa.......', '....aaaKaaaa....', '....aKKKKKKa....', '.......aK.......', '.......aKa......', '.a.....aKa....a.', 'aKa....aKa...aKa', '.aKa...aKa..aKa.', '..aKaa.aKa.aKa..', '...aKKaaKaaKa...', '....aaKKKKKa....', '......aaaaa.....']
     ];
     const atlasProprio = document.createElement('canvas');
     atlasProprio.width = 12 * 16;
@@ -970,7 +984,7 @@
         // visita na porteira: { tipo, item (tile do balão), x, y, tx, ty, saindo }
         let visitante = null;
         let avatarAtual = null;   // avatar do fazendeiro na tela (o seu, ou o do vizinho visitado)
-        const VISITANTE_ARTE = { feirante: 86, doceira: 99, caminhoneiro: 112, mascate: 100 };   // Tiny Dungeon
+        const VISITANTE_ARTE = { feirante: 86, doceira: 99, caminhoneiro: 112, mascate: 100, mercador: 111 };   // Tiny Dungeon (fase 60: o mercador)
         const PORTEIRA = { x: 8, y: 2 };   // onde a visita para (do lado da casa)
         let hover = null;                                  // canteiro, 'celeiro', 'a:<id>' ou {tx, ty}
         let alcance = null;                                // alcance de um item tocado: { x, y, raio, ate }
