@@ -2950,6 +2950,7 @@ begin
      where ce.jogador_id = v_id
        and ce.quantidade > coalesce(rs.quantidade, 0)
        and (p_item is null or ce.item = p_item)
+       and k.tipo <> 'raro'   -- fase 60: material raro só vende na feira
        for update of ce
   loop
     v_qtd := least(coalesce(p_quantidade, r.livre), r.livre);
@@ -4139,8 +4140,23 @@ declare
   k       record;
   v_qtd   int;
   v_alvo  int;
+  v_raro  text;
 begin
   if exists (select 1 from fazenda_visitas_npc where jogador_id = p_jogador and slot = v_slot) then return null; end if;
+  -- fase 60: o mercador (1 em cada 100 visitas, desde o nível 1) troca 1 material raro do píer por
+  -- frutos fora de época (só tem quem guardou da estação dele ou plantou na estufa)
+  if ('x' || substr(v_h, 9, 4))::bit(16)::int % 100 = 0 then
+    select y.r->>'id', (y.r->>'frutas')::int into v_raro, v_qtd
+      from (select x.r, sum((x.r->>'peso')::int) over (order by x.ord) as acum
+              from jsonb_array_elements(fazenda_raros()) with ordinality as x(r, ord)) y
+     where y.acum > ('x' || substr(v_h, 13, 4))::bit(16)::int % 100
+     order by y.acum limit 1;
+    select c.* into k from fazenda_culturas c
+     where c.tipo = 'cultura' and c.estacao is not null and c.estacao <> fazenda_estacao_em(now())
+     order by md5(v_h || c.id) limit 1;
+    return jsonb_build_object('slot', v_slot, 'tipo', 'mercador', 'ate', to_timestamp((v_slot + 1) * 10800),
+                              'item', k.id, 'qtd', v_qtd, 'raro', v_raro, 'paga', 0, 'xp', 0);
+  end if;
   select fazenda_nivel(xp) into v_nivel from fazenda_jogadores where id = p_jogador;
   if v_nivel < 3 then return null; end if;
   v_tipo := (array['feirante', 'doceira', 'caminhoneiro', 'mascate'])[1 + (('x' || substr(v_h, 1, 4))::bit(16)::int % 4)];
@@ -4220,8 +4236,13 @@ begin
       into v_tem from fazenda_celeiro ce where ce.jogador_id = v_id and ce.item = v->>'item' for update;
     if coalesce(v_tem, 0) < (v->>'qtd')::int then raise exception 'falta_pedido'; end if;
     update fazenda_celeiro set quantidade = quantidade - (v->>'qtd')::int where jogador_id = v_id and item = v->>'item';
-    update fazenda_jogadores set moedas = moedas + (v->>'paga')::int, xp = xp + (v->>'xp')::int where id = v_id;
-    perform fazenda_missao(v_id, 'vender', (v->>'paga')::int);
+    if v->>'tipo' = 'mercador' then   -- fase 60: em troca, 1 material raro
+      insert into fazenda_celeiro (jogador_id, item, quantidade) values (v_id, v->>'raro', 1)
+      on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + 1;
+    else
+      update fazenda_jogadores set moedas = moedas + (v->>'paga')::int, xp = xp + (v->>'xp')::int where id = v_id;
+      perform fazenda_missao(v_id, 'vender', (v->>'paga')::int);
+    end if;
   end if;
   insert into fazenda_visitas_npc (jogador_id, slot, resposta) values (v_id, (v->>'slot')::bigint, 'entregou');
   insert into fazenda_estatisticas (jogador_id) values (v_id) on conflict do nothing;
@@ -4870,8 +4891,10 @@ $$;
 -- o preço mínimo e máximo por unidade de um item
 create or replace function public.fazenda_feira_faixa(p_item text)
 returns int[] language sql stable security definer set search_path = public as $$
-  select array[greatest(1, floor(k.venda * (fazenda_feira_regras()->>'min')::numeric))::int,
-               greatest(1, ceil(k.venda * (fazenda_feira_regras()->>'max')::numeric))::int]
+  select case when k.tipo = 'raro'   -- fase 60: material raro vai de venda (o mínimo) até o triplo
+              then array[k.venda, k.venda * 3]
+              else array[greatest(1, floor(k.venda * (fazenda_feira_regras()->>'min')::numeric))::int,
+                         greatest(1, ceil(k.venda * (fazenda_feira_regras()->>'max')::numeric))::int] end
     from fazenda_culturas k where k.id = p_item and k.venda > 0;
 $$;
 
@@ -5444,6 +5467,35 @@ end;
 $$;
 
 -- ------------------------------------------------------------
+-- Fase 60: materiais raros do píer e o mercador (ideias de 15/10, etapa 4).
+-- Cinco materiais (tipo 'raro'), que só vão servir no píer (nível 31, no terreno do litoral, etapa
+-- 5), mas já aparecem desde o nível 1 e dá para vender na feira. Não vendem para o jogo; na feira, o
+-- preço vai da venda (o mínimo, de 100 mil a 300 mil) até o triplo (fazenda_feira_faixa).
+-- O mercador: 1 em cada 100 visitas da porteira, ele traz 1 material e troca por frutos fora de época
+-- (fazenda_visitante e fazenda_atender). O mais raro vem menos (peso) e pede mais frutos.
+-- ------------------------------------------------------------
+alter table public.fazenda_culturas drop constraint if exists fazenda_culturas_tipo_chk;
+alter table public.fazenda_culturas add constraint fazenda_culturas_tipo_chk check (tipo in ('cultura', 'produto', 'raro'));
+
+insert into public.fazenda_culturas (id, nome, emoji, tempo_seg, custo, venda, rendimento, xp, nivel_min, ordem, tipo) values
+  ('madeira_nobre',  'Madeira nobre',     '🪵', 1, 0, 100000, 1, 0, 1, 90, 'raro'),
+  ('corda_naval',    'Corda naval',       '🪢', 1, 0, 120000, 1, 0, 1, 91, 'raro'),
+  ('pedra_cantaria', 'Pedra de cantaria', '🧱', 1, 0, 150000, 1, 0, 1, 92, 'raro'),
+  ('ferro_forjado',  'Ferro forjado',     '⚙️', 1, 0, 200000, 1, 0, 1, 93, 'raro'),
+  ('ancora',         'Âncora',            '⚓', 1, 0, 300000, 1, 0, 1, 94, 'raro')
+on conflict (id) do update set
+  nome = excluded.nome, emoji = excluded.emoji, venda = excluded.venda, xp = excluded.xp,
+  nivel_min = excluded.nivel_min, ordem = excluded.ordem, tipo = excluded.tipo;
+
+-- quem o mercador traz (peso em 100) e quantos frutos fora de época pede
+create or replace function public.fazenda_raros()
+returns jsonb language sql immutable as $$
+  select '[{"id":"madeira_nobre","peso":30,"frutas":10},{"id":"corda_naval","peso":25,"frutas":12},
+           {"id":"pedra_cantaria","peso":20,"frutas":15},{"id":"ferro_forjado","peso":15,"frutas":20},
+           {"id":"ancora","peso":10,"frutas":30}]'::jsonb;
+$$;
+
+-- ------------------------------------------------------------
 -- Permissões: só a API pública fica executável pela chave anon
 -- ------------------------------------------------------------
 revoke execute on function
@@ -5577,7 +5629,8 @@ revoke execute on function
   public.fazenda_conta(jsonb, text, int),
   public.fazenda_ajudante_registrar(uuid, text, jsonb),
   public.fazenda_camas(uuid),
-  public.fazenda_camas_ocupadas(uuid)
+  public.fazenda_camas_ocupadas(uuid),
+  public.fazenda_raros()
 from public, anon, authenticated;
 
 grant execute on function
