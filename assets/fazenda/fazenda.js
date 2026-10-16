@@ -126,6 +126,7 @@
         limite_maquina: 'Você já tem essa máquina (uma basta para a fazenda toda).',
         melhoria_max: 'Essa melhoria já está no máximo.',
         ajudante_descansando: 'Esse ajudante já está descansando (ou não precisa).',
+        sem_cama: 'Todas as camas estão ocupadas: construa mais casinhas (Construir → Casas) para mais ajudantes descansarem ao mesmo tempo.',
         limite_terreno: 'Já tem o máximo dessa árvore: cada fruta tem 1 pé, +1 a cada 2 terrenos comprados (até 4).',
         alarme: 'O alarme disparou! Esse canteiro está protegido.',
         item_invalido: 'Item inválido.',
@@ -1028,21 +1029,26 @@
         const e = Math.max(0, Math.min(100, Number(h.energia) || 0));
         const horas = Math.round((e / 100) * 8 * 10) / 10;
         const parado = descansando(h);
+        const camas = S.camas || { total: 1, ocupadas: 0 }, livres = Math.max(0, camas.total - camas.ocupadas);
+        const onde = h.descanso_casa === false ? 'na sombra, porque não tinha cama livre' : 'numa cama da casinha';
         const status = parado
-            ? `${ico('lua', 14)} <b>Descansando</b> até ${hora(h.descanso_ate)} (${h.descanso_motivo === 'mandado' ? 'você mandou' : 'cansou depois de muito trabalho'}). Volta com a energia cheia.`
-            : `Energia para mais ${String(horas).replace('.', ',')} h de trabalho sem parar. Quando acabar, ele descansa 2 h sozinho.`;
+            ? `${ico('lua', 14)} <b>Descansando</b> ${onde} até ${hora(h.descanso_ate)} (${h.descanso_motivo === 'mandado' ? 'você mandou' : 'cansou depois de muito trabalho'}). Volta com a energia cheia.`
+            : `Energia para mais ${String(horas).replace('.', ',')} h de trabalho sem parar. Quando acabar, ele descansa sozinho: 2 h numa cama livre ou 4 h na sombra.`;
+        const linhaCamas = `<p class="det"><span class="txt">${A.htmlItem('casa_azul', 18)} <b>Camas:</b> ${camas.ocupadas} de ${camas.total} ocupada${camas.ocupadas === 1 ? '' : 's'}. A casa da fazenda tem 1; cada casinha vermelha dá mais 1 e cada azul mais 2 (Construir → Casas).</span></p>`;
         return topo + `
             <h3 class="secao-titulo">Energia</h3>
             <div class="barra-energia${parado ? ' parado' : e < 20 ? ' pouca' : ''}" title="${Math.round(e)}%"><i style="width:${parado ? 0 : e}%"></i></div>
             <p class="det"><span class="txt">${status}</span></p>
+            ${linhaCamas}
             <h3 class="secao-titulo">Hoje ele</h3>${listaFeito(h.hoje)}
             <h3 class="secao-titulo">Ontem</h3>${listaFeito(h.ontem)}
             <div class="rodape-painel">
                 <span></span>
                 ${parado ? '<span class="preco">Descansando</span>'
-                    : `<button type="button" class="botao creme" data-ajudante-descansar="${esc(t.id)}">${ico('lua', 16)} Mandar descansar (1 h)</button>`}
+                    : livres ? `<button type="button" class="botao creme" data-ajudante-descansar="${esc(t.id)}">${ico('lua', 16)} Mandar descansar (1 h)</button>`
+                    : '<span class="preco">Sem cama livre</span>'}
             </div>
-            <p class="aviso">Descansar recupera a energia toda. Descansando, ele não trabalha nem junta tarefas para depois.</p>`;
+            <p class="aviso">Descansar recupera a energia toda. Descansando, ele não trabalha nem junta tarefas para depois. Mandar descansar precisa de uma cama livre: mais casinhas, mais ajudantes descansando ao mesmo tempo.</p>`;
     }
     const retratoAjudante = (id, px) => {
         const a = A.AJUDANTE_ARTE[id] || { p: 'factory', i: 120 };
@@ -3381,7 +3387,7 @@
                 </span>
                 ${acao}
             </div>`;
-        }).join('') + '</div><p class="aviso">Ajudantes trabalham sozinhos, até com a fazenda fechada (guardam até 8 h de trabalho), e não gastam energia elétrica: são a mão de obra de graça ao lado das máquinas. Eles têm a própria energia: a barra cheia dura 8 h de trabalho; acabou, descansam 2 h. Toque num ajudante (ou em Ver) para ver o que ele fez e mandar descansar. Não dão XP: o XP é seu. Quem cuida de animais precisa de ração no celeiro.</p>'
+        }).join('') + '</div><p class="aviso">Ajudantes trabalham sozinhos, até com a fazenda fechada (guardam até 8 h de trabalho), e não gastam energia elétrica: são a mão de obra de graça ao lado das máquinas. Eles têm a própria energia: a barra cheia dura 8 h de trabalho; acabou, descansam 2 h numa cama (cada casinha dá camas) ou 4 h na sombra. Toque num ajudante (ou em Ver) para ver o que ele fez e mandar descansar. Não dão XP: o XP é seu. Quem cuida de animais precisa de ração no celeiro.</p>'
             + (lojaD() && (S.ajudantes || []).length ? `<p class="det">${ativoAte(S.jogador.cafe_ate) ? `<b>Café servido:</b> trabalhando em dobro até ${hora(S.jogador.cafe_ate)}. ` : 'Café dos ajudantes: todos em dobro por 2 horas. '}${botaoDiamante('cafe', lojaD().cafe.preco, ativoAte(S.jogador.cafe_ate) ? '+2 horas' : 'Servir café')}</p>` : '');
     }
 
