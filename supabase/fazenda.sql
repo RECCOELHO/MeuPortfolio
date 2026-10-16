@@ -1006,7 +1006,8 @@ returns jsonb language sql immutable as $$
            {"n":3,"nome":"Vale do sudeste","x":22,"y":13,"w":10,"h":7,"custo":3500,"nivel":10,"lago":true,"canteiros":6},
            {"n":4,"nome":"Chapada do leste","x":32,"y":0,"w":16,"h":20,"custo":8000,"nivel":13,"canteiros":10},
            {"n":5,"nome":"Várzea do sul","x":0,"y":20,"w":32,"h":12,"custo":18000,"nivel":16,"canteiros":12},
-           {"n":6,"nome":"Sertão do sudeste","x":32,"y":20,"w":16,"h":12,"custo":35000,"nivel":20,"canteiros":10}]'::jsonb;
+           {"n":6,"nome":"Sertão do sudeste","x":32,"y":20,"w":16,"h":12,"custo":35000,"nivel":20,"canteiros":10},
+           {"n":7,"nome":"Litoral","x":0,"y":32,"w":48,"h":10,"custo":300000,"nivel":31,"canteiros":10,"mar":true}]'::jsonb;   -- fase 61
 $$;
 
 -- (x, y) fica dentro do terreno de quem já comprou p_zonas terrenos?
@@ -1511,6 +1512,7 @@ begin
         from fazenda_itens t),
     'melhorias', coalesce((select jsonb_object_agg(id, nivel) from fazenda_melhorias where jogador_id = p_jogador), '{}'::jsonb),
     'camas', jsonb_build_object('total', fazenda_camas(p_jogador), 'ocupadas', fazenda_camas_ocupadas(p_jogador)),   -- fase 59
+    'pier', jsonb_build_object('pronto', j.pier_em is not null, 'receita', fazenda_pier_receita()),   -- fase 61
     'melhorias_tipos', fazenda_melhorias_tipos(),
     'estatisticas', (select to_jsonb(e) - 'jogador_id' || jsonb_build_object('energia', e.energia + floor(j.energia_gasta)::int)
                        from fazenda_estatisticas e where e.jogador_id = p_jogador),
@@ -3701,10 +3703,11 @@ $$;
      sem cercado (quem já tinha antes do cercado obrigatório): ver fazenda_checar_lugar */
 create or replace function public.fazenda_livre(p_x int, p_y int)
 returns boolean language sql immutable as $$
-  select p_x between 0 and 47 and p_y between 0 and 31
+  select p_x between 0 and 47 and p_y between 0 and 36            -- fase 61: o litoral vai até a areia (y 36)
      and not (p_x between 1 and 3  and p_y between 1 and 6)     -- celeiro
      and not (p_x between 5 and 7  and p_y between 1 and 3)     -- casa
-     and not (p_x between 24 and 29 and p_y between 14 and 18); -- lago
+     and not (p_x between 24 and 29 and p_y between 14 and 18)  -- lago
+     and not (p_x between 22 and 24 and p_y between 35 and 36); -- fase 61: o lugar do píer (o resto dele é no mar, y 37 a 41)
 $$;
 
 -- Fase 19: o galinheiro cresce com os bichos pequenos (galinha, pato, coelho): 2 fileiras
@@ -5496,6 +5499,113 @@ returns jsonb language sql immutable as $$
 $$;
 
 -- ------------------------------------------------------------
+-- Fase 61: o litoral e o píer (ideias de 15/10, etapa 5A).
+-- • Terreno 7, Litoral (nível 31, 300 mil): uma faixa ao sul, 48 x 10. As 5 fileiras de cima (y 32 a
+--   36) são areia, para construir e plantar; as 5 de baixo (y 37 a 41) são mar (fazenda_livre).
+-- • O píer: um lugar fixo na areia (x 22 a 24, y 35 e 36) que entra pelo mar. Receita: 9 peças
+--   difíceis (5 do mercador, o peixe do Velho Chico do lago e o leme dourado, que só o ranking da
+--   semana dá, etapa 6) e 100 mil moedas. Peça que falta dá para comprar com diamantes, caro, só até
+--   completar a receita (fazenda_pier_comprar_peca). Depois do píer vem o alto-mar (etapa 5B).
+-- • O peixe do Velho Chico continua vendendo no celeiro; na feira passa a ter preço de peça (50 a 150
+--   mil), e dá para guardar para o píer (fazenda_reservar, o mesmo da ração dos bichos).
+-- ------------------------------------------------------------
+alter table public.fazenda_jogadores add column if not exists pier_em timestamptz;   -- quando o píer ficou pronto
+
+insert into public.fazenda_culturas (id, nome, emoji, tempo_seg, custo, venda, rendimento, xp, nivel_min, ordem, tipo) values
+  ('leme_dourado', 'Leme dourado', '☸️', 1, 0, 250000, 1, 0, 1, 95, 'raro')
+on conflict (id) do update set
+  nome = excluded.nome, emoji = excluded.emoji, venda = excluded.venda, xp = excluded.xp,
+  nivel_min = excluded.nivel_min, ordem = excluded.ordem, tipo = excluded.tipo;
+
+-- a receita do píer, o preço em diamantes de cada peça que falta e o preço de peça na feira
+create or replace function public.fazenda_pier_receita()
+returns jsonb language sql immutable as $$
+  select '{"nivel": 31, "zona": 7, "moedas": 100000,
+           "itens": {"madeira_nobre": 2, "corda_naval": 2, "pedra_cantaria": 1, "ferro_forjado": 1, "ancora": 1,
+                     "velho_chico": 1, "leme_dourado": 1},
+           "diamantes": {"madeira_nobre": 80, "corda_naval": 90, "pedra_cantaria": 110, "ferro_forjado": 140,
+                         "ancora": 200, "velho_chico": 60, "leme_dourado": 250},
+           "feira": {"velho_chico": 50000}}'::jsonb;
+$$;
+
+-- a faixa da feira, agora com o preço de peça do peixe do Velho Chico (fase 61)
+create or replace function public.fazenda_feira_faixa(p_item text)
+returns int[] language sql stable security definer set search_path = public as $$
+  select case when k.tipo = 'raro'   -- fase 60: material raro vai de venda (o mínimo) até o triplo
+              then array[k.venda, k.venda * 3]
+              -- fase 61: peça do píer que também vende no celeiro (o peixe do Velho Chico): preço de peça
+              when fazenda_pier_receita()->'feira' ? k.id
+              then array[(fazenda_pier_receita()->'feira'->>k.id)::int, (fazenda_pier_receita()->'feira'->>k.id)::int * 3]
+              else array[greatest(1, floor(k.venda * (fazenda_feira_regras()->>'min')::numeric))::int,
+                         greatest(1, ceil(k.venda * (fazenda_feira_regras()->>'max')::numeric))::int] end
+    from fazenda_culturas k where k.id = p_item and k.venda > 0;
+$$;
+
+-- quanto falta de uma peça (o guardado conta: guardar é justamente para o píer)
+create or replace function public.fazenda_pier_falta(p_jogador uuid, p_item text)
+returns int language sql stable security definer set search_path = public as $$
+  select greatest(coalesce((fazenda_pier_receita()->'itens'->>p_item)::int, 0)
+                  - coalesce((select quantidade from fazenda_celeiro where jogador_id = p_jogador and item = p_item), 0), 0);
+$$;
+
+create or replace function public.fazenda_construir_pier(p_token text)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id uuid := fazenda_auth(p_token);
+  v_r  jsonb := fazenda_pier_receita();
+  j    record;
+  k    text;
+begin
+  select * into j from fazenda_jogadores where id = v_id for update;
+  if j.pier_em is not null then raise exception 'pier_pronto'; end if;
+  if fazenda_nivel(j.xp) < (v_r->>'nivel')::int then raise exception 'nivel_insuficiente'; end if;
+  if j.zonas < (v_r->>'zona')::int then raise exception 'sem_litoral'; end if;
+  if exists (select 1 from jsonb_object_keys(v_r->'itens') i where fazenda_pier_falta(v_id, i) > 0) then
+    raise exception 'faltam_pecas';
+  end if;
+  if j.moedas < (v_r->>'moedas')::int then raise exception 'moedas_insuficientes'; end if;
+  for k in select jsonb_object_keys(v_r->'itens') loop
+    update fazenda_celeiro set quantidade = quantidade - (v_r->'itens'->>k)::int where jogador_id = v_id and item = k;
+    -- o que estava guardado para o píer sai junto
+    update fazenda_reservas r set quantidade = least(r.quantidade, c.quantidade)
+      from fazenda_celeiro c where r.jogador_id = v_id and r.item = k and c.jogador_id = v_id and c.item = k;
+  end loop;
+  delete from fazenda_reservas where jogador_id = v_id and quantidade <= 0;
+  update fazenda_jogadores set moedas = moedas - (v_r->>'moedas')::int, pier_em = now() where id = v_id;
+  return jsonb_build_object('estado', fazenda_estado(v_id));
+end;
+$$;
+
+-- peça que falta, comprada com diamantes (caro), só até completar a receita
+create or replace function public.fazenda_pier_comprar_peca(p_token text, p_item text)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id    uuid := fazenda_auth(p_token);
+  v_r     jsonb := fazenda_pier_receita();
+  v_preco int := (v_r->'diamantes'->>p_item)::int;
+  j       record;
+begin
+  if v_preco is null then raise exception 'item_invalido'; end if;
+  select * into j from fazenda_jogadores where id = v_id for update;
+  if j.pier_em is not null then raise exception 'pier_pronto'; end if;
+  if j.zonas < (v_r->>'zona')::int then raise exception 'sem_litoral'; end if;
+  if fazenda_pier_falta(v_id, p_item) <= 0 then raise exception 'peca_nao_falta'; end if;
+  if j.diamantes < v_preco then raise exception 'diamantes_insuficientes'; end if;
+  update fazenda_jogadores set diamantes = diamantes - v_preco where id = v_id;
+  insert into fazenda_diamantes_usos (jogador_id, item, diamantes) values (v_id, 'pier:' || p_item, v_preco);
+  insert into fazenda_celeiro (jogador_id, item, quantidade) values (v_id, p_item, 1)
+  on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + 1;
+  return jsonb_build_object('estado', fazenda_estado(v_id));
+end;
+$$;
+
+-- ------------------------------------------------------------
 -- Permissões: só a API pública fica executável pela chave anon
 -- ------------------------------------------------------------
 revoke execute on function
@@ -5630,7 +5740,9 @@ revoke execute on function
   public.fazenda_ajudante_registrar(uuid, text, jsonb),
   public.fazenda_camas(uuid),
   public.fazenda_camas_ocupadas(uuid),
-  public.fazenda_raros()
+  public.fazenda_raros(),
+  public.fazenda_pier_receita(),
+  public.fazenda_pier_falta(uuid, text)
 from public, anon, authenticated;
 
 grant execute on function
@@ -5673,5 +5785,7 @@ grant execute on function
   public.fazenda_admin_banir(text, uuid, boolean, text),
   public.fazenda_admin_definir(text, uuid, boolean),
   public.fazenda_admin_novo_codigo(text, uuid),
-  public.fazenda_ajudante_descansar(text, text)
+  public.fazenda_ajudante_descansar(text, text),
+  public.fazenda_construir_pier(text),
+  public.fazenda_pier_comprar_peca(text, text)
 to anon, authenticated;
