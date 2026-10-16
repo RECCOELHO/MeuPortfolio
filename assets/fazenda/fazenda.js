@@ -130,6 +130,11 @@
         sem_litoral: 'Compre o terreno do Litoral (Loja → Terrenos, nível 31) para construir o píer.',
         faltam_pecas: 'Ainda faltam peças do píer. Veja na tela do píer o que falta.',
         peca_nao_falta: 'Essa peça você já tem para o píer.',
+        sem_pier: 'Construa o píer primeiro (no Litoral, do nível 31 em diante).',   // fase 62: o alto-mar
+        cardume_vazio: 'O cardume acabou: ele enche sozinho com o tempo.',
+        sem_lance: 'A linha não estava na água. Lance de novo.',
+        sem_marinheiro: 'Contrate o marinheiro primeiro (Alto-mar → Melhorar, nível 33).',
+        cesto_mar_vazio: 'O cesto do Seu Nonato ainda está vazio.',
         sem_cama: 'Todas as camas estão ocupadas: construa mais casinhas (Construir → Casas) para mais ajudantes descansarem ao mesmo tempo.',
         limite_terreno: 'Já tem o máximo dessa árvore: cada fruta tem 1 pé, +1 a cada 2 terrenos comprados (até 4).',
         alarme: 'O alarme disparou! Esse canteiro está protegido.',
@@ -864,13 +869,14 @@
     const XP_PAUSA = 8 * 60000, XP_VENDA = 25;
     const xpDaColheita = (c, k) => (!c || !c.xp_em || agora() - Date.parse(c.xp_em) >= XP_PAUSA ? k.xp : 0);
     const xpVendaDe = (k) => (k.tipo === 'produto' ? 1 : 0);   // (fase 60: raro não vende para o jogo)
-    const ORDEM_TIPO = { Terreno: 0, Ajudante: 1, Oficina: 1, 'Máquina': 1, Energia: 1, Animal: 2, Cercado: 2, 'Árvore': 2, Semente: 3, Casa: 4, Enfeite: 5 };
+    const ORDEM_TIPO = { Terreno: 0, Mar: 1, Ajudante: 1, Oficina: 1, 'Máquina': 1, Energia: 1, Animal: 2, Cercado: 2, 'Árvore': 2, Semente: 3, Casa: 4, Enfeite: 5 };
     function liberaNoNivel(n) {
         if (!S) return [];
         const r = [];
         for (const z of zonasVenda()) if (z.nivel === n) r.push({ html: spr(39, 24), nome: z.lago ? `${z.nome} (com lago)` : z.nome, tipo: 'Terreno' });
         for (const a of S.animais_tipos || []) if (a.nivel_min === n) r.push({ html: spr(A.ANIMAL[a.id], 24), nome: a.nome, tipo: 'Animal' });
         for (const t of S.ajudantes_tipos || []) if (t.nivel_min === n) r.push({ html: retratoAjudante(t.id, 24), nome: `${t.nome} (${t.papel.toLowerCase()})`, tipo: 'Ajudante' });
+        for (const m of S.melhorias_tipos || []) if (m.mar) m.niveis.forEach((k) => { if (k.nivel === n) r.push({ html: iconeMar(m.id, 24), nome: k.nome, tipo: 'Mar' }); });   // fase 62
         for (const k of S.culturas) if (k.tipo === 'cultura' && k.nivel_min === n) r.push({ html: itemDe(k, 24), nome: k.estacao ? `${k.nome} (${NOME_ESTACAO[k.estacao]})` : k.nome, tipo: 'Semente' });
         for (const i of S.itens || []) {
             if (i.nivel_min !== n) continue;
@@ -1159,7 +1165,7 @@
             <span class="ico">${spr(A.cultura(k.id).item, 44)}</span>
             <span>
                 <span class="nome">${esc(k.nome)} × ${naCeleiro(k.id)} <small class="tag-raro">raro</small></span>
-                <span class="det"><span class="txt">Material do píer (nível 31, no terreno do litoral). Não vende no celeiro: na feira, de ${moeda(k.venda)} a ${moeda(k.venda * 3)} cada.</span></span>
+                <span class="det"><span class="txt">${k.id === 'perola_negra' ? 'Do alto-mar: 1 em cada 200 peixes vem com uma.' : 'Material do píer (nível 31, no terreno do litoral).'} Não vende no celeiro: na feira, de ${moeda(k.venda)} a ${moeda(k.venda * 3)} cada.</span></span>
             </span>
             <button type="button" class="botao pequeno creme" data-raro-feira="${esc(k.id)}">Na feira</button>
         </div>`;
@@ -1183,9 +1189,14 @@
     }
     function htmlPier() {
         const p = S.pier || {}, r = p.receita || { itens: {}, diamantes: {}, moedas: 0, nivel: 31 };
-        if (p.pronto) {
-            return `<p class="fala">O píer está pronto! O barco já está atracado do lado dele.</p>
-                <p class="aviso">Na próxima atualização, tocar no barco leva você para o <b>alto-mar</b>: pescaria de verdade, com barco, vara e marinheiro para melhorar do nível 31 ao 45.</p>`;
+        if (p.pronto) {   // fase 62: o barco leva para o alto-mar
+            const b = (S.mar && S.mar.barco) || { nome: 'Bote' };
+            return `<p class="fala">O píer está pronto, com o seu barco (${esc(b.nome.toLowerCase())}) atracado do lado. Toque no barco, no mapa, ou aqui embaixo para ir para o <b>alto-mar</b>.</p>
+                <div class="rodape-painel">
+                    <button type="button" class="botao creme" data-mar-painel>Melhorias do mar</button>
+                    <button type="button" class="botao verde" data-mar-ir>Ir para o alto-mar</button>
+                </div>
+                <p class="aviso">No mar: toque na água para lançar, espere a boia <b>afundar de verdade</b> e toque de novo na hora para fisgar. Cada lançada usa 1 peixe do cardume, que enche sozinho com o tempo. Barco, vara e marinheiro melhoram do nível 32 ao 43.</p>`;
         }
         const linhas = Object.entries(r.itens).map(([id, n]) => {
             const k = culturas[id] || { id, nome: id }, tem = naCeleiro(id), falta = Math.max(0, n - tem);
@@ -1211,6 +1222,149 @@
                 <button type="button" class="botao verde" data-pier-construir${!faltam && nivelOk && moedasOk ? '' : ' disabled'}>Construir o píer</button>
             </div>
             <p class="aviso">${!nivelOk ? `O píer libera no nível ${r.nivel}. ` : ''}Peça que falta dá para comprar com ${ico('diamante', 12)} (só até completar). O peixe do Velho Chico você pode <b>guardar para o píer</b>: guardado, ele não vai no "Vender tudo" nem na feira. Os materiais raros não vendem no celeiro.</p>`;
+    }
+
+    /* ---------- Fase 62: o alto-mar ----------
+       Tocar no barco do píer abre a cena do mar (fazenda-mar.js) por cima da fazenda, que para de
+       desenhar. O servidor manda em estado.mar o barco, a vara e o marinheiro de agora, o cardume e o
+       cesto do marinheiro (desde, intervalo e máximo: contados pelo tempo, como o cesto do Bira) e as
+       chances dos peixes. Lançar e fisgar vão na fila das ações, uma por vez. */
+    let mar = null, ultimoMarinheiro = null;
+    const melhoriaMar = (id) => (S.melhorias_tipos || []).find((m) => m.id === id && m.mar);
+    function contarMar(c, vazio) {
+        if (!c) return { n: 0, max: 0, proximo: 0 };
+        const passo = c.intervalo * 1000;
+        const desde = c.desde ? Date.parse(c.desde) : vazio ? agora() : agora() - c.max * passo;   // sem data: o cardume cheio, o cesto vazio
+        const passou = agora() - desde, n = Math.max(0, Math.min(c.max, Math.floor(passou / passo)));
+        return { n, max: c.max, proximo: n >= c.max ? 0 : (n + 1) * passo - passou };
+    }
+    const cardumeMar = () => contarMar(S && S.mar && S.mar.cardume);
+    const cestoMar = () => (S && S.mar && S.mar.cesto ? { ...contarMar(S.mar.cesto, true), ultimo: ultimoMarinheiro } : null);
+    const minutos = (seg) => Math.round(seg / 60);
+    function htmlTopoMar() {
+        if (!S || !S.mar) return '';
+        const m = S.mar, j = S.jogador, c = cardumeMar(), cesto = cestoMar(), peixe = spr(A.cultura('sardinha').item, 18);
+        const pct = j.nivel >= NIVEL_MAX ? 100 : Math.floor(100 * (j.xp - j.xp_nivel) / Math.max(1, j.xp_proximo - j.xp_nivel));
+        return `<button type="button" class="botao pequeno creme" data-mar-sair>← Fazenda</button>
+            <span class="chip" title="O cardume enche sozinho: 1 peixe a cada ${minutos(m.cardume.intervalo)} min, até ${c.max}">${peixe} ${c.n}/${c.max}${c.n < c.max ? ` · +1 em ${fmtTempo(c.proximo)}` : ' · cheio'}</span>
+            <button type="button" class="botao pequeno verde mar-direita" data-mar-melhorar>Melhorar</button>
+            <span class="mar-linha">
+                <span class="chip">${ico('xp', 14)} Nível ${j.nivel}${j.nivel < NIVEL_MAX ? ` · ${pct}%` : ''}</span>
+                <span class="chip">${esc((m.barco || {}).nome || 'Bote')} · ${esc((m.vara || {}).nome || 'Vara de bambu')}</span>
+                ${cesto ? `<span class="chip" title="O Seu Nonato pesca sozinho: 1 peixe a cada ${minutos(m.cesto.intervalo)} min, até ${cesto.max}">${A.htmlTile(120, 18, 'factory')} ${cesto.n}/${cesto.max}</span>${cesto.n ? '<button type="button" class="botao pequeno creme" data-mar-recolher>Recolher</button>' : ''}` : ''}
+            </span>`;
+    }
+    function abrirMar() {
+        if (!S || visita || mar) return;
+        if (!S.mar) { abrirPainel('pier'); return; }
+        if (!window.FazendaMar) { toast('O alto-mar ainda está carregando. Tente de novo.', 'erro'); return; }
+        fecharPainel();
+        if (constr.ativo) fecharConstrucao();
+        cena.pausar(true);
+        document.body.classList.add('no-mar');
+        mar = window.FazendaMar.criar({
+            dados: () => S && S.mar,
+            agora,
+            avatar: () => S && S.jogador.avatar,
+            sprite: (id) => A.cultura(id).item,
+            cardume: cardumeMar,
+            cesto: cestoMar,
+            proximo: () => fmtTempo(cardumeMar().proximo),
+            htmlTopo: htmlTopoMar,
+            painelAberto: () => !!painelAtual,
+            som: (n) => som.tocar(n),
+            lancar: () => chamadaMar('fazenda_mar_lancar', (r) => { if (r.mar) S.mar = r.mar; }),
+            fisgar: () => chamadaMar('fazenda_mar_fisgar', (r) => { if (r.estado) aplicarEstado(r.estado); else if (r.mar) S.mar = r.mar; }),
+            textoPeixe: (r) => {
+                const k = culturas[r.peixe] || { nome: r.peixe, venda: 0 };
+                return `${k.nome}! +${r.xp} XP · vale ${k.venda.toLocaleString('pt-BR')} moedas${r.perola ? ' · e veio uma pérola negra!' : ''}`;
+            },
+            pegou: (r) => {
+                const k = culturas[r.peixe] || { id: r.peixe, nome: r.peixe };
+                if (r.perola || r.peixe === 'marlim') {
+                    som.tocar('festa');
+                    toast(`${itemDe(k, 22)} <b>${esc(k.nome)}</b>!${r.perola ? ` E veio junto uma ${itemDe(culturas.perola_negra || { id: 'perola_negra' }, 22)} <b>pérola negra</b>: na feira ela vale de 50 a 150 mil.` : ' O lendário do alto-mar!'}`, 'festa');
+                } else som.tocar('colher');
+            },
+            recolher: recolherMarinheiro,
+            melhorar: () => abrirPainel('mar'),
+            sair: fecharMar
+        });
+    }
+    function fecharMar() {
+        if (!mar) return;
+        mar.fechar();
+        mar = null;
+        cena.pausar(false);
+        document.body.classList.remove('no-mar');
+        if (painelAtual === 'mar') fecharPainel();
+    }
+    // lançar e fisgar: na fila das ações (a busca de 60 s não passa por cima); o erro vira aviso
+    // (tratarErro) e a cena volta a esperar o toque
+    function chamadaMar(fn, aplicar) {
+        return new Promise((ok, falhou) => {
+            enfileirar([], async () => {
+                try {
+                    const r = await rpc(fn, { p_token: token });
+                    aplicar(r);
+                    ok(r);
+                    return r;
+                } catch (e) { falhou(e); throw e; }
+            });
+        });
+    }
+    function recolherMarinheiro() {
+        const c = cestoMar();
+        if (!c) return toast('Contrate o marinheiro (Melhorar → Marinheiro, nível 33) para ele pescar sozinho.');
+        if (!c.n) return toast(`O cesto do Seu Nonato está vazio: ele tira 1 peixe a cada ${minutos(S.mar.cesto.intervalo)} minutos, até ${c.max}.`);
+        som.tocar('colher');
+        enfileirar([], async () => {
+            const r = await rpc('fazenda_mar_recolher', { p_token: token });
+            aplicarEstado(r.estado);
+            const lista = Object.entries(r.peixes || {}).sort((a, b) => (culturas[b[0]] || {}).venda - (culturas[a[0]] || {}).venda);
+            if (lista.length) ultimoMarinheiro = lista[0][0];
+            const perola = culturas.perola_negra || { id: 'perola_negra' };
+            toast(`O Seu Nonato pescou ${r.qtd} peixe(s): ${lista.map(([id, n]) => `${n} ${itemDe(culturas[id] || { id }, 18)}`).join(' ')} +${r.xp} ${ico('xp', 14)}`
+                + (r.perolas ? ` e ${r.perolas} ${itemDe(perola, 18)} pérola negra!` : ''), r.perolas || (r.peixes || {}).marlim ? 'festa' : undefined);
+            if (r.perolas || (r.peixes || {}).marlim) som.tocar('festa');
+            if (mar) mar.atualizar();
+        });
+    }
+    // as melhorias do mar (barco, vara e marinheiro): o que tem agora, o próximo e os peixes de agora
+    function efeitoMar(id, k) {
+        if (id === 'barco') return `cardume de ${k.max}, 1 peixe a cada ${minutos(k.intervalo)} min`;
+        if (id === 'vara') return `${(k.janela / 1000).toLocaleString('pt-BR')} s para fisgar`;
+        return `pesca 1 peixe a cada ${minutos(k.intervalo)} min, até ${k.max} no cesto`;
+    }
+    const iconeMar = (id, px) => (id === 'marinheiro' ? A.htmlTile(120, px, 'factory') : spr(A.cultura(id === 'barco' ? 'ancora' : 'robalo').item, px));
+    function htmlMarMelhorias() {
+        if (!S.mar) return '<p class="vazio-msg">Construa o píer (no Litoral) para ir para o alto-mar.</p>';
+        const linhas = ['barco', 'vara', 'marinheiro'].map((id) => {
+            const m = melhoriaMar(id);
+            if (!m) return '';
+            const tem = melhoriaNivel(id), atual = tem ? m.niveis[tem - 1] : m.base, prox = m.niveis[tem];
+            const travado = prox && S.jogador.nivel < prox.nivel;
+            return `<div class="item">
+                <span class="ico">${iconeMar(id, 40)}</span>
+                <span>
+                    <span class="nome">${esc(m.nome)}: ${atual ? esc(atual.nome) : 'ainda não contratado'}</span>
+                    <span class="det"><span class="txt">${atual ? `Agora: ${efeitoMar(id, atual)}. ` : ''}${esc(m.descricao)}</span></span>
+                    ${prox ? `<span class="det"><span class="txt">Próximo: <b>${esc(prox.nome)}</b> (nível ${prox.nivel}): ${efeitoMar(id, prox)}.</span></span>` : ''}
+                </span>
+                ${!prox ? '<span class="preco">No máximo</span>'
+                    : travado ? `<span class="preco">Nível ${prox.nivel}</span>`
+                    : `<button type="button" class="botao pequeno verde" data-comprar="melhoria:${id}">${ico('moeda', 14)} ${prox.custo.toLocaleString('pt-BR')}</button>`}
+            </div>`;
+        }).join('');
+        const peixes = (S.mar.peixes || []).map((p) => {
+            const k = culturas[p.id] || { id: p.id, nome: p.id, venda: 0 };
+            return `<li class="chip" title="${esc(k.nome)}: vale ${k.venda.toLocaleString('pt-BR')} moedas">${itemDe(k, 20)} ${esc(k.nome)} · ${Number(p.chance).toLocaleString('pt-BR')}%</li>`;
+        }).join('');
+        return `<div class="lista">${linhas}</div>
+            <h3 class="secao-titulo">Peixes que dá para pegar agora</h3>
+            <ul class="mar-peixes">${peixes}</ul>
+            <p class="aviso">Barco maior vai mais longe e acha peixes novos; vara melhor puxa os maiores. 1 em cada 200 peixes vem com uma <b>pérola negra</b> (na feira, de 50 a 150 mil). Os peixes do mar vendem no celeiro e dão XP na pesca e de novo na venda. As ilhas chegam no nível 46.</p>
+            <div class="rodape-painel"><button type="button" class="botao verde" data-mar-ir>${mar ? 'Voltar para o mar' : 'Ir para o alto-mar'}</button></div>`;
     }
 
     /* ---------- Visitas na porteira: a cada 3 horas chega alguém (fazenda_visitante) ---------- */
@@ -1854,6 +2008,7 @@
         aoLago: () => { if (S && !painelAtual && !visita) pescar(); },
         aoVisitante: () => { if (S && !painelAtual && visitaAgora()) abrirPainel('visitante'); },
         aoPier: () => { if (S && !painelAtual && !visita) abrirPainel('pier'); },   // fase 61
+        aoBarco: () => { if (S && !painelAtual && !visita) abrirMar(); },   // fase 62: o barco atracado leva para o alto-mar
         aoConstrucao: (x, y) => {
             if (!S || painelAtual) return;
             descreverConstrucao(x, y);
@@ -2441,7 +2596,8 @@
         atualizarTerreno();
         desenharHud();
         if (constr.ativo) desenharPaleta();
-        if (['loja', 'celeiro', 'missoes', 'oficina', 'energia', 'canteiro', 'bau', 'ajudante', 'pier'].includes(painelAtual)) abrirPainel(painelAtual, true);
+        if (['loja', 'celeiro', 'missoes', 'oficina', 'energia', 'canteiro', 'bau', 'ajudante', 'pier', 'mar'].includes(painelAtual)) abrirPainel(painelAtual, true);
+        if (mar) { if (!S.mar || visita) fecharMar(); else mar.atualizar(); }   // fase 62
     }
 
     /* ---------- Diário: quem passou pela sua fazenda ---------- */
@@ -3155,6 +3311,9 @@
         } else if (nome === 'pier') {   // fase 61
             el.painelTitulo.innerHTML = `${itemDe(culturas.ancora || { id: 'ancora' }, 30)} Píer`;
             corpo.innerHTML = htmlPier();
+        } else if (nome === 'mar') {   // fase 62: as melhorias do alto-mar
+            el.painelTitulo.innerHTML = `${itemDe(culturas.marlim || { id: 'marlim' }, 30)} Alto-mar`;
+            corpo.innerHTML = htmlMarMelhorias();
         } else if (nome === 'ajudante') {   // fase 59
             const t = tipoAjudante(ajudanteAberto), h = meuAjudante(ajudanteAberto);
             if (!t || !h) { fecharPainel(); return; }
@@ -3268,6 +3427,7 @@
                     <li>No <b>Vale do sudeste</b> (terreno 3) tem um lago: o pescador <b>Bira</b> tira um peixe a cada 30 minutos, até 16 no cesto. Toque no lago para pegar. Quanto mais raro, mais vale, e o lendário <b>Peixe do Velho Chico</b> sai em 1% das vezes (2% com a estátua do nível 30).</li>
                     <li>A cada 3 horas chega uma <b>visita na porteira</b>, do lado da casa (do nível 3 em diante): o feirante, a doceira e o caminhoneiro compram algo da fazenda pagando bem mais que o celeiro, e a mascate vende adubo. Toque nela para conversar. Bem de vez em quando (1 em cada 100 visitas) vem o <b>mercador</b>, que troca um material raro do píer por frutos fora de época.</li>
                     <li>No nível 31 chega o <b>Litoral</b> (Loja → Terrenos): areia para construir e plantar e o mar. Na areia fica o lugar do <b>píer</b>: toque nele para ver a receita (9 peças difíceis e 100 mil moedas). Peça que falta dá para comprar com diamantes. Guarde o peixe do Velho Chico para o píer, no celeiro, para ele não ir no "Vender tudo".</li>
+                    <li>Com o píer pronto, toque no <b>barco</b> para ir para o <b>alto-mar</b>: toque na água para lançar a linha, espere a boia <b>afundar de verdade</b> (às vezes o peixe só belisca) e toque de novo na hora para fisgar. Cada lançada usa 1 peixe do <b>cardume</b>, que enche sozinho com o tempo. Em <b>Melhorar</b>: barco maior (cardume maior e peixes novos), vara melhor (mais tempo para fisgar e peixes maiores) e o marinheiro <b>Seu Nonato</b>, que pesca sozinho por até 8 horas (toque no barquinho dele para recolher). 1 em cada 200 peixes vem com uma <b>pérola negra</b>.</li>
                     <li>Cumpra as <b>missões do dia</b> para ganhar moedas e XP extras.</li>
                     <li>Cada nível libera coisas novas e dá um presente de moedas. Toque no seu nome, lá em cima, para abrir o <b>Perfil</b>: lá estão o <b>caminho dos níveis</b>, as conquistas, o seu convite e o botão de <b>personalizar o avatar</b> (fazendeiro, fazendeira, rapaz, mago, viking ou cavaleiro, com as cores que quiser).</li>
                     <li>Em <b>Vizinhos</b> você visita outras fazendas: <b>pega</b> um pouco da colheita madura ou <b>ajuda</b> com os problemas e ganha XP.</li>
@@ -3513,7 +3673,7 @@
     /* ---------- Melhorias (fase 57): compras caras e permanentes para o fim de jogo ----------
        O catálogo vem do servidor (estado.melhorias_tipos); cada uma tem níveis, comprados em ordem. */
     function htmlLojaMelhorias() {
-        const tipos = S.melhorias_tipos || [];
+        const tipos = (S.melhorias_tipos || []).filter((m) => !m.mar);   // fase 62: as do mar ficam na tela do alto-mar
         if (!tipos.length) return '<p class="vazio-msg">As melhorias chegam em breve.</p>';
         const fmt = (v) => v.toLocaleString('pt-BR');
         return '<div class="lista">' + tipos.map((m) => {
@@ -3568,7 +3728,7 @@
             ${linha(ico('xp', 36), 'XP em dobro', xp2 ? `<b>Ligado até ${hora(xp2)}</b>: todo XP vem dobrado. Comprar de novo soma mais ${l.xp2.horas} hora.`
                 : `Por ${l.xp2.horas} hora, todo XP que você ganha (colher, bichos, vender, missões) vem dobrado.`, botaoDiamante('xp2', l.xp2.preco, xp2 ? '+1 hora' : 'Ligar'))}
             ${linha(ico('xp', 36), `Pacote de XP: +${pacoteXp}`, `${l.xp.pct}% do seu nível, na hora. Até ${l.xp.por_dia} por dia (hoje: ${hoje}).`,
-                j.nivel >= 30 ? info('Nível máximo') : hoje >= l.xp.por_dia ? info('Amanhã tem mais') : botaoDiamante('xp', l.xp.preco, 'Pegar'))}
+                j.nivel >= NIVEL_MAX ? info('Nível máximo') : hoje >= l.xp.por_dia ? info('Amanhã tem mais') : botaoDiamante('xp', l.xp.preco, 'Pegar'))}
             ${linha(retratoAjudante('colhedor', 36), 'Café dos ajudantes', cafe ? `<b>Em dobro até ${hora(cafe)}</b>. Comprar de novo soma mais ${l.cafe.horas} horas.`
                 : `Por ${l.cafe.horas} horas, todos os seus ajudantes trabalham em dobro.`, (S.ajudantes || []).length ? botaoDiamante('cafe', l.cafe.preco, cafe ? `+${l.cafe.horas} horas` : 'Servir') : info('Sem ajudantes'))}
             ${linha(ico('raio', 36), 'Encher a energia', `Baterias cheias na hora: 1 ${ico('diamante', 12)} a cada ${l.energia.por} ⚡ que faltam.`,
@@ -4098,6 +4258,8 @@
             }).finally(() => { vend.disabled = false; });
             return;
         }
+        if (e.target.closest('[data-mar-ir]')) { if (mar) fecharPainel(); else abrirMar(); return; }   // fase 62: o alto-mar
+        if (e.target.closest('[data-mar-painel]')) { abrirPainel('mar'); return; }
         if (e.target.closest('[data-pier-construir]')) {   // fase 61
             if (!confirm(`Construir o píer? Usa as 9 peças e ${moeda((S.pier.receita || {}).moedas || 0).replace(/<[^>]+>/g, '')} moedas.`)) return;
             enfileirar([], async () => {
@@ -4400,7 +4562,8 @@
                     return;
                 } else if (categoria === 'melhoria') {   // fase 57
                     const m = (S.melhorias_tipos || []).find((k) => k.id === tipo) || { nome: 'Melhoria' };
-                    toast(`${ico('xp', 18)} <b>${esc(m.nome)}</b> nível ${melhoriaNivel(tipo)}! Vale para a fazenda toda.`, 'festa');
+                    const k = m.mar && m.niveis[melhoriaNivel(tipo) - 1];   // fase 62: as do mar têm nome em cada nível
+                    toast(k ? `${iconeMar(tipo, 22)} <b>${esc(k.nome)}</b>! Já vale no alto-mar.` : `${ico('xp', 18)} <b>${esc(m.nome)}</b> nível ${melhoriaNivel(tipo)}! Vale para a fazenda toda.`, 'festa');
                     som.tocar('festa');
                 } else {
                     const nome = (tipoAnimal(tipo) || {}).nome;
@@ -4718,6 +4881,7 @@
     }
 
     function sair(apagarCodigo) {
+        fecharMar();   // fase 62
         if (constr.ativo) fecharConstrucao();
         token = null;
         S = null;

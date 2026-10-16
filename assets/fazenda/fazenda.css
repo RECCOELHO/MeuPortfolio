@@ -2550,3 +2550,112 @@ body.construindo .status {
     text-decoration: underline;
     cursor: pointer;
 }
+
+/* fase 62: o alto-mar (cena própria por cima da fazenda; os painéis e os avisos ficam por cima dela) */
+.mar {
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    overflow: hidden;
+    background: #244f86;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.mar-cena {
+    position: absolute;
+    inset: 0;
+    image-rendering: pixelated;
+    cursor: pointer;
+}
+
+.mar-topo {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    padding-top: max(12px, env(safe-area-inset-top));
+    pointer-events: none;
+}
+
+.mar-topo > * {
+    pointer-events: auto;
+}
+
+.mar-topo .chip {
+    font-size: 14px;
+}
+
+.mar-topo .mar-direita {
+    margin-left: auto;
+}
+
+.mar-topo .mar-linha {
+    flex-basis: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.mar-dica {
+    position: absolute;
+    left: 16px;
+    right: 16px;
+    bottom: max(22px, env(safe-area-inset-bottom));
+    margin: 0;
+    text-align: center;
+    font-family: var(--fonte-pixel);
+    font-size: 26px;
+    line-height: 1.1;
+    color: #fff;
+    text-shadow: 0 2px 0 var(--o), 0 -2px 0 var(--o), 2px 0 0 var(--o), -2px 0 0 var(--o);
+    pointer-events: none;
+}
+
+.mar-dica.agora {
+    color: #ffe08a;
+    font-size: 34px;
+    animation: mar-pulo .25s steps(2) infinite;
+}
+
+.mar-dica.erro {
+    color: #ffb4a8;
+}
+
+.mar-dica.pegou {
+    color: #c6f5b0;
+}
+
+@keyframes mar-pulo {
+    50% { transform: translateY(-3px); }
+}
+
+/* a tela de melhorias do mar (barco, vara e marinheiro) */
+.mar-melhoria {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 4px 10px;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 2px dashed rgba(63, 38, 49, .25);
+}
+
+.mar-melhoria .det {
+    grid-column: 2 / 4;
+}
+
+.mar-peixes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 6px 0 0;
+    padding: 0;
+    list-style: none;
+}
