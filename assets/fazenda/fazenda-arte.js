@@ -644,7 +644,7 @@
             case 'aspersor': return { p: 'factory', i: 94 };
             case 'reator': return { p: 'farm', w: 2, h: 2, grade: [[1026, 1027], [1028, 1029]] };
             case 'estatua_chico': return { p: 'farm', i: 1038, topo: 1037, topo2: 1039 };
-            default: return { p: 'farm', i: 89 };
+            default: return { p: 'farm', i: 89, desconhecido: true };   // (fase 59: o jogo vê que falta arte)
         }
     }
 
@@ -2632,6 +2632,9 @@
         noTerreno,
         livre,
         estacao,
-        cultura: (id) => CULTURAS[id] || CULTURA_PADRAO
+        cultura: (id) => CULTURAS[id] || CULTURA_PADRAO,
+        // fase 59: este arquivo conhece o item / a cultura? (o servidor pode ter coisas novas antes do
+        // jogo aberto recarregar: aí tudo novo aparecia como pedra)
+        conhece: (id, cultura) => (cultura ? !!CULTURAS[id] : !arteItem(id, 0).desconhecido)
     };
 })();

@@ -2232,6 +2232,22 @@
 
     /* ---------- Estado vindo do servidor ---------- */
     let ultimoEstadoEm = 0;
+    // Fase 59: o servidor já tem itens que este jogo aberto não conhece (o SQL novo entrou antes de
+    // a página recarregar): tudo novo aparecia como pedra. Recarrega uma vez para pegar a versão nova;
+    // se mesmo assim faltar (arte ainda não publicada), não fica recarregando.
+    function versaoNova(estado) {
+        if (!A.conhece) return false;
+        const faltam = (estado.itens || []).filter((i) => !A.conhece(i.id)).map((i) => i.id)
+            .concat((estado.culturas || []).filter((k) => !A.conhece(k.id, true)).map((k) => k.id));
+        if (!faltam.length) return false;
+        let tentou = null;
+        try { tentou = sessionStorage.getItem('fazenda_versao'); } catch { /* ignora */ }
+        if (tentou === faltam.join(',')) return false;
+        try { sessionStorage.setItem('fazenda_versao', faltam.join(',')); } catch { return false; }
+        location.reload();
+        return true;
+    }
+
     function aplicarEstado(estado) {
         const antes = S;
         // longe = primeira carga ou voltou depois de um tempo: aí o relatório dos ajudantes vira aviso
@@ -2240,6 +2256,7 @@
         if (!estado.diario) estado.diario = []; // banco ainda sem o SQL da fase 2
         if (!estado.construcoes) estado.construcoes = [];
         S = estado;
+        if (versaoNova(estado)) return;
         otimistas.forEach((o) => o.refazer(S));   // fase 56: o que ainda está na fila continua na tela
         offset = Date.parse(estado.agora) - Date.now();
         culturas = {};
