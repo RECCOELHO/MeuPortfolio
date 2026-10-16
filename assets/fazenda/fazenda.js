@@ -1886,13 +1886,12 @@
             if (ocupado || cant) return toast(ERROS.lugar_ocupado, 'erro');
             if (!canteirosLivres()) return toast(ERROS.limite_canteiros, 'erro');
             // aparece na hora (com um número provisório); o servidor confirma em seguida
-            S.canteiros.push({ posicao: 1000 + S.canteiros.length, x, y, estado: 'vazio' });
+            const novo = (s) => { if (!s.canteiros.some((c) => c.x === x && c.y === y)) s.canteiros.push({ posicao: 1000 + s.canteiros.length, x, y, estado: 'vazio' }); };
+            novo(S);
             desenharHud();
             som.tocar('construir');
-            enfileirar([], async () => {
-                const r = await rpc('fazenda_construir', { p_token: token, p_tipo: 'canteiro', p_x: x, p_y: y });
-                aplicarEstado(r.estado);
-            }).then(() => { desenharPaleta(); if (!S.canteiros.some((c) => c.x === x && c.y === y)) recarregar(); });
+            enfileirarOtimista(novo, () => rpc('fazenda_construir', { p_token: token, p_tipo: 'canteiro', p_x: x, p_y: y }))
+                .then(() => { desenharPaleta(); if (!S.canteiros.some((c) => c.x === x && c.y === y)) recarregar(); });
             return;
         }
 
@@ -1908,16 +1907,19 @@
             const custo = custoItem(it);
             if (S.jogador.moedas < custo) return toast(ERROS.moedas_insuficientes, 'erro');
             // aparece na hora; o servidor confirma em seguida
-            S.construcoes.push({ x, y, tipo: it.id });
-            S.jogador.moedas -= custo;
-            if (cercadoGratis(it)) S.jogador.cercado_gratis = S.jogador.cercado_gratis.filter((b) => b !== it.id.slice(8));
+            const gratis = cercadoGratis(it);
+            const colocar = (s) => {
+                if (s.construcoes.some((c) => c.x === x && c.y === y)) return;
+                s.construcoes.push({ x, y, tipo: it.id });
+                s.jogador.moedas -= custo;
+                if (gratis) s.jogador.cercado_gratis = (s.jogador.cercado_gratis || []).filter((b) => b !== it.id.slice(8));
+            };
+            colocar(S);
             desenharHud();
             som.tocar('construir');
             flutuarTile(x, y, custo ? `−${custo} ${ico('moeda', 16)}` : 'De graça!');
-            enfileirar([], async () => {
-                const r = await rpc('fazenda_construir', { p_token: token, p_tipo: it.id, p_x: x, p_y: y });
-                aplicarEstado(r.estado);
-            }).then(() => { if (!S.construcoes.some((c) => c.x === x && c.y === y)) recarregar(); });
+            enfileirarOtimista(colocar, () => rpc('fazenda_construir', { p_token: token, p_tipo: it.id, p_x: x, p_y: y }))
+                .then(() => { if (!S.construcoes.some((c) => c.x === x && c.y === y)) recarregar(); });
         } else if (constr.modo === 'mover') {
             if (!constr.movendo) {
                 if (cant) {
@@ -1943,30 +1945,31 @@
             }
             constr.movendo = null;
             atualizarModo();
-            if (c) { c.x = x; c.y = y; }
+            const mover = (s) => {
+                const m = (de.tipo === 'canteiro' ? s.canteiros : s.construcoes).find((k) => k.x === de.x && k.y === de.y);
+                if (m) { m.x = x; m.y = y; }
+            };
+            mover(S);
             if (constr.rapido) fecharConstrucao(`${A.htmlItem(de.tipo, 22)} Mudou de lugar!`);
             som.tocar('construir');
-            enfileirar([], async () => {
-                const r = await rpc('fazenda_mover', { p_token: token, p_x: de.x, p_y: de.y, p_nx: x, p_ny: y });
-                aplicarEstado(r.estado);
-            });
+            enfileirarOtimista(mover, () => rpc('fazenda_mover', { p_token: token, p_x: de.x, p_y: de.y, p_nx: x, p_ny: y }));
         } else if (constr.modo === 'guardar' && cant) {
             if (cant.estado === 'plantado') return toast('Tem planta nesse canteiro: colha (ou limpe) antes de guardar.', 'erro');
-            S.canteiros = S.canteiros.filter((c) => c !== cant);
+            const tirar = (s) => { s.canteiros = s.canteiros.filter((c) => c.x !== x || c.y !== y); };
+            tirar(S);
             som.tocar('construir');
-            enfileirar([], async () => {
-                const r = await rpc('fazenda_demolir', { p_token: token, p_x: x, p_y: y });
-                aplicarEstado(r.estado);
-            }).then(() => desenharPaleta());
+            enfileirarOtimista(tirar, () => rpc('fazenda_demolir', { p_token: token, p_x: x, p_y: y }))
+                .then(() => desenharPaleta());
         } else if (constr.modo === 'guardar') {
             if (!ocupado) return;
             const ax = ocupado.x, ay = ocupado.y;
-            S.construcoes = S.construcoes.filter((c) => c !== ocupado);
-            enfileirar([], async () => {
+            const tirar = (s) => { s.construcoes = s.construcoes.filter((c) => c.x !== ax || c.y !== ay); };
+            tirar(S);
+            enfileirarOtimista(tirar, async () => {
                 const r = await rpc('fazenda_demolir', { p_token: token, p_x: ax, p_y: ay });
                 flutuarTile(ax, ay, `+${r.devolvido} ${ico('moeda', 16)}`);
                 som.tocar('moeda');
-                aplicarEstado(r.estado);
+                return r;
             });
         }
     }
@@ -2218,6 +2221,7 @@
         if (!estado.diario) estado.diario = []; // banco ainda sem o SQL da fase 2
         if (!estado.construcoes) estado.construcoes = [];
         S = estado;
+        otimistas.forEach((o) => o.refazer(S));   // fase 56: o que ainda está na fila continua na tela
         offset = Date.parse(estado.agora) - Date.now();
         culturas = {};
         for (const k of estado.culturas) culturas[k.id] = k;
@@ -2382,6 +2386,7 @@
     function enfileirar(posicoes, tarefa) {
         posicoes.forEach((p) => pendentesPos.add(p));
         pendentes++;
+        acoesFeitas++;
         clearTimeout(voltaFazendeiro);
         const execucao = fila.then(tarefa).catch(tratarErro).finally(() => {
             pendentes--;
@@ -2390,6 +2395,23 @@
         });
         fila = execucao;
         return execucao;
+    }
+
+    // Fase 56: colocar, mover e guardar aparecem na hora, mas o servidor confirma um por vez. Cada
+    // estado que chega no meio (a resposta do item anterior) é de antes dos que ainda estão na fila:
+    // trocar a fazenda por ele fazia o item sumir e voltar. Agora o que ainda não foi confirmado é
+    // refeito em cima de cada estado novo (aplicarEstado) até a resposta dele chegar.
+    let acoesFeitas = 0;
+    const otimistas = new Set();
+    function enfileirarOtimista(refazer, chamada) {
+        const o = { refazer };
+        otimistas.add(o);
+        return enfileirar([], async () => {
+            let r;
+            try { r = await chamada(); } finally { otimistas.delete(o); }
+            aplicarEstado(r.estado);
+            return r;
+        });
     }
 
     const saiuDoJogo = (e) => e && (e.code === 'token_invalido' || e.code === 'conta_banida');
@@ -2779,8 +2801,11 @@
     async function recarregar() {
         if (!token || pendentes || buscando) return;
         buscando = true;
+        const acoesAntes = acoesFeitas;
         try {
-            aplicarEstado(await rpc('fazenda_carregar', { p_token: token }));
+            const estado = await rpc('fazenda_carregar', { p_token: token });
+            if (acoesFeitas !== acoesAntes) return;   // fase 56: chegou depois de uma ação: é de antes dela
+            aplicarEstado(estado);
             if (visita) mostrarVisita(await rpc('fazenda_visitar', { p_token: token, p_vizinho: visita.id }));
             buscasFalhas = 0;
         } catch (e) {
