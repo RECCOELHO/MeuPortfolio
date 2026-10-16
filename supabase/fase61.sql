@@ -38,6 +38,8 @@ $$;
 --   mil), e dá para guardar para o píer (fazenda_reservar, o mesmo da ração dos bichos).
 -- ------------------------------------------------------------
 alter table public.fazenda_jogadores add column if not exists pier_em timestamptz;   -- quando o píer ficou pronto
+alter table public.fazenda_jogadores drop constraint if exists fazenda_jogadores_zonas_check;
+alter table public.fazenda_jogadores add constraint fazenda_jogadores_zonas_check check (zonas between 0 and 7);   -- o 7º terreno
 
 insert into public.fazenda_culturas (id, nome, emoji, tempo_seg, custo, venda, rendimento, xp, nivel_min, ordem, tipo) values
   ('leme_dourado', 'Leme dourado', '☸️', 1, 0, 250000, 1, 0, 1, 95, 'raro')
@@ -97,11 +99,12 @@ begin
   if j.moedas < (v_r->>'moedas')::int then raise exception 'moedas_insuficientes'; end if;
   for k in select jsonb_object_keys(v_r->'itens') loop
     update fazenda_celeiro set quantidade = quantidade - (v_r->'itens'->>k)::int where jogador_id = v_id and item = k;
-    -- o que estava guardado para o píer sai junto
-    update fazenda_reservas r set quantidade = least(r.quantidade, c.quantidade)
-      from fazenda_celeiro c where r.jogador_id = v_id and r.item = k and c.jogador_id = v_id and c.item = k;
+    -- o que estava guardado para o píer sai junto (a reserva não pode passar do que sobrou nem ficar zerada)
+    delete from fazenda_reservas r using fazenda_celeiro c
+     where r.jogador_id = v_id and r.item = k and c.jogador_id = v_id and c.item = k and c.quantidade <= 0;
+    update fazenda_reservas r set quantidade = c.quantidade
+      from fazenda_celeiro c where r.jogador_id = v_id and r.item = k and c.jogador_id = v_id and c.item = k and r.quantidade > c.quantidade;
   end loop;
-  delete from fazenda_reservas where jogador_id = v_id and quantidade <= 0;
   update fazenda_jogadores set moedas = moedas - (v_r->>'moedas')::int, pier_em = now() where id = v_id;
   return jsonb_build_object('estado', fazenda_estado(v_id));
 end;

@@ -405,8 +405,8 @@
         // 89 âncora
         ['................', '.......aa.......', '......affa......', '......afla......', '.......aa.......', '....aaaKaaaa....', '....aKKKKKKa....', '.......aK.......', '.......aKa......', '.a.....aKa....a.', 'aKa....aKa...aKa', '.aKa...aKa..aKa.', '..aKaa.aKa.aKa..', '...aKKaaKaaKa...', '....aaKKKKKa....', '......aaaaa.....'],
         // fase 61: o leme dourado (prêmio do ranking da semana, peça do píer)
-        // 90 leme dourado (simétrico: aro, 8 raios e 8 manoplas)
-        ['......agga......', '..a...agga...a..', '.aga..agga..aga.', '..agaaGGGGaaga..', '...aGG.HH.GGa...', '...aGH.HH.HHa...', 'aaaG..HHHH..Haaa', 'gggGHHHggHHHHHHH', 'gggGHHHggHHHHHHH', 'aaaG..HHHH..Haaa', '...aGH.HH.HHa...', '...aGH.HH.HHa...', '..agaaHHHHaaHa..', '.aga..aHHa..aHa.', '..a...aHHa...a..', '......aHHa......']
+        // 90 leme dourado (aro dourado com brilho, miolo de madeira com os raios e 8 manoplas)
+        ['......ayGa......', '..a...ayGa...a..', '.aGa.aayGaa.aGa.', '..ayaGGGdddaya..', '...aggGaaddda...', '..agganaanadda..', 'aaaggnaGGanddaaa', 'GGGHaaGaaGaadGGG', 'yyyHaaGaaGaaGyyy', 'aaaHHnaGGanGGaaa', '..aHHanaanagGa..', '...aHHHaaggga...', '..ayaHHHHggaya..', '.aGa.aayGaa.aGa.', '..a...ayGa...a..', '......ayGa......']
     ];
     const atlasProprio = document.createElement('canvas');
     atlasProprio.width = 12 * 16;
