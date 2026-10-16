@@ -155,6 +155,15 @@
         suco: { item: 1054 }, sorvete: { item: 1055 }, peixe_defumado: { item: 1056 }, almofada: { item: 1057 },
         moqueca: { item: 1058 }, azeite_trufado: { item: 1059 }, vitamina: { item: 1060 }, guacamole: { item: 1061 },
         licor: { item: 1062 }, chocolate: { item: 1063 },
+        // fase 58: sementes do 20 ao 30 (broto e meio do pacote; madura e fruta próprias) e os produtos das oficinas novas
+        cana:     { fases: [52, 53, 1065], murcho: 55, item: 1066, semente: 1066 },
+        cafe:     { fases: [52, 53, 1067], murcho: 55, item: 1068, semente: 1068 },
+        algodao:  { fases: [52, 53, 1069], murcho: 55, item: 1070, semente: 1070 },
+        uva:      { fases: [52, 53, 1071], murcho: 55, item: 1072, semente: 1072 },
+        pimenta:  { fases: [52, 53, 1073], murcho: 55, item: 1074, semente: 1074 },
+        baunilha: { fases: [52, 53, 1075], murcho: 55, item: 1076, semente: 1076 },
+        acucar: { item: 1077 }, cafe_torrado: { item: 1078 }, fio: { item: 1079 }, cappuccino: { item: 1080 },
+        roupa: { item: 1081 }, vinho: { item: 1082 }, molho_picante: { item: 1083 }, bombom: { item: 1084 },
         // sementes da estação (broto e meio do pacote; madura e fruta próprias)
         moranguinho: { fases: [52, 53, 1013], murcho: 55, item: 1014, semente: 1014 },
         melancia: { fases: [52, 53, 1015], murcho: 55, item: 1016, semente: 1016 },
@@ -331,7 +340,48 @@
         // 63 chocolate (barra, metade no papel)
         ['................', '................', '.aaaaaaaaaaaaa..', '.ayynayynayyna..', '.aynnaynnaynna..', '.annnannnannna..', '.aaaaaaaaaaaaa..', '.ayynayynayyna..', '.aynnaynnaynna..', '.annnannnannna..', '.aaaaaaaaaaaaa..', '.afffffffffffa..', '.aBBBBBBBBBBBa..', '.aaaaaaaaaaaaa..', '................', '................'],
         // 64 barraca da feira (toldo listrado, frutas no balcão de madeira)
-        ['................', '.aaaaaaaaaaaaaa.', 'aXXddXXddXXddXXa', 'aXXddXXddXXddXXa', 'aZZffZZffZZffZZa', '.aZa.aZa.aZa.aZa', '.ay..........ya.', '.ay..O....h..ya.', '.ay.OrO..hMh.ya.', 'aaaaaaaaaaaaaaaa', 'axxxxxxxxxxxxxxa', 'awwwwwwwwwwwwwwa', 'ayyynyyynyyynyya', 'ayyynyyynyyynyya', 'aaaaaaaaaaaaaaaa', '.aa..........aa.']
+        ['................', '.aaaaaaaaaaaaaa.', 'aXXddXXddXXddXXa', 'aXXddXXddXXddXXa', 'aZZffZZffZZffZZa', '.aZa.aZa.aZa.aZa', '.ay..........ya.', '.ay..O....h..ya.', '.ay.OrO..hMh.ya.', 'aaaaaaaaaaaaaaaa', 'axxxxxxxxxxxxxxa', 'awwwwwwwwwwwwwwa', 'ayyynyyynyyynyya', 'ayyynyyynyyynyya', 'aaaaaaaaaaaaaaaa', '.aa..........aa.'],
+        // fase 58: sementes e produtos do nível 20 ao 30 (65..84)
+        // 65 cana-de-açúcar (planta)
+        ['...v.......v....', '..vh..v...vh....', '..vh.vh..vh..v..', '...avh..avh.vh..', '...aMa..aMa.ha..', '...aMa.vaMavhv..', '..vaHahvaHa.aMa.', '.vhaMa..aMa.aMa.', '...aMa..aMa.aHa.', '...aHa..aHa.aMa.', '...aMa..aMa.aMa.', '...aMa..aMa.aMa.', '...aHa..aHa.aHa.', '..aaaaaaaaaaaaa.', '................', '................'],
+        // 66 cana-de-açúcar
+        ['................', '................', '..aa..aa..aa....', '..aGa.aGa.aGa...', '..aMa.aMa.aMa...', '..aHa.aHa.aHa...', '..aMa.aMa.aMa...', '.aaaaaaaaaaaaa..', '.aXXXXXXXXXXXa..', '.aaaaaaaaaaaaa..', '..aMa.aMa.aMa...', '..aHa.aHa.aHa...', '..aMa.aMa.aMa...', '..aaa.aaa.aaa...', '................', '................'],
+        // 67 café (planta)
+        ['................', '......aaaa......', '....aavhvvaa....', '...avhvvhvvha...', '..avvrvhvvrvva..', '..avhvvvrvhvva..', '.avrvhvvhvvrvva.', '.avvvrvhrvvhvva.', '.avhvvvvvvrvhva.', '..avvrhvvhvvva..', '...avvvrvvhva...', '....aaavvaaa....', '......ayya......', '......ayya......', '.....aaaaaa.....', '................'],
+        // 68 café
+        ['................', '................', '................', '................', '...aaaa.........', '..aynnya..aaaa..', '.aynnanya.aynnya', '.aynnanyaaynnany', '.aynnanyaaynnany', '.aynnanyaaynnany', '..aynaya.aynnany', '...aaaa..aynaya.', '..........aaaa..', '................', '................', '................'],
+        // 69 algodão (planta)
+        ['................', '....aaa...aaa...', '...adddaa.addda.', '...addfdaadfdda.', '....aaavaaaaaa..', '..aaa.avhva.....', '.addda.avva.aaa.', '.adfdda.vv.addda', '..aaaavaavafdda.', '.....avhvvaaaa..', '......avvva.....', '.......avva.....', '.......ayya.....', '.......ayya.....', '......aaaaaa....', '................'],
+        // 70 algodão
+        ['................', '................', '................', '.....aaaaaa.....', '...aaddddddaa...', '..adddfdddddda..', '.adddddddfdddda.', '.addfdddddddfda.', '.adddddfdddddda.', '..addddddddfda..', '...aaddfdddaa...', '....anyaaayna...', '.....annnnna....', '......aaaaa.....', '................', '................'],
+        // 71 uva (planta)
+        ['................', '..aaa......aaa..', '.avhva....avhva.', '.avvvaaaaaavvva.', '..aaayyyyyyaaa..', '.....aa..aya....', '....aUVa.aya....', '...aUVUVaaya....', '...aVUVUVaya....', '....aUVUVaya....', '.....aVUaaya....', '......aa.aya....', '........aaya....', '........ayya....', '.......aaaaaa...', '................'],
+        // 72 uva
+        ['................', '........aa......', '.......aya.aa...', '......aaya.avha.', '.....aUVaaavvha.', '....aUVUVaUVaa..', '...aUVdVUVUVa...', '...aVUVUVUVUa...', '....aUVdVUVa....', '....aVUVUVUa....', '.....aUVUVa.....', '.....aVUVUa.....', '......aUVa......', '.......aa.......', '................', '................'],
+        // 73 pimenta (planta)
+        ['................', '.....aaaaaa.....', '...aavhvvhvaa...', '..avhvvhvvhvva..', '..avvavvhavvha..', '.avhaXavvaXavva.', '.avvaXXavaXXava.', '..aaaXXaaaXXaa..', '.....aXa.aXa....', '......a..a......', '......avva......', '......avva......', '.......vv.......', '.......ay.......', '.....aaaaaa.....', '................'],
+        // 74 pimenta
+        ['................', '................', '...........aa...', '..........ava...', '.........avha...', '........aavva...', '.......aXXaa....', '......aXdXXa....', '.....aXXXXZa....', '....aXXXXXZa....', '...aXXXXXZa.....', '..aXXXXZZa......', '.aXXZZZaa.......', '.aZZaaa.........', '..aa............', '................'],
+        // 75 baunilha (planta)
+        ['................', '..aaa.....aaa...', '.aGsGa...aGsGa..', '.asgsa...asgsa..', '.aGsGa.a.aGsGa..', '..aaavavavaaa...', '....avhvhva.....', '...aavvhvvaa....', '..aGa.avva.aGa..', '.aGsGa.vv.aGsGa.', '.asgsa.vv.asgsa.', '..aaa..vv..aaa..', '......ayya......', '......ayya......', '.....aaaaaa.....', '................'],
+        // 76 baunilha
+        ['................', '................', '..aa............', '..ayaa..........', '...aynaa........', '....aynnaa......', '.....aynnnaa....', '....aaaggggaa...', '...aynnaggaynna.', '....aaynnnynnaa.', '......aaynnnnya.', '........aaynnya.', '..........aaaa..', '................', '................', '................'],
+        // 77 açúcar (tigela de torrões)
+        ['................', '................', '................', '......aaaa......', '....aaddfdaa....', '...adfdddfdda...', '..adddfddddfda..', '.aaaaaaaaaaaaaa.', '.aBBBBBBBBBBBBa.', '..aBdBBBBBBBBa..', '..aBBBBBBBBBBa..', '...aBBBBBBBBa...', '....aaaaaaaa....', '................', '................', '................'],
+        // 78 café torrado (saco)
+        ['................', '......aaaa......', '.....anyyna.....', '......aaaa......', '.....awwwwa.....', '....awwwwwwa....', '...awwaaaawwa...', '...awaynnyawa...', '...awaynanyawa..', '...awaynanyawa..', '...awwaaaawwa...', '...awwwwwwwwa...', '...anwwwwwwna...', '....aaaaaaaa....', '................', '................'],
+        // 79 fio de algodão (carretel)
+        ['................', '................', '....aaaaaaaa....', '....ayyyyyyna...', '....aaaaaaaaa...', '.....adddfda....', '.....afdddda....', '.....addfdda....', '.....adddfda....', '.....afdddda....', '.....addfddaa...', '....aaaaaaaafa..', '....ayyyyyyna.a.', '....aaaaaaaa....', '................', '................'],
+        // 80 cappuccino (xícara com espuma)
+        ['................', '......l..l......', '.......l..l.....', '......l..l......', '...aaaaaaaaaa...', '..axxxxxxxxxxa..', '..axxwxxxxwxxaaa', '..aaxxxwwxxxxada', '..adaaaaaaaaada.', '..addddddddddaa.', '..addddddddfda..', '...addddddfda...', '....aaaaaaaa....', '..aaaaaaaaaaaa..', '..afffffffffla..', '...aaaaaaaaaa...'],
+        // 81 roupa (camisa)
+        ['................', '................', '...aaaa..aaaa...', '..aBBBBaaBBBBa..', '.aBBBBBddBBBBBa.', 'aBBBBBBadBBBBBBa', 'aBBaBBBaEBBBaBBa', '.aaaBBBBEBBBaaa.', '...aBBBBEBBBa...', '...aBBBBEBBBa...', '...aBBBBEBBBa...', '...aBBBBEBBBa...', '...aBBBBEBBBa...', '...aaaaaaaaaa...', '................', '................'],
+        // 82 vinho (garrafa)
+        ['................', '.......aa.......', '......ayya......', '......aaaa......', '......aVVa......', '......adVa......', '.....adVVVa.....', '....adVVVVVa....', '....adZZZZVa....', '....adZssZVa....', '....adZssZVa....', '....adZZZZVa....', '....adVVVVVa....', '....aVVVVVVa....', '.....aaaaaa.....', '................'],
+        // 83 molho picante (frasco)
+        ['................', '.......aa.......', '......avva......', '......aaaa......', '......adXa......', '.....adXXXa.....', '....adXXXXXa....', '....adXXXXXa....', '....adsssssa....', '....adsXXXsa....', '....adsXdXsa....', '....adsXXXsa....', '....adsssssa....', '....aXXXXXZa....', '.....aaaaaa.....', '................'],
+        // 84 bombom (papel dourado)
+        ['................', '................', '................', '................', '.aa..........aa.', '.aga.aaaaaa.aga.', '.aggaynnnnyaaga.', '.aHgaynydnnyaHa.', '.aHgaynnnnnyaga.', '.aggaynnnnyaaga.', '.aHa.aaaaaa.aHa.', '.aa..........aa.', '................', '................', '................', '................']
     ];
     const atlasProprio = document.createElement('canvas');
     atlasProprio.width = 12 * 16;
@@ -561,6 +611,15 @@
             case 'guacamolaria': return { p: 'town', w: 2, h: 3, grade: [[52, 55], [64, 67], [86, 75]] };
             case 'chocolateria': return { p: 'town', w: 2, h: 3, grade: [[48, 51], [60, 63], [86, 87]] };
             case 'adega': return { p: 'town', w: 2, h: 3, grade: [[99, 102], [111, 114], [123, 124]] };
+            // fase 58: oficinas do 21 ao 30 (engenho e vinícola de pedra, como a adega)
+            case 'engenho': return { p: 'town', w: 2, h: 3, grade: [[99, 102], [111, 114], [125, 124]] };
+            case 'torrefacao': return { p: 'town', w: 2, h: 3, grade: [[52, 55], [64, 67], [86, 79]] };
+            case 'fiacao': return { p: 'town', w: 2, h: 3, grade: [[48, 51], [60, 63], [85, 87]] };
+            case 'cafeteria': return { p: 'town', w: 2, h: 3, grade: [[52, 55], [64, 67], [90, 87]] };
+            case 'alfaiataria': return { p: 'town', w: 2, h: 3, grade: [[48, 51], [60, 63], [89, 87]] };
+            case 'vinicola': return { p: 'town', w: 2, h: 3, grade: [[99, 102], [111, 114], [126, 123]] };
+            case 'pimentaria': return { p: 'town', w: 2, h: 3, grade: [[52, 55], [64, 67], [88, 87]] };
+            case 'bombonaria': return { p: 'town', w: 2, h: 3, grade: [[48, 51], [60, 63], [86, 91]] };
             // máquinas (Tiny Factory)
             case 'cercado_galinha': case 'cercado_coelho': case 'cercado_pato':
             case 'cercado_vaca': case 'cercado_ovelha': case 'cercado_porco':
