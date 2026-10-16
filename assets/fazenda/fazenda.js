@@ -124,6 +124,7 @@
         cesto_vazio: 'O cesto ainda está vazio: o Bira tira um peixe a cada 30 minutos.',
         limite_canteiros: 'Você já usou todos os seus canteiros. Suba de nível ou compre terrenos para ter mais.',
         limite_maquina: 'Você já tem essa máquina (uma basta para a fazenda toda).',
+        melhoria_max: 'Essa melhoria já está no máximo.',
         limite_terreno: 'Já tem o máximo dessa árvore: cada fruta tem 1 pé, +1 a cada 2 terrenos comprados (até 4).',
         alarme: 'O alarme disparou! Esse canteiro está protegido.',
         item_invalido: 'Item inválido.',
@@ -1342,8 +1343,8 @@
     const NOME_EFEITO = {
         seco: 'sem seca', praga: 'sem pragas', erva: 'sem ervas', crescer: 'cresce 10% mais rápido',
         adubo: '+1 item', xp: '+1 XP', sorte: 'sorte (colheita em dobro às vezes)', cerca: 'vizinho pega no máximo 1',
-        alarme: 'protegido do vizinho', estufa: 'estufa: qualquer estação e +25% rápido (3 ⚡)',
-        robo: 'o robô colhe e replanta', aspersor: 'sem nenhum problema (aspersor, 1,2 ⚡)'
+        alarme: 'protegido do vizinho', estufa: 'estufa: qualquer estação e +25% rápido (4 ⚡)',
+        robo: 'o robô colhe e replanta', aspersor: 'sem nenhum problema (aspersor, 1,6 ⚡)'
     };
     function bonusDoCanteiro(c, fonte) {
         const vistos = new Set();
@@ -1495,14 +1496,14 @@
         const usam = rede ? new Set(rede.oficinas.flatMap((k) => Object.keys(tipoItem(k.tipo).entradas || {}))) : new Set();
         const txtRede = !rede || (!rede.oficinas.length && !rede.celeiro)
             ? `Sem cano até uma oficina ou o celeiro: o que ele recolhe fica guardado aqui. Ligue com <b>canos de vidro</b> (Construir → Energia).`
-            : `Na rede${rede.oficinas.length ? ` com ${rede.oficinas.length} oficina(s)` : ''}${rede.celeiro ? `${rede.oficinas.length ? ' e' : ' com'} o celeiro` : ''}: manda pelo cano o que as oficinas usam${rede.celeiro ? ' e leva o resto para o celeiro (1,2 ⚡ por viagem)' : ''}.`;
+            : `Na rede${rede.oficinas.length ? ` com ${rede.oficinas.length} oficina(s)` : ''}${rede.celeiro ? `${rede.oficinas.length ? ' e' : ' com'} o celeiro` : ''}: manda pelo cano o que as oficinas usam${rede.celeiro ? ' e leva o resto para o celeiro (1,6 ⚡ por viagem)' : ''}.`;
         return `
             <p>${total} de ${BAU_MAX} itens guardados</p>
             <span class="estoque-barra"><i style="width:${Math.min(100, Math.round(total / BAU_MAX * 100))}%"></i></span>
             ${itens.length ? '<div class="bau-itens">' + itens.map(([item, n]) => `<span class="chip" title="${nomeItem(item)}${usam.has(item) ? ' (uma oficina da rede usa)' : ''}">${itemDe(culturas[item] || { id: item }, 20)}<span>${n}${usam.has(item) ? ` ${A.htmlItem('cano', 12)}` : ''}</span></span>`).join('') + '</div>'
                 : '<p class="vazio-msg">Vazio por enquanto.</p>'}
             <p class="aviso">${A.htmlItem('cano', 16)} ${txtRede}</p>
-            <p class="det">Com energia, recolhe sozinho o que estiver encostado nele: o bloco de canteiros, um cercado (coleta e dá ração), uma árvore do pomar e o cesto do lago (1,2 ⚡ cada). Cheio, ele para de recolher.</p>
+            <p class="det">Com energia, recolhe sozinho o que estiver encostado nele: o bloco de canteiros, um cercado (coleta e dá ração), uma árvore do pomar e o cesto do lago (1,6 ⚡ cada). Cheio, ele para de recolher.</p>
             <div class="rodape-painel">
                 <button type="button" class="botao verde" data-bau-esvaziar${total ? '' : ' disabled'}>Levar tudo para o celeiro</button>
                 <button type="button" class="botao creme" data-fechar>Fechar</button>
@@ -1783,7 +1784,20 @@
     }
     // quantos dá para ter: limite fixo, ou por terreno (amoreira: 4 na fazenda inicial + 4 por terreno comprado)
     // (fase 47: no pomar, cada fruta tem 1 pé e +1 a cada 2 terrenos, até 4; igual a fazenda_construir)
-    const maxItem = (it) => it.limite || (it.por_terreno ? it.por_terreno * (1 + (it.categoria === 'pomar' ? Math.floor(((S && S.jogador.zonas) || 0) / 2) : ((S && S.jogador.zonas) || 0))) : null);
+    const melhoriaNivel = (id) => (S && S.melhorias && S.melhorias[id]) || 0;
+    const melhoriaValor = (id) => { const m = ((S && S.melhorias_tipos) || []).find((k) => k.id === id); const n = melhoriaNivel(id); return m && n ? m.niveis[n - 1].valor : 0; };
+    // fase 57: painel solar e turbina sobem com o nível, um de cada vez (igual a fazenda_limite_maquina);
+    // o limite de agora já vem do servidor em S.itens, isto serve para dizer quando sobe de novo
+    const limiteMaquina = (id, base, n) => (id === 'painel_solar' ? base + Math.max(0, Math.floor((n - 16) / 2))
+        : id === 'turbina' ? base + Math.max(0, Math.floor((n - 17) / 2)) : base);
+    const proximoNivelMaquina = (it) => {
+        if (it.id !== 'painel_solar' && it.id !== 'turbina') return null;
+        const base = (it.limite || 0) - limiteMaquina(it.id, 0, S.jogador.nivel);
+        for (let n = S.jogador.nivel + 1; n <= S.jogador.nivel + 2; n++) if (limiteMaquina(it.id, base, n) > it.limite) return n;
+        return null;
+    };
+    const maxItem = (it) => it.limite || (it.por_terreno ? it.por_terreno * (1 + (it.categoria === 'pomar' ? Math.floor(((S && S.jogador.zonas) || 0) / 2) : ((S && S.jogador.zonas) || 0)))
+        + (it.categoria === 'pomar' ? melhoriaValor('pes') : 0) : null);   // fase 57: + os pés da melhoria
     // quantos já tem (itens do mesmo grupo dividem o limite; desde a fase 43 cada árvore frutífera conta só ela)
     const quantosTem = (it) => (S.construcoes || []).filter((c) => c.tipo === it.id || (it.grupo && (tipoItem(c.tipo) || {}).grupo === it.grupo)).length;
     // fase 45: quem já tinha o bicho antes do cercado obrigatório ganha o primeiro cercado dele
@@ -1899,7 +1913,9 @@
             const it = tipoItem(constr.tipo);
             if (!it) return toast('Escolha um item na barra de baixo.', undefined, 'leve');
             const max = maxItem(it), tem = quantosTem(it);
-            if (max && tem >= max) return toast(it.por_terreno ? `Já tem ${tem} de ${max} ${esc(it.nome.toLowerCase())}s: compre mais terrenos (Loja → Terrenos) para plantar mais: cada fruta tem 1 pé, +1 a cada 2 terrenos (até 4). As outras frutas têm o limite delas.` : ERROS.limite_maquina, 'erro');            const tam = tamanhoItem(it.id);
+            const proxMaq = max && tem >= max ? proximoNivelMaquina(it) : null;
+            if (max && tem >= max) return toast(it.por_terreno ? `Já tem ${tem} de ${max} ${esc(it.nome.toLowerCase())}s: compre mais terrenos (Loja → Terrenos) para plantar mais: cada fruta tem 1 pé, +1 a cada 2 terrenos (até 4), e mais na Loja → Melhorias. As outras frutas têm o limite delas.`
+                : proxMaq ? `Já tem ${tem} de ${max} (${esc(it.nome.toLowerCase())}). No nível ${proxMaq} libera mais um.` : ERROS.limite_maquina, 'erro');            const tam = tamanhoItem(it.id);
             if (!cabeAqui(x, y, tam.w, tam.h)) {
                 return toast(tam.w > 1 ? `Não cabe aqui: ${esc(it.nome.toLowerCase())} precisa de ${tam.w}×${tam.h} quadrados livres.` : ERROS.lugar_ocupado, 'erro');
             }
@@ -2031,10 +2047,13 @@
         const dobro = j.xp2_ate && Date.parse(j.xp2_ate) > agora();
         el.xpBar.parentElement.classList.toggle('dobro', !!dobro);
         const bonusM = j.bonus_nivel != null && j.bonus_nivel === j.nivel;   // fase 49: metas em dia
+        const completa = bonusM && j.nivel >= 20;   // fase 57: fazenda completa: +75% e arar/plantar dão XP
         el.xpBar.parentElement.classList.toggle('bonus', bonusM);
-        el.xpBar.parentElement.title = [dobro ? `XP em dobro até ${hora(j.xp2_ate)}` : '', bonusM ? 'Metas em dia: +50% de XP até o próximo nível' : ''].filter(Boolean).join(' · ') || 'Experiência';
+        el.xpBar.parentElement.title = [dobro ? `XP em dobro até ${hora(j.xp2_ate)}` : '',
+            completa ? 'Fazenda completa: +75% de XP até o próximo nível, e arar e plantar também dão XP'
+                : bonusM ? 'Metas em dia: +50% de XP até o próximo nível' : ''].filter(Boolean).join(' · ') || 'Experiência';
         if (dobro) el.xp.textContent += ' ×2';
-        if (bonusM) el.xp.textContent += ' +50%';
+        if (bonusM) el.xp.textContent += completa ? ' +75%' : ' +50%';
         const cm = $('hudMetas'), fm = metasDoNivelFaltando();
         if (cm) { cm.textContent = fm; cm.hidden = !fm; }
         if (el.hudPerfil) {
@@ -2837,11 +2856,12 @@
             if (!soAtualizar) tutorialEvento('loja');
             el.painelTitulo.innerHTML = `${spr(9, 32)} Loja`;
             const abas = `<div class="painel-abas" role="tablist">
-                ${[['sementes', 'Sementes'], ['animais', 'Animais'], ['ajudantes', 'Ajudantes'], ['terrenos', 'Terrenos'], ['diamantes', 'Diamantes']].map(([id, txt]) =>
+                ${[['sementes', 'Sementes'], ['animais', 'Animais'], ['ajudantes', 'Ajudantes'], ['terrenos', 'Terrenos'], ['melhorias', 'Melhorias'], ['diamantes', 'Diamantes']].map(([id, txt]) =>
                     `<button type="button" role="tab" data-aba-loja="${id}" class="${abaLoja === id ? 'ativa' : ''}">${txt}</button>`).join('')}
             </div>`;
             if (abaLoja === 'animais') corpo.innerHTML = abas + htmlLojaAnimais();
             else if (abaLoja === 'terrenos') corpo.innerHTML = abas + htmlLojaTerrenos();
+            else if (abaLoja === 'melhorias') corpo.innerHTML = abas + htmlLojaMelhorias();
             else if (abaLoja === 'ajudantes') corpo.innerHTML = abas + htmlLojaAjudantes();
             else if (abaLoja === 'diamantes') corpo.innerHTML = abas + htmlLojaDiamantes();
             else corpo.innerHTML = abas + htmlLojaSementes();
@@ -3049,7 +3069,8 @@
                     <li>Toque num canteiro e ele faz a ação certa: <b>arar</b>, <b>plantar</b>, <b>cuidar</b> ou <b>colher</b>.</li>
                     <li><b>XP das plantas:</b> colher dá o XP de cada planta (aparece na loja), em qualquer nível. O mesmo canteiro dá XP de colheita no máximo uma vez a cada 8 minutos: a alface, que cresce em 2, dá XP de 4 em 4 colheitas. Cuidar dá +1 XP. Arar dá XP só até o nível 5.</li>
                     <li>Na <b>Feira</b> (no menu) os jogadores vendem uns para os outros: anuncie um lote do celeiro com o seu preço (entre metade e o triplo da venda normal) e compre de outros o que falta para as suas receitas. Quem vende recebe tudo; o anúncio dura 2 dias. Toda fazenda já tem uma <b>barraca na feira</b>, na clareira da mata à esquerda do celeiro: cada barraca dá 2 anúncios e mostra em cima o que você vende. Do nível 5 em diante dá para comprar mais 3 no painel da Feira.</li>
-                    <li>Em <b>Metas</b> (no menu) está tudo o que o seu nível libera: construir cada oficina, máquina e cercado, ter cada bicho, contratar cada ajudante, comprar os terrenos e ocupar os canteiros. Com tudo em dia, <b>+50% de XP</b> até o próximo nível; o que ficou dos níveis de trás também aparece lá.</li>
+                    <li>Em <b>Metas</b> (no menu) está tudo o que o seu nível libera: construir cada oficina, máquina e cercado, ter cada bicho, contratar cada ajudante, comprar os terrenos e ocupar os canteiros. Com tudo em dia, <b>+50% de XP</b> até o próximo nível (do nível 20 em diante, a <b>fazenda completa</b>: <b>+75%</b>, e arar e plantar também dão XP); o que ficou dos níveis de trás também aparece lá.</li>
+                    <li>Na loja, aba <b>Melhorias</b> (do nível 23 em diante): compras caras que valem para sempre. Adubo premium (plantas mais rápidas), pomar fértil (árvores mais rápidas) e mais pés de fruta.</li>
                     <li>Toque numa planta crescendo para abrir o menu dela: quanto falta, <b>colher agora</b> por 1 ${ico('diamante', 14)} diamante (fica pronta na hora e vai para o celeiro), <b>arrancar</b>, ou arrancar e plantar a semente escolhida. Você começa com 10 diamantes e ganha 5 a cada nível. Em <b>Loja → Diamantes</b> eles também compram <b>XP em dobro</b> por 1 hora, um <b>pacote de XP</b> (até 3 por dia), o <b>café dos ajudantes</b> (em dobro por 2 horas), <b>energia</b> cheia na hora, uma <b>oficina terminando agora</b> e <b>personagens especiais</b> para o avatar.</li>
                     <li>As plantas crescem em tempo real, mesmo com a página fechada.</li>
                     <li>Aparecem ${ico('erva', 14)} ervas, ${ico('praga', 14)} pragas e ${ico('seco', 12)} seca: cada problema deixado custa 1 item na colheita.</li>
@@ -3067,8 +3088,8 @@
                     <li>Toque num item já colocado para ver o que ele faz; o <b>alcance</b> dele (irrigador, alarme, estufa...) aparece marcado no chão. <b>Segure o dedo 3 segundos</b> num item ou canteiro para pegar e levar para outro lugar.</li>
                     <li>A semana tem as 4 <b>estações</b> (42 horas cada), e cada uma muda a cara da fazenda (pétalas na primavera, grama quente no verão, folhas caindo no outono, neve no inverno) e tem uma semente só dela: morango, melancia, abóbora e repolho. O <b>clima</b> muda várias vezes por dia: sol dá +1 na colheita, chuva rega tudo, onda de calor seca mais, nublado não traz problema novo e ventania espalha pragas. Toque no clima, lá em cima, para ver até quando ele vai.</li>
                     <li>O jogo tem o próprio <b>dia e noite</b>: eles se revezam a cada 2 horas (12 horas de dia e 12 de noite em cada dia de verdade). De noite o mapa escurece, as janelas, os lampiões e as oficinas acendem, aparecem vaga-lumes, e o painel solar não gera energia. Toque no clima para ver quando amanhece.</li>
-                    <li>O <b>baú</b> guarda em si (até 200 itens) o que recolhe sozinho, com energia, do que estiver encostado nele: o bloco de canteiros, um cercado (coleta e dá ração), uma árvore do pomar e o cesto do lago (1,2 ⚡ cada). Toque no baú para ver o que tem.</li>
-                    <li>No nível 16 chegam os <b>canos de vidro</b> (Construir → Energia, 25 cada). Canos encostados formam uma <b>rede</b>, e tudo o que encosta num cano dela (baús, oficinas, o celeiro, a fábrica automática) trabalha junto: a rede <b>enche sozinha o estoque das oficinas</b> (até 10 receitas, 1,2 ⚡ cada) com o que tem nos baús e no celeiro da rede, dividindo entre todas; o produto vai para outra oficina que usa ele (o óleo da prensa vai para o empório), para o celeiro ou para um baú; e o que nenhuma oficina usa sai do baú para o celeiro (1,2 ⚡ por viagem). Para o celeiro fazer parte, o cano tem que encostar no próprio prédio do celeiro. Nada anda sem estar ligado. Como saber se está funcionando: a <b>luz no meio do cano</b> fica verde pulsando quando a rede liga duas coisas ou mais (vermelha piscando = sem energia), a oficina na rede ganha um selinho de cano no balão, o baú mostra uma barrinha de quanto está cheio, e cada item aparece passando pelo cano quando viaja.</li>
+                    <li>O <b>baú</b> guarda em si (até 200 itens) o que recolhe sozinho, com energia, do que estiver encostado nele: o bloco de canteiros, um cercado (coleta e dá ração), uma árvore do pomar e o cesto do lago (1,6 ⚡ cada). Toque no baú para ver o que tem.</li>
+                    <li>No nível 16 chegam os <b>canos de vidro</b> (Construir → Energia, 25 cada). Canos encostados formam uma <b>rede</b>, e tudo o que encosta num cano dela (baús, oficinas, o celeiro, a fábrica automática) trabalha junto: a rede <b>enche sozinha o estoque das oficinas</b> (até 10 receitas, 1,6 ⚡ cada) com o que tem nos baús e no celeiro da rede, dividindo entre todas; o produto vai para outra oficina que usa ele (o óleo da prensa vai para o empório), para o celeiro ou para um baú; e o que nenhuma oficina usa sai do baú para o celeiro (1,6 ⚡ por viagem). Para o celeiro fazer parte, o cano tem que encostar no próprio prédio do celeiro. Nada anda sem estar ligado. Como saber se está funcionando: a <b>luz no meio do cano</b> fica verde pulsando quando a rede liga duas coisas ou mais (vermelha piscando = sem energia), a oficina na rede ganha um selinho de cano no balão, o baú mostra uma barrinha de quanto está cheio, e cada item aparece passando pelo cano quando viaja.</li>
                     <li>Do nível 16 em diante vem a <b>energia</b> ${ico('raio', 14)}: painel solar, turbina, gerador a biomassa e reator enchem as baterias, e as máquinas elétricas (estufa, triturador, fábrica automática, robô, aspersor, baús e a rede de canos) trabalham sozinhas gastando energia. O <b>eletricista</b> (ajudante, nível 17) faz tudo gastar menos, e dá para encher as baterias com diamantes. Toque no ${ico('raio', 12)} lá em cima (ou no botão abaixo) para ver o que cada uma faz.</li>
                     ${ANUNCIO.ligado || ehLocal ? `<li>Quando aparecer o botão <b>+30 min</b>, assista a um anúncio até o fim e tudo o que está em andamento (plantas, animais, oficinas, ajudantes e energia) adianta 30 minutos. Cada anúncio também dá 1 ${ico('diamante', 14)} diamante.</li>` : ''}
                     <li>No Perfil (ou em Vizinhos) tem o seu <b>link de convite</b>: quem criar uma fazenda por ele ganha moedas, e você também.</li>
@@ -3315,6 +3336,30 @@
         }).join('') + '</div><p class="aviso">Cada terreno abre um pedaço da mata em volta: mais espaço para canteiros, cercados, máquinas e enfeites, e mais canteiros no seu limite. Os três últimos são grandes. Também dá para tocar na placa no mapa.</p>';
     }
 
+    /* ---------- Melhorias (fase 57): compras caras e permanentes para o fim de jogo ----------
+       O catálogo vem do servidor (estado.melhorias_tipos); cada uma tem níveis, comprados em ordem. */
+    function htmlLojaMelhorias() {
+        const tipos = S.melhorias_tipos || [];
+        if (!tipos.length) return '<p class="vazio-msg">As melhorias chegam em breve.</p>';
+        const fmt = (v) => v.toLocaleString('pt-BR');
+        return '<div class="lista">' + tipos.map((m) => {
+            const tem = melhoriaNivel(m.id), prox = m.niveis[tem];
+            const travado = prox && S.jogador.nivel < prox.nivel;
+            const passos = m.niveis.map((k, i) => `<span${i < tem ? ' class="feito"' : ''}>${i < tem ? '✓' : ''}${m.id === 'pes' ? '+' + k.valor + ' pé' + (k.valor > 1 ? 's' : '') : Math.round(k.valor * 100) + '%'} (nível ${k.nivel})</span>`).join('');
+            return `<div class="item${travado ? ' travada' : ''}">
+                <span class="ico">${travado ? ico('cadeado', 28) : A.htmlItem(m.id === 'adubo' ? 'canteiro' : 'laranjeira', 40)}</span>
+                <span>
+                    <span class="nome">${esc(m.nome)}${tem ? ` · ${tem}/${m.niveis.length}` : ''}</span>
+                    <span class="det"><span class="txt">${esc(m.descricao)}</span></span>
+                    <span class="det">${passos}</span>
+                </span>
+                ${!prox ? '<span class="preco">Completa</span>'
+                    : travado ? `<span class="preco">Nível ${prox.nivel}</span>`
+                    : `<button type="button" class="botao pequeno verde" data-comprar="melhoria:${esc(m.id)}">${ico('moeda', 14)} ${fmt(prox.custo)}</button>`}
+            </div>`;
+        }).join('') + '</div><p class="aviso">Melhorias valem para sempre e para a fazenda toda. Cada uma tem níveis, comprados um depois do outro.</p>';
+    }
+
     /* ---------- Diamantes à venda (Mercado Pago) ----------
        A Edge Function fazenda-diamantes cria a compra e devolve a página de pagamento; o
        Mercado Pago traz a pessoa de volta em fazenda.html?compra=ID e avisa a função, que
@@ -3483,8 +3528,10 @@
         const feitas = metas.filter((m) => m.nivel < n && m.feito).length;
         const faltam = metas.filter((m) => !m.feito).length;
         return `${bonusMetas()
-                ? `<p class="aviso"><b>Tudo em dia!</b> Até o nível ${n + 1}, todo XP vem com <b>+50%</b>. No próximo nível chegam metas novas: cumpra de novo para manter o bônus.</p>`
-                : `<p class="aviso">Faltam <b>${faltam}</b> meta${faltam === 1 ? '' : 's'}. Com tudo o que o seu nível libera em dia, você ganha <b>+50% de XP</b> até o próximo nível.</p>`}
+                ? (n >= 20   // fase 57: fazenda completa
+                    ? `<p class="aviso"><b>Fazenda completa!</b> Até o nível ${n + 1}, todo XP vem com <b>+75%</b>, e arar e plantar também dão XP. No próximo nível chegam metas novas: cumpra de novo para manter o bônus.</p>`
+                    : `<p class="aviso"><b>Tudo em dia!</b> Até o nível ${n + 1}, todo XP vem com <b>+50%</b>. No próximo nível chegam metas novas: cumpra de novo para manter o bônus.</p>`)
+                : `<p class="aviso">Faltam <b>${faltam}</b> meta${faltam === 1 ? '' : 's'}. Com tudo o que o seu nível libera em dia, você ganha <b>${n >= 20 ? '+75% de XP e XP também por arar e plantar' : '+50% de XP'}</b> até o próximo nível.</p>`}
             <h3 class="secao-titulo">Nível ${n}</h3><div class="lista">${doNivel.map(linha).join('')}</div>
             ${deTras.length ? `<h3 class="secao-titulo">Ficaram para trás (${deTras.length})</h3><div class="lista">${deTras.map(linha).join('')}</div>` : ''}
             ${feitas ? `<p class="det">${feitas} meta${feitas === 1 ? '' : 's'} dos níveis anteriores já cumprida${feitas === 1 ? '' : 's'}.</p>` : ''}`;
@@ -4095,6 +4142,10 @@
         const comp = e.target.closest('[data-comprar]');
         if (comp) {
             const [categoria, tipo] = comp.dataset.comprar.split(':');
+            if (categoria === 'melhoria') {   // fase 57: é caro: pergunta antes
+                const m = (S.melhorias_tipos || []).find((k) => k.id === tipo), prox = m && m.niveis[melhoriaNivel(tipo)];
+                if (prox && !confirm(`Comprar ${m.nome} (nível ${melhoriaNivel(tipo) + 1}) por ${prox.custo.toLocaleString('pt-BR')} moedas?`)) return;
+            }
             comp.disabled = true;
             enfileirar([], async () => {
                 const r = await rpc('fazenda_comprar', { p_token: token, p_categoria: categoria, p_tipo: tipo });
@@ -4108,6 +4159,10 @@
                     if (z) cena.focarTile(z.x + Math.floor(z.w / 2), z.y + Math.floor(z.h / 2));
                     mostrarStatus(`${A.htmlItem('canteiro', 22)} Use o botão Construir para pôr canteiros, máquinas e enfeites no terreno novo.`);
                     return;
+                } else if (categoria === 'melhoria') {   // fase 57
+                    const m = (S.melhorias_tipos || []).find((k) => k.id === tipo) || { nome: 'Melhoria' };
+                    toast(`${ico('xp', 18)} <b>${esc(m.nome)}</b> nível ${melhoriaNivel(tipo)}! Vale para a fazenda toda.`, 'festa');
+                    som.tocar('festa');
                 } else {
                     const nome = (tipoAnimal(tipo) || {}).nome;
                     toast(`${esc(nome || 'Item')} chegou na fazenda!`);

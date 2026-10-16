@@ -1382,7 +1382,6 @@ begin
       'google', case when j.google_sub is not null then coalesce(j.google_email, 'sua conta Google') end,
       'admin', j.admin,   -- fase 53: 'dono', 'admin' ou null
       'xp', j.xp,
-      'falta', fazenda_falta(p_jogador, v_nivel),   -- fase 57: o que falta para a fazenda completa (+25% XP)
       'nivel', v_nivel,
       'xp_nivel', fazenda_xp_nivel(v_nivel),
       'xp_proximo', fazenda_xp_nivel(v_nivel + 1),
@@ -1614,7 +1613,7 @@ begin
            erva = false, praga = false, seco = false, roubado = 0, prox_evento = null, adubado = false
      where jogador_id = p_jogador and posicao = p_posicao;
     -- arar só dá XP para quem está começando (até o nível 5): senão alface de 2 min vira fábrica de XP
-    -- fase 57: e para quem tem a fazenda completa (do 20 em diante, tudo o que o nível libera)
+    -- fase 57: e para quem tem a fazenda completa (do 20 em diante, com as metas do nível em dia)
     if not p_bot and (fazenda_nivel(j.xp) <= 5 or fazenda_completa(p_jogador)) then update fazenda_jogadores set xp = xp + 1 where id = p_jogador; end if;
 
   elsif p_acao = 'arrancar' then   -- o jogador tira o que está plantado (perde a planta) para plantar outra coisa
@@ -4645,7 +4644,8 @@ begin
   if new.xp > old.xp and coalesce(current_setting('fazenda.xp_puro', true), '') <> '1' then
     if new.xp2_ate is not null and new.xp2_ate > now() then v_mult := v_mult + 1; end if;
     if new.bonus_nivel is not null and new.bonus_nivel = fazenda_nivel(old.xp) then v_mult := v_mult + 0.5; end if;
-    if fazenda_completa(new.id) then v_mult := v_mult + 0.25; end if;   -- fase 57: fazenda completa
+    -- fase 57: fazenda completa (do 20 em diante, metas em dia): mais 25%
+    if new.bonus_nivel is not null and new.bonus_nivel = fazenda_nivel(old.xp) and fazenda_nivel(old.xp) >= 20 then v_mult := v_mult + 0.25; end if;
     if v_mult > 1 then new.xp := old.xp + round((new.xp - old.xp) * v_mult)::int; end if;
   end if;
   return new;
@@ -5225,8 +5225,9 @@ create trigger fazenda_celeiro_da_feira before update on public.fazenda_celeiro
 -- • Melhorias (Loja → Melhorias): compras caras e permanentes para quem já juntou moedas.
 --   adubo = a planta já nasce adiantada (soma com girassol e estufa); pomar = a árvore colhida recomeça
 --   adiantada; pes = mais pés de cada fruta no pomar, além dos 4 dos terrenos.
--- • Fazenda completa: do nível 20 em diante, com todos os terrenos, ajudantes e oficinas que o nível
---   libera, +25% de XP em tudo e arar e plantar também dão XP (fazenda_xp_dobro, fazenda_aplicar).
+-- • Fazenda completa: do nível 20 em diante, com as metas do nível em dia (tudo o que ele libera), o
+--   bônus das metas sobe de +50% para +75% de XP, e arar e plantar também dão XP
+--   (fazenda_xp_dobro, fazenda_aplicar).
 -- ------------------------------------------------------------
 create table if not exists public.fazenda_melhorias (
   jogador_id uuid not null references public.fazenda_jogadores(id) on delete cascade,
@@ -5273,28 +5274,10 @@ returns timestamptz language sql stable security definer set search_path = publi
                                        * fazenda_melhoria(p_jogador, 'pomar'));
 $$;
 
--- o que falta para a fazenda completa no nível: terrenos, ajudantes e uma de cada oficina
-create or replace function public.fazenda_falta(p_jogador uuid, p_nivel int)
-returns jsonb language sql stable security definer set search_path = public as $$
-  select coalesce(jsonb_agg(f.o), '[]'::jsonb) from (
-    select 'Terreno: ' || (z->>'nome') as o
-      from jsonb_array_elements(fazenda_zonas()) z
-     where (z->>'nivel')::int <= p_nivel and (z->>'n')::int > (select zonas from fazenda_jogadores where id = p_jogador)
-    union all
-    select 'Ajudante: ' || t.nome || ' (' || lower(t.papel) || ')'
-      from fazenda_ajudantes_tipos t
-     where t.nivel_min <= p_nivel
-       and not exists (select 1 from fazenda_ajudantes h where h.jogador_id = p_jogador and h.tipo = t.id)
-    union all
-    select 'Oficina: ' || i.nome
-      from fazenda_itens i
-     where i.categoria = 'oficina' and i.nivel_min <= p_nivel
-       and not exists (select 1 from fazenda_construcoes c where c.jogador_id = p_jogador and c.tipo = i.id)) f;
-$$;
-
+-- fazenda completa = do nível 20 em diante, com as metas do nível em dia (fase 49: bonus_nivel)
 create or replace function public.fazenda_completa(p_jogador uuid)
 returns boolean language sql stable security definer set search_path = public as $$
-  select coalesce((select fazenda_nivel(j.xp) >= 20 and jsonb_array_length(fazenda_falta(j.id, fazenda_nivel(j.xp))) = 0
+  select coalesce((select fazenda_nivel(j.xp) >= 20 and j.bonus_nivel = fazenda_nivel(j.xp)
                      from fazenda_jogadores j where j.id = p_jogador), false);
 $$;
 
@@ -5428,7 +5411,6 @@ revoke execute on function
   public.fazenda_melhoria(uuid, text),
   public.fazenda_limite_maquina(text, int, int),
   public.fazenda_colhido_agora(uuid, text),
-  public.fazenda_falta(uuid, int),
   public.fazenda_completa(uuid)
 from public, anon, authenticated;
 
