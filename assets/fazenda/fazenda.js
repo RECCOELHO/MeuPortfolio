@@ -125,6 +125,8 @@
         limite_canteiros: 'Você já usou todos os seus canteiros. Suba de nível ou compre terrenos para ter mais.',
         limite_maquina: 'Você já tem essa máquina (uma basta para a fazenda toda).',
         melhoria_max: 'Essa melhoria já está no máximo.',
+        ajudante_descansando: 'Esse ajudante já está descansando (ou não precisa).',
+        sem_cama: 'Todas as camas estão ocupadas: construa mais casinhas (Construir → Casas) para mais ajudantes descansarem ao mesmo tempo.',
         limite_terreno: 'Já tem o máximo dessa árvore: cada fruta tem 1 pé, +1 a cada 2 terrenos comprados (até 4).',
         alarme: 'O alarme disparou! Esse canteiro está protegido.',
         item_invalido: 'Item inválido.',
@@ -996,6 +998,58 @@
         : t.funcao === 'animal' ? ADIANTA_CUIDADOR[nivel] + ' no tempo dos bichos'
         : RITMO[nivel] + ' por hora';
     const custoAjudante = (t, nivel) => t.custo * [1, 2, 4][nivel || 0];   // contratar, nível 2, nível 3
+
+    /* ---------- Fase 59: a tela do ajudante ----------
+       O que ele fez hoje e ontem (estado.ajudantes[].hoje/ontem), a barra de energia (a cheia dura 8 h de
+       trabalho; vazia, ele descansa 2 h sozinho) e o botão de mandar descansar (1 h). */
+    let ajudanteAberto = null;
+    const FEITO_AJUDANTE = {
+        colheu: ['colheu', 'canteiro'], frutas: ['colheu', 'árvore do pomar', 'árvores do pomar'],
+        arou: ['arou', 'canteiro'], adubou: ['adubou', 'canteiro'], plantou: ['plantou', 'canteiro'],
+        erva: ['tirou', 'erva daninha', 'ervas daninhas'], praga: ['tirou', 'praga'], seco: ['regou', 'canteiro seco', 'canteiros secos'],
+        coletou: ['coletou', 'vez dos bichos', 'vezes dos bichos'], alimentou: ['deu ração', 'vez', 'vezes'],
+        levou: ['levou ao celeiro', 'produto'], encheu: ['encheu', 'receita']
+    };
+    const descansando = (h) => !!h.descanso_ate && Date.parse(h.descanso_ate) > agora();
+    function listaFeito(feito) {
+        const itens = Object.entries(feito || {}).filter(([, n]) => n > 0).map(([k, n]) => {
+            const [verbo, um, varios] = FEITO_AJUDANTE[k] || [k, 'vez', 'vezes'];
+            return `<li>${esc(verbo)} <b>${n}</b> ${esc(n === 1 ? um : varios || um + 's')}</li>`;
+        });
+        return itens.length ? `<ul class="feito-ajudante">${itens.join('')}</ul>` : '<p class="det">Nada ainda.</p>';
+    }
+    function htmlAjudante(t, h) {
+        const estrelas = [1, 2, 3].map((n) => (n <= h.nivel ? '★' : '☆')).join('');
+        const topo = `<div class="perfil-avatar">${retratoAjudante(t.id, 64)}<div>
+                <p><b>${esc(t.papel)}</b> · <span class="estrelas">${estrelas}</span> nível ${h.nivel} · ${efeitoAjudante(t, h.nivel)}</p>
+                <p class="det"><span class="txt">${esc(t.descricao)}</span></p></div></div>`;
+        if (t.funcao === 'energia') {
+            return topo + '<p class="aviso">O Faísca não faz tarefas: ele deixa tudo o que é elétrico gastar menos, o tempo todo. Por isso não cansa.</p>';
+        }
+        const e = Math.max(0, Math.min(100, Number(h.energia) || 0));
+        const horas = Math.round((e / 100) * 8 * 10) / 10;
+        const parado = descansando(h);
+        const camas = S.camas || { total: 1, ocupadas: 0 }, livres = Math.max(0, camas.total - camas.ocupadas);
+        const onde = h.descanso_casa === false ? 'na sombra, porque não tinha cama livre' : 'numa cama da casinha';
+        const status = parado
+            ? `${ico('lua', 14)} <b>Descansando</b> ${onde} até ${hora(h.descanso_ate)} (${h.descanso_motivo === 'mandado' ? 'você mandou' : 'cansou depois de muito trabalho'}). Volta com a energia cheia.`
+            : `Energia para mais ${String(horas).replace('.', ',')} h de trabalho sem parar. Quando acabar, ele descansa sozinho: 2 h numa cama livre ou 4 h na sombra.`;
+        const linhaCamas = `<p class="det"><span class="txt"><b>Camas:</b> ${camas.ocupadas} de ${camas.total} ocupada${camas.ocupadas === 1 ? '' : 's'}. A casa da fazenda tem 1; cada casinha vermelha dá mais 1 e cada azul mais 2 (Construir → Casas).</span></p>`;
+        return topo + `
+            <h3 class="secao-titulo">Energia</h3>
+            <div class="barra-energia${parado ? ' parado' : e < 20 ? ' pouca' : ''}" title="${Math.round(e)}%"><i style="width:${parado ? 0 : e}%"></i></div>
+            <p class="det"><span class="txt">${status}</span></p>
+            ${linhaCamas}
+            <h3 class="secao-titulo">Hoje ele</h3>${listaFeito(h.hoje)}
+            <h3 class="secao-titulo">Ontem</h3>${listaFeito(h.ontem)}
+            <div class="rodape-painel">
+                <span></span>
+                ${parado ? '<span class="preco">Descansando</span>'
+                    : livres ? `<button type="button" class="botao creme" data-ajudante-descansar="${esc(t.id)}">${ico('lua', 16)} Mandar descansar (1 h)</button>`
+                    : '<span class="preco">Sem cama livre</span>'}
+            </div>
+            <p class="aviso">Descansar recupera a energia toda. Descansando, ele não trabalha nem junta tarefas para depois. Mandar descansar precisa de uma cama livre: mais casinhas, mais ajudantes descansando ao mesmo tempo.</p>`;
+    }
     const retratoAjudante = (id, px) => {
         const a = A.AJUDANTE_ARTE[id] || { p: 'factory', i: 120 };
         return spr(a.i, px, a.p);
@@ -2181,7 +2235,7 @@
             if (a && infoAnimal(a).estado === 'fome' && 'bichos_hoje' in visita && visita.bichos_hoje < 10) alimentarBichosVizinho([id]);
             return;
         }
-        if (typeof id === 'string' && id.startsWith('h:')) return descreverAjudante(id.slice(2));
+        if (typeof id === 'string' && id.startsWith('h:')) { ajudanteAberto = id.slice(2); return abrirPainel('ajudante'); }   // fase 59
         descreverAnimal(id);
         const a = S.animais.find((x) => x.id === id);
         if (!a) return;
@@ -2232,6 +2286,22 @@
 
     /* ---------- Estado vindo do servidor ---------- */
     let ultimoEstadoEm = 0;
+    // Fase 59: o servidor já tem itens que este jogo aberto não conhece (o SQL novo entrou antes de
+    // a página recarregar): tudo novo aparecia como pedra. Recarrega uma vez para pegar a versão nova;
+    // se mesmo assim faltar (arte ainda não publicada), não fica recarregando.
+    function versaoNova(estado) {
+        if (!A.conhece) return false;
+        const faltam = (estado.itens || []).filter((i) => !A.conhece(i.id)).map((i) => i.id)
+            .concat((estado.culturas || []).filter((k) => !A.conhece(k.id, true)).map((k) => k.id));
+        if (!faltam.length) return false;
+        let tentou = null;
+        try { tentou = sessionStorage.getItem('fazenda_versao'); } catch { /* ignora */ }
+        if (tentou === faltam.join(',')) return false;
+        try { sessionStorage.setItem('fazenda_versao', faltam.join(',')); } catch { return false; }
+        location.reload();
+        return true;
+    }
+
     function aplicarEstado(estado) {
         const antes = S;
         // longe = primeira carga ou voltou depois de um tempo: aí o relatório dos ajudantes vira aviso
@@ -2240,6 +2310,7 @@
         if (!estado.diario) estado.diario = []; // banco ainda sem o SQL da fase 2
         if (!estado.construcoes) estado.construcoes = [];
         S = estado;
+        if (versaoNova(estado)) return;
         otimistas.forEach((o) => o.refazer(S));   // fase 56: o que ainda está na fila continua na tela
         offset = Date.parse(estado.agora) - Date.now();
         culturas = {};
@@ -2280,7 +2351,7 @@
         atualizarTerreno();
         desenharHud();
         if (constr.ativo) desenharPaleta();
-        if (['loja', 'celeiro', 'missoes', 'oficina', 'energia', 'canteiro', 'bau'].includes(painelAtual)) abrirPainel(painelAtual, true);
+        if (['loja', 'celeiro', 'missoes', 'oficina', 'energia', 'canteiro', 'bau', 'ajudante'].includes(painelAtual)) abrirPainel(painelAtual, true);
     }
 
     /* ---------- Diário: quem passou pela sua fazenda ---------- */
@@ -2988,6 +3059,11 @@
                     <button type="button" class="botao vermelho" data-sair>Sair desta fazenda</button>`}
                 </div>`;
             botaoGoogle(corpo.querySelector('[data-google-botao]'), 'ligar');
+        } else if (nome === 'ajudante') {   // fase 59
+            const t = tipoAjudante(ajudanteAberto), h = meuAjudante(ajudanteAberto);
+            if (!t || !h) { fecharPainel(); return; }
+            el.painelTitulo.innerHTML = `${retratoAjudante(t.id, 32)} ${esc(t.nome)}`;
+            corpo.innerHTML = htmlAjudante(t, h);
         } else if (nome === 'som') {
             el.painelTitulo.innerHTML = `${ico('som', 26)} Som e Música`;
             corpo.innerHTML = `
@@ -3298,9 +3374,10 @@
             const travado = !h && t.nivel_min > S.jogador.nivel;
             const estrelas = [1, 2, 3].map((n) => (n <= nivel ? '★' : '☆')).join('');
             const ritmo = efeitoAjudante(t, nivel || 1) + (nivel && nivel < 3 ? ` (nível ${nivel + 1}: ${efeitoAjudante(t, nivel + 1).split(' ')[0]})` : '');
-            const acao = travado ? `<span class="preco">Nível ${t.nivel_min}</span>`
-                : nivel >= 3 ? '<span class="preco">Nível máximo</span>'
+            const ver = h ? `<button type="button" class="botao pequeno creme" data-ajudante-ver="${esc(t.id)}">Ver</button>` : '';   // fase 59
+            const botao = nivel >= 3 ? '<span class="preco">Nível máximo</span>'
                 : `<button type="button" class="botao pequeno verde" data-contratar="${esc(t.id)}">${nivel ? 'Evoluir' : 'Contratar'}<br>${ico('moeda', 14)} ${custoAjudante(t, nivel)}</button>`;
+            const acao = travado ? `<span class="preco">Nível ${t.nivel_min}</span>` : ver ? `<span class="admin-botoes">${botao}${ver}</span>` : botao;
             return `<div class="item${travado ? ' travada' : ''}">
                 <span class="ico">${travado ? ico('cadeado', 28) : retratoAjudante(t.id, 44)}</span>
                 <span>
@@ -3310,7 +3387,7 @@
                 </span>
                 ${acao}
             </div>`;
-        }).join('') + '</div><p class="aviso">Ajudantes trabalham sozinhos, até com a fazenda fechada (guardam até 8 h de trabalho), e não gastam energia: são a mão de obra de graça ao lado das máquinas. Não dão XP: o XP é seu. Quem cuida de animais precisa de ração no celeiro.</p>'
+        }).join('') + '</div><p class="aviso">Ajudantes trabalham sozinhos, até com a fazenda fechada (guardam até 8 h de trabalho), e não gastam energia elétrica: são a mão de obra de graça ao lado das máquinas. Eles têm a própria energia: a barra cheia dura 8 h de trabalho; acabou, descansam 2 h numa cama (cada casinha dá camas) ou 4 h na sombra. Toque num ajudante (ou em Ver) para ver o que ele fez e mandar descansar. Não dão XP: o XP é seu. Quem cuida de animais precisa de ração no celeiro.</p>'
             + (lojaD() && (S.ajudantes || []).length ? `<p class="det">${ativoAte(S.jogador.cafe_ate) ? `<b>Café servido:</b> trabalhando em dobro até ${hora(S.jogador.cafe_ate)}. ` : 'Café dos ajudantes: todos em dobro por 2 horas. '}${botaoDiamante('cafe', lojaD().cafe.preco, ativoAte(S.jogador.cafe_ate) ? '+2 horas' : 'Servir café')}</p>` : '');
     }
 
@@ -4116,6 +4193,19 @@
         if (abaL) {
             abaLoja = abaL.dataset.abaLoja;
             abrirPainel('loja', true);
+            return;
+        }
+        const ajVer = e.target.closest('[data-ajudante-ver]');   // fase 59
+        if (ajVer) { ajudanteAberto = ajVer.dataset.ajudanteVer; abrirPainel('ajudante'); return; }
+        const ajDesc = e.target.closest('[data-ajudante-descansar]');
+        if (ajDesc) {
+            ajDesc.disabled = true;
+            enfileirar([], async () => {
+                const r = await rpc('fazenda_ajudante_descansar', { p_token: token, p_tipo: ajDesc.dataset.ajudanteDescansar });
+                aplicarEstado(r.estado);
+                const t = tipoAjudante(ajDesc.dataset.ajudanteDescansar);
+                toast(`${retratoAjudante(ajDesc.dataset.ajudanteDescansar, 20)} ${esc(t ? t.nome : 'O ajudante')} foi descansar. Volta em 1 h com a energia cheia.`);
+            }).finally(() => { ajDesc.disabled = false; });
             return;
         }
         const contr = e.target.closest('[data-contratar]');

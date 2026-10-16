@@ -2491,3 +2491,36 @@ body.construindo .status {
         top: calc(var(--hud-fundo, 120px) + 60px);
     }
 }
+
+/* fase 59: a tela do ajudante (energia e o que fez) */
+.barra-energia {
+    height: 14px;
+    margin: 4px 3px 6px;
+    background: var(--madeira-esc);
+    box-shadow: 0 -2px 0 var(--o), 0 2px 0 var(--o), -2px 0 0 var(--o), 2px 0 0 var(--o);
+}
+
+.barra-energia i {
+    display: block;
+    height: 100%;
+    background: var(--grama-clara);
+    box-shadow: inset 0 -4px 0 var(--grama);
+}
+
+.barra-energia.pouca i {
+    background: #f6c560;
+    box-shadow: inset 0 -4px 0 #d99a2b;
+}
+
+.barra-energia.parado {
+    opacity: .6;
+}
+
+.feito-ajudante {
+    margin: 4px 0 8px 20px;
+    padding: 0;
+}
+
+.feito-ajudante li {
+    margin: 2px 0;
+}
