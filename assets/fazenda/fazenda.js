@@ -50,6 +50,7 @@
         admin_alvo_admin: 'Essa conta é admin: o dono tira o admin antes de banir.',
         admin_motivo: 'Escreva o motivo do banimento.',
         admin_banido: 'Conta banida não pode ser admin.',
+        admin_codigo_banido: 'Conta banida não entra nem com código novo: desbana antes.',
         lento: 'A fazenda está demorando para responder (o servidor está lento agora). Tente de novo daqui a pouco.',
         servidor: 'O servidor da fazenda está sobrecarregado agora. Tente de novo daqui a pouco.',
         apelido_invalido: 'O apelido precisa ter de 2 a 20 letras.',
@@ -3683,15 +3684,16 @@
 
     /* ---------- Admin (fase 53) ----------
        O dono (cjesse) escolhe quem é admin; os admins banem (com motivo) e desbanem. Conta banida não
-       entra mais, some do ranking, das visitas e da feira. Tudo fica no log do painel. */
-    let adminDados = null, adminBusca = '', adminBanindo = null;
+       entra mais, some do ranking, das visitas e da feira. Tudo fica no log do painel.
+       Fase 55: o dono gera um código de recuperação novo para quem perdeu o seu (aparece uma vez só). */
+    let adminDados = null, adminBusca = '', adminBanindo = null, adminCodigo = null;
     function carregarAdmin() {
         enfileirar([], async () => {
             adminDados = await rpc('fazenda_admin_jogadores', { p_token: token, p_busca: adminBusca || null });
             if (painelAtual === 'admin') abrirPainel('admin', true);
         });
     }
-    const ACAO_ADMIN = { banir: 'baniu', desbanir: 'desbaniu', dar_admin: 'deu admin para', tirar_admin: 'tirou o admin de' };
+    const ACAO_ADMIN = { banir: 'baniu', desbanir: 'desbaniu', dar_admin: 'deu admin para', tirar_admin: 'tirou o admin de', novo_codigo: 'gerou um código novo para' };
     function htmlAdmin() {
         const dono = S.jogador.admin === 'dono';
         const busca = `<form class="admin-busca" data-admin-busca>
@@ -3707,8 +3709,13 @@
                 j.admin ? '' : j.banido_em
                     ? `<button type="button" class="botao pequeno creme" data-admin-desbanir="${esc(j.id)}" data-apelido="${esc(j.apelido)}">Desbanir</button>`
                     : `<button type="button" class="botao pequeno vermelho" data-admin-banir="${esc(j.id)}">Banir</button>`,
-                dono && !j.banido_em ? `<button type="button" class="botao pequeno creme" data-admin-cargo="${esc(j.id)}" data-apelido="${esc(j.apelido)}" data-dar="${j.admin ? '' : '1'}">${j.admin ? 'Tirar admin' : 'Tornar admin'}</button>` : ''
+                dono && !j.banido_em ? `<button type="button" class="botao pequeno creme" data-admin-cargo="${esc(j.id)}" data-apelido="${esc(j.apelido)}" data-dar="${j.admin ? '' : '1'}">${j.admin ? 'Tirar admin' : 'Tornar admin'}</button>` : '',
+                dono && !j.banido_em ? `<button type="button" class="botao pequeno creme" data-admin-codigo="${esc(j.id)}" data-apelido="${esc(j.apelido)}">Novo código</button>` : ''
             ].join('');
+            const codigo = adminCodigo && adminCodigo.id === j.id ? `<div class="admin-motivo">
+                    <div class="codigo-box"><code>${esc(adminCodigo.codigo)}</code><button type="button" class="botao pequeno creme" data-admin-copiar>Copiar</button></div>
+                    <p class="aviso">Código novo de <b>${esc(j.apelido)}</b>. Ele só aparece agora: passe para o jogador entrar em "Já tenho uma fazenda". O antigo não vale mais.</p>
+                </div>` : '';
             const banindo = adminBanindo === j.id ? `<div class="admin-motivo">
                     <input type="text" id="adminMotivo" maxlength="200" placeholder="Motivo (ex.: apelido ofensivo)">
                     <button type="button" class="botao pequeno vermelho" data-admin-confirmar="${esc(j.id)}" data-apelido="${esc(j.apelido)}">Banir</button>
@@ -3721,14 +3728,14 @@
                     ${j.banido_em ? `<span class="det"><span class="txt">Banido há ${fmtTempo(agora() - Date.parse(j.banido_em))}${j.banido_motivo ? ': ' + esc(j.banido_motivo) : ''}</span></span>` : ''}
                 </span>
                 <span class="admin-botoes">${botoes}</span>
-                ${banindo}
+                ${banindo}${codigo}
             </div>`;
         }).join('') + '</div>' : `<p class="vazio-msg">Ninguém com "${esc(adminBusca)}" no apelido.</p>`;
         const log = d.log.length ? '<h3 class="secao-titulo">Últimas ações</h3><div class="admin-log">' + d.log.map((l) =>
             `<p><b>${esc(l.admin || '?')}</b> ${ACAO_ADMIN[l.acao] || esc(l.acao)} <b>${esc(l.alvo || '?')}</b>${l.motivo ? ` · ${esc(l.motivo)}` : ''} <small>há ${fmtTempo(agora() - Date.parse(l.em))}</small></p>`).join('') + '</div>' : '';
         return busca + `<p class="det"><span class="txt">${d.total} fazendas, ${d.banidos} banida${d.banidos === 1 ? '' : 's'}. ${adminBusca ? 'Mostrando a busca.' : 'Sem busca: as banidas primeiro, depois as mais novas.'}</span></p>`
             + lista + log
-            + `<p class="aviso">Conta banida não entra mais no jogo (nem com o código ou o Google), some do ranking, das visitas e da feira. Desbanir devolve tudo como estava.${dono ? ' Como dono, você escolhe quem é admin: admin bane e desbane, mas não mexe em outros admins.' : ''}</p>`;
+            + `<p class="aviso">Conta banida não entra mais no jogo (nem com o código ou o Google), some do ranking, das visitas e da feira. Desbanir devolve tudo como estava.${dono ? ' Como dono, você escolhe quem é admin: admin bane e desbane, mas não mexe em outros admins. Quem perdeu o código de recuperação ganha um novo em "Novo código": o antigo para de valer e a fazenda sai dos aparelhos onde estava aberta.' : ''}</p>`;
     }
 
     function fecharPainel() {
@@ -3903,6 +3910,23 @@
                 toast(`${ico('escudo', 14)} ${dar ? 'Agora' : 'Não é mais'} admin: <b>${esc(ag.dataset.apelido)}</b>.`, '', 'importante');
                 carregarAdmin();
             });
+            return;
+        }
+        const an = e.target.closest('[data-admin-codigo]');
+        if (an) {
+            if (!confirm(`Gerar um código de recuperação novo para ${an.dataset.apelido}? O código antigo para de valer e a fazenda sai dos aparelhos onde estiver aberta.`)) return;
+            an.disabled = true;
+            enfileirar([], async () => {
+                const r = await rpc('fazenda_admin_novo_codigo', { p_token: token, p_jogador: an.dataset.adminCodigo });
+                adminCodigo = { id: an.dataset.adminCodigo, codigo: r.codigo };
+                toast(`${ico('escudo', 14)} Código novo para <b>${esc(r.apelido)}</b>. Copie e passe para ele(a).`, '', 'importante');
+                carregarAdmin();
+            });
+            return;
+        }
+        if (e.target.closest('[data-admin-copiar]')) {
+            if (adminCodigo && await copiarTexto(adminCodigo.codigo)) toast('Código copiado!');
+            else toast('Não deu para copiar. Anote o código.', 'erro');
             return;
         }
         const ap = e.target.closest('[data-admin-perfil]');
@@ -4186,6 +4210,7 @@
         e.preventDefault();
         adminBusca = (($('adminBusca') || {}).value || '').trim();
         adminBanindo = null;
+        adminCodigo = null;
         carregarAdmin();
     });
     el.painelCorpo.addEventListener('change', (e) => {   // fase 50: trocar o item a anunciar na feira

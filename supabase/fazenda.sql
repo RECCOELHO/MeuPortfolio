@@ -4952,7 +4952,7 @@ create table if not exists public.fazenda_admin_log (
   id        bigint generated always as identity primary key,
   admin_id  uuid references public.fazenda_jogadores(id) on delete set null,
   alvo_id   uuid references public.fazenda_jogadores(id) on delete set null,
-  acao      text not null,   -- banir, desbanir, dar_admin, tirar_admin
+  acao      text not null,   -- banir, desbanir, dar_admin, tirar_admin, novo_codigo (fase 55)
   motivo    text,
   em        timestamptz not null default now()
 );
@@ -5103,6 +5103,62 @@ end;
 $$;
 
 -- ------------------------------------------------------------
+-- Fase 55: o dono gera um código de recuperação novo para quem perdeu o seu.
+-- O código só existe com hash no banco, então não dá para mostrar o antigo: o dono gera outro
+-- (mesmo formato PALAVRA-XXXX-XXXX) pelo painel de admin e passa para o jogador. O antigo para de
+-- valer e as sessões abertas da conta caem (se o código vazou, quem estava dentro sai junto).
+-- Só o dono, porque o código abre a fazenda inteira; fica anotado em fazenda_admin_log.
+-- ------------------------------------------------------------
+create or replace function public.fazenda_codigo_recuperacao()
+returns text
+language plpgsql volatile security definer
+set search_path = public, extensions
+as $$
+declare
+  v_alfabeto text := 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  v_palavras text[] := array['MILHO','CENOURA','ABOBORA','TOMATE','MORANGO',
+                             'BATATA','ALFACE','MELANCIA','GIRASSOL','TRIGO'];
+  v_bytes  bytea;
+  v_codigo text;
+  i        int;
+begin
+  loop
+    v_bytes := gen_random_bytes(9);
+    v_codigo := v_palavras[1 + get_byte(v_bytes, 0) % array_length(v_palavras, 1)] || '-';
+    for i in 1..8 loop
+      v_codigo := v_codigo || substr(v_alfabeto, 1 + get_byte(v_bytes, i) % length(v_alfabeto), 1);
+      if i = 4 then
+        v_codigo := v_codigo || '-';
+      end if;
+    end loop;
+    exit when not exists (select 1 from fazenda_jogadores where codigo_hash = encode(digest(v_codigo, 'sha256'), 'hex'));
+  end loop;
+  return v_codigo;
+end;
+$$;
+
+create or replace function public.fazenda_admin_novo_codigo(p_token text, p_jogador uuid)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id     uuid := fazenda_admin_id(p_token, true);
+  v_codigo text := fazenda_codigo_recuperacao();
+  a        record;
+begin
+  if p_jogador = v_id then raise exception 'admin_propria_conta'; end if;
+  select * into a from fazenda_jogadores where id = p_jogador for update;
+  if not found then raise exception 'vizinho_invalido'; end if;
+  if a.banido_em is not null then raise exception 'admin_codigo_banido'; end if;
+  update fazenda_jogadores set codigo_hash = encode(digest(v_codigo, 'sha256'), 'hex') where id = p_jogador;
+  delete from fazenda_sessoes where jogador_id = p_jogador;
+  insert into fazenda_admin_log (admin_id, alvo_id, acao) values (v_id, p_jogador, 'novo_codigo');
+  return jsonb_build_object('apelido', a.apelido, 'codigo', v_codigo);
+end;
+$$;
+
+-- ------------------------------------------------------------
 -- Permissões: só a API pública fica executável pela chave anon
 -- ------------------------------------------------------------
 revoke execute on function
@@ -5224,7 +5280,9 @@ revoke execute on function
   public.fazenda_loja_diamantes(),
   public.fazenda_diamantes_hoje(uuid, text),
   public.fazenda_xp_dobro(),
-  public.fazenda_usar_diamantes(text, text, int, int)
+  public.fazenda_usar_diamantes(text, text, int, int),
+  public.fazenda_codigo_recuperacao(),
+  public.fazenda_admin_novo_codigo(text, uuid)
 from public, anon, authenticated;
 
 grant execute on function
@@ -5265,5 +5323,6 @@ grant execute on function
   public.fazenda_feira_barraca(text),
   public.fazenda_admin_jogadores(text, text),
   public.fazenda_admin_banir(text, uuid, boolean, text),
-  public.fazenda_admin_definir(text, uuid, boolean)
+  public.fazenda_admin_definir(text, uuid, boolean),
+  public.fazenda_admin_novo_codigo(text, uuid)
 to anon, authenticated;
