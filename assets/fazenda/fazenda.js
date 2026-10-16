@@ -1219,7 +1219,7 @@
                     <span>Na feira, ${esc(r.nome.toLowerCase())} vai de ${moeda(r.venda)} a ${moeda(r.venda * 3)}</span>
                     <span class="lucro">Serve no píer (nível 31)</span>
                 </div>
-                <p class="det">Você tem ${tem} ${itemDe(k, 16)}${tem < v.qtd ? `: faltam ${v.qtd - tem}. Fruta fora de época só tem quem guardou da estação dela ou plantou na estufa.` : '.'} Ele é raro: aparece mais ou menos 1 vez em cada 100 visitas.</p>
+                <p class="det"><span class="txt">Você tem ${tem} ${esc(nomeQtd(k, tem))}${tem < v.qtd ? `: faltam ${v.qtd - tem}. Fruta fora de época só tem quem guardou da estação dela ou plantou na estufa` : ''}. Ele é raro: aparece mais ou menos 1 vez em cada 100 visitas.</span></p>
                 <div class="rodape-painel">
                     <button type="button" class="botao creme" data-atender="0">Agora não</button>
                     <button type="button" class="botao verde" data-atender="1"${tem >= v.qtd ? '' : ' disabled'}>Trocar ${v.qtd} ${itemDe(k, 18)}</button>
@@ -3595,7 +3595,7 @@
                     <label>Item <select data-feira-item>${itens.map((id) => `<option value="${esc(id)}"${id === feiraItem ? ' selected' : ''}>${nomeK(id)} (${livreFeira(id)})</option>`).join('')}</select></label>
                     <label>Quantidade <input type="number" id="feiraQtd" min="1" max="${Math.min(livre, r.qtd_max)}" value="${Math.min(livre, 10)}"></label>
                     <label>Preço de cada <input type="number" id="feiraPreco" min="${min}" max="${max}" value="${Math.min(max, Math.max(min, Math.round(k.venda * 1.2)))}"></label>
-                    <p class="det"><span class="txt">${itemDe(k, 16)} Na venda normal, ${moeda(k.venda)} cada. Na feira, entre ${min} e ${max}, e você recebe tudo.</span></p>
+                    <p class="det"><span class="txt">${itemDe(k, 16)} ${ehRaro(k) ? `Material raro do píer: não vende no celeiro. Na feira, entre ${min} e ${max}, e você recebe tudo.` : `Na venda normal, ${moeda(k.venda)} cada. Na feira, entre ${min} e ${max}, e você recebe tudo.`}</span></p>
                     <button type="button" class="botao verde" data-feira-anunciar>Anunciar</button>
                 </div>`;
             }
