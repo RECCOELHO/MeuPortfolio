@@ -3422,7 +3422,7 @@
                 <span><span class="nome"><b>${esc(v.comprador || 'Alguém')}</b> comprou ${v.qtd} × ${nomeK(v.item)}</span><span class="det"><span>+${moeda(v.total)}</span><span>há ${fmtTempo(agora() - Date.parse(v.em))}</span></span></span></div>`).join('') + '</div>';
         }
         const lim = limiteFeira();
-        return abas + corpo + `<p class="aviso">Na feira você compra de outros jogadores o que falta para as suas receitas e vende o que sobra, recebendo tudo. Preço entre metade e o triplo da venda normal; o anúncio dura ${r.horas / 24} dias (vencido, volta para o celeiro). Você pode ter ${lim} anúncios: ${r.por_barraca || 2} por barraca (as suas ficam na mata, à esquerda do celeiro).</p>`;
+        return abas + corpo + `<p class="aviso">Na feira você compra de outros jogadores o que falta para as suas receitas e vende o que sobra, recebendo tudo. Preço entre metade e o triplo da venda normal; o anúncio dura ${r.horas / 24} dias (vencido, volta para o celeiro). O que você compra aqui serve para receitas, entregas e missões; revendido ao jogo, dá as moedas mas não o XP. Você pode ter ${lim} anúncios: ${r.por_barraca || 2} por barraca (as suas ficam na mata, à esquerda do celeiro).</p>`;
     }
     function avisarFeira(estado) {
         for (const v of (estado.feira && estado.feira.vendas_novas) || []) {
@@ -3835,13 +3835,15 @@
             const lista = qual === 'finais' ? produtosFinais().filter((id) => naCeleiro(id) > reservaDe(id))
                 : [qual === '*' ? null : qual];
             enfileirar([], async () => {
-                let ganho = 0, xp = 0, estado = null;
+                let ganho = 0, xp = 0, semXp = 0, estado = null;
                 for (const item of lista) {
                     const r = await rpc('fazenda_vender', { p_token: token, p_item: item, p_quantidade: null });
-                    ganho += r.ganho; xp += r.xp || 0; estado = r.estado;
+                    ganho += r.ganho; xp += r.xp || 0; semXp += r.sem_xp || 0; estado = r.estado;
                 }
                 const guardou = qual !== 'finais' && Object.keys(S.reservas || {}).length ? ' A ração dos animais ficou guardada.' : '';
-                if (ganho > 0) { toast(`Vendeu por ${ico('moeda', 16)} ${ganho}${xp ? ` e ganhou +${xp} ${ico('xp', 16)}` : ''}!${guardou}`); som.tocar('moeda'); tutorialEvento('vender'); }
+                // fase 56: o que veio da feira vende pelas moedas de sempre, mas sem XP
+                const daFeira = semXp ? ` ${semXp} ${semXp === 1 ? 'item veio' : 'itens vieram'} da feira: esses não dão XP.` : '';
+                if (ganho > 0) { toast(`Vendeu por ${ico('moeda', 16)} ${ganho}${xp ? ` e ganhou +${xp} ${ico('xp', 16)}` : ''}!${guardou}${daFeira}`); som.tocar('moeda'); tutorialEvento('vender'); }
                 if (estado) aplicarEstado(estado);
             }).finally(() => { vend.disabled = false; });
             return;

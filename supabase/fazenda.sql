@@ -2899,6 +2899,8 @@ declare
   v_ganho int := 0;
   v_valor numeric := 0;   -- valor que conta para o XP (sem o bônus de beleza)
   v_xp    int;
+  v_feira int;
+  v_sem_xp int := 0;      -- fase 56: quantos itens comprados na feira foram vendidos (sem XP)
 begin
   if p_quantidade is not null and p_quantidade <= 0 then
     raise exception 'quantidade_invalida';
@@ -2906,7 +2908,7 @@ begin
 
   -- o que está reservado para os animais fica no celeiro
   for r in
-    select ce.item, ce.quantidade - coalesce(rs.quantidade, 0) as livre, k.venda, k.tipo, k.nivel_min
+    select ce.item, ce.quantidade - coalesce(rs.quantidade, 0) as livre, ce.da_feira, k.venda, k.tipo, k.nivel_min
       from fazenda_celeiro ce
       join fazenda_culturas k on k.id = ce.item
       left join fazenda_reservas rs on rs.jogador_id = ce.jogador_id and rs.item = ce.item
@@ -2916,11 +2918,15 @@ begin
        for update of ce
   loop
     v_qtd := least(coalesce(p_quantidade, r.livre), r.livre);
-    update fazenda_celeiro set quantidade = quantidade - v_qtd
+    -- fase 56: o que veio da feira sai primeiro e não dá XP (comprar na feira para revender ao
+    -- jogo virava XP comprado com moedas); as moedas da venda são as de sempre
+    v_feira := least(v_qtd, r.da_feira);
+    update fazenda_celeiro set quantidade = quantidade - v_qtd, da_feira = da_feira - v_feira
      where jogador_id = v_id and item = r.item;
     v_ganho := v_ganho + v_qtd * r.venda;
     -- XP da venda: só os produtos (oficinas, bichos, lago, pomar); a planta já deu XP na colheita (fase 41)
-    v_valor := v_valor + case when r.tipo <> 'cultura' then v_qtd * r.venda else 0 end;
+    v_valor := v_valor + case when r.tipo <> 'cultura' then (v_qtd - v_feira) * r.venda else 0 end;
+    v_sem_xp := v_sem_xp + case when r.tipo <> 'cultura' then v_feira else 0 end;
   end loop;
 
   v_ganho := (v_ganho * (100 + fazenda_bonus_venda(v_id))) / 100;   -- beleza e caixote
@@ -2933,7 +2939,7 @@ begin
     perform fazenda_missao(v_id, 'vender', v_ganho);
   end if;
 
-  return jsonb_build_object('ganho', v_ganho, 'xp', v_xp, 'estado', fazenda_estado(v_id));
+  return jsonb_build_object('ganho', v_ganho, 'xp', v_xp, 'sem_xp', v_sem_xp, 'estado', fazenda_estado(v_id));
 end;
 $$;
 
@@ -4900,8 +4906,9 @@ begin
   if (select moedas from fazenda_jogadores where id = v_id for update) < v_total then raise exception 'moedas_insuficientes'; end if;
   update fazenda_jogadores set moedas = moedas - v_total where id = v_id;
   update fazenda_jogadores set moedas = moedas + v_total - v_taxa where id = a.vendedor_id;
-  insert into fazenda_celeiro (jogador_id, item, quantidade) values (v_id, a.item, a.qtd)
-  on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
+  insert into fazenda_celeiro (jogador_id, item, quantidade, da_feira) values (v_id, a.item, a.qtd, a.qtd)   -- fase 56: da_feira
+  on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade,
+                                               da_feira = fazenda_celeiro.da_feira + excluded.da_feira;
   update fazenda_feira set comprador_id = v_id, vendido_em = now() where id = p_id;
   return jsonb_build_object('item', a.item, 'qtd', a.qtd, 'total', v_total,
                             'vendedor', (select apelido from fazenda_jogadores where id = a.vendedor_id),
@@ -5162,6 +5169,29 @@ end;
 $$;
 
 -- ------------------------------------------------------------
+-- Fase 56: consertos e balanceamento (ideias de 15/10).
+-- • Canteiros: a posição ia só até 99, então o 101º dava limite_canteiros mesmo com o limite em 102
+--   (fazenda_canteiros_posicao_check e fazenda_construir, lá em cima, agora vão até 299).
+-- • Energia: tudo gasta 40% menos (fazenda_energia_preco) e o supercapacitor guarda 800 ⚡ (era 500).
+-- • Feira: o celeiro lembra quanto de cada item veio da feira (da_feira). Vender isso ao jogo dá as
+--   moedas, mas não o XP (fazenda_vender); comprar na feira para revender virava XP comprado.
+--   Usar em receitas, entregas e missões continua igual. Quando a quantidade cai por qualquer outro
+--   motivo, da_feira acompanha (nunca passa da quantidade).
+-- ------------------------------------------------------------
+alter table public.fazenda_celeiro add column if not exists da_feira int not null default 0;
+
+create or replace function public.fazenda_celeiro_da_feira()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  if new.da_feira > new.quantidade then new.da_feira := greatest(new.quantidade, 0); end if;
+  return new;
+end;
+$$;
+drop trigger if exists fazenda_celeiro_da_feira on public.fazenda_celeiro;
+create trigger fazenda_celeiro_da_feira before update on public.fazenda_celeiro
+  for each row execute function public.fazenda_celeiro_da_feira();
+
+-- ------------------------------------------------------------
 -- Permissões: só a API pública fica executável pela chave anon
 -- ------------------------------------------------------------
 revoke execute on function
@@ -5285,7 +5315,8 @@ revoke execute on function
   public.fazenda_xp_dobro(),
   public.fazenda_usar_diamantes(text, text, int, int),
   public.fazenda_codigo_recuperacao(),
-  public.fazenda_admin_novo_codigo(text, uuid)
+  public.fazenda_admin_novo_codigo(text, uuid),
+  public.fazenda_celeiro_da_feira()
 from public, anon, authenticated;
 
 grant execute on function
