@@ -2524,3 +2524,18 @@ body.construindo .status {
 .feito-ajudante li {
     margin: 2px 0;
 }
+
+/* fase 60: material raro do píer */
+.item.raro {
+    background: #fff1c4;
+}
+
+.tag-raro {
+    display: inline-block;
+    padding: 0 5px;
+    background: var(--o);
+    color: #ffe08a;
+    font-size: 11px;
+    font-weight: 700;
+    vertical-align: middle;
+}

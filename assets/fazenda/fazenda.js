@@ -858,7 +858,7 @@
     // fazenda_aplicar: canteiros.xp_em). Vender dá 1 XP a cada 25 moedas, só dos produtos.
     const XP_PAUSA = 8 * 60000, XP_VENDA = 25;
     const xpDaColheita = (c, k) => (!c || !c.xp_em || agora() - Date.parse(c.xp_em) >= XP_PAUSA ? k.xp : 0);
-    const xpVendaDe = (k) => (k.tipo !== 'cultura' ? 1 : 0);
+    const xpVendaDe = (k) => (k.tipo === 'produto' ? 1 : 0);   // (fase 60: raro não vende para o jogo)
     const ORDEM_TIPO = { Terreno: 0, Ajudante: 1, Oficina: 1, 'Máquina': 1, Energia: 1, Animal: 2, Cercado: 2, 'Árvore': 2, Semente: 3, Casa: 4, Enfeite: 5 };
     function liberaNoNivel(n) {
         if (!S) return [];
@@ -1145,6 +1145,21 @@
             </div>`;
     }
 
+    /* ---------- Fase 60: materiais raros do píer ----------
+       Só servem no píer (nível 31, no litoral), mas já aparecem desde o nível 1: vêm do mercador (1 em
+       cada 100 visitas) e dá para vender na feira, de k.venda (o mínimo) até o triplo. */
+    const ehRaro = (k) => !!k && k.tipo === 'raro';
+    function htmlRaroCeleiro(k) {
+        return `<div class="item raro">
+            <span class="ico">${spr(A.cultura(k.id).item, 44)}</span>
+            <span>
+                <span class="nome">${esc(k.nome)} × ${naCeleiro(k.id)} <small class="tag-raro">raro</small></span>
+                <span class="det"><span class="txt">Material do píer (nível 31, no terreno do litoral). Não vende no celeiro: na feira, de ${moeda(k.venda)} a ${moeda(k.venda * 3)} cada.</span></span>
+            </span>
+            <button type="button" class="botao pequeno creme" data-raro-feira="${esc(k.id)}">Na feira</button>
+        </div>`;
+    }
+
     /* ---------- Visitas na porteira: a cada 3 horas chega alguém (fazenda_visitante) ---------- */
     const VISITAS = {
         feirante: { nome: 'Seu Tonico', papel: 'o feirante', sprite: 86,
@@ -1153,17 +1168,20 @@
             fala: (q, item, paga) => `Ô de casa! Vou fazer uma fornada e me faltam <b>${q} ${item}</b>. Te pago <b>${paga}</b>, combinado?` },
         caminhoneiro: { nome: 'Zeca', papel: 'do caminhão', sprite: 112,
             fala: (q, item, paga) => `E aí! O caminhão tá vazio: levo <b>${q} ${item}</b> de uma vez só. Pago <b>${paga}</b> e ainda dou um bônus de XP.` },
-        mascate: { nome: 'Dona Fia', papel: 'a mascate', sprite: 100 }
+        mascate: { nome: 'Dona Fia', papel: 'a mascate', sprite: 100 },
+        mercador: { nome: 'Seu Jacó', papel: 'o mercador', sprite: 111 }   // fase 60: 1 em cada 100 visitas
     };
     const visitaAgora = () => (!visita && S && S.visitante) || null;
     const nomeQtd = (k, n) => { const nome = (k.nome || k.id).toLowerCase(); return n === 1 || /s$/.test(nome) ? nome : nome.replace(/(ão)$/, 'ões').replace(/([^s])$/, '$1s'); };
     let visitaVista = null;
     function atualizarVisitante() {
         const v = visitaAgora();
-        cena.definirVisitante(v ? { tipo: v.tipo, item: v.item ? A.cultura(v.item).item : null } : null);
+        cena.definirVisitante(v ? { tipo: v.tipo, item: v.raro ? A.cultura(v.raro).item : v.item ? A.cultura(v.item).item : null } : null);
         if (v && visitaVista !== null && visitaVista !== v.slot) {
             const p = VISITAS[v.tipo];
-            toast(`${spr(p.sprite, 22, 'dungeon')} Chegou visita na porteira: <b>${p.nome}</b>, ${p.papel}! Toque nela para conversar.`);
+            toast(v.tipo === 'mercador'
+                ? `${spr(p.sprite, 22, 'dungeon')} Visita rara na porteira: <b>${p.nome}</b>, ${p.papel}, trouxe ${itemDe(culturas[v.raro] || { id: v.raro }, 16)} <b>${esc((culturas[v.raro] || {}).nome || 'um material raro')}</b>!`
+                : `${spr(p.sprite, 22, 'dungeon')} Chegou visita na porteira: <b>${p.nome}</b>, ${p.papel}! Toque nela para conversar.`, v.tipo === 'mercador' ? 'festa' : undefined);
         }
         visitaVista = v ? v.slot : (visitaVista === null ? 0 : visitaVista);
     }
@@ -1171,8 +1189,10 @@
         const v = visitaAgora();
         if (!v) return;
         const p = VISITAS[v.tipo], k = v.item && culturas[v.item];
+        const r = v.raro && culturas[v.raro];
         mostrarStatus(`${spr(p.sprite, 22, 'dungeon')} <b>${p.nome}</b>, ${p.papel}: ` + (v.tipo === 'mascate'
             ? `vende adubo para ${v.canteiros} canteiros por ${moeda(v.preco)}.`
+            : v.tipo === 'mercador' ? `troca 1 ${r ? itemDe(r, 16) + esc(r.nome.toLowerCase()) : 'material raro'} por ${v.qtd} ${k ? itemDe(k, 16) + esc(nomeQtd(k, v.qtd)) : ''} fora de época.`
             : `quer ${v.qtd} ${k ? itemDe(k, 16) + esc(nomeQtd(k, v.qtd)) : ''} e paga ${moeda(v.paga)}.`) + ' Toque para conversar.');
     }
     // canteiros que a mascate aduba agora (crescendo e ainda sem adubo)
@@ -1191,6 +1211,20 @@
                 </div>`;
         }
         const k = culturas[v.item] || { id: v.item, nome: v.item, venda: 0 }, tem = Math.max(0, naCeleiro(v.item) - reservaDe(v.item));
+        if (v.tipo === 'mercador') {   // fase 60: troca 1 material raro por frutos fora de época
+            const r = culturas[v.raro] || { id: v.raro, nome: v.raro, venda: 0 };
+            return `${cabeca}
+                <p class="fala">Ô de casa! Venho de longe e trago uma coisa rara: <b>1 ${itemDe(r, 18)} ${esc(r.nome.toLowerCase())}</b>, das boas para o píer. Não quero moeda não: troco por <b>${v.qtd} ${itemDe(k, 18)} ${esc(nomeQtd(k, v.qtd))}</b>, que agora não é época e lá de onde eu venho ninguém tem.</p>
+                <div class="oficina-conta">
+                    <span>Na feira, ${esc(r.nome.toLowerCase())} vai de ${moeda(r.venda)} a ${moeda(r.venda * 3)}</span>
+                    <span class="lucro">Serve no píer (nível 31)</span>
+                </div>
+                <p class="det"><span class="txt">Você tem ${tem} ${esc(nomeQtd(k, tem))}${tem < v.qtd ? `: faltam ${v.qtd - tem}. Fruta fora de época só tem quem guardou da estação dela ou plantou na estufa` : ''}. Ele é raro: aparece mais ou menos 1 vez em cada 100 visitas.</span></p>
+                <div class="rodape-painel">
+                    <button type="button" class="botao creme" data-atender="0">Agora não</button>
+                    <button type="button" class="botao verde" data-atender="1"${tem >= v.qtd ? '' : ' disabled'}>Trocar ${v.qtd} ${itemDe(k, 18)}</button>
+                </div>`;
+        }
         const valeCeleiro = v.qtd * (k.venda || 0), mais = valeCeleiro ? Math.round((v.paga / valeCeleiro - 1) * 100) : 0;
         return `${cabeca}
             <p class="fala">${p.fala(v.qtd, `${itemDe(k, 18)} ${esc(nomeQtd(k, v.qtd))}`, `${v.paga} ${ico('moeda', 14)}`)}</p>
@@ -1215,8 +1249,10 @@
             const p = VISITAS[v.tipo];
             if (r.resposta === 'entregou') {
                 som.tocar(v.tipo === 'mascate' ? 'cuidar' : 'moeda');
+                const raro = v.raro && culturas[v.raro];
                 toast(v.tipo === 'mascate'
                     ? `${spr(1040, 20)} ${p.nome} adubou ${r.adubados} canteiro(s): +1 item na colheita de cada.`
+                    : v.tipo === 'mercador' ? `${itemDe(raro || { id: v.raro }, 20)} ${p.nome} deixou 1 <b>${esc(raro ? raro.nome.toLowerCase() : 'material raro')}</b> no celeiro! Guarde para o píer (nível 31) ou venda na feira.`
                     : `${spr(p.sprite, 20, 'dungeon')} ${p.nome} levou o pedido: +${v.paga} ${ico('moeda', 14)} +${v.xp} ${ico('xp', 14)}`, 'festa');
             } else {
                 toast(`${spr(p.sprite, 20, 'dungeon')} ${p.nome} foi embora. Daqui a pouco chega outra visita.`);
@@ -2959,10 +2995,12 @@
             } else {
                 const bonusVenda = S.jogador.bonus_venda || 0;
                 const livreDe = (k) => Math.max(0, naCeleiro(k.id) - reservaDe(k.id));
-                const total = Math.floor(itens.reduce((a, k) => a + livreDe(k) * k.venda, 0) * (100 + bonusVenda) / 100);
-                const xpTotal = Math.floor(itens.reduce((a, k) => a + livreDe(k) * k.venda * xpVendaDe(k), 0) / XP_VENDA);
+                const vende = itens.filter((k) => k.tipo !== 'raro');   // fase 60: material raro só vende na feira
+                const total = Math.floor(vende.reduce((a, k) => a + livreDe(k) * k.venda, 0) * (100 + bonusVenda) / 100);
+                const xpTotal = Math.floor(vende.reduce((a, k) => a + livreDe(k) * k.venda * xpVendaDe(k), 0) / XP_VENDA);
                 corpo.innerHTML = abas + '<div class="lista">' + itens.map((k) => {
                     const livre = livreDe(k), come = quemCome(k.id);
+                    if (k.tipo === 'raro') return htmlRaroCeleiro(k);
                     return `<div class="item">
                         <span class="ico">${spr(A.cultura(k.id).item, 44)}</span>
                         <span>
@@ -3170,7 +3208,7 @@
                     ${ANUNCIO.ligado || ehLocal ? `<li>Quando aparecer o botão <b>+30 min</b>, assista a um anúncio até o fim e tudo o que está em andamento (plantas, animais, oficinas, ajudantes e energia) adianta 30 minutos. Cada anúncio também dá 1 ${ico('diamante', 14)} diamante.</li>` : ''}
                     <li>No Perfil (ou em Vizinhos) tem o seu <b>link de convite</b>: quem criar uma fazenda por ele ganha moedas, e você também.</li>
                     <li>No <b>Vale do sudeste</b> (terreno 3) tem um lago: o pescador <b>Bira</b> tira um peixe a cada 30 minutos, até 16 no cesto. Toque no lago para pegar. Quanto mais raro, mais vale, e o lendário <b>Peixe do Velho Chico</b> sai em 1% das vezes (2% com a estátua do nível 30).</li>
-                    <li>A cada 3 horas chega uma <b>visita na porteira</b>, do lado da casa (do nível 3 em diante): o feirante, a doceira e o caminhoneiro compram algo da fazenda pagando bem mais que o celeiro, e a mascate vende adubo. Toque nela para conversar.</li>
+                    <li>A cada 3 horas chega uma <b>visita na porteira</b>, do lado da casa (do nível 3 em diante): o feirante, a doceira e o caminhoneiro compram algo da fazenda pagando bem mais que o celeiro, e a mascate vende adubo. Toque nela para conversar. Bem de vez em quando (1 em cada 100 visitas) vem o <b>mercador</b>, que troca um material raro do píer por frutos fora de época.</li>
                     <li>Cumpra as <b>missões do dia</b> para ganhar moedas e XP extras.</li>
                     <li>Cada nível libera coisas novas e dá um presente de moedas. Toque no seu nome, lá em cima, para abrir o <b>Perfil</b>: lá estão o <b>caminho dos níveis</b>, as conquistas, o seu convite e o botão de <b>personalizar o avatar</b> (fazendeiro, fazendeira, rapaz, mago, viking ou cavaleiro, com as cores que quiser).</li>
                     <li>Em <b>Vizinhos</b> você visita outras fazendas: <b>pega</b> um pouco da colheita madura ou <b>ajuda</b> com os problemas e ganha XP.</li>
@@ -3298,7 +3336,7 @@
 
     /* ---- conteúdo da loja e das missões ---- */
     function htmlLojaSementes() {
-        return '<div class="lista">' + S.culturas.filter((k) => k.tipo !== 'produto').map((k) => {
+        return '<div class="lista">' + S.culturas.filter((k) => k.tipo === 'cultura').map((k) => {   // (fase 60: nem produto nem raro)
             const travada = k.nivel_min > S.jogador.nivel || !podeEscolher(k);
             const lucro = k.venda * k.rendimento - k.custo;
             return `<button type="button" class="item${k.id === semente ? ' selecionada' : ''}${travada ? ' travada' : ''}" data-semente="${esc(k.id)}" ${travada ? 'aria-disabled="true"' : ''}>
@@ -3511,7 +3549,10 @@
         const f = !visita && S && S.feira;
         cena.definirFeira({ barracas: f ? f.barracas || 1 : 1, vende: f ? (f.meus || []).map((a) => A.cultura(a.item).item) : [], vagas: !!f });
     }
-    const faixaFeira = (k) => { const r = regrasFeira(); return [Math.max(1, Math.floor(k.venda * r.min)), Math.max(1, Math.ceil(k.venda * r.max))]; };
+    const faixaFeira = (k) => {
+        if (k.tipo === 'raro') return [k.venda, k.venda * 3];   // fase 60: igual a fazenda_feira_faixa
+        const r = regrasFeira(); return [Math.max(1, Math.floor(k.venda * r.min)), Math.max(1, Math.ceil(k.venda * r.max))];
+    };
     // o que dá para anunciar: o que tem no celeiro (fora a ração reservada) e vale alguma coisa
     const livreFeira = (id) => Math.max(0, naCeleiro(id) - reservaDe(id));
     const itensFeira = () => Object.keys(S.celeiro || {}).filter((id) => culturas[id] && culturas[id].venda > 0 && livreFeira(id) > 0)
@@ -3554,7 +3595,7 @@
                     <label>Item <select data-feira-item>${itens.map((id) => `<option value="${esc(id)}"${id === feiraItem ? ' selected' : ''}>${nomeK(id)} (${livreFeira(id)})</option>`).join('')}</select></label>
                     <label>Quantidade <input type="number" id="feiraQtd" min="1" max="${Math.min(livre, r.qtd_max)}" value="${Math.min(livre, 10)}"></label>
                     <label>Preço de cada <input type="number" id="feiraPreco" min="${min}" max="${max}" value="${Math.min(max, Math.max(min, Math.round(k.venda * 1.2)))}"></label>
-                    <p class="det"><span class="txt">${itemDe(k, 16)} Na venda normal, ${moeda(k.venda)} cada. Na feira, entre ${min} e ${max}, e você recebe tudo.</span></p>
+                    <p class="det"><span class="txt">${itemDe(k, 16)} ${ehRaro(k) ? `Material raro do píer: não vende no celeiro. Na feira, entre ${min} e ${max}, e você recebe tudo.` : `Na venda normal, ${moeda(k.venda)} cada. Na feira, entre ${min} e ${max}, e você recebe tudo.`}</span></p>
                     <button type="button" class="botao verde" data-feira-anunciar>Anunciar</button>
                 </div>`;
             }
@@ -3570,7 +3611,7 @@
                 <span><span class="nome"><b>${esc(v.comprador || 'Alguém')}</b> comprou ${v.qtd} × ${nomeK(v.item)}</span><span class="det"><span>+${moeda(v.total)}</span><span>há ${fmtTempo(agora() - Date.parse(v.em))}</span></span></span></div>`).join('') + '</div>';
         }
         const lim = limiteFeira();
-        return abas + corpo + `<p class="aviso">Na feira você compra de outros jogadores o que falta para as suas receitas e vende o que sobra, recebendo tudo. Preço entre metade e o triplo da venda normal; o anúncio dura ${r.horas / 24} dias (vencido, volta para o celeiro). O que você compra aqui serve para receitas, entregas e missões; revendido ao jogo, dá as moedas mas não o XP. Você pode ter ${lim} anúncios: ${r.por_barraca || 2} por barraca (as suas ficam na mata, à esquerda do celeiro).</p>`;
+        return abas + corpo + `<p class="aviso">Na feira você compra de outros jogadores o que falta para as suas receitas e vende o que sobra, recebendo tudo. Preço entre metade e o triplo da venda normal (material raro do píer: do mínimo dele, de 100 mil para cima, até o triplo); o anúncio dura ${r.horas / 24} dias (vencido, volta para o celeiro). O que você compra aqui serve para receitas, entregas e missões; revendido ao jogo, dá as moedas mas não o XP. Você pode ter ${lim} anúncios: ${r.por_barraca || 2} por barraca (as suas ficam na mata, à esquerda do celeiro).</p>`;
     }
     function avisarFeira(estado) {
         for (const v of (estado.feira && estado.feira.vendas_novas) || []) {
@@ -3998,6 +4039,8 @@
             }).finally(() => { vend.disabled = false; });
             return;
         }
+        const rf = e.target.closest('[data-raro-feira]');   // fase 60: do celeiro direto para vender na feira
+        if (rf) { abaFeira = 'vender'; feiraItem = rf.dataset.raroFeira; abrirPainel('feira'); return; }
         const af = e.target.closest('[data-aba-feira]');
         if (af) { abaFeira = af.dataset.abaFeira; abrirPainel('feira', true); if (abaFeira === 'comprar') carregarFeira(); return; }
         const ff = e.target.closest('[data-feira-filtro]');
