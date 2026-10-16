@@ -4189,17 +4189,17 @@
             abrirPainel('loja', true);
             return;
         }
-        const av = e.target.closest('[data-ajudante-ver]');   // fase 59
-        if (av) { ajudanteAberto = av.dataset.ajudanteVer; abrirPainel('ajudante'); return; }
-        const ad = e.target.closest('[data-ajudante-descansar]');
-        if (ad) {
-            ad.disabled = true;
+        const ajVer = e.target.closest('[data-ajudante-ver]');   // fase 59
+        if (ajVer) { ajudanteAberto = ajVer.dataset.ajudanteVer; abrirPainel('ajudante'); return; }
+        const ajDesc = e.target.closest('[data-ajudante-descansar]');
+        if (ajDesc) {
+            ajDesc.disabled = true;
             enfileirar([], async () => {
-                const r = await rpc('fazenda_ajudante_descansar', { p_token: token, p_tipo: ad.dataset.ajudanteDescansar });
+                const r = await rpc('fazenda_ajudante_descansar', { p_token: token, p_tipo: ajDesc.dataset.ajudanteDescansar });
                 aplicarEstado(r.estado);
-                const t = tipoAjudante(ad.dataset.ajudanteDescansar);
-                toast(`${retratoAjudante(ad.dataset.ajudanteDescansar, 20)} ${esc(t ? t.nome : 'O ajudante')} foi descansar. Volta em 1 h com a energia cheia.`);
-            }).finally(() => { ad.disabled = false; });
+                const t = tipoAjudante(ajDesc.dataset.ajudanteDescansar);
+                toast(`${retratoAjudante(ajDesc.dataset.ajudanteDescansar, 20)} ${esc(t ? t.nome : 'O ajudante')} foi descansar. Volta em 1 h com a energia cheia.`);
+            }).finally(() => { ajDesc.disabled = false; });
             return;
         }
         const contr = e.target.closest('[data-contratar]');
