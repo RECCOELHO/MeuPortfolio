@@ -3345,16 +3345,17 @@
         return '<div class="lista">' + tipos.map((m) => {
             const tem = melhoriaNivel(m.id), prox = m.niveis[tem];
             const travado = prox && S.jogador.nivel < prox.nivel;
+            const cadeado = travado && !tem;   // já tem um nível: o cartão fica normal, só o próximo espera
             const passos = m.niveis.map((k, i) => `<span${i < tem ? ' class="feito"' : ''}>${i < tem ? '✓' : ''}${m.id === 'pes' ? '+' + k.valor + ' pé' + (k.valor > 1 ? 's' : '') : Math.round(k.valor * 100) + '%'} (nível ${k.nivel})</span>`).join('');
-            return `<div class="item${travado ? ' travada' : ''}">
-                <span class="ico">${travado ? ico('cadeado', 28) : A.htmlItem(m.id === 'adubo' ? 'canteiro' : 'laranjeira', 40)}</span>
+            return `<div class="item${cadeado ? ' travada' : ''}">
+                <span class="ico">${cadeado ? ico('cadeado', 28) : A.htmlItem(m.id === 'adubo' ? 'canteiro' : 'laranjeira', 40)}</span>
                 <span>
                     <span class="nome">${esc(m.nome)}${tem ? ` · ${tem}/${m.niveis.length}` : ''}</span>
                     <span class="det"><span class="txt">${esc(m.descricao)}</span></span>
                     <span class="det">${passos}</span>
                 </span>
                 ${!prox ? '<span class="preco">Completa</span>'
-                    : travado ? `<span class="preco">Nível ${prox.nivel}</span>`
+                    : travado ? `<span class="preco">${tem ? 'Próximo no n' : 'N'}ível ${prox.nivel}</span>`
                     : `<button type="button" class="botao pequeno verde" data-comprar="melhoria:${esc(m.id)}">${ico('moeda', 14)} ${fmt(prox.custo)}</button>`}
             </div>`;
         }).join('') + '</div><p class="aviso">Melhorias valem para sempre e para a fazenda toda. Cada uma tem níveis, comprados um depois do outro.</p>';
