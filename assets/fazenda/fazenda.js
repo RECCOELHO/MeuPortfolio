@@ -1034,7 +1034,7 @@
         const status = parado
             ? `${ico('lua', 14)} <b>Descansando</b> ${onde} até ${hora(h.descanso_ate)} (${h.descanso_motivo === 'mandado' ? 'você mandou' : 'cansou depois de muito trabalho'}). Volta com a energia cheia.`
             : `Energia para mais ${String(horas).replace('.', ',')} h de trabalho sem parar. Quando acabar, ele descansa sozinho: 2 h numa cama livre ou 4 h na sombra.`;
-        const linhaCamas = `<p class="det"><span class="txt">${A.htmlItem('casa_azul', 18)} <b>Camas:</b> ${camas.ocupadas} de ${camas.total} ocupada${camas.ocupadas === 1 ? '' : 's'}. A casa da fazenda tem 1; cada casinha vermelha dá mais 1 e cada azul mais 2 (Construir → Casas).</span></p>`;
+        const linhaCamas = `<p class="det"><span class="txt"><b>Camas:</b> ${camas.ocupadas} de ${camas.total} ocupada${camas.ocupadas === 1 ? '' : 's'}. A casa da fazenda tem 1; cada casinha vermelha dá mais 1 e cada azul mais 2 (Construir → Casas).</span></p>`;
         return topo + `
             <h3 class="secao-titulo">Energia</h3>
             <div class="barra-energia${parado ? ' parado' : e < 20 ? ' pouca' : ''}" title="${Math.round(e)}%"><i style="width:${parado ? 0 : e}%"></i></div>

@@ -1,6 +1,7 @@
 -- ============================================================
--- FAZENDINHA — Fase 59 (etapa 3: a tela do ajudante), só o que mudou.
+-- FAZENDINHA — Fase 59 (etapa 3: a tela do ajudante e as camas das casinhas), só o que mudou.
 -- Para o banco que já está no ar (com a fase 58): Supabase > SQL Editor > colar este arquivo > Run.
+-- Pode rodar de novo (se já tinha rodado a primeira versão deste arquivo, rode esta por cima).
 -- (O supabase/fazenda.sql inteiro já tem tudo isto; este arquivo é o atalho.)
 -- ============================================================
 
@@ -12,12 +13,28 @@
 --   tarefa, ele descansa 2 h sozinho; mandado descansar, para na hora e descansa 1 h. Descansando não
 --   trabalha nem junta crédito; acordou, volta com a barra cheia (fazenda_trabalhar).
 -- • O eletricista não faz tarefas (só baixa o gasto da energia elétrica): não tem barra.
+-- • Camas (fazenda_camas): cansado com cama livre descansa 2 h; sem cama, 4 h na sombra.
 -- • O que fez: um contador por dia (fazenda_ajudantes_feito), gravado uma vez por rodada de trabalho
 --   junto com a atualização que já existia; guarda só hoje, ontem e anteontem.
 -- ------------------------------------------------------------
 alter table public.fazenda_ajudantes add column if not exists energia real not null default 100;
 alter table public.fazenda_ajudantes add column if not exists descanso_ate timestamptz;
 alter table public.fazenda_ajudantes add column if not exists descanso_motivo text;   -- cansou | mandado
+alter table public.fazenda_ajudantes add column if not exists descanso_casa boolean;   -- descansa numa cama (true) ou na sombra
+
+-- Camas para descansar (ideia do Jessé: dá uso às casinhas): a casa da fazenda tem 1, cada casinha
+-- vermelha mais 1 e cada azul mais 2. Cansado com cama livre: 2 h; sem cama, 4 h na sombra.
+-- Mandar descansar só com cama livre.
+create or replace function public.fazenda_camas(p_jogador uuid)
+returns int language sql stable security definer set search_path = public as $$
+  select 1 + coalesce(sum(case tipo when 'casa_vermelha' then 1 when 'casa_azul' then 2 else 0 end), 0)::int
+    from fazenda_construcoes where jogador_id = p_jogador and tipo in ('casa_vermelha', 'casa_azul');
+$$;
+create or replace function public.fazenda_camas_ocupadas(p_jogador uuid)
+returns int language sql stable security definer set search_path = public as $$
+  select count(*)::int from fazenda_ajudantes
+   where jogador_id = p_jogador and descanso_casa and descanso_ate > now();
+$$;
 
 create table if not exists public.fazenda_ajudantes_feito (
   jogador_id uuid not null references public.fazenda_jogadores(id) on delete cascade,
@@ -61,8 +78,12 @@ declare
   v_id uuid := fazenda_auth(p_token);
 begin
   perform fazenda_trabalhar(v_id);   -- fecha o trabalho de até agora antes
+  if exists (select 1 from fazenda_ajudantes where jogador_id = v_id and tipo = p_tipo and (descanso_ate is null or descanso_ate <= now()))
+     and fazenda_camas_ocupadas(v_id) >= fazenda_camas(v_id) then
+    raise exception 'sem_cama';   -- todas as camas das casinhas ocupadas
+  end if;
   update fazenda_ajudantes h
-     set descanso_ate = now() + interval '1 hour', descanso_motivo = 'mandado', credito = 0, atualizado_em = now()
+     set descanso_ate = now() + interval '1 hour', descanso_motivo = 'mandado', descanso_casa = true, credito = 0, atualizado_em = now()
    where h.jogador_id = v_id and h.tipo = p_tipo and (h.descanso_ate is null or h.descanso_ate <= now())
      and exists (select 1 from fazenda_ajudantes_tipos t where t.id = h.tipo and t.funcao <> 'energia');
   if not found then raise exception 'ajudante_descansando'; end if;
@@ -70,7 +91,7 @@ begin
 end;
 $$;
 
--- os ajudantes gastam energia, descansam e contam o que fizeram
+-- os ajudantes gastam energia, descansam (numa cama ou na sombra) e contam o que fizeram
 
 create or replace function public.fazenda_trabalhar(p_jogador uuid)
 returns void
@@ -92,6 +113,7 @@ declare
   v_seg   real;
   v_custo real;              -- fase 59: energia que cada tarefa gasta (a barra cheia dura 8 h de trabalho)
   v_energia real;
+  v_cama  boolean;           -- fase 59: cansou e tem cama livre numa casinha
   v_log   jsonb;             -- fase 59: o que ele fez nesta rodada ({"colheu": 3, ...})
 begin
   select cafe_de, cafe_ate into v_cafe_de, v_cafe_ate from fazenda_jogadores where id = p_jogador;
@@ -107,7 +129,7 @@ begin
     -- fase 59: descansando não trabalha (nem junta crédito); acabou o descanso, volta com a energia cheia
     if a.descanso_ate is not null then
       continue when a.descanso_ate > now();
-      update fazenda_ajudantes set energia = 100, descanso_ate = null, descanso_motivo = null, credito = 0, atualizado_em = a.descanso_ate
+      update fazenda_ajudantes set energia = 100, descanso_ate = null, descanso_motivo = null, descanso_casa = null, credito = 0, atualizado_em = a.descanso_ate
        where jogador_id = p_jogador and tipo = a.tipo;
       a.energia := 100; a.credito := 0; a.atualizado_em := a.descanso_ate;
     end if;
@@ -291,13 +313,16 @@ begin
     -- fase 46: quem não fez nada não é regravado: o crédito continua saindo do tempo desde
     -- atualizado_em (até 8 h), igual; contratar/evoluir e o café fecham a conta antes (fazenda_ajudantes_fechar)
     if v_feito > 0 then
-      -- fase 59: gasta a energia; sem energia para mais uma tarefa, descansa 2 h sozinho
+      -- fase 59: gasta a energia; sem energia para mais uma tarefa, descansa sozinho: 2 h numa cama
+      -- livre das casinhas, 4 h na sombra se todas estiverem ocupadas
       v_energia := greatest(a.energia - v_feito * v_custo, 0);
+      v_cama := v_energia < v_custo and fazenda_camas_ocupadas(p_jogador) < fazenda_camas(p_jogador);
       update fazenda_ajudantes
          set credito = v_cred - v_feito, atualizado_em = now(), relatorio = relatorio + v_feito,
              energia = v_energia,
-             descanso_ate = case when v_energia < v_custo then now() + interval '2 hours' end,
-             descanso_motivo = case when v_energia < v_custo then 'cansou' end
+             descanso_ate = case when v_energia < v_custo then now() + case when v_cama then interval '2 hours' else interval '4 hours' end end,
+             descanso_motivo = case when v_energia < v_custo then 'cansou' end,
+             descanso_casa = case when v_energia < v_custo then v_cama end
        where jogador_id = p_jogador and tipo = a.tipo;
       perform fazenda_ajudante_registrar(p_jogador, a.tipo, v_log);
     end if;
@@ -305,7 +330,7 @@ begin
 end;
 $$;
 
--- o jogo recebe a energia, o descanso e o que fizeram hoje e ontem
+-- o jogo recebe a energia, o descanso, as camas e o que fizeram hoje e ontem
 
 create or replace function public.fazenda_estado(p_jogador uuid)
 returns jsonb
@@ -503,6 +528,7 @@ begin
       select jsonb_agg(to_jsonb(t) || jsonb_build_object('limite', fazenda_limite_maquina(t.id, t.limite, v_nivel)) order by t.ordem)
         from fazenda_itens t),
     'melhorias', coalesce((select jsonb_object_agg(id, nivel) from fazenda_melhorias where jogador_id = p_jogador), '{}'::jsonb),
+    'camas', jsonb_build_object('total', fazenda_camas(p_jogador), 'ocupadas', fazenda_camas_ocupadas(p_jogador)),   -- fase 59
     'melhorias_tipos', fazenda_melhorias_tipos(),
     'estatisticas', (select to_jsonb(e) - 'jogador_id' || jsonb_build_object('energia', e.energia + floor(j.energia_gasta)::int)
                        from fazenda_estatisticas e where e.jogador_id = p_jogador),
@@ -521,7 +547,7 @@ begin
       select jsonb_agg(jsonb_build_object('tipo', h.tipo, 'nivel', h.nivel, 'relatorio', h.relatorio,
                -- fase 59: a barra de energia, o descanso e o que fez hoje e ontem
                'energia', round(h.energia::numeric, 1), 'custo', round((100 / (fazenda_ritmo(h.nivel) * 8))::numeric, 3),
-               'descanso_ate', h.descanso_ate, 'descanso_motivo', h.descanso_motivo,
+               'descanso_ate', h.descanso_ate, 'descanso_motivo', h.descanso_motivo, 'descanso_casa', h.descanso_casa,
                'hoje', coalesce((select f.feito from fazenda_ajudantes_feito f where f.jogador_id = p_jogador and f.tipo = h.tipo and f.dia = fazenda_hoje()), '{}'::jsonb),
                'ontem', coalesce((select f.feito from fazenda_ajudantes_feito f where f.jogador_id = p_jogador and f.tipo = h.tipo and f.dia = fazenda_hoje() - 1), '{}'::jsonb)))
         from fazenda_ajudantes h where h.jogador_id = p_jogador), '[]'::jsonb),
@@ -536,12 +562,48 @@ begin
 end;
 $$;
 
+-- as casinhas dizem quantas camas dão
+
+update public.fazenda_itens i
+   set efeito = v.efeito, raio = v.raio, beleza = v.beleza, descricao = v.descricao,
+       produz = v.produz, produz_seg = v.produz_seg, produz_qtd = v.produz_qtd
+  from (values
+    ('cerca',         'cerca'::text,  1::smallint,  1::smallint, 'Vizinhos pegam no máximo 1 item dos canteiros encostados.'::text, null::text, null::int, null::int),
+    ('caminho_terra', null,           0,  1, 'Deixa a fazenda mais bonita: +1 de beleza (beleza dá bônus nas vendas).', null, null, null),
+    ('caminho_pedra', null,           0,  2, 'Deixa a fazenda mais bonita: +2 de beleza (beleza dá bônus nas vendas).', null, null, null),
+    ('flores',        'xp',           1,  2, '+1 XP ao colher os canteiros encostados.', null, null, null),
+    ('girassol',      'crescer',      1,  3, 'Plantas encostadas crescem 10% mais rápido.', null, null, null),
+    ('arbusto',       'praga',        1,  2, 'Joaninhas: sem pragas nos canteiros encostados.', null, null, null),
+    ('cogumelos',     'adubo',        1,  2, 'Adubo natural: +1 item na colheita dos canteiros encostados.', null, null, null),
+    ('arvore',        'seco',         1,  4, 'Sombra: sem seca nos canteiros encostados.', null, null, null),
+    ('arvore_outono', 'crescer',      1,  4, 'Folhas viram adubo: plantas encostadas crescem 10% mais rápido.', null, null, null),
+    ('pinheiro',      'praga',        2,  4, 'Passarinhos: sem pragas em volta (2 quadrados).', null, null, null),
+    ('amoreira',      null,           0,  3, 'Dá 4 amoras a cada 5 horas: toque nela para colher. Pomar: 1 pé de cada fruta, +1 a cada 2 terrenos (até 4).', 'morango', 18000, 4),
+    ('pedras',        'erva',         1,  1, 'Cobertura de pedras: sem erva daninha nos canteiros encostados.', null, null, null),
+    ('tora',          'crescer',      1,  2, 'Minhocas: plantas encostadas crescem 10% mais rápido.', null, null, null),
+    ('placa',         'cerca',        2,  1, '"Proibido pegar": vizinhos pegam no máximo 1 item em volta (2 quadrados).', null, null, null),
+    ('balde',         'seco',         1,  1, 'Sem seca nos canteiros encostados.', null, null, null),
+    ('barril',        'adubo',        1,  2, 'Barril de adubo: +1 item na colheita dos canteiros encostados.', null, null, null),
+    ('feno',          'feno',         0,  2, 'Animais produzem 20% mais rápido (fazenda toda, não acumula).', null, null, null),
+    ('alvo',          'sorte',        2,  2, 'Sorte: 15% de chance de colheita em dobro em volta (2 quadrados).', null, null, null),
+    ('caixote',       'venda',        0,  2, '+10% no preço de venda (fazenda toda, não acumula).', null, null, null),
+    ('colmeia',       'adubo',        2,  3, 'Abelhas: +1 item na colheita em volta (2 quadrados).', null, null, null),
+    ('bau',           'missao',       0,  3, '+25% de moedas nas missões. Com energia, guarda em si (até 200 itens) o que recolhe: encostado num bloco de canteiros, colhe o que amadurece; num cercado, coleta e dá ração aos bichos; numa árvore do pomar, colhe as frutas; no lago, pega o cesto do Bira (1,6 ⚡ cada). Com canos, manda para as oficinas e o celeiro.', null, null, null),
+    ('lampiao',       null,           0,  3, 'Acende sozinho de noite e ilumina em volta. +3 de beleza (beleza dá bônus nas vendas).', null, null, null),
+    ('casa_vermelha', null,           0, 20, 'Casinha: +20 de beleza (beleza dá bônus nas vendas) e 1 cama para um ajudante descansar (2 h numa cama; sem cama livre, 4 h na sombra).', null, null, null),
+    ('casa_azul',     null,           0, 30, 'Casinha: +30 de beleza (beleza dá bônus nas vendas) e 2 camas para os ajudantes descansarem (2 h numa cama; sem cama livre, 4 h na sombra).', null, null, null)
+  ) v(id, efeito, raio, beleza, descricao, produz, produz_seg, produz_qtd)
+ where i.id = v.id;
+
 revoke execute on function
   public.fazenda_conta(jsonb, text, int),
-  public.fazenda_ajudante_registrar(uuid, text, jsonb)
+  public.fazenda_ajudante_registrar(uuid, text, jsonb),
+  public.fazenda_camas(uuid),
+  public.fazenda_camas_ocupadas(uuid)
 from public, anon, authenticated;
 grant execute on function public.fazenda_ajudante_descansar(text, text) to anon, authenticated;
 
--- conferência: as duas linhas devem aparecer
+-- conferência: as três linhas devem aparecer
 select 'energia dos ajudantes' as ok where exists (select 1 from information_schema.columns where table_name = 'fazenda_ajudantes' and column_name = 'energia')
-union all select 'mandar descansar' where exists (select 1 from pg_proc where proname = 'fazenda_ajudante_descansar');
+union all select 'mandar descansar' where exists (select 1 from pg_proc where proname = 'fazenda_ajudante_descansar')
+union all select 'camas das casinhas' where exists (select 1 from pg_proc where proname = 'fazenda_camas');
