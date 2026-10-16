@@ -3369,9 +3369,9 @@
             const estrelas = [1, 2, 3].map((n) => (n <= nivel ? '★' : '☆')).join('');
             const ritmo = efeitoAjudante(t, nivel || 1) + (nivel && nivel < 3 ? ` (nível ${nivel + 1}: ${efeitoAjudante(t, nivel + 1).split(' ')[0]})` : '');
             const ver = h ? `<button type="button" class="botao pequeno creme" data-ajudante-ver="${esc(t.id)}">Ver</button>` : '';   // fase 59
-            const acao = travado ? `<span class="preco">Nível ${t.nivel_min}</span>`
-                : nivel >= 3 ? `<span class="admin-botoes"><span class="preco">Nível máximo</span>${ver}</span>`
-                : `<span class="admin-botoes"><button type="button" class="botao pequeno verde" data-contratar="${esc(t.id)}">${nivel ? 'Evoluir' : 'Contratar'}<br>${ico('moeda', 14)} ${custoAjudante(t, nivel)}</button>${ver}</span>`;
+            const botao = nivel >= 3 ? '<span class="preco">Nível máximo</span>'
+                : `<button type="button" class="botao pequeno verde" data-contratar="${esc(t.id)}">${nivel ? 'Evoluir' : 'Contratar'}<br>${ico('moeda', 14)} ${custoAjudante(t, nivel)}</button>`;
+            const acao = travado ? `<span class="preco">Nível ${t.nivel_min}</span>` : ver ? `<span class="admin-botoes">${botao}${ver}</span>` : botao;
             return `<div class="item${travado ? ' travada' : ''}">
                 <span class="ico">${travado ? ico('cadeado', 28) : retratoAjudante(t.id, 44)}</span>
                 <span>
