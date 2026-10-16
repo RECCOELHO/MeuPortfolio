@@ -174,6 +174,7 @@
         // fase 60: materiais raros do píer
         madeira_nobre: { item: 1085 }, corda_naval: { item: 1086 }, pedra_cantaria: { item: 1087 },
         ferro_forjado: { item: 1088 }, ancora: { item: 1089 },
+        leme_dourado: { item: 1090 },   // fase 61
         // sementes da estação (broto e meio do pacote; madura e fruta próprias)
         moranguinho: { fases: [52, 53, 1013], murcho: 55, item: 1014, semente: 1014 },
         melancia: { fases: [52, 53, 1015], murcho: 55, item: 1016, semente: 1016 },
@@ -402,7 +403,10 @@
         // 88 ferro forjado (barras)
         ['................', '................', '................', '................', '.....aaaaaaaa...', '....afddffffla..', '...aaaaaaaaaala.', '...afdffffflaaa.', '..aaaaaaaaaaalla', '..afdfffffflala.', '.afdffffffflaa..', '.aKKKKKKKKKKa...', '.aaaaaaaaaaaa...', '................', '................', '................'],
         // 89 âncora
-        ['................', '.......aa.......', '......affa......', '......afla......', '.......aa.......', '....aaaKaaaa....', '....aKKKKKKa....', '.......aK.......', '.......aKa......', '.a.....aKa....a.', 'aKa....aKa...aKa', '.aKa...aKa..aKa.', '..aKaa.aKa.aKa..', '...aKKaaKaaKa...', '....aaKKKKKa....', '......aaaaa.....']
+        ['................', '.......aa.......', '......affa......', '......afla......', '.......aa.......', '....aaaKaaaa....', '....aKKKKKKa....', '.......aK.......', '.......aKa......', '.a.....aKa....a.', 'aKa....aKa...aKa', '.aKa...aKa..aKa.', '..aKaa.aKa.aKa..', '...aKKaaKaaKa...', '....aaKKKKKa....', '......aaaaa.....'],
+        // fase 61: o leme dourado (prêmio do ranking da semana, peça do píer)
+        // 90 leme dourado
+        ['.......aa.......', '.......aga......', '..aa...aga...aa.', '..agaaaaHaaaaga.', '...aaGGGGGGGaa..', '....aGHaaaHGa...', '...aGHa.gg.aHGa.', 'aaaaGa.agga.aGaa', 'aggHGa.aHHa.aGHg', 'aaaaGa..aa..aGaa', '...aGHa....aHGa.', '....aGHaaaHGa...', '...aaGGGGGGGaa..', '..agaaaaHaaaaga.', '..aa...aga...aa.', '.......aa.......']
     ];
     const atlasProprio = document.createElement('canvas');
     atlasProprio.width = 12 * 16;
