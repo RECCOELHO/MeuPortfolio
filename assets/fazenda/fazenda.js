@@ -1342,8 +1342,8 @@
     const NOME_EFEITO = {
         seco: 'sem seca', praga: 'sem pragas', erva: 'sem ervas', crescer: 'cresce 10% mais rápido',
         adubo: '+1 item', xp: '+1 XP', sorte: 'sorte (colheita em dobro às vezes)', cerca: 'vizinho pega no máximo 1',
-        alarme: 'protegido do vizinho', estufa: 'estufa: qualquer estação e +25% rápido (5 ⚡)',
-        robo: 'o robô colhe e replanta', aspersor: 'sem nenhum problema (aspersor, 2 ⚡)'
+        alarme: 'protegido do vizinho', estufa: 'estufa: qualquer estação e +25% rápido (3 ⚡)',
+        robo: 'o robô colhe e replanta', aspersor: 'sem nenhum problema (aspersor, 1,2 ⚡)'
     };
     function bonusDoCanteiro(c, fonte) {
         const vistos = new Set();
@@ -1495,14 +1495,14 @@
         const usam = rede ? new Set(rede.oficinas.flatMap((k) => Object.keys(tipoItem(k.tipo).entradas || {}))) : new Set();
         const txtRede = !rede || (!rede.oficinas.length && !rede.celeiro)
             ? `Sem cano até uma oficina ou o celeiro: o que ele recolhe fica guardado aqui. Ligue com <b>canos de vidro</b> (Construir → Energia).`
-            : `Na rede${rede.oficinas.length ? ` com ${rede.oficinas.length} oficina(s)` : ''}${rede.celeiro ? `${rede.oficinas.length ? ' e' : ' com'} o celeiro` : ''}: manda pelo cano o que as oficinas usam${rede.celeiro ? ' e leva o resto para o celeiro (2 ⚡ por viagem)' : ''}.`;
+            : `Na rede${rede.oficinas.length ? ` com ${rede.oficinas.length} oficina(s)` : ''}${rede.celeiro ? `${rede.oficinas.length ? ' e' : ' com'} o celeiro` : ''}: manda pelo cano o que as oficinas usam${rede.celeiro ? ' e leva o resto para o celeiro (1,2 ⚡ por viagem)' : ''}.`;
         return `
             <p>${total} de ${BAU_MAX} itens guardados</p>
             <span class="estoque-barra"><i style="width:${Math.min(100, Math.round(total / BAU_MAX * 100))}%"></i></span>
             ${itens.length ? '<div class="bau-itens">' + itens.map(([item, n]) => `<span class="chip" title="${nomeItem(item)}${usam.has(item) ? ' (uma oficina da rede usa)' : ''}">${itemDe(culturas[item] || { id: item }, 20)}<span>${n}${usam.has(item) ? ` ${A.htmlItem('cano', 12)}` : ''}</span></span>`).join('') + '</div>'
                 : '<p class="vazio-msg">Vazio por enquanto.</p>'}
             <p class="aviso">${A.htmlItem('cano', 16)} ${txtRede}</p>
-            <p class="det">Com energia, recolhe sozinho o que estiver encostado nele: o bloco de canteiros, um cercado (coleta e dá ração), uma árvore do pomar e o cesto do lago (2 ⚡ cada). Cheio, ele para de recolher.</p>
+            <p class="det">Com energia, recolhe sozinho o que estiver encostado nele: o bloco de canteiros, um cercado (coleta e dá ração), uma árvore do pomar e o cesto do lago (1,2 ⚡ cada). Cheio, ele para de recolher.</p>
             <div class="rodape-painel">
                 <button type="button" class="botao verde" data-bau-esvaziar${total ? '' : ' disabled'}>Levar tudo para o celeiro</button>
                 <button type="button" class="botao creme" data-fechar>Fechar</button>
@@ -1886,13 +1886,12 @@
             if (ocupado || cant) return toast(ERROS.lugar_ocupado, 'erro');
             if (!canteirosLivres()) return toast(ERROS.limite_canteiros, 'erro');
             // aparece na hora (com um número provisório); o servidor confirma em seguida
-            S.canteiros.push({ posicao: 1000 + S.canteiros.length, x, y, estado: 'vazio' });
+            const novo = (s) => { if (!s.canteiros.some((c) => c.x === x && c.y === y)) s.canteiros.push({ posicao: 1000 + s.canteiros.length, x, y, estado: 'vazio' }); };
+            novo(S);
             desenharHud();
             som.tocar('construir');
-            enfileirar([], async () => {
-                const r = await rpc('fazenda_construir', { p_token: token, p_tipo: 'canteiro', p_x: x, p_y: y });
-                aplicarEstado(r.estado);
-            }).then(() => { desenharPaleta(); if (!S.canteiros.some((c) => c.x === x && c.y === y)) recarregar(); });
+            enfileirarOtimista(novo, () => rpc('fazenda_construir', { p_token: token, p_tipo: 'canteiro', p_x: x, p_y: y }))
+                .then(() => { desenharPaleta(); if (!S.canteiros.some((c) => c.x === x && c.y === y)) recarregar(); });
             return;
         }
 
@@ -1908,16 +1907,19 @@
             const custo = custoItem(it);
             if (S.jogador.moedas < custo) return toast(ERROS.moedas_insuficientes, 'erro');
             // aparece na hora; o servidor confirma em seguida
-            S.construcoes.push({ x, y, tipo: it.id });
-            S.jogador.moedas -= custo;
-            if (cercadoGratis(it)) S.jogador.cercado_gratis = S.jogador.cercado_gratis.filter((b) => b !== it.id.slice(8));
+            const gratis = cercadoGratis(it);
+            const colocar = (s) => {
+                if (s.construcoes.some((c) => c.x === x && c.y === y)) return;
+                s.construcoes.push({ x, y, tipo: it.id });
+                s.jogador.moedas -= custo;
+                if (gratis) s.jogador.cercado_gratis = (s.jogador.cercado_gratis || []).filter((b) => b !== it.id.slice(8));
+            };
+            colocar(S);
             desenharHud();
             som.tocar('construir');
             flutuarTile(x, y, custo ? `−${custo} ${ico('moeda', 16)}` : 'De graça!');
-            enfileirar([], async () => {
-                const r = await rpc('fazenda_construir', { p_token: token, p_tipo: it.id, p_x: x, p_y: y });
-                aplicarEstado(r.estado);
-            }).then(() => { if (!S.construcoes.some((c) => c.x === x && c.y === y)) recarregar(); });
+            enfileirarOtimista(colocar, () => rpc('fazenda_construir', { p_token: token, p_tipo: it.id, p_x: x, p_y: y }))
+                .then(() => { if (!S.construcoes.some((c) => c.x === x && c.y === y)) recarregar(); });
         } else if (constr.modo === 'mover') {
             if (!constr.movendo) {
                 if (cant) {
@@ -1943,30 +1945,31 @@
             }
             constr.movendo = null;
             atualizarModo();
-            if (c) { c.x = x; c.y = y; }
+            const mover = (s) => {
+                const m = (de.tipo === 'canteiro' ? s.canteiros : s.construcoes).find((k) => k.x === de.x && k.y === de.y);
+                if (m) { m.x = x; m.y = y; }
+            };
+            mover(S);
             if (constr.rapido) fecharConstrucao(`${A.htmlItem(de.tipo, 22)} Mudou de lugar!`);
             som.tocar('construir');
-            enfileirar([], async () => {
-                const r = await rpc('fazenda_mover', { p_token: token, p_x: de.x, p_y: de.y, p_nx: x, p_ny: y });
-                aplicarEstado(r.estado);
-            });
+            enfileirarOtimista(mover, () => rpc('fazenda_mover', { p_token: token, p_x: de.x, p_y: de.y, p_nx: x, p_ny: y }));
         } else if (constr.modo === 'guardar' && cant) {
             if (cant.estado === 'plantado') return toast('Tem planta nesse canteiro: colha (ou limpe) antes de guardar.', 'erro');
-            S.canteiros = S.canteiros.filter((c) => c !== cant);
+            const tirar = (s) => { s.canteiros = s.canteiros.filter((c) => c.x !== x || c.y !== y); };
+            tirar(S);
             som.tocar('construir');
-            enfileirar([], async () => {
-                const r = await rpc('fazenda_demolir', { p_token: token, p_x: x, p_y: y });
-                aplicarEstado(r.estado);
-            }).then(() => desenharPaleta());
+            enfileirarOtimista(tirar, () => rpc('fazenda_demolir', { p_token: token, p_x: x, p_y: y }))
+                .then(() => desenharPaleta());
         } else if (constr.modo === 'guardar') {
             if (!ocupado) return;
             const ax = ocupado.x, ay = ocupado.y;
-            S.construcoes = S.construcoes.filter((c) => c !== ocupado);
-            enfileirar([], async () => {
+            const tirar = (s) => { s.construcoes = s.construcoes.filter((c) => c.x !== ax || c.y !== ay); };
+            tirar(S);
+            enfileirarOtimista(tirar, async () => {
                 const r = await rpc('fazenda_demolir', { p_token: token, p_x: ax, p_y: ay });
                 flutuarTile(ax, ay, `+${r.devolvido} ${ico('moeda', 16)}`);
                 som.tocar('moeda');
-                aplicarEstado(r.estado);
+                return r;
             });
         }
     }
@@ -2218,6 +2221,7 @@
         if (!estado.diario) estado.diario = []; // banco ainda sem o SQL da fase 2
         if (!estado.construcoes) estado.construcoes = [];
         S = estado;
+        otimistas.forEach((o) => o.refazer(S));   // fase 56: o que ainda está na fila continua na tela
         offset = Date.parse(estado.agora) - Date.now();
         culturas = {};
         for (const k of estado.culturas) culturas[k.id] = k;
@@ -2382,6 +2386,7 @@
     function enfileirar(posicoes, tarefa) {
         posicoes.forEach((p) => pendentesPos.add(p));
         pendentes++;
+        acoesFeitas++;
         clearTimeout(voltaFazendeiro);
         const execucao = fila.then(tarefa).catch(tratarErro).finally(() => {
             pendentes--;
@@ -2390,6 +2395,23 @@
         });
         fila = execucao;
         return execucao;
+    }
+
+    // Fase 56: colocar, mover e guardar aparecem na hora, mas o servidor confirma um por vez. Cada
+    // estado que chega no meio (a resposta do item anterior) é de antes dos que ainda estão na fila:
+    // trocar a fazenda por ele fazia o item sumir e voltar. Agora o que ainda não foi confirmado é
+    // refeito em cima de cada estado novo (aplicarEstado) até a resposta dele chegar.
+    let acoesFeitas = 0;
+    const otimistas = new Set();
+    function enfileirarOtimista(refazer, chamada) {
+        const o = { refazer };
+        otimistas.add(o);
+        return enfileirar([], async () => {
+            let r;
+            try { r = await chamada(); } finally { otimistas.delete(o); }
+            aplicarEstado(r.estado);
+            return r;
+        });
     }
 
     const saiuDoJogo = (e) => e && (e.code === 'token_invalido' || e.code === 'conta_banida');
@@ -2779,8 +2801,11 @@
     async function recarregar() {
         if (!token || pendentes || buscando) return;
         buscando = true;
+        const acoesAntes = acoesFeitas;
         try {
-            aplicarEstado(await rpc('fazenda_carregar', { p_token: token }));
+            const estado = await rpc('fazenda_carregar', { p_token: token });
+            if (acoesFeitas !== acoesAntes) return;   // fase 56: chegou depois de uma ação: é de antes dela
+            aplicarEstado(estado);
             if (visita) mostrarVisita(await rpc('fazenda_visitar', { p_token: token, p_vizinho: visita.id }));
             buscasFalhas = 0;
         } catch (e) {
@@ -3042,8 +3067,8 @@
                     <li>Toque num item já colocado para ver o que ele faz; o <b>alcance</b> dele (irrigador, alarme, estufa...) aparece marcado no chão. <b>Segure o dedo 3 segundos</b> num item ou canteiro para pegar e levar para outro lugar.</li>
                     <li>A semana tem as 4 <b>estações</b> (42 horas cada), e cada uma muda a cara da fazenda (pétalas na primavera, grama quente no verão, folhas caindo no outono, neve no inverno) e tem uma semente só dela: morango, melancia, abóbora e repolho. O <b>clima</b> muda várias vezes por dia: sol dá +1 na colheita, chuva rega tudo, onda de calor seca mais, nublado não traz problema novo e ventania espalha pragas. Toque no clima, lá em cima, para ver até quando ele vai.</li>
                     <li>O jogo tem o próprio <b>dia e noite</b>: eles se revezam a cada 2 horas (12 horas de dia e 12 de noite em cada dia de verdade). De noite o mapa escurece, as janelas, os lampiões e as oficinas acendem, aparecem vaga-lumes, e o painel solar não gera energia. Toque no clima para ver quando amanhece.</li>
-                    <li>O <b>baú</b> guarda em si (até 200 itens) o que recolhe sozinho, com energia, do que estiver encostado nele: o bloco de canteiros, um cercado (coleta e dá ração), uma árvore do pomar e o cesto do lago (2 ⚡ cada). Toque no baú para ver o que tem.</li>
-                    <li>No nível 16 chegam os <b>canos de vidro</b> (Construir → Energia, 25 cada). Canos encostados formam uma <b>rede</b>, e tudo o que encosta num cano dela (baús, oficinas, o celeiro, a fábrica automática) trabalha junto: a rede <b>enche sozinha o estoque das oficinas</b> (até 10 receitas, 2 ⚡ cada) com o que tem nos baús e no celeiro da rede, dividindo entre todas; o produto vai para outra oficina que usa ele (o óleo da prensa vai para o empório), para o celeiro ou para um baú; e o que nenhuma oficina usa sai do baú para o celeiro (2 ⚡ por viagem). Para o celeiro fazer parte, o cano tem que encostar no próprio prédio do celeiro. Nada anda sem estar ligado. Como saber se está funcionando: a <b>luz no meio do cano</b> fica verde pulsando quando a rede liga duas coisas ou mais (vermelha piscando = sem energia), a oficina na rede ganha um selinho de cano no balão, o baú mostra uma barrinha de quanto está cheio, e cada item aparece passando pelo cano quando viaja.</li>
+                    <li>O <b>baú</b> guarda em si (até 200 itens) o que recolhe sozinho, com energia, do que estiver encostado nele: o bloco de canteiros, um cercado (coleta e dá ração), uma árvore do pomar e o cesto do lago (1,2 ⚡ cada). Toque no baú para ver o que tem.</li>
+                    <li>No nível 16 chegam os <b>canos de vidro</b> (Construir → Energia, 25 cada). Canos encostados formam uma <b>rede</b>, e tudo o que encosta num cano dela (baús, oficinas, o celeiro, a fábrica automática) trabalha junto: a rede <b>enche sozinha o estoque das oficinas</b> (até 10 receitas, 1,2 ⚡ cada) com o que tem nos baús e no celeiro da rede, dividindo entre todas; o produto vai para outra oficina que usa ele (o óleo da prensa vai para o empório), para o celeiro ou para um baú; e o que nenhuma oficina usa sai do baú para o celeiro (1,2 ⚡ por viagem). Para o celeiro fazer parte, o cano tem que encostar no próprio prédio do celeiro. Nada anda sem estar ligado. Como saber se está funcionando: a <b>luz no meio do cano</b> fica verde pulsando quando a rede liga duas coisas ou mais (vermelha piscando = sem energia), a oficina na rede ganha um selinho de cano no balão, o baú mostra uma barrinha de quanto está cheio, e cada item aparece passando pelo cano quando viaja.</li>
                     <li>Do nível 16 em diante vem a <b>energia</b> ${ico('raio', 14)}: painel solar, turbina, gerador a biomassa e reator enchem as baterias, e as máquinas elétricas (estufa, triturador, fábrica automática, robô, aspersor, baús e a rede de canos) trabalham sozinhas gastando energia. O <b>eletricista</b> (ajudante, nível 17) faz tudo gastar menos, e dá para encher as baterias com diamantes. Toque no ${ico('raio', 12)} lá em cima (ou no botão abaixo) para ver o que cada uma faz.</li>
                     ${ANUNCIO.ligado || ehLocal ? `<li>Quando aparecer o botão <b>+30 min</b>, assista a um anúncio até o fim e tudo o que está em andamento (plantas, animais, oficinas, ajudantes e energia) adianta 30 minutos. Cada anúncio também dá 1 ${ico('diamante', 14)} diamante.</li>` : ''}
                     <li>No Perfil (ou em Vizinhos) tem o seu <b>link de convite</b>: quem criar uma fazenda por ele ganha moedas, e você também.</li>
@@ -3422,7 +3447,7 @@
                 <span><span class="nome"><b>${esc(v.comprador || 'Alguém')}</b> comprou ${v.qtd} × ${nomeK(v.item)}</span><span class="det"><span>+${moeda(v.total)}</span><span>há ${fmtTempo(agora() - Date.parse(v.em))}</span></span></span></div>`).join('') + '</div>';
         }
         const lim = limiteFeira();
-        return abas + corpo + `<p class="aviso">Na feira você compra de outros jogadores o que falta para as suas receitas e vende o que sobra, recebendo tudo. Preço entre metade e o triplo da venda normal; o anúncio dura ${r.horas / 24} dias (vencido, volta para o celeiro). Você pode ter ${lim} anúncios: ${r.por_barraca || 2} por barraca (as suas ficam na mata, à esquerda do celeiro).</p>`;
+        return abas + corpo + `<p class="aviso">Na feira você compra de outros jogadores o que falta para as suas receitas e vende o que sobra, recebendo tudo. Preço entre metade e o triplo da venda normal; o anúncio dura ${r.horas / 24} dias (vencido, volta para o celeiro). O que você compra aqui serve para receitas, entregas e missões; revendido ao jogo, dá as moedas mas não o XP. Você pode ter ${lim} anúncios: ${r.por_barraca || 2} por barraca (as suas ficam na mata, à esquerda do celeiro).</p>`;
     }
     function avisarFeira(estado) {
         for (const v of (estado.feira && estado.feira.vendas_novas) || []) {
@@ -3835,13 +3860,15 @@
             const lista = qual === 'finais' ? produtosFinais().filter((id) => naCeleiro(id) > reservaDe(id))
                 : [qual === '*' ? null : qual];
             enfileirar([], async () => {
-                let ganho = 0, xp = 0, estado = null;
+                let ganho = 0, xp = 0, semXp = 0, estado = null;
                 for (const item of lista) {
                     const r = await rpc('fazenda_vender', { p_token: token, p_item: item, p_quantidade: null });
-                    ganho += r.ganho; xp += r.xp || 0; estado = r.estado;
+                    ganho += r.ganho; xp += r.xp || 0; semXp += r.sem_xp || 0; estado = r.estado;
                 }
                 const guardou = qual !== 'finais' && Object.keys(S.reservas || {}).length ? ' A ração dos animais ficou guardada.' : '';
-                if (ganho > 0) { toast(`Vendeu por ${ico('moeda', 16)} ${ganho}${xp ? ` e ganhou +${xp} ${ico('xp', 16)}` : ''}!${guardou}`); som.tocar('moeda'); tutorialEvento('vender'); }
+                // fase 56: o que veio da feira vende pelas moedas de sempre, mas sem XP
+                const daFeira = semXp ? ` ${semXp} ${semXp === 1 ? 'item veio' : 'itens vieram'} da feira: esses não dão XP.` : '';
+                if (ganho > 0) { toast(`Vendeu por ${ico('moeda', 16)} ${ganho}${xp ? ` e ganhou +${xp} ${ico('xp', 16)}` : ''}!${guardou}${daFeira}`); som.tocar('moeda'); tutorialEvento('vender'); }
                 if (estado) aplicarEstado(estado);
             }).finally(() => { vend.disabled = false; });
             return;

@@ -51,7 +51,7 @@ create index if not exists fazenda_sessoes_jogador_idx on public.fazenda_sessoes
 
 create table if not exists public.fazenda_canteiros (
   jogador_id   uuid not null references public.fazenda_jogadores(id) on delete cascade,
-  posicao      smallint not null check (posicao between 0 and 99),
+  posicao      smallint not null check (posicao between 0 and 299),
   estado       text not null default 'vazio' check (estado in ('vazio', 'arado', 'plantado')),
   cultura      text references public.fazenda_culturas(id),
   plantado_em  timestamptz,
@@ -79,7 +79,8 @@ alter table public.fazenda_jogadores add column if not exists terrenos int not n
 -- Fase 5: cada canteiro tem seu lugar no mapa (x, y) e pode ser colocado,
 -- movido e guardado no modo construir. posicao continua sendo o "nome" dele.
 alter table public.fazenda_canteiros drop constraint if exists fazenda_canteiros_posicao_check;
-alter table public.fazenda_canteiros add constraint fazenda_canteiros_posicao_check check (posicao between 0 and 99);
+-- fase 56: até 299 (o limite de canteiros já passa de 100 com os 6 terrenos; o 101º dava limite_canteiros)
+alter table public.fazenda_canteiros add constraint fazenda_canteiros_posicao_check check (posicao between 0 and 299);
 alter table public.fazenda_canteiros add column if not exists x smallint;
 alter table public.fazenda_canteiros add column if not exists y smallint;
 -- os canteiros que já existiam ficam onde estavam (campo de 6 colunas a partir de (9, 4))
@@ -616,17 +617,17 @@ on conflict (id) do update set
 -- baterias e as máquinas elétricas gastam. Os números ficam nas funções fazenda_capacidade,
 -- fazenda_energia_taxa e nos gastos de cada máquina; as descrições aparecem no jogo.
 insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem, efeito, raio, limite, descricao) values
-  ('cano',          'Cano de vidro',      'energia',    25, 16, 79, 'cano',       0, null, 'Canos encostados formam uma rede que liga baús, oficinas e o celeiro. A rede enche sozinha o estoque das oficinas com o que tem nos baús e no celeiro (2 ⚡ por receita); o produto vai para outra oficina que usa ele, para o celeiro ou para um baú; o que sobra no baú vai para o celeiro (2 ⚡ por viagem). Dá para ver cada item passando.'),
+  ('cano',          'Cano de vidro',      'energia',    25, 16, 79, 'cano',       0, null, 'Canos encostados formam uma rede que liga baús, oficinas e o celeiro. A rede enche sozinha o estoque das oficinas com o que tem nos baús e no celeiro (1,2 ⚡ por receita); o produto vai para outra oficina que usa ele, para o celeiro ou para um baú; o que sobra no baú vai para o celeiro (1,2 ⚡ por viagem). Dá para ver cada item passando.'),
   ('painel_solar',  'Painel solar',       'energia',  2500, 16, 80, 'solar',      0, 8, 'Gera até 12 ⚡/h de dia (sol forte: 14; nublado: 5; chuva: 3). À noite, nada: no jogo, o dia e a noite se revezam a cada 2 horas.'),
   ('bateria',       'Banco de baterias',  'energia',  2000, 16, 81, 'bateria',    0, 4, 'Guarda mais 150 ⚡ (sem bateria, a caixa de luz guarda só 50). Bateria cheia: o que sobra é vendido, 1 moeda a cada 5 ⚡.'),
   ('turbina',       'Turbina eólica',     'energia',  4000, 17, 82, 'eolica',     0, 6, 'Gera 8 ⚡/h de dia e de noite; 30 ⚡/h na ventania e 14 na chuva. Na calmaria (sem vento, uns 25% do tempo fora da ventania e da chuva), cai para 3 ⚡/h: o painel de energia avisa quando vem.'),
-  ('estufa',        'Estufa elétrica',    'energia',  6000, 18, 83, 'estufa',     2, 3, 'Canteiros em volta (2) aceitam sementes de qualquer estação e crescem 25% mais rápido. Gasta 5 ⚡ por plantio.'),
+  ('estufa',        'Estufa elétrica',    'energia',  6000, 18, 83, 'estufa',     2, 3, 'Canteiros em volta (2) aceitam sementes de qualquer estação e crescem 25% mais rápido. Gasta 3 ⚡ por plantio.'),
   ('gerador_bio',   'Gerador a biomassa', 'energia',  6000, 19, 84, 'biomassa',   0, 2, 'Ligado, queima 1 milho a cada 30 min: 50 ⚡/h. Toque nele para ligar ou desligar.'),
-  ('triturador',    'Triturador',         'energia', 10000, 20, 85, 'triturar',   0, 1, 'As oficinas rendem 2 produtos por receita. Gasta 10 ⚡ por receita.'),
-  ('supercap',      'Supercapacitor',     'energia',  9000, 21, 86, 'bateria',    0, 2, 'Guarda mais 500 ⚡.'),
+  ('triturador',    'Triturador',         'energia', 10000, 20, 85, 'triturar',   0, 1, 'As oficinas rendem 2 produtos por receita. Gasta 6 ⚡ por receita.'),
+  ('supercap',      'Supercapacitor',     'energia',  9000, 21, 86, 'bateria',    0, 2, 'Guarda mais 800 ⚡.'),
   ('fabrica_auto',  'Fábrica automática', 'energia', 15000, 22, 87, 'automatico', 0, 1, 'Um pedaço do celeiro em qualquer lugar: a rede de canos encostada nela leva e traz do celeiro como se o cano chegasse até ele (sem mexer na ração reservada).'),
-  ('robo_colheita', 'Robô colheitador',   'energia', 18000, 23, 88, 'robo',       3, 2, 'Colhe, ara e replanta sozinho os canteiros em volta (3). Gasta 4 ⚡ por colheita e 2 por plantio.'),
-  ('aspersor',      'Aspersor elétrico',  'energia', 12000, 24, 89, 'aspersor',   3, 4, 'Nenhuma erva, praga ou seca nos canteiros em volta (3). Gasta 2 ⚡ por problema evitado.'),
+  ('robo_colheita', 'Robô colheitador',   'energia', 18000, 23, 88, 'robo',       3, 2, 'Colhe, ara e replanta sozinho os canteiros em volta (3). Gasta 2,4 ⚡ por colheita e 1,2 por plantio.'),
+  ('aspersor',      'Aspersor elétrico',  'energia', 12000, 24, 89, 'aspersor',   3, 4, 'Nenhuma erva, praga ou seca nos canteiros em volta (3). Gasta 1,2 ⚡ por problema evitado.'),
   ('reator',        'Reator nuclear',     'energia', 30000, 25, 90, 'reator',     0, 1, 'Gera 120 ⚡/h sem parar, de dia e de noite (80 na onda de calor, para não esquentar).')
 on conflict (id) do update set
   nome = excluded.nome, categoria = excluded.categoria, custo = excluded.custo,
@@ -680,7 +681,7 @@ update public.fazenda_itens i
     ('alvo',          'sorte',        2,  2, 'Sorte: 15% de chance de colheita em dobro em volta (2 quadrados).', null, null, null),
     ('caixote',       'venda',        0,  2, '+10% no preço de venda (fazenda toda, não acumula).', null, null, null),
     ('colmeia',       'adubo',        2,  3, 'Abelhas: +1 item na colheita em volta (2 quadrados).', null, null, null),
-    ('bau',           'missao',       0,  3, '+25% de moedas nas missões. Com energia, guarda em si (até 200 itens) o que recolhe: encostado num bloco de canteiros, colhe o que amadurece; num cercado, coleta e dá ração aos bichos; numa árvore do pomar, colhe as frutas; no lago, pega o cesto do Bira (2 ⚡ cada). Com canos, manda para as oficinas e o celeiro.', null, null, null),
+    ('bau',           'missao',       0,  3, '+25% de moedas nas missões. Com energia, guarda em si (até 200 itens) o que recolhe: encostado num bloco de canteiros, colhe o que amadurece; num cercado, coleta e dá ração aos bichos; numa árvore do pomar, colhe as frutas; no lago, pega o cesto do Bira (1,2 ⚡ cada). Com canos, manda para as oficinas e o celeiro.', null, null, null),
     ('lampiao',       null,           0,  3, 'Acende sozinho de noite e ilumina em volta. +3 de beleza (beleza dá bônus nas vendas).', null, null, null),
     ('casa_vermelha', null,           0, 20, 'Casinha: +20 de beleza (beleza dá bônus nas vendas).', null, null, null),
     ('casa_azul',     null,           0, 30, 'Casinha: +30 de beleza (beleza dá bônus nas vendas).', null, null, null)
@@ -1045,7 +1046,7 @@ $$;
 -- ⚡ que cabe nas baterias: 50 da caixa de luz + 100 por banco de baterias + 500 por supercapacitor
 create or replace function public.fazenda_capacidade(p_jogador uuid)
 returns int language sql stable security definer set search_path = public as $$
-  select 50 + coalesce(sum(case c.tipo when 'bateria' then 150 when 'supercap' then 500 else 0 end), 0)::int
+  select 50 + coalesce(sum(case c.tipo when 'bateria' then 150 when 'supercap' then 800 else 0 end), 0)::int
     from fazenda_construcoes c where c.jogador_id = p_jogador;
 $$;
 
@@ -1911,9 +1912,11 @@ $$;
 
 -- Gasta energia se tiver o bastante (senão não gasta nada e devolve false)
 -- Fase 43: quanto custa de verdade (o eletricista contratado baixa 20% / 35% / 50%)
+-- Fase 56: tudo gasta 40% menos (0,6 de cada valor escrito nas máquinas); soma com o eletricista.
+-- Quem tinha tudo no máximo ficava sem energia. As descrições das máquinas já mostram o valor novo.
 create or replace function public.fazenda_energia_preco(p_jogador uuid, p_qtd real)
 returns real language sql stable security definer set search_path = public as $$
-  select (p_qtd * coalesce((select case h.nivel when 1 then 0.8 when 2 then 0.65 else 0.5 end
+  select (p_qtd * 0.6 * coalesce((select case h.nivel when 1 then 0.8 when 2 then 0.65 else 0.5 end
                               from fazenda_ajudantes h join fazenda_ajudantes_tipos t on t.id = h.tipo
                              where h.jogador_id = p_jogador and t.funcao = 'energia' limit 1), 1))::real;
 $$;
@@ -2896,6 +2899,8 @@ declare
   v_ganho int := 0;
   v_valor numeric := 0;   -- valor que conta para o XP (sem o bônus de beleza)
   v_xp    int;
+  v_feira int;
+  v_sem_xp int := 0;      -- fase 56: quantos itens comprados na feira foram vendidos (sem XP)
 begin
   if p_quantidade is not null and p_quantidade <= 0 then
     raise exception 'quantidade_invalida';
@@ -2903,7 +2908,7 @@ begin
 
   -- o que está reservado para os animais fica no celeiro
   for r in
-    select ce.item, ce.quantidade - coalesce(rs.quantidade, 0) as livre, k.venda, k.tipo, k.nivel_min
+    select ce.item, ce.quantidade - coalesce(rs.quantidade, 0) as livre, ce.da_feira, k.venda, k.tipo, k.nivel_min
       from fazenda_celeiro ce
       join fazenda_culturas k on k.id = ce.item
       left join fazenda_reservas rs on rs.jogador_id = ce.jogador_id and rs.item = ce.item
@@ -2913,11 +2918,15 @@ begin
        for update of ce
   loop
     v_qtd := least(coalesce(p_quantidade, r.livre), r.livre);
-    update fazenda_celeiro set quantidade = quantidade - v_qtd
+    -- fase 56: o que veio da feira sai primeiro e não dá XP (comprar na feira para revender ao
+    -- jogo virava XP comprado com moedas); as moedas da venda são as de sempre
+    v_feira := least(v_qtd, r.da_feira);
+    update fazenda_celeiro set quantidade = quantidade - v_qtd, da_feira = da_feira - v_feira
      where jogador_id = v_id and item = r.item;
     v_ganho := v_ganho + v_qtd * r.venda;
     -- XP da venda: só os produtos (oficinas, bichos, lago, pomar); a planta já deu XP na colheita (fase 41)
-    v_valor := v_valor + case when r.tipo <> 'cultura' then v_qtd * r.venda else 0 end;
+    v_valor := v_valor + case when r.tipo <> 'cultura' then (v_qtd - v_feira) * r.venda else 0 end;
+    v_sem_xp := v_sem_xp + case when r.tipo <> 'cultura' then v_feira else 0 end;
   end loop;
 
   v_ganho := (v_ganho * (100 + fazenda_bonus_venda(v_id))) / 100;   -- beleza e caixote
@@ -2930,7 +2939,7 @@ begin
     perform fazenda_missao(v_id, 'vender', v_ganho);
   end if;
 
-  return jsonb_build_object('ganho', v_ganho, 'xp', v_xp, 'estado', fazenda_estado(v_id));
+  return jsonb_build_object('ganho', v_ganho, 'xp', v_xp, 'sem_xp', v_sem_xp, 'estado', fazenda_estado(v_id));
 end;
 $$;
 
@@ -3750,7 +3759,7 @@ begin
       raise exception 'limite_canteiros';
     end if;
     perform fazenda_checar_lugar(v_id, j.zonas, p_x, p_y, 1, 1);
-    select min(g) into v_pos from generate_series(0, 99) g
+    select min(g) into v_pos from generate_series(0, 299) g   -- fase 56: eram 0..99
      where not exists (select 1 from fazenda_canteiros where jogador_id = v_id and posicao = g);
     if v_pos is null then raise exception 'limite_canteiros'; end if;
     insert into fazenda_canteiros (jogador_id, posicao, estado, x, y) values (v_id, v_pos, 'vazio', p_x, p_y);
@@ -4897,8 +4906,9 @@ begin
   if (select moedas from fazenda_jogadores where id = v_id for update) < v_total then raise exception 'moedas_insuficientes'; end if;
   update fazenda_jogadores set moedas = moedas - v_total where id = v_id;
   update fazenda_jogadores set moedas = moedas + v_total - v_taxa where id = a.vendedor_id;
-  insert into fazenda_celeiro (jogador_id, item, quantidade) values (v_id, a.item, a.qtd)
-  on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
+  insert into fazenda_celeiro (jogador_id, item, quantidade, da_feira) values (v_id, a.item, a.qtd, a.qtd)   -- fase 56: da_feira
+  on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade,
+                                               da_feira = fazenda_celeiro.da_feira + excluded.da_feira;
   update fazenda_feira set comprador_id = v_id, vendido_em = now() where id = p_id;
   return jsonb_build_object('item', a.item, 'qtd', a.qtd, 'total', v_total,
                             'vendedor', (select apelido from fazenda_jogadores where id = a.vendedor_id),
@@ -5159,6 +5169,29 @@ end;
 $$;
 
 -- ------------------------------------------------------------
+-- Fase 56: consertos e balanceamento (ideias de 15/10).
+-- • Canteiros: a posição ia só até 99, então o 101º dava limite_canteiros mesmo com o limite em 102
+--   (fazenda_canteiros_posicao_check e fazenda_construir, lá em cima, agora vão até 299).
+-- • Energia: tudo gasta 40% menos (fazenda_energia_preco) e o supercapacitor guarda 800 ⚡ (era 500).
+-- • Feira: o celeiro lembra quanto de cada item veio da feira (da_feira). Vender isso ao jogo dá as
+--   moedas, mas não o XP (fazenda_vender); comprar na feira para revender virava XP comprado.
+--   Usar em receitas, entregas e missões continua igual. Quando a quantidade cai por qualquer outro
+--   motivo, da_feira acompanha (nunca passa da quantidade).
+-- ------------------------------------------------------------
+alter table public.fazenda_celeiro add column if not exists da_feira int not null default 0;
+
+create or replace function public.fazenda_celeiro_da_feira()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  if new.da_feira > new.quantidade then new.da_feira := greatest(new.quantidade, 0); end if;
+  return new;
+end;
+$$;
+drop trigger if exists fazenda_celeiro_da_feira on public.fazenda_celeiro;
+create trigger fazenda_celeiro_da_feira before update on public.fazenda_celeiro
+  for each row execute function public.fazenda_celeiro_da_feira();
+
+-- ------------------------------------------------------------
 -- Permissões: só a API pública fica executável pela chave anon
 -- ------------------------------------------------------------
 revoke execute on function
@@ -5282,7 +5315,8 @@ revoke execute on function
   public.fazenda_xp_dobro(),
   public.fazenda_usar_diamantes(text, text, int, int),
   public.fazenda_codigo_recuperacao(),
-  public.fazenda_admin_novo_codigo(text, uuid)
+  public.fazenda_admin_novo_codigo(text, uuid),
+  public.fazenda_celeiro_da_feira()
 from public, anon, authenticated;
 
 grant execute on function
