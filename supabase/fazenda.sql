@@ -617,17 +617,17 @@ on conflict (id) do update set
 -- baterias e as máquinas elétricas gastam. Os números ficam nas funções fazenda_capacidade,
 -- fazenda_energia_taxa e nos gastos de cada máquina; as descrições aparecem no jogo.
 insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem, efeito, raio, limite, descricao) values
-  ('cano',          'Cano de vidro',      'energia',    25, 16, 79, 'cano',       0, null, 'Canos encostados formam uma rede que liga baús, oficinas e o celeiro. A rede enche sozinha o estoque das oficinas com o que tem nos baús e no celeiro (1,2 ⚡ por receita); o produto vai para outra oficina que usa ele, para o celeiro ou para um baú; o que sobra no baú vai para o celeiro (1,2 ⚡ por viagem). Dá para ver cada item passando.'),
-  ('painel_solar',  'Painel solar',       'energia',  2500, 16, 80, 'solar',      0, 8, 'Gera até 12 ⚡/h de dia (sol forte: 14; nublado: 5; chuva: 3). À noite, nada: no jogo, o dia e a noite se revezam a cada 2 horas.'),
+  ('cano',          'Cano de vidro',      'energia',    25, 16, 79, 'cano',       0, null, 'Canos encostados formam uma rede que liga baús, oficinas e o celeiro. A rede enche sozinha o estoque das oficinas com o que tem nos baús e no celeiro (1,6 ⚡ por receita); o produto vai para outra oficina que usa ele, para o celeiro ou para um baú; o que sobra no baú vai para o celeiro (1,2 ⚡ por viagem). Dá para ver cada item passando.'),
+  ('painel_solar',  'Painel solar',       'energia',  2500, 16, 80, 'solar',      0, 8, 'Gera até 12 ⚡/h de dia (sol forte: 14; nublado: 5; chuva: 3). À noite, nada: no jogo, o dia e a noite se revezam a cada 2 horas. Até 8, mais 1 nos níveis pares a partir do 18 (18, 20, 22...).'),
   ('bateria',       'Banco de baterias',  'energia',  2000, 16, 81, 'bateria',    0, 4, 'Guarda mais 150 ⚡ (sem bateria, a caixa de luz guarda só 50). Bateria cheia: o que sobra é vendido, 1 moeda a cada 5 ⚡.'),
-  ('turbina',       'Turbina eólica',     'energia',  4000, 17, 82, 'eolica',     0, 6, 'Gera 8 ⚡/h de dia e de noite; 30 ⚡/h na ventania e 14 na chuva. Na calmaria (sem vento, uns 25% do tempo fora da ventania e da chuva), cai para 3 ⚡/h: o painel de energia avisa quando vem.'),
-  ('estufa',        'Estufa elétrica',    'energia',  6000, 18, 83, 'estufa',     2, 3, 'Canteiros em volta (2) aceitam sementes de qualquer estação e crescem 25% mais rápido. Gasta 3 ⚡ por plantio.'),
+  ('turbina',       'Turbina eólica',     'energia',  4000, 17, 82, 'eolica',     0, 6, 'Gera 8 ⚡/h de dia e de noite; 30 ⚡/h na ventania e 14 na chuva. Na calmaria (sem vento, uns 25% do tempo fora da ventania e da chuva), cai para 3 ⚡/h: o painel de energia avisa quando vem. Até 6, mais 1 nos níveis ímpares a partir do 19 (19, 21, 23...).'),
+  ('estufa',        'Estufa elétrica',    'energia',  6000, 18, 83, 'estufa',     2, 3, 'Canteiros em volta (2) aceitam sementes de qualquer estação e crescem 25% mais rápido. Gasta 4 ⚡ por plantio.'),
   ('gerador_bio',   'Gerador a biomassa', 'energia',  6000, 19, 84, 'biomassa',   0, 2, 'Ligado, queima 1 milho a cada 30 min: 50 ⚡/h. Toque nele para ligar ou desligar.'),
-  ('triturador',    'Triturador',         'energia', 10000, 20, 85, 'triturar',   0, 1, 'As oficinas rendem 2 produtos por receita. Gasta 6 ⚡ por receita.'),
+  ('triturador',    'Triturador',         'energia', 10000, 20, 85, 'triturar',   0, 1, 'As oficinas rendem 2 produtos por receita. Gasta 8 ⚡ por receita.'),
   ('supercap',      'Supercapacitor',     'energia',  9000, 21, 86, 'bateria',    0, 2, 'Guarda mais 800 ⚡.'),
   ('fabrica_auto',  'Fábrica automática', 'energia', 15000, 22, 87, 'automatico', 0, 1, 'Um pedaço do celeiro em qualquer lugar: a rede de canos encostada nela leva e traz do celeiro como se o cano chegasse até ele (sem mexer na ração reservada).'),
-  ('robo_colheita', 'Robô colheitador',   'energia', 18000, 23, 88, 'robo',       3, 2, 'Colhe, ara e replanta sozinho os canteiros em volta (3). Gasta 2,4 ⚡ por colheita e 1,2 por plantio.'),
-  ('aspersor',      'Aspersor elétrico',  'energia', 12000, 24, 89, 'aspersor',   3, 4, 'Nenhuma erva, praga ou seca nos canteiros em volta (3). Gasta 1,2 ⚡ por problema evitado.'),
+  ('robo_colheita', 'Robô colheitador',   'energia', 18000, 23, 88, 'robo',       3, 2, 'Colhe, ara e replanta sozinho os canteiros em volta (3). Gasta 3,2 ⚡ por colheita e 1,6 por plantio.'),
+  ('aspersor',      'Aspersor elétrico',  'energia', 12000, 24, 89, 'aspersor',   3, 4, 'Nenhuma erva, praga ou seca nos canteiros em volta (3). Gasta 1,6 ⚡ por problema evitado.'),
   ('reator',        'Reator nuclear',     'energia', 30000, 25, 90, 'reator',     0, 1, 'Gera 120 ⚡/h sem parar, de dia e de noite (80 na onda de calor, para não esquentar).')
 on conflict (id) do update set
   nome = excluded.nome, categoria = excluded.categoria, custo = excluded.custo,
@@ -681,7 +681,7 @@ update public.fazenda_itens i
     ('alvo',          'sorte',        2,  2, 'Sorte: 15% de chance de colheita em dobro em volta (2 quadrados).', null, null, null),
     ('caixote',       'venda',        0,  2, '+10% no preço de venda (fazenda toda, não acumula).', null, null, null),
     ('colmeia',       'adubo',        2,  3, 'Abelhas: +1 item na colheita em volta (2 quadrados).', null, null, null),
-    ('bau',           'missao',       0,  3, '+25% de moedas nas missões. Com energia, guarda em si (até 200 itens) o que recolhe: encostado num bloco de canteiros, colhe o que amadurece; num cercado, coleta e dá ração aos bichos; numa árvore do pomar, colhe as frutas; no lago, pega o cesto do Bira (1,2 ⚡ cada). Com canos, manda para as oficinas e o celeiro.', null, null, null),
+    ('bau',           'missao',       0,  3, '+25% de moedas nas missões. Com energia, guarda em si (até 200 itens) o que recolhe: encostado num bloco de canteiros, colhe o que amadurece; num cercado, coleta e dá ração aos bichos; numa árvore do pomar, colhe as frutas; no lago, pega o cesto do Bira (1,6 ⚡ cada). Com canos, manda para as oficinas e o celeiro.', null, null, null),
     ('lampiao',       null,           0,  3, 'Acende sozinho de noite e ilumina em volta. +3 de beleza (beleza dá bônus nas vendas).', null, null, null),
     ('casa_vermelha', null,           0, 20, 'Casinha: +20 de beleza (beleza dá bônus nas vendas).', null, null, null),
     ('casa_azul',     null,           0, 30, 'Casinha: +30 de beleza (beleza dá bônus nas vendas).', null, null, null)
@@ -1506,8 +1506,11 @@ begin
                                           'estoque', estoque, 'prontos', prontos))
         from fazenda_construcoes where jogador_id = p_jogador), '[]'::jsonb),
     'estoque_max', fazenda_estoque_max(),
-    'itens', (
-      select jsonb_agg(to_jsonb(t) order by t.ordem) from fazenda_itens t),
+    'itens', (   -- fase 57: o limite que vale para o nível de agora
+      select jsonb_agg(to_jsonb(t) || jsonb_build_object('limite', fazenda_limite_maquina(t.id, t.limite, v_nivel)) order by t.ordem)
+        from fazenda_itens t),
+    'melhorias', coalesce((select jsonb_object_agg(id, nivel) from fazenda_melhorias where jogador_id = p_jogador), '{}'::jsonb),
+    'melhorias_tipos', fazenda_melhorias_tipos(),
     'estatisticas', (select to_jsonb(e) - 'jogador_id' || jsonb_build_object('energia', e.energia + floor(j.energia_gasta)::int)
                        from fazenda_estatisticas e where e.jogador_id = p_jogador),
     'conquistas', coalesce((
@@ -1610,7 +1613,8 @@ begin
            erva = false, praga = false, seco = false, roubado = 0, prox_evento = null, adubado = false
      where jogador_id = p_jogador and posicao = p_posicao;
     -- arar só dá XP para quem está começando (até o nível 5): senão alface de 2 min vira fábrica de XP
-    if not p_bot and fazenda_nivel(j.xp) <= 5 then update fazenda_jogadores set xp = xp + 1 where id = p_jogador; end if;
+    -- fase 57: e para quem tem a fazenda completa (do 20 em diante, com as metas do nível em dia)
+    if not p_bot and (fazenda_nivel(j.xp) <= 5 or fazenda_completa(p_jogador)) then update fazenda_jogadores set xp = xp + 1 where id = p_jogador; end if;
 
   elsif p_acao = 'arrancar' then   -- o jogador tira o que está plantado (perde a planta) para plantar outra coisa
     if p_bot then raise exception 'acao_invalida'; end if;
@@ -1658,13 +1662,15 @@ begin
        -- pé de girassol, tora, árvore de outono por perto: começa 10% adiantada; estufa: 25%
        set estado = 'plantado', cultura = k.id,
            plantado_em = now() - make_interval(secs => k.tempo_seg *
-                           (0.1 * fazenda_protegido(p_jogador, 'crescer', c.x, c.y)::int + 0.25 * v_estufa::int)),
+                           (0.1 * fazenda_protegido(p_jogador, 'crescer', c.x, c.y)::int + 0.25 * v_estufa::int
+                            + fazenda_melhoria(p_jogador, 'adubo'))),   -- fase 57: adubo premium
            erva = false, praga = false, seco = false, roubado = 0, adubado = false,
            prox_evento = now() + make_interval(secs => k.tempo_seg * (0.15 + random() * 0.35))
      where jogador_id = p_jogador and posicao = p_posicao;
     if not p_bot then
       perform fazenda_missao(p_jogador, 'plantar', 1);
-      update fazenda_jogadores set semente = k.id where id = p_jogador;
+      -- fase 57: fazenda completa: plantar também dá XP
+      update fazenda_jogadores set semente = k.id, xp = xp + fazenda_completa(p_jogador)::int where id = p_jogador;
     end if;
 
   elsif p_acao in ('erva', 'praga', 'seco') then
@@ -1912,11 +1918,12 @@ $$;
 
 -- Gasta energia se tiver o bastante (senão não gasta nada e devolve false)
 -- Fase 43: quanto custa de verdade (o eletricista contratado baixa 20% / 35% / 50%)
--- Fase 56: tudo gasta 40% menos (0,6 de cada valor escrito nas máquinas); soma com o eletricista.
--- Quem tinha tudo no máximo ficava sem energia. As descrições das máquinas já mostram o valor novo.
+-- Fase 56: tudo gasta menos; soma com o eletricista. Fase 57: 20% (0,8 de cada valor escrito nas
+-- máquinas; a 56 tinha posto 40%, barato demais para valer a pena ter tudo). Em troca, painel solar e
+-- turbina sobem de limite com o nível (fazenda_limite_maquina). As descrições mostram o valor novo.
 create or replace function public.fazenda_energia_preco(p_jogador uuid, p_qtd real)
 returns real language sql stable security definer set search_path = public as $$
-  select (p_qtd * 0.6 * coalesce((select case h.nivel when 1 then 0.8 when 2 then 0.65 else 0.5 end
+  select (p_qtd * 0.8 * coalesce((select case h.nivel when 1 then 0.8 when 2 then 0.65 else 0.5 end
                               from fazenda_ajudantes h join fazenda_ajudantes_tipos t on t.id = h.tipo
                              where h.jogador_id = p_jogador and t.funcao = 'energia' limit 1), 1))::real;
 $$;
@@ -2450,13 +2457,13 @@ begin
 
     -- árvores do pomar (e a amoreira) encostadas: colhe as frutas prontas
     for arv in
-      select c.x, c.y, i.produz, i.produz_qtd from fazenda_construcoes c join fazenda_itens i on i.id = c.tipo
+      select c.x, c.y, c.tipo, i.produz, i.produz_qtd from fazenda_construcoes c join fazenda_itens i on i.id = c.tipo
        where c.jogador_id = p_jogador and i.produz is not null and i.entradas is null
          and abs(c.x - b.x) + abs(c.y - b.y) = 1
          and (c.colhido_em is null or now() >= c.colhido_em + make_interval(secs => i.produz_seg))
     loop
       exit when v_livre <= 0 or not fazenda_gastar_energia(p_jogador, 2);
-      update fazenda_construcoes set colhido_em = now() where jogador_id = p_jogador and x = arv.x and y = arv.y;
+      update fazenda_construcoes set colhido_em = fazenda_colhido_agora(p_jogador, arv.tipo) where jogador_id = p_jogador and x = arv.x and y = arv.y;
       insert into fazenda_bau_itens (jogador_id, x, y, item, quantidade) values (p_jogador, b.x, b.y, arv.produz, arv.produz_qtd)
       on conflict (jogador_id, x, y, item) do update set quantidade = fazenda_bau_itens.quantidade + excluded.quantidade;
       perform fazenda_viagem(p_jogador, arv.produz, arv.produz_qtd, arv.x, arv.y, b.x, b.y, true, now());
@@ -2607,14 +2614,14 @@ begin
       -- num baú fica para o baú (é ela que alimenta a rede de canos)
       if v_feito < v_n then
         for c in
-          select k.x, k.y, i.produz, i.produz_qtd from fazenda_construcoes k join fazenda_itens i on i.id = k.tipo
+          select k.x, k.y, k.tipo, i.produz, i.produz_qtd from fazenda_construcoes k join fazenda_itens i on i.id = k.tipo
            where k.jogador_id = p_jogador and i.categoria = 'pomar' and i.produz is not null
              and (k.colhido_em is null or now() >= k.colhido_em + make_interval(secs => i.produz_seg))
              and not exists (select 1 from fazenda_construcoes b
                               where b.jogador_id = p_jogador and b.tipo = 'bau' and abs(b.x - k.x) + abs(b.y - k.y) = 1)
            order by k.colhido_em nulls first, k.x, k.y limit v_n - v_feito
         loop
-          update fazenda_construcoes set colhido_em = now() where jogador_id = p_jogador and x = c.x and y = c.y;
+          update fazenda_construcoes set colhido_em = fazenda_colhido_agora(p_jogador, c.tipo) where jogador_id = p_jogador and x = c.x and y = c.y;
           insert into fazenda_celeiro (jogador_id, item, quantidade) values (p_jogador, c.produz, c.produz_qtd)
           on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
           v_feito := v_feito + 1;
@@ -3603,6 +3610,20 @@ begin
     if j.moedas < a.custo then raise exception 'moedas_insuficientes'; end if;
     update fazenda_jogadores set moedas = moedas - a.custo, zonas = zonas + 1 where id = v_id;
 
+  elsif p_categoria = 'melhoria' then
+    -- fase 57: o próximo nível da melhoria (p_tipo = adubo, pomar ou pes)
+    select (n->>'nivel')::int as nivel, (n->>'custo')::int as custo into a
+      from jsonb_array_elements(fazenda_melhorias_tipos()) m,
+           jsonb_array_elements(m->'niveis') with ordinality as x(n, i)
+     where m->>'id' = p_tipo
+       and x.i = 1 + coalesce((select nivel from fazenda_melhorias where jogador_id = v_id and id = p_tipo), 0);
+    if not found then raise exception 'melhoria_max'; end if;
+    if fazenda_nivel(j.xp) < a.nivel then raise exception 'nivel_insuficiente'; end if;
+    if j.moedas < a.custo then raise exception 'moedas_insuficientes'; end if;
+    update fazenda_jogadores set moedas = moedas - a.custo where id = v_id;
+    insert into fazenda_melhorias (jogador_id, id, nivel) values (v_id, p_tipo, 1)
+    on conflict (jogador_id, id) do update set nivel = fazenda_melhorias.nivel + 1;
+
   else
     raise exception 'item_invalido';
   end if;
@@ -3770,8 +3791,9 @@ begin
   if not found then raise exception 'item_invalido'; end if;
   if fazenda_nivel(j.xp) < i.nivel_min then raise exception 'nivel_insuficiente'; end if;
   perform fazenda_checar_lugar(v_id, j.zonas, p_x, p_y, i.largura, i.altura);
-  if i.limite is not null
-     and (select count(*) from fazenda_construcoes where jogador_id = v_id and tipo = i.id) >= i.limite then
+  if i.limite is not null   -- fase 57: painel solar e turbina sobem com o nível
+     and (select count(*) from fazenda_construcoes where jogador_id = v_id and tipo = i.id)
+         >= fazenda_limite_maquina(i.id, i.limite, fazenda_nivel(j.xp)) then
     raise exception 'limite_maquina';
   end if;
   -- itens por terreno (amoreira): mais terreno, mais pés (igual a maxItem em fazenda.js); fase 47: no
@@ -3779,7 +3801,9 @@ begin
   if i.por_terreno is not null
      and (select count(*) from fazenda_construcoes c join fazenda_itens k on k.id = c.tipo
            where c.jogador_id = v_id and (c.tipo = i.id or (i.grupo is not null and k.grupo = i.grupo)))
-         >= (case when i.categoria = 'pomar' then i.por_terreno * (1 + j.zonas / 2) else i.por_terreno * (1 + j.zonas) end) then
+         >= (case when i.categoria = 'pomar'   -- fase 57: + os pés da melhoria "Mais pés de fruta"
+                  then i.por_terreno * (1 + j.zonas / 2) + fazenda_melhoria(v_id, 'pes')::int
+                  else i.por_terreno * (1 + j.zonas) end) then
     raise exception 'limite_terreno';
   end if;
   if (select count(*) from fazenda_construcoes where jogador_id = v_id) >= fazenda_max_construcoes(j.zonas) then
@@ -3908,7 +3932,7 @@ declare
   r    record;
   k    record;
 begin
-  select c.colhido_em, i.produz, i.produz_seg, i.produz_qtd, i.entradas into r
+  select c.colhido_em, c.tipo, i.produz, i.produz_seg, i.produz_qtd, i.entradas into r
     from fazenda_construcoes c join fazenda_itens i on i.id = c.tipo
    where c.jogador_id = v_id and c.x = p_x and c.y = p_y
      for update of c;
@@ -3921,7 +3945,7 @@ begin
   values (v_id, r.produz, r.produz_qtd)
   on conflict (jogador_id, item)
   do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
-  update fazenda_construcoes set colhido_em = now() where jogador_id = v_id and x = p_x and y = p_y;
+  update fazenda_construcoes set colhido_em = fazenda_colhido_agora(v_id, r.tipo) where jogador_id = v_id and x = p_x and y = p_y;
   update fazenda_jogadores set xp = xp + greatest(k.xp / 8, 1) where id = v_id;
   perform fazenda_missao(v_id, 'colher', r.produz_qtd);
   return jsonb_build_object('qtd', r.produz_qtd, 'item', r.produz, 'estado', fazenda_estado(v_id));
@@ -4620,6 +4644,8 @@ begin
   if new.xp > old.xp and coalesce(current_setting('fazenda.xp_puro', true), '') <> '1' then
     if new.xp2_ate is not null and new.xp2_ate > now() then v_mult := v_mult + 1; end if;
     if new.bonus_nivel is not null and new.bonus_nivel = fazenda_nivel(old.xp) then v_mult := v_mult + 0.5; end if;
+    -- fase 57: fazenda completa (do 20 em diante, metas em dia): mais 25%
+    if new.bonus_nivel is not null and new.bonus_nivel = fazenda_nivel(old.xp) and fazenda_nivel(old.xp) >= 20 then v_mult := v_mult + 0.25; end if;
     if v_mult > 1 then new.xp := old.xp + round((new.xp - old.xp) * v_mult)::int; end if;
   end if;
   return new;
@@ -5192,6 +5218,70 @@ create trigger fazenda_celeiro_da_feira before update on public.fazenda_celeiro
   for each row execute function public.fazenda_celeiro_da_feira();
 
 -- ------------------------------------------------------------
+-- Fase 57: fim de jogo (ideias de 15/10, etapa 2A).
+-- • Energia: 20% mais barata (fazenda_energia_preco; a 56 tinha posto 40%) e painel solar e turbina
+--   sobem de limite com o nível, um de cada vez: +1 painel nos níveis pares a partir do 18, +1 turbina
+--   nos ímpares a partir do 19 (igual a limiteMaquina em fazenda.js).
+-- • Melhorias (Loja → Melhorias): compras caras e permanentes para quem já juntou moedas.
+--   adubo = a planta já nasce adiantada (soma com girassol e estufa); pomar = a árvore colhida recomeça
+--   adiantada; pes = mais pés de cada fruta no pomar, além dos 4 dos terrenos.
+-- • Fazenda completa: do nível 20 em diante, com as metas do nível em dia (tudo o que ele libera), o
+--   bônus das metas sobe de +50% para +75% de XP, e arar e plantar também dão XP
+--   (fazenda_xp_dobro, fazenda_aplicar).
+-- ------------------------------------------------------------
+create table if not exists public.fazenda_melhorias (
+  jogador_id uuid not null references public.fazenda_jogadores(id) on delete cascade,
+  id         text not null,
+  nivel      int  not null default 1,
+  primary key (jogador_id, id)
+);
+alter table public.fazenda_melhorias enable row level security;
+revoke all on public.fazenda_melhorias from anon, authenticated;
+
+-- o catálogo (o jogo mostra o que vem daqui). valor: adubo e pomar = fração adiantada; pes = pés a mais
+create or replace function public.fazenda_melhorias_tipos()
+returns jsonb language sql immutable as $$
+  select '[{"id":"adubo","nome":"Adubo premium","descricao":"As plantas nascem adiantadas: crescem 10%, 20% e 30% mais rápido (soma com o girassol e a estufa).",
+            "niveis":[{"nivel":23,"custo":50000,"valor":0.1},{"nivel":26,"custo":150000,"valor":0.2},{"nivel":29,"custo":300000,"valor":0.3}]},
+           {"id":"pomar","nome":"Pomar fértil","descricao":"As árvores do pomar dão frutas 15% e 30% mais rápido.",
+            "niveis":[{"nivel":24,"custo":80000,"valor":0.15},{"nivel":28,"custo":200000,"valor":0.3}]},
+           {"id":"pes","nome":"Mais pés de fruta","descricao":"Mais 1 e mais 2 pés de cada fruta no pomar, além dos 4 que os terrenos dão.",
+            "niveis":[{"nivel":25,"custo":60000,"valor":1},{"nivel":30,"custo":120000,"valor":2}]}]'::jsonb;
+$$;
+
+-- quanto a melhoria vale para o jogador agora (0 = não comprou)
+create or replace function public.fazenda_melhoria(p_jogador uuid, p_id text)
+returns real language sql stable security definer set search_path = public as $$
+  select coalesce((select (m->'niveis'->(g.nivel - 1)->>'valor')::real
+                     from fazenda_melhorias g, jsonb_array_elements(fazenda_melhorias_tipos()) m
+                    where g.jogador_id = p_jogador and g.id = p_id and m->>'id' = p_id), 0)::real;
+$$;
+
+-- o limite de cada máquina no nível (null = sem limite)
+create or replace function public.fazenda_limite_maquina(p_item text, p_limite int, p_nivel int)
+returns int language sql immutable as $$
+  select case p_item
+           when 'painel_solar' then p_limite + greatest(0, (p_nivel - 16) / 2)
+           when 'turbina'      then p_limite + greatest(0, (p_nivel - 17) / 2)
+           else p_limite end;
+$$;
+
+-- a hora de "colhido" de uma árvore colhida agora: com o pomar fértil, ela recomeça adiantada
+create or replace function public.fazenda_colhido_agora(p_jogador uuid, p_tipo text)
+returns timestamptz language sql stable security definer set search_path = public as $$
+  select now() - make_interval(secs => coalesce((select i.produz_seg from fazenda_itens i
+                                                  where i.id = p_tipo and i.categoria = 'pomar'), 0)
+                                       * fazenda_melhoria(p_jogador, 'pomar'));
+$$;
+
+-- fazenda completa = do nível 20 em diante, com as metas do nível em dia (fase 49: bonus_nivel)
+create or replace function public.fazenda_completa(p_jogador uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select coalesce((select fazenda_nivel(j.xp) >= 20 and j.bonus_nivel = fazenda_nivel(j.xp)
+                     from fazenda_jogadores j where j.id = p_jogador), false);
+$$;
+
+-- ------------------------------------------------------------
 -- Permissões: só a API pública fica executável pela chave anon
 -- ------------------------------------------------------------
 revoke execute on function
@@ -5316,7 +5406,12 @@ revoke execute on function
   public.fazenda_usar_diamantes(text, text, int, int),
   public.fazenda_codigo_recuperacao(),
   public.fazenda_admin_novo_codigo(text, uuid),
-  public.fazenda_celeiro_da_feira()
+  public.fazenda_celeiro_da_feira(),
+  public.fazenda_melhorias_tipos(),
+  public.fazenda_melhoria(uuid, text),
+  public.fazenda_limite_maquina(text, int, int),
+  public.fazenda_colhido_agora(uuid, text),
+  public.fazenda_completa(uuid)
 from public, anon, authenticated;
 
 grant execute on function

@@ -811,6 +811,12 @@ button.item:hover {
     display: block;
 }
 
+/* fase 57: os níveis de uma melhoria já comprados */
+.det span.feito {
+    color: var(--o);
+    font-weight: 700;
+}
+
 .preco {
     font-weight: 700;
     white-space: nowrap;
