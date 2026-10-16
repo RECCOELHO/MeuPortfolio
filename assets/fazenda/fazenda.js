@@ -1342,8 +1342,8 @@
     const NOME_EFEITO = {
         seco: 'sem seca', praga: 'sem pragas', erva: 'sem ervas', crescer: 'cresce 10% mais rápido',
         adubo: '+1 item', xp: '+1 XP', sorte: 'sorte (colheita em dobro às vezes)', cerca: 'vizinho pega no máximo 1',
-        alarme: 'protegido do vizinho', estufa: 'estufa: qualquer estação e +25% rápido (5 ⚡)',
-        robo: 'o robô colhe e replanta', aspersor: 'sem nenhum problema (aspersor, 2 ⚡)'
+        alarme: 'protegido do vizinho', estufa: 'estufa: qualquer estação e +25% rápido (3 ⚡)',
+        robo: 'o robô colhe e replanta', aspersor: 'sem nenhum problema (aspersor, 1,2 ⚡)'
     };
     function bonusDoCanteiro(c, fonte) {
         const vistos = new Set();
@@ -1495,14 +1495,14 @@
         const usam = rede ? new Set(rede.oficinas.flatMap((k) => Object.keys(tipoItem(k.tipo).entradas || {}))) : new Set();
         const txtRede = !rede || (!rede.oficinas.length && !rede.celeiro)
             ? `Sem cano até uma oficina ou o celeiro: o que ele recolhe fica guardado aqui. Ligue com <b>canos de vidro</b> (Construir → Energia).`
-            : `Na rede${rede.oficinas.length ? ` com ${rede.oficinas.length} oficina(s)` : ''}${rede.celeiro ? `${rede.oficinas.length ? ' e' : ' com'} o celeiro` : ''}: manda pelo cano o que as oficinas usam${rede.celeiro ? ' e leva o resto para o celeiro (2 ⚡ por viagem)' : ''}.`;
+            : `Na rede${rede.oficinas.length ? ` com ${rede.oficinas.length} oficina(s)` : ''}${rede.celeiro ? `${rede.oficinas.length ? ' e' : ' com'} o celeiro` : ''}: manda pelo cano o que as oficinas usam${rede.celeiro ? ' e leva o resto para o celeiro (1,2 ⚡ por viagem)' : ''}.`;
         return `
             <p>${total} de ${BAU_MAX} itens guardados</p>
             <span class="estoque-barra"><i style="width:${Math.min(100, Math.round(total / BAU_MAX * 100))}%"></i></span>
             ${itens.length ? '<div class="bau-itens">' + itens.map(([item, n]) => `<span class="chip" title="${nomeItem(item)}${usam.has(item) ? ' (uma oficina da rede usa)' : ''}">${itemDe(culturas[item] || { id: item }, 20)}<span>${n}${usam.has(item) ? ` ${A.htmlItem('cano', 12)}` : ''}</span></span>`).join('') + '</div>'
                 : '<p class="vazio-msg">Vazio por enquanto.</p>'}
             <p class="aviso">${A.htmlItem('cano', 16)} ${txtRede}</p>
-            <p class="det">Com energia, recolhe sozinho o que estiver encostado nele: o bloco de canteiros, um cercado (coleta e dá ração), uma árvore do pomar e o cesto do lago (2 ⚡ cada). Cheio, ele para de recolher.</p>
+            <p class="det">Com energia, recolhe sozinho o que estiver encostado nele: o bloco de canteiros, um cercado (coleta e dá ração), uma árvore do pomar e o cesto do lago (1,2 ⚡ cada). Cheio, ele para de recolher.</p>
             <div class="rodape-painel">
                 <button type="button" class="botao verde" data-bau-esvaziar${total ? '' : ' disabled'}>Levar tudo para o celeiro</button>
                 <button type="button" class="botao creme" data-fechar>Fechar</button>
@@ -3042,8 +3042,8 @@
                     <li>Toque num item já colocado para ver o que ele faz; o <b>alcance</b> dele (irrigador, alarme, estufa...) aparece marcado no chão. <b>Segure o dedo 3 segundos</b> num item ou canteiro para pegar e levar para outro lugar.</li>
                     <li>A semana tem as 4 <b>estações</b> (42 horas cada), e cada uma muda a cara da fazenda (pétalas na primavera, grama quente no verão, folhas caindo no outono, neve no inverno) e tem uma semente só dela: morango, melancia, abóbora e repolho. O <b>clima</b> muda várias vezes por dia: sol dá +1 na colheita, chuva rega tudo, onda de calor seca mais, nublado não traz problema novo e ventania espalha pragas. Toque no clima, lá em cima, para ver até quando ele vai.</li>
                     <li>O jogo tem o próprio <b>dia e noite</b>: eles se revezam a cada 2 horas (12 horas de dia e 12 de noite em cada dia de verdade). De noite o mapa escurece, as janelas, os lampiões e as oficinas acendem, aparecem vaga-lumes, e o painel solar não gera energia. Toque no clima para ver quando amanhece.</li>
-                    <li>O <b>baú</b> guarda em si (até 200 itens) o que recolhe sozinho, com energia, do que estiver encostado nele: o bloco de canteiros, um cercado (coleta e dá ração), uma árvore do pomar e o cesto do lago (2 ⚡ cada). Toque no baú para ver o que tem.</li>
-                    <li>No nível 16 chegam os <b>canos de vidro</b> (Construir → Energia, 25 cada). Canos encostados formam uma <b>rede</b>, e tudo o que encosta num cano dela (baús, oficinas, o celeiro, a fábrica automática) trabalha junto: a rede <b>enche sozinha o estoque das oficinas</b> (até 10 receitas, 2 ⚡ cada) com o que tem nos baús e no celeiro da rede, dividindo entre todas; o produto vai para outra oficina que usa ele (o óleo da prensa vai para o empório), para o celeiro ou para um baú; e o que nenhuma oficina usa sai do baú para o celeiro (2 ⚡ por viagem). Para o celeiro fazer parte, o cano tem que encostar no próprio prédio do celeiro. Nada anda sem estar ligado. Como saber se está funcionando: a <b>luz no meio do cano</b> fica verde pulsando quando a rede liga duas coisas ou mais (vermelha piscando = sem energia), a oficina na rede ganha um selinho de cano no balão, o baú mostra uma barrinha de quanto está cheio, e cada item aparece passando pelo cano quando viaja.</li>
+                    <li>O <b>baú</b> guarda em si (até 200 itens) o que recolhe sozinho, com energia, do que estiver encostado nele: o bloco de canteiros, um cercado (coleta e dá ração), uma árvore do pomar e o cesto do lago (1,2 ⚡ cada). Toque no baú para ver o que tem.</li>
+                    <li>No nível 16 chegam os <b>canos de vidro</b> (Construir → Energia, 25 cada). Canos encostados formam uma <b>rede</b>, e tudo o que encosta num cano dela (baús, oficinas, o celeiro, a fábrica automática) trabalha junto: a rede <b>enche sozinha o estoque das oficinas</b> (até 10 receitas, 1,2 ⚡ cada) com o que tem nos baús e no celeiro da rede, dividindo entre todas; o produto vai para outra oficina que usa ele (o óleo da prensa vai para o empório), para o celeiro ou para um baú; e o que nenhuma oficina usa sai do baú para o celeiro (1,2 ⚡ por viagem). Para o celeiro fazer parte, o cano tem que encostar no próprio prédio do celeiro. Nada anda sem estar ligado. Como saber se está funcionando: a <b>luz no meio do cano</b> fica verde pulsando quando a rede liga duas coisas ou mais (vermelha piscando = sem energia), a oficina na rede ganha um selinho de cano no balão, o baú mostra uma barrinha de quanto está cheio, e cada item aparece passando pelo cano quando viaja.</li>
                     <li>Do nível 16 em diante vem a <b>energia</b> ${ico('raio', 14)}: painel solar, turbina, gerador a biomassa e reator enchem as baterias, e as máquinas elétricas (estufa, triturador, fábrica automática, robô, aspersor, baús e a rede de canos) trabalham sozinhas gastando energia. O <b>eletricista</b> (ajudante, nível 17) faz tudo gastar menos, e dá para encher as baterias com diamantes. Toque no ${ico('raio', 12)} lá em cima (ou no botão abaixo) para ver o que cada uma faz.</li>
                     ${ANUNCIO.ligado || ehLocal ? `<li>Quando aparecer o botão <b>+30 min</b>, assista a um anúncio até o fim e tudo o que está em andamento (plantas, animais, oficinas, ajudantes e energia) adianta 30 minutos. Cada anúncio também dá 1 ${ico('diamante', 14)} diamante.</li>` : ''}
                     <li>No Perfil (ou em Vizinhos) tem o seu <b>link de convite</b>: quem criar uma fazenda por ele ganha moedas, e você também.</li>
