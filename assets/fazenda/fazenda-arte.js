@@ -45,7 +45,7 @@
 
     /* ---------- Mapa da fazenda (precisa bater com fazenda_livre no SQL) ---------- */
     const MAPA = {
-        w: 48, h: 32,                                // tamanho máximo, com todos os terrenos
+        w: 48, h: 42,                                // tamanho máximo, com todos os terrenos (fase 61: + o litoral)
         celeiro: { x: 1, y: 1 },                     // 3 x 6
         casa: { x: 5, y: 1 },                        // 3 x 3
         campo: { x: 9, y: 4 },                       // onde os 6 primeiros canteiros nascem
@@ -60,9 +60,14 @@
         // fase 51: a feira, numa pracinha de terra na mata à esquerda do celeiro (fora do terreno,
         // onde não dá para expandir). A 1ª barraca todo mundo tem; as outras são compradas.
         feira: { x: -5, y: 1, w: 5, h: 6, barracas: [{ x: -2, y: 2 }, { x: -4, y: 2 }, { x: -2, y: 5 }, { x: -4, y: 5 }] },
+        // fase 61: o litoral (terreno 7): areia de y 32 a 36 e mar dali para baixo; o píer é um lugar
+        // fixo na areia que entra pelo mar. Igual a fazenda_livre no SQL.
+        mar: { x: 0, y: 37, w: 48, h: 5 },
+        pier: { x: 22, y: 35, w: 3, h: 7 },
         reservas: [
             { x: 1, y: 1, w: 3, h: 6 }, { x: 5, y: 1, w: 3, h: 3 }, null,
-            { x: 16, y: 0, w: 6, h: 7 }, { x: 24, y: 14, w: 6, h: 5 }
+            { x: 16, y: 0, w: 6, h: 7 }, { x: 24, y: 14, w: 6, h: 5 },
+            { x: 0, y: 37, w: 48, h: 5 }, { x: 22, y: 35, w: 3, h: 7 }
         ]
     };
     // o galinheiro cresce com os bichos (definirGalinheiro): a reserva é o mesmo objeto
@@ -82,7 +87,9 @@
         // terrenos grandes (fase 24)
         { n: 4, x: 32, y: 0, w: 16, h: 20, placa: { x: 32, y: 9 } },
         { n: 5, x: 0, y: 20, w: 32, h: 12, placa: { x: 15, y: 20 } },
-        { n: 6, x: 32, y: 20, w: 16, h: 12, placa: { x: 33, y: 21 } }
+        { n: 6, x: 32, y: 20, w: 16, h: 12, placa: { x: 33, y: 21 } },
+        // fase 61: o litoral, nível 31 (areia em cima, mar embaixo: MAPA.mar)
+        { n: 7, x: 0, y: 32, w: 48, h: 10, placa: { x: 10, y: 33 } }
     ];
     let zonasAtuais = 0;   // terrenos da fazenda que está na tela (a sua ou a do vizinho)
     const dentroRet = (r, x, y) => x >= r.x && y >= r.y && x < r.x + r.w && y < r.y + r.h;
@@ -167,6 +174,7 @@
         // fase 60: materiais raros do píer
         madeira_nobre: { item: 1085 }, corda_naval: { item: 1086 }, pedra_cantaria: { item: 1087 },
         ferro_forjado: { item: 1088 }, ancora: { item: 1089 },
+        leme_dourado: { item: 1090 },   // fase 61
         // sementes da estação (broto e meio do pacote; madura e fruta próprias)
         moranguinho: { fases: [52, 53, 1013], murcho: 55, item: 1014, semente: 1014 },
         melancia: { fases: [52, 53, 1015], murcho: 55, item: 1016, semente: 1016 },
@@ -395,7 +403,10 @@
         // 88 ferro forjado (barras)
         ['................', '................', '................', '................', '.....aaaaaaaa...', '....afddffffla..', '...aaaaaaaaaala.', '...afdffffflaaa.', '..aaaaaaaaaaalla', '..afdfffffflala.', '.afdffffffflaa..', '.aKKKKKKKKKKa...', '.aaaaaaaaaaaa...', '................', '................', '................'],
         // 89 âncora
-        ['................', '.......aa.......', '......affa......', '......afla......', '.......aa.......', '....aaaKaaaa....', '....aKKKKKKa....', '.......aK.......', '.......aKa......', '.a.....aKa....a.', 'aKa....aKa...aKa', '.aKa...aKa..aKa.', '..aKaa.aKa.aKa..', '...aKKaaKaaKa...', '....aaKKKKKa....', '......aaaaa.....']
+        ['................', '.......aa.......', '......affa......', '......afla......', '.......aa.......', '....aaaKaaaa....', '....aKKKKKKa....', '.......aK.......', '.......aKa......', '.a.....aKa....a.', 'aKa....aKa...aKa', '.aKa...aKa..aKa.', '..aKaa.aKa.aKa..', '...aKKaaKaaKa...', '....aaKKKKKa....', '......aaaaa.....'],
+        // fase 61: o leme dourado (prêmio do ranking da semana, peça do píer)
+        // 90 leme dourado (aro dourado com brilho, miolo de madeira com os raios e 8 manoplas)
+        ['......ayGa......', '..a...ayGa...a..', '.aGa.aayGaa.aGa.', '..ayaGGGdddaya..', '...aggGaaddda...', '..agganaanadda..', 'aaaggnaGGanddaaa', 'GGGHaaGaaGaadGGG', 'yyyHaaGaaGaaGyyy', 'aaaHHnaGGanGGaaa', '..aHHanaanagGa..', '...aHHHaaggga...', '..ayaHHHHggaya..', '.aGa.aayGaa.aGa.', '..a...ayGa...a..', '......ayGa......']
     ];
     const atlasProprio = document.createElement('canvas');
     atlasProprio.width = 12 * 16;
@@ -979,6 +990,7 @@
         let canteirosFn = () => [];                        // [{ posicao, x, y }]
         let construcao = { ativo: false };                 // estado do modo construir
         let zonaVenda = null;                              // próximo terreno à venda (ZONAS) ou null
+        let pierPronto = false;                            // fase 61: o píer já foi construído?
         let clima = null;                                  // sol | nublado | chuva | calor | vento
         let lago = null;                                   // { prontos, max } do seu lago, ou null
         // visita na porteira: { tipo, item (tile do balão), x, y, tx, ty, saindo }
@@ -1204,11 +1216,14 @@
                 }
             }
 
+            desenharLitoral();   // fase 61: a areia da praia e o mar (a mata do terreno à venda vem por cima)
+
             // mata em volta do terreno: árvores de duas peças, conforme a estação
             const arvores = [];
             for (let ty = -MARGEM; ty < MAPA.h + MARGEM; ty++) {
                 for (let tx = -MARGEM; tx < MAPA.w + MARGEM; tx++) {
                     if (dentroTerreno(tx, ty)) continue;
+                    if (ty >= MAPA.mar.y) continue;   // fase 61: no mar não tem árvore
                     // perto da placa do terreno à venda fica uma clareira
                     if (zonaVenda && Math.abs(tx - zonaVenda.placa.x) <= 1 && ty >= zonaVenda.placa.y - 1 && ty <= zonaVenda.placa.y + 1) continue;
                     const longe = distTerreno(tx, ty);
@@ -1279,6 +1294,60 @@
                 fundoGrama.getContext('2d').drawImage(fundo, 0, 0);
                 desenharLago();
             }
+            if (zonasAtuais >= 7) desenharPier();   // fase 61
+        }
+
+        /* ---- fase 61: o litoral. Areia de y 32 a 36 (com a beirada molhada) e o mar de y 37 até a
+           borda de baixo do mundo, de ponta a ponta; ondinhas e espuma na beira. ---- */
+        function desenharLitoral() {
+            const r = rng(6161);
+            const ret = (x, y, w, h, cor) => { f.fillStyle = cor; f.fillRect(x, y, w, h); };
+            const AREIA = wy(32), BEIRA = wy(MAPA.mar.y), X0 = wx(-MARGEM), X1 = wx(MAPA.w + MARGEM), FUNDO = MH;
+            // areia só dentro do terreno (nas laterais continua a mata)
+            ret(wx(0), AREIA, MAPA.w * T, BEIRA - AREIA, '#ecd59a');
+            for (let k = 0; k < 900; k++) ret(wx(0) + Math.floor(r() * MAPA.w * T), AREIA + Math.floor(r() * (BEIRA - AREIA)), 1, 1, r() < 0.5 ? '#d9bd7c' : '#f6e6b8');
+            ret(wx(0), BEIRA - 4, MAPA.w * T, 4, '#d2b06c');   // areia molhada
+            // o mar
+            ret(X0, BEIRA, X1 - X0, FUNDO - BEIRA, '#3a7cc4');
+            ret(X0, BEIRA + T * 2, X1 - X0, FUNDO - BEIRA - T * 2, '#336fb3');
+            ret(X0, BEIRA + T * 5, X1 - X0, FUNDO - BEIRA - T * 5, '#2b5f9e');
+            for (let k = 0; k < 420; k++) {
+                const x = X0 + Math.floor(r() * (X1 - X0)), y = BEIRA + 6 + Math.floor(r() * (FUNDO - BEIRA - 8));
+                ret(x, y, 3 + Math.floor(r() * 4), 1, r() < 0.65 ? '#5d9fe0' : '#2f6aac');
+            }
+            // espuma na beira (onde a onda quebra)
+            for (let x = X0; x < X1; x += 2) {
+                const o = Math.round(Math.sin(x / 9) * 1.5);
+                ret(x, BEIRA + o, 2, 2, '#e8f2fb');
+                if (r() < 0.4) ret(x, BEIRA + 3 + o, 2, 1, '#bcd8f2');
+            }
+        }
+        // o lugar do píer: estacas e uma plaquinha até ser construído; depois, o píer de tábuas e o barco
+        function desenharPier() {
+            const P = MAPA.pier, ret = (x, y, w, h, cor) => { f.fillStyle = cor; f.fillRect(x, y, w, h); };
+            const x0 = wx(P.x) + 6, x1 = wx(P.x + P.w) - 6, y0 = wy(P.y) + 4, y1 = wy(P.y + P.h) - 2;
+            if (!pierPronto) {
+                [[x0, wy(38)], [x1 - 3, wy(38)], [x0, wy(40)], [x1 - 3, wy(40)]].forEach(([x, y]) => {
+                    ret(x, y, 3, 10, '#5a3a20'); ret(x, y, 1, 10, '#7a5230'); ret(x - 1, y + 9, 5, 2, '#bcd8f2');
+                });
+                tile(f, 83, wx(P.x + 1), wy(P.y), false, 'town');   // plaquinha: "o píer vai aqui"
+                return;
+            }
+            // pilares, tábuas e as bordas
+            for (let y = wy(37); y < y1; y += T * 2) {
+                ret(x0 - 2, y, 4, 12, '#4a2f1a'); ret(x1 - 2, y, 4, 12, '#4a2f1a');
+                ret(x0 - 3, y + 10, 6, 2, '#bcd8f2'); ret(x1 - 3, y + 10, 6, 2, '#bcd8f2');
+            }
+            ret(x0, y0, x1 - x0, y1 - y0, '#b8692f');
+            for (let y = y0; y < y1; y += 4) ret(x0, y, x1 - x0, 1, '#8a4e22');
+            ret(x0, y0, 2, y1 - y0, '#6e3d1b'); ret(x1 - 2, y0, 2, y1 - y0, '#6e3d1b');
+            // o barco atracado do lado do píer
+            const bx = x1 + 4, by = wy(39) + 2;
+            ret(bx + 2, by + 10, 26, 7, '#7a4a2a'); ret(bx, by + 8, 30, 3, '#9e5f34'); ret(bx + 4, by + 17, 22, 2, '#4f2f1a');
+            ret(bx + 2, by + 12, 26, 1, '#f2f2f2');
+            ret(bx + 14, by - 10, 2, 18, '#5a3a20');
+            ret(bx + 16, by - 9, 10, 14, '#f4f1e6'); ret(bx + 16, by - 9, 1, 14, '#d8d2c0');
+            ret(bx - 2, by + 19, 34, 2, '#bcd8f2');
         }
 
         /* ---- o lago: tanque com borda de pedras, água funda com sombras de peixe, rede
@@ -2317,6 +2386,7 @@
                 const topo = a.v && a.v.estado !== 'produzindo' ? a.y - 22 : a.y;
                 if (px >= a.x - 1 && px < a.x + T + 1 && py >= topo && py < a.y + T) return 'a:' + a.id;
             }
+            if (zonasAtuais >= 7 && (dentroRet(MAPA.pier, tx, ty) || (pierPronto && tx >= MAPA.pier.x + MAPA.pier.w && tx <= MAPA.pier.x + MAPA.pier.w + 2 && ty >= 38 && ty <= 40))) return 'pier';   // fase 61 (e o barco)
             const cant = listaCanteiros().find((k) => k.x === tx && k.y === ty);
             if (cant) return cant.posicao;
             const cons = (construcoesFn() || []).find((c) => {
@@ -2443,6 +2513,7 @@
             else if (alvo === 'feira') { if (cb.aoFeira) cb.aoFeira(); }
             else if (alvo === 'lago') { if (cb.aoLago) cb.aoLago(); }
             else if (alvo === 'visitante') { if (cb.aoVisitante) cb.aoVisitante(); }
+            else if (alvo === 'pier') { if (cb.aoPier) cb.aoPier(); }
             else if (typeof alvo === 'object' && alvo.construcao) { if (cb.aoConstrucao) cb.aoConstrucao(alvo.construcao.x, alvo.construcao.y); }
             else if (typeof alvo === 'object') { if (cb.aoAnimal) cb.aoAnimal(alvo.animal); }
             else if (cb.aoCanteiro) cb.aoCanteiro(alvo);
@@ -2548,6 +2619,7 @@
             definirViagens(fn) { if (typeof fn === 'function') viagensFn = fn; },
             // seu lago: { prontos, max } (null na visita ou sem o terreno 3)
             definirLago(l) { lago = l || null; },
+            definirPier(pronto) { if (!!pronto === pierPronto) return; pierPronto = !!pronto; montarFundo(); precisaDesenhar = true; },   // fase 61
             // avatar do fazendeiro que anda na fazenda (null = o do pacote)
             definirAvatar(cfg) { avatarAtual = cfg || null; },
             // visita na porteira ({ tipo, item }) ou null (ela vai embora andando)

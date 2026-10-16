@@ -126,6 +126,10 @@
         limite_maquina: 'Você já tem essa máquina (uma basta para a fazenda toda).',
         melhoria_max: 'Essa melhoria já está no máximo.',
         ajudante_descansando: 'Esse ajudante já está descansando (ou não precisa).',
+        pier_pronto: 'O seu píer já está pronto.',
+        sem_litoral: 'Compre o terreno do Litoral (Loja → Terrenos, nível 31) para construir o píer.',
+        faltam_pecas: 'Ainda faltam peças do píer. Veja na tela do píer o que falta.',
+        peca_nao_falta: 'Essa peça você já tem para o píer.',
         sem_cama: 'Todas as camas estão ocupadas: construa mais casinhas (Construir → Casas) para mais ajudantes descansarem ao mesmo tempo.',
         limite_terreno: 'Já tem o máximo dessa árvore: cada fruta tem 1 pé, +1 a cada 2 terrenos comprados (até 4).',
         alarme: 'O alarme disparou! Esse canteiro está protegido.',
@@ -391,6 +395,7 @@
     function atualizarTerreno() {
         const z = proximaZona();
         cena.definirTerreno({ zonas: zonasDaTela(), venda: z ? z.n : null });
+        cena.definirPier(!visita && !!(S && S.pier && S.pier.pronto));   // fase 61
     }
     /* ---------- Estação e clima (vêm do servidor: o mesmo dia para todo mundo) ---------- */
     const NOME_ESTACAO = { primavera: 'primavera', verao: 'verão', outono: 'outono', inverno: 'inverno' };
@@ -851,7 +856,7 @@
        Os níveis de cada coisa vêm do servidor (nivel_min / nivel); as duas
        contas abaixo precisam bater com fazenda_presente_nivel e
        fazenda_limite_canteiros no SQL. */
-    const NIVEL_MAX = 30;
+    const NIVEL_MAX = 45;   // fase 61: o litoral e o alto-mar vão do 31 ao 45
     const presenteNivel = (n) => (n > 10 ? 100 : 50) * n;   // do 10 em diante sobe devagar, e o presente dobra
     const limiteCanteirosNivel = (n) => Math.min(6 + (n - 1) * 2, 54);
     // Colher dá o XP cheio da planta, mas o mesmo canteiro no máximo 1 vez a cada 8 min (igual a
@@ -1158,6 +1163,54 @@
             </span>
             <button type="button" class="botao pequeno creme" data-raro-feira="${esc(k.id)}">Na feira</button>
         </div>`;
+    }
+
+    /* ---------- Fase 61: o píer, no litoral ----------
+       Receita de 9 peças difíceis (estado.pier.receita): 5 do mercador, o peixe do Velho Chico (lago) e
+       o leme dourado (ranking da semana). Peça que falta dá para comprar com diamantes, caro. O guardado
+       conta; o peixe dá para guardar para o píer (reserva) para não ir no "Vender tudo". */
+    const ONDE_PECA = {
+        madeira_nobre: 'do mercador ou da feira', corda_naval: 'do mercador ou da feira', pedra_cantaria: 'do mercador ou da feira',
+        ferro_forjado: 'do mercador ou da feira', ancora: 'do mercador ou da feira',
+        velho_chico: 'do lago (bem raro) ou da feira', leme_dourado: 'do ranking da semana ou da feira'
+    };
+    const ehPecaPier = (id) => !!(S && S.pier && S.pier.receita && S.pier.receita.itens && S.pier.receita.itens[id]);
+    // no celeiro: guardar a peça para o píer (ou soltar), para ela não ir no "Vender tudo"
+    function htmlGuardarPier(k) {
+        const g = reservaDe(k.id);
+        return g ? `<span class="det"><span class="txt">${g} guardado para o píer. <button type="button" class="link-botao" data-pier-soltar="${esc(k.id)}">Soltar</button></span></span>`
+            : `<span class="det"><button type="button" class="botao pequeno creme" data-pier-guardar="${esc(k.id)}">Guardar para o píer</button></span>`;
+    }
+    function htmlPier() {
+        const p = S.pier || {}, r = p.receita || { itens: {}, diamantes: {}, moedas: 0, nivel: 31 };
+        if (p.pronto) {
+            return `<p class="fala">O píer está pronto! O barco já está atracado do lado dele.</p>
+                <p class="aviso">Na próxima atualização, tocar no barco leva você para o <b>alto-mar</b>: pescaria de verdade, com barco, vara e marinheiro para melhorar do nível 31 ao 45.</p>`;
+        }
+        const linhas = Object.entries(r.itens).map(([id, n]) => {
+            const k = culturas[id] || { id, nome: id }, tem = naCeleiro(id), falta = Math.max(0, n - tem);
+            const guardado = reservaDe(id), podeGuardar = k.tipo !== 'raro' && tem > 0 && guardado < Math.min(tem, n);
+            return `<div class="item${falta ? '' : ' meta-feita'}">
+                <span class="ico">${spr(A.cultura(id).item, 36)}</span>
+                <span>
+                    <span class="nome">${esc(k.nome)} <small class="qtd">${Math.min(tem, n)} de ${n}</small></span>
+                    <span class="det"><span class="txt">${falta ? `Falta ${falta}: ${esc(ONDE_PECA[id] || 'da feira')}.` : 'Pronto.'}${guardado ? ` ${guardado} guardado para o píer.` : ''}</span></span>
+                </span>
+                <span class="admin-botoes">
+                    ${falta ? `<button type="button" class="botao pequeno creme" data-pier-comprar="${esc(id)}"${(S.jogador.diamantes || 0) >= (r.diamantes[id] || 0) ? '' : ' disabled'}>${ico('diamante', 14)} ${r.diamantes[id] || '?'}</button>` : ''}
+                    ${podeGuardar ? `<button type="button" class="botao pequeno creme" data-pier-guardar="${esc(id)}">Guardar</button>` : ''}
+                </span>
+            </div>`;
+        }).join('');
+        const faltam = Object.entries(r.itens).some(([id, n]) => naCeleiro(id) < n);
+        const nivelOk = S.jogador.nivel >= r.nivel, moedasOk = S.jogador.moedas >= r.moedas;
+        return `<p class="fala">Aqui vai o píer: tábuas entrando pelo mar e um barco atracado. Precisa de peças difíceis de juntar, e de ${moeda(r.moedas)}.</p>
+            <div class="lista">${linhas}</div>
+            <div class="rodape-painel">
+                <span class="preco">${ico('moeda', 16)} ${r.moedas.toLocaleString('pt-BR')}</span>
+                <button type="button" class="botao verde" data-pier-construir${!faltam && nivelOk && moedasOk ? '' : ' disabled'}>Construir o píer</button>
+            </div>
+            <p class="aviso">${!nivelOk ? `O píer libera no nível ${r.nivel}. ` : ''}Peça que falta dá para comprar com ${ico('diamante', 12)} (só até completar). O peixe do Velho Chico você pode <b>guardar para o píer</b>: guardado, ele não vai no "Vender tudo" nem na feira. Os materiais raros não vendem no celeiro.</p>`;
     }
 
     /* ---------- Visitas na porteira: a cada 3 horas chega alguém (fazenda_visitante) ---------- */
@@ -1800,6 +1853,7 @@
         },
         aoLago: () => { if (S && !painelAtual && !visita) pescar(); },
         aoVisitante: () => { if (S && !painelAtual && visitaAgora()) abrirPainel('visitante'); },
+        aoPier: () => { if (S && !painelAtual && !visita) abrirPainel('pier'); },   // fase 61
         aoConstrucao: (x, y) => {
             if (!S || painelAtual) return;
             descreverConstrucao(x, y);
@@ -2387,7 +2441,7 @@
         atualizarTerreno();
         desenharHud();
         if (constr.ativo) desenharPaleta();
-        if (['loja', 'celeiro', 'missoes', 'oficina', 'energia', 'canteiro', 'bau', 'ajudante'].includes(painelAtual)) abrirPainel(painelAtual, true);
+        if (['loja', 'celeiro', 'missoes', 'oficina', 'energia', 'canteiro', 'bau', 'ajudante', 'pier'].includes(painelAtual)) abrirPainel(painelAtual, true);
     }
 
     /* ---------- Diário: quem passou pela sua fazenda ---------- */
@@ -3008,6 +3062,7 @@
                             <span class="det"><span>${moeda(k.venda)} cada</span><span>${!reservaDe(k.id) ? `total ${moeda(livre * k.venda)}` : livre ? `vende ${livre}: ${moeda(livre * k.venda)}` : 'tudo guardado'}</span></span>
                             ${k.tipo === 'cultura' ? `<span class="conta-semente">1 semente (${moeda(k.custo)}) rende ${k.rendimento} = ${moeda(k.rendimento * k.venda)}</span>` : ''}
                             ${come ? htmlReserva(k, come) : ''}
+                            ${!come && ehPecaPier(k.id) && !(S.pier && S.pier.pronto) ? htmlGuardarPier(k) : ''}
                         </span>
                         <button type="button" class="botao pequeno verde" data-vender="${esc(k.id)}"${livre ? '' : ' disabled'}>${livre || !naCeleiro(k.id) ? 'Vender' : 'Guardado'}</button>
                     </div>`;
@@ -3097,6 +3152,9 @@
                     <button type="button" class="botao vermelho" data-sair>Sair desta fazenda</button>`}
                 </div>`;
             botaoGoogle(corpo.querySelector('[data-google-botao]'), 'ligar');
+        } else if (nome === 'pier') {   // fase 61
+            el.painelTitulo.innerHTML = `${itemDe(culturas.ancora || { id: 'ancora' }, 30)} Píer`;
+            corpo.innerHTML = htmlPier();
         } else if (nome === 'ajudante') {   // fase 59
             const t = tipoAjudante(ajudanteAberto), h = meuAjudante(ajudanteAberto);
             if (!t || !h) { fecharPainel(); return; }
@@ -3209,6 +3267,7 @@
                     <li>No Perfil (ou em Vizinhos) tem o seu <b>link de convite</b>: quem criar uma fazenda por ele ganha moedas, e você também.</li>
                     <li>No <b>Vale do sudeste</b> (terreno 3) tem um lago: o pescador <b>Bira</b> tira um peixe a cada 30 minutos, até 16 no cesto. Toque no lago para pegar. Quanto mais raro, mais vale, e o lendário <b>Peixe do Velho Chico</b> sai em 1% das vezes (2% com a estátua do nível 30).</li>
                     <li>A cada 3 horas chega uma <b>visita na porteira</b>, do lado da casa (do nível 3 em diante): o feirante, a doceira e o caminhoneiro compram algo da fazenda pagando bem mais que o celeiro, e a mascate vende adubo. Toque nela para conversar. Bem de vez em quando (1 em cada 100 visitas) vem o <b>mercador</b>, que troca um material raro do píer por frutos fora de época.</li>
+                    <li>No nível 31 chega o <b>Litoral</b> (Loja → Terrenos): areia para construir e plantar e o mar. Na areia fica o lugar do <b>píer</b>: toque nele para ver a receita (9 peças difíceis e 100 mil moedas). Peça que falta dá para comprar com diamantes. Guarde o peixe do Velho Chico para o píer, no celeiro, para ele não ir no "Vender tudo".</li>
                     <li>Cumpra as <b>missões do dia</b> para ganhar moedas e XP extras.</li>
                     <li>Cada nível libera coisas novas e dá um presente de moedas. Toque no seu nome, lá em cima, para abrir o <b>Perfil</b>: lá estão o <b>caminho dos níveis</b>, as conquistas, o seu convite e o botão de <b>personalizar o avatar</b> (fazendeiro, fazendeira, rapaz, mago, viking ou cavaleiro, com as cores que quiser).</li>
                     <li>Em <b>Vizinhos</b> você visita outras fazendas: <b>pega</b> um pouco da colheita madura ou <b>ajuda</b> com os problemas e ganha XP.</li>
@@ -3441,7 +3500,7 @@
                 <span class="ico">${travado ? ico('cadeado', 28) : spr(comprado ? 1 : 39, 44)}</span>
                 <span>
                     <span class="nome">${esc(z.nome)}</span>
-                    <span class="det"><span>${z.w}×${z.h} quadrados</span><span>+${z.canteiros || 6} canteiros</span>${z.lago ? '<span>com lago e pescador!</span>' : ''}</span>
+                    <span class="det"><span>${z.w}×${z.h} quadrados</span><span>+${z.canteiros || 6} canteiros</span>${z.lago ? '<span>com lago e pescador!</span>' : ''}${z.mar ? '<span>praia e mar: o lugar do píer!</span>' : ''}</span>
                 </span>
                 ${comprado ? '<span class="preco">Comprado</span>'
                     : !proximo ? `<span class="preco">Depois do ${z.n - 1}</span>`
@@ -4037,6 +4096,52 @@
                 if (ganho > 0) { toast(`Vendeu por ${ico('moeda', 16)} ${ganho}${xp ? ` e ganhou +${xp} ${ico('xp', 16)}` : ''}!${guardou}${daFeira}`); som.tocar('moeda'); tutorialEvento('vender'); }
                 if (estado) aplicarEstado(estado);
             }).finally(() => { vend.disabled = false; });
+            return;
+        }
+        if (e.target.closest('[data-pier-construir]')) {   // fase 61
+            if (!confirm(`Construir o píer? Usa as 9 peças e ${moeda((S.pier.receita || {}).moedas || 0).replace(/<[^>]+>/g, '')} moedas.`)) return;
+            enfileirar([], async () => {
+                const r = await rpc('fazenda_construir_pier', { p_token: token });
+                aplicarEstado(r.estado);
+                toast(`${itemDe(culturas.ancora || { id: 'ancora' }, 20)} O píer está pronto! O barco já está atracado.`, 'festa');
+                som.tocar('festa');
+                abrirPainel('pier', true);
+            });
+            return;
+        }
+        const pc = e.target.closest('[data-pier-comprar]');
+        if (pc) {
+            const id = pc.dataset.pierComprar, k = culturas[id] || { nome: id }, preco = ((S.pier.receita || {}).diamantes || {})[id];
+            if (!confirm(`Comprar 1 ${k.nome.toLowerCase()} por ${preco} diamantes?`)) return;
+            pc.disabled = true;
+            enfileirar([], async () => {
+                const r = await rpc('fazenda_pier_comprar_peca', { p_token: token, p_item: id });
+                aplicarEstado(r.estado);
+                toast(`${itemDe(k, 18)} Comprou 1 ${esc(k.nome.toLowerCase())} para o píer.`);
+            }).finally(() => { pc.disabled = false; });
+            return;
+        }
+        const ps = e.target.closest('[data-pier-soltar]');
+        if (ps) {
+            const id = ps.dataset.pierSoltar;
+            S.reservas = { ...(S.reservas || {}) }; delete S.reservas[id];
+            abrirPainel(painelAtual || 'celeiro', true);
+            enfileirar([], async () => {
+                const r = await rpc('fazenda_reservar', { p_token: token, p_item: id, p_quantidade: 0 });
+                aplicarEstado(r.estado);
+            });
+            return;
+        }
+        const pg = e.target.closest('[data-pier-guardar]');
+        if (pg) {   // guarda para o píer (a mesma reserva da ração): sai do "Vender tudo" e da feira
+            const id = pg.dataset.pierGuardar, n = Math.min(naCeleiro(id), ((S.pier.receita || {}).itens || {})[id] || 1);
+            S.reservas = { ...(S.reservas || {}), [id]: n };
+            abrirPainel(painelAtual || 'pier', true);
+            enfileirar([], async () => {
+                const r = await rpc('fazenda_reservar', { p_token: token, p_item: id, p_quantidade: n });
+                aplicarEstado(r.estado);
+                toast(`${itemDe(culturas[id] || { id }, 18)} Guardado para o píer: não vai mais no "Vender tudo".`);
+            });
             return;
         }
         const rf = e.target.closest('[data-raro-feira]');   // fase 60: do celeiro direto para vender na feira

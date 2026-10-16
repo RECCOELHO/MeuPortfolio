@@ -2539,3 +2539,14 @@ body.construindo .status {
     font-weight: 700;
     vertical-align: middle;
 }
+
+/* fase 61: botão que parece link (soltar a peça guardada para o píer) */
+.link-botao {
+    background: none;
+    border: 0;
+    padding: 0;
+    font: inherit;
+    color: var(--o);
+    text-decoration: underline;
+    cursor: pointer;
+}
