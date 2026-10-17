@@ -587,8 +587,9 @@
         return hex;
     }
 
-    // ajudantes: quem é (pessoa) e o que carrega (ferramenta) — tudo dos pacotes
-    const MOCA = { p: 'farm', i: 108 }, MOCO = { p: 'factory', i: 120 };
+    // ajudantes: quem é (pessoa) e o que carrega (ferramenta) — tudo dos pacotes. Fase 66: as moças são
+    // a de cabelo comprido (a mesma da fazendeira do avatar), não mais a de cabelo curto
+    const MOCA = { p: 'dungeon', i: 99 }, MOCO = { p: 'factory', i: 120 };
     const AJUDANTE_ARTE = {
         granjeira: { ...MOCA, ferramenta: 125 }, lavrador: { ...MOCO, ferramenta: 86 },
         jardineiro: { ...MOCO, ferramenta: 84 }, coelheira: { ...MOCA, ferramenta: 8 },
