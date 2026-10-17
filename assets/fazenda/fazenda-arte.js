@@ -618,17 +618,48 @@
     }
 
     // ajudantes: quem é (pessoa) e o que carrega (ferramenta) — tudo dos pacotes. Fase 66: as moças são
-    // a de cabelo comprido (a mesma da fazendeira do avatar), não mais a de cabelo curto
+    // a de cabelo comprido (a mesma da fazendeira do avatar), não mais a de cabelo curto. Fase 68: cada
+    // moça com cabelo, pele e roupa dela (as cores do avatar) e um acessório por cima (ACESSORIOS)
     const MOCA = { p: 'dungeon', i: 99 }, MOCO = { p: 'factory', i: 120 };
     const AJUDANTE_ARTE = {
-        granjeira: { ...MOCA, ferramenta: 125 }, lavrador: { ...MOCO, ferramenta: 86 },
-        jardineiro: { ...MOCO, ferramenta: 84 }, coelheira: { ...MOCA, ferramenta: 8 },
+        granjeira: { ...MOCA, ferramenta: 125, visual: { cabelo: 5, pele: 2, roupa: 4, extra: 'chapeu_palha' } }, lavrador: { ...MOCO, ferramenta: 86 },
+        jardineiro: { ...MOCO, ferramenta: 84 }, coelheira: { ...MOCA, ferramenta: 8, visual: { cabelo: 3, pele: 1, roupa: 1, extra: 'lenco' } },
         vaqueiro: { ...MOCO, ferramenta: 123 }, colhedor: { ...MOCO, ferramenta: 88 },
-        semeadora: { ...MOCA, ferramenta: 10 }, patinheiro: { ...MOCO, ferramenta: 1003 },
-        pastora: { ...MOCA, ferramenta: 74 }, porqueiro: { ...MOCO, ferramenta: 79 },
+        semeadora: { ...MOCA, ferramenta: 10, visual: { cabelo: 4, pele: 1, roupa: 3, extra: 'avental' } }, patinheiro: { ...MOCO, ferramenta: 1003 },
+        pastora: { ...MOCA, ferramenta: 74, visual: { cabelo: 2, pele: 4, roupa: 6, extra: 'lenco_cabeca' } }, porqueiro: { ...MOCO, ferramenta: 79 },
         // fase 43: a operária leva uma caixa e o eletricista uma engrenagem (do pacote da fábrica)
-        operaria: { ...MOCA, ferramenta: 73, ferramentaP: 'factory' }, eletricista: { ...MOCO, ferramenta: 114, ferramentaP: 'factory' }
+        operaria: { ...MOCA, ferramenta: 73, ferramentaP: 'factory', visual: { cabelo: 0, pele: 3, roupa: 2, extra: 'capacete' } }, eletricista: { ...MOCO, ferramenta: 114, ferramentaP: 'factory' }
     };
+    // fase 68: os acessórios das moças (16 x 16, por cima do desenho, com as letras da PAL_PROPRIA)
+    const ACESSORIOS = {
+        chapeu_palha: ['................', '.....aaaaaa.....', '....axxxxxwa....', '....axxxxxwa....', '...abbbbbbbba...', 'aaaaxxxxxxxxaaaa', 'axxxxxxxxxxxxwwa', '.aaaaaaaaaaaaaa.'],
+        lenco: ['................', '.....aaaaaa.....', '...aaPdPPdPaa...', '..aPPPPdPPPPPa..', '..aPdPPPPPdPPaa.', '..aaPPPPPPPPamPa', '...aaaaaaaaaaPma', '.............aa.'],
+        capacete: ['................', '.....aaaaaa.....', '....aGGGdGGa....', '...aGGGGGdGGa...', '...agGGGGGGga...', '.aaaaaaaaaaaaaa.', '.aHHHHHHHHHHHHa.', '..aaaaaaaaaaaa..'],
+        lenco_cabeca: ['................', '....aaaaaaaa....', '...aTTTTTTTTa...', '..aTTTTTTTTTTa..', '..aSTTTTTTTTSa..', '..aaSSSSSSSSaa..'],
+        avental: ['', '', '', '', '', '', '', '', '', '', '', '', '......addda.....', '.....addddfa.....', '.....adddfda.....', '.....aaaaaaa.....']
+    };
+    const cacheAjudante = new Map();
+    function ajudanteCanvas(tipo) {
+        const v = (AJUDANTE_ARTE[tipo] || {}).visual;
+        if (!v) return null;
+        if (cacheAjudante.has(tipo)) return cacheAjudante.get(tipo);
+        const base = avatarCanvas({ tipo: 'fazendeira', cabelo: v.cabelo, pele: v.pele, roupa: v.roupa });
+        if (!atlas.dungeon.complete || !atlas.dungeon.naturalWidth) return base;   // a arte ainda não carregou
+        const cv = document.createElement('canvas');
+        cv.width = cv.height = T;
+        const g = cv.getContext('2d');
+        g.drawImage(base, 0, 0);
+        (ACESSORIOS[v.extra] || []).forEach((linha, y) => [...linha].forEach((ch, x) => {
+            if (PAL_PROPRIA[ch]) { g.fillStyle = PAL_PROPRIA[ch]; g.fillRect(x, y, 1, 1); }
+        }));
+        cv.url = cv.toDataURL();
+        cacheAjudante.set(tipo, cv);
+        return cv;
+    }
+    function htmlAjudante(tipo, px = 32) {
+        const c = ajudanteCanvas(tipo);
+        return c ? `<span class="px-spr" style="background-image:url('${c.url || c.toDataURL()}');width:${px}px;height:${px}px;background-size:${px}px ${px}px;background-position:0 0" aria-hidden="true"></span>` : null;
+    }
 
     let quadroHelice = 0;   // a turbina eólica gira (troca a cada poucos quadros)
 
@@ -1558,7 +1589,7 @@
                 vistos.add(h.id);
                 // fase 66: descansando numa cama, ele vai até a porta da casa e entra (dormir = { x, y, casa });
                 // sem cama, fica parado na sombra (dormir = { sombra: true }) com os zzz em cima
-                if (atores.has(h.id)) { const b = atores.get(h.id); if (JSON.stringify(b.dormir || null) !== JSON.stringify(h.dormir || null)) { b.dormir = h.dormir || null; if (!b.dormir) b.dentro = false; } continue; }
+                if (atores.has(h.id)) { const b = atores.get(h.id); b.nivel = h.nivel || 1; if (JSON.stringify(b.dormir || null) !== JSON.stringify(h.dormir || null)) { b.dormir = h.dormir || null; if (!b.dormir) b.dentro = false; } continue; }
                 const arte = AJUDANTE_ARTE[h.tipo] || MOCO;
                 const area = areaDe(h.area);
                 const r = rng(hash(h.id));
@@ -1566,6 +1597,7 @@
                 atores.set(h.id, {
                     dormir: h.dormir || null, dentro: !!(h.dormir && !h.dormir.sombra && h.dormir.ja),   // (já estava lá dentro quando a tela abriu)
                     id: h.id, tipo: h.tipo, i: arte.i, p: arte.p, ferramenta: arte.ferramenta, ferramentaP: arte.ferramentaP, area, x, y, tx: x, ty: y,
+                    visual: !!arte.visual, nivel: h.nivel || 1,   // fase 68: a moça com o jeito dela; o nível (raios do eletricista)
                     flip: r() < 0.5, espera: r() * 2000, vel: 12, ajudante: true
                 });
             }
@@ -1982,7 +2014,7 @@
                 const parado = a.v && a.v.estado !== 'produzindo';
                 const andando = a.ajudante && Math.hypot(a.tx - a.x, a.ty - a.y) > 0.5;
                 const bob = (parado && Math.floor(tempo / 600) % 2) || (andando && Math.floor(tempo / 140) % 2) ? -1 : 0;
-                pe.push({ p: a.p || 'farm', i: a.i, x: a.x, y: a.y, flip: a.flip, bob });
+                pe.push(a.visual ? { img: ajudanteCanvas(a.tipo), x: a.x, y: a.y, flip: a.flip, bob } : { p: a.p || 'farm', i: a.i, x: a.x, y: a.y, flip: a.flip, bob });
                 // ferramenta na mão do ajudante (do lado para onde ele olha)
                 if (a.ferramenta != null) pe.push({ p: a.ferramentaP || 'farm', i: a.ferramenta, x: a.x + (a.flip ? -7 : 7), y: a.y + 0.5, flip: a.flip, bob });
             }
@@ -2008,8 +2040,10 @@
 
             desenharMaquinas(lista, tempo);
             desenharSono(tempo);   // fase 66: os zzz das casas (e de quem dorme na sombra)
+            desenharRaios(tempo);   // fase 68: as faíscas do eletricista
             const escuro = faseDoDia(relogio()).n;
             if (escuro > 0) desenharNoite(lista, tempo, escuro);   // balões e sinais vêm depois: ficam claros
+            desenharRadiacao(tempo);   // fase 68: o bicho radioativo (brilha também de noite)
             if (visitante && !visitante.andando && !visitante.saindo) {   // balão com o pedido, pulando
                 const bx = Math.round(visitante.x) - 2, by = Math.round(visitante.y) - 21 + (Math.floor(tempo / 350) % 2);
                 balao(bx, by, 20, 18);
@@ -2263,6 +2297,55 @@
                 q.fillRect(x, y, 1, 1);
             }
             q.restore();
+        }
+
+        /* ---- fase 68: o eletricista solta faíscas, 1 raiozinho por nível (até 3), piscando em volta da
+           cabeça e dos ombros. Rápido e pequeno: diverte sem tampar nada. ---- */
+        const RAIO = [[2, 0], [1, 1], [0, 2], [1, 2], [2, 2], [1, 3], [0, 4]];   // zigue-zague de 3 x 5
+        const LUGAR_RAIO = [[-3, 3], [15, 4], [6, -5]];
+        function desenharRaios(tempo) {
+            for (const a of atores.values()) {
+                if (a.tipo !== 'eletricista' || a.dentro || a.dormir) continue;
+                for (let k = 0; k < Math.min(3, a.nivel || 1); k++) {
+                    const t = Math.floor((tempo + k * 230) / 110);
+                    if (t % 6 > 1) continue;   // aparece 2 de cada 6 quadros: uma faísca, não um holofote
+                    const [lx, ly] = LUGAR_RAIO[k], h = hash(a.id + ':' + k + ':' + t);
+                    const x = Math.round(a.x) + lx + (h % 3) - 1, y = Math.round(a.y) + ly + ((h >> 3) % 3) - 1, vira = (h >> 5) % 2;
+                    for (const [px, py] of RAIO) {
+                        const xx = x + (vira ? 2 - px : px);
+                        q.fillStyle = '#3f2631';
+                        q.fillRect(xx - 1, y + py, 1, 1);
+                        q.fillStyle = py === 2 ? '#fff6a8' : '#fdbe53';
+                        q.fillRect(xx, y + py, 1, 1);
+                    }
+                }
+            }
+        }
+
+        /* ---- fase 68: o bicho radioativo brilha verde, pulsando, solta bolhinhas e o produto pulando de
+           tempos em tempos (na tela é só o efeito; no servidor ele dá 1 a cada 2 minutos). ---- */
+        function desenharRadiacao(tempo) {
+            for (const a of atores.values()) {
+                if (!a.v || !a.v.radioativo) continue;
+                const cx = Math.round(a.x) + 8, cy = Math.round(a.y) + 10, pulso = (Math.sin(tempo / 300 + a.x) + 1) / 2;
+                q.save();
+                q.globalCompositeOperation = 'screen';
+                q.globalAlpha = 0.55 + 0.35 * pulso;
+                q.drawImage(halo('120, 255, 110'), cx - 15, cy - 15, 30, 30);
+                q.drawImage(halo('190, 255, 150'), cx - 8, cy - 8, 16, 16);   // o miolo, mais claro
+                q.restore();
+                for (let k = 0; k < 3; k++) {
+                    const f = (tempo / 1500 + k / 3 + a.x * 0.01) % 1;
+                    q.fillStyle = `rgba(160, 255, 120, ${(1 - f).toFixed(2)})`;
+                    q.fillRect(cx - 5 + k * 5, cy - 4 - Math.round(f * 14), 1, 1);
+                }
+                const f = ((tempo + a.x * 37) % 2400) / 2400;
+                if (f < 0.6 && a.v.produto != null) {
+                    q.globalAlpha = 1 - f / 0.6;
+                    miniTile(a.v.produto, cx - 4, cy - 18 - Math.round(f * 10));
+                    q.globalAlpha = 1;
+                }
+            }
         }
 
         /* ---- máquinas se mexendo: água, névoa, luz, fumaça, brilho, carga ---- */
@@ -2898,6 +2981,7 @@
         htmlItem,
         ANIMAL,
         AJUDANTE_ARTE,
+        htmlAjudante,
         MAPA,
         ZONAS,
         noTerreno,

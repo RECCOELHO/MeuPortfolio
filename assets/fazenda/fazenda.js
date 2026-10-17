@@ -1118,6 +1118,10 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-10-17-reator', data: '17/10', titulo: 'As ajudantes, o eletricista e o reator', itens: [
+            'As <b>ajudantes</b> agora são cada uma de um jeito: a granjeira de chapéu de palha, a coelheira de lenço, a semeadora de avental, a pastora de lenço na cabeça e a operária de capacete.',
+            'O <b>eletricista</b> solta faíscas: 1 raiozinho por nível.',
+            'O <b>reator</b> pode deixar um bicho <b>radioativo</b> (1 em 200 por hora para cada bicho): por meia hora ele brilha verde e dá o produto a cada 2 minutos, direto no celeiro. No fim, 1 em 200 de ele não resistir.'] },
         { id: '2026-10-17-chat', data: '17/10', titulo: 'Chat de todos os jogadores', itens: [
             'No menu tem <b>Chat</b>: converse com todo mundo (as mensagens somem em 1 hora). Escreve do nível 5; ler, todo mundo lê.',
             '<b>Pedir item</b>: diga o que você procura, quantos e quanto paga cada. Quem tiver toca em <b>Vender</b> e o lote vai para a barraca dele, <b>separado para você por 2 horas</b>.',
@@ -1148,7 +1152,7 @@
     }
     const retratoAjudante = (id, px) => {
         const a = A.AJUDANTE_ARTE[id] || { p: 'factory', i: 120 };
-        return spr(a.i, px, a.p);
+        return (A.htmlAjudante && A.htmlAjudante(id, px)) || spr(a.i, px, a.p);   // fase 68: as moças, cada uma de um jeito
     };
     function areaAjudante(t) {
         return t.funcao === 'animal' ? t.alvo : 'campo';
@@ -1189,7 +1193,7 @@
                 dormir = casa ? { casa: casa.chave, x: casa.x + 1, y: casa.y + 2, telhadoX: casa.x + 1, telhadoY: casa.y, ja: comecou < agora() - 30000 }
                     : { sombra: true };
             }
-            return { id: 'h:' + h.tipo, tipo: h.tipo, area: areaAjudante(t), dormir };
+            return { id: 'h:' + h.tipo, tipo: h.tipo, area: areaAjudante(t), dormir, nivel: h.nivel };
         }).filter(Boolean);
     }
     function descreverCasa(chave) {
@@ -1827,6 +1831,9 @@
             <button type="button" class="botao mini creme" data-reserva="${esc(k.id)}:${ref + 1}" aria-label="Guardar mais"${ref >= MAX_REFEICOES ? ' disabled' : ''}>+</button></span>`;
     }
 
+    // fase 68: o reator deixou o bicho radioativo (meia hora dando o produto a cada 2 min, direto no celeiro)
+    const radioativo = (a) => !!(a && a.radioativo_ate && Date.parse(a.radioativo_ate) > agora());
+    const FEMEA = new Set(['galinha', 'vaca', 'ovelha']);   // para os textos: "a vaca radioativa", "o porco radioativo"
     function infoAnimal(a) {
         const t = tipoAnimal(a.tipo);
         if (!t) return { estado: 'produzindo' };
@@ -1859,6 +1866,7 @@
             const i = infoAnimal(a);
             return {
                 id: a.id, tipo: a.tipo, estado: i.estado, progresso: i.prog,
+                radioativo: radioativo(a),   // fase 68: brilha verde e solta o produto
                 racao: i.t ? A.cultura(i.t.racao).item : null,
                 produto: i.t ? A.cultura(i.t.produto).item : null
             };
@@ -2758,6 +2766,10 @@
         if (!i.t) return;
         const racao = culturas[i.t.racao], produto = culturas[i.t.produto];
         const nome = esc(i.t.nome);
+        if (radioativo(a)) {   // fase 68
+            const resta = Date.parse(a.radioativo_ate) - agora(), dados = Math.min(15, Math.floor((30 * 60000 - resta) / 120000));
+            return mostrarStatus(`${spr(A.ANIMAL[a.tipo], 22)} ${nome}${visita ? ' do vizinho' : ''} <b>radioativ${FEMEA.has(a.tipo) ? 'a' : 'o'}</b> (o reator!): dá 1 ${produto ? esc(produto.nome.toLowerCase()) : 'produto'} a cada 2 minutos, direto no celeiro, até ${hora(a.radioativo_ate)} (já deu ${dados} de 15). No fim, 1 em 200 de não resistir.`);
+        }
         if (visita) {
             if (i.estado === 'fome' && 'bichos_hoje' in visita) {
                 return mostrarStatus(visita.bichos_hoje < 10
@@ -2891,6 +2903,7 @@
         avisarConvites(estado);
         avisarFeira(estado);
         avisarReservas(estado);   // fase 67
+        avisarRadiacao(estado);   // fase 68
         desenharClima();
         agendarAvisos();
         energiaEm = agora();
@@ -4350,6 +4363,20 @@
             tratarErro(e);
         } finally {
             chatEnviando = false;
+        }
+    }
+    // fase 68: o que a radiação do reator fez (o servidor manda uma vez só)
+    function avisarRadiacao(estado) {
+        for (const r of estado.radiacao || []) {
+            const t = tipoAnimal(r.animal), nome = esc(t ? t.nome.toLowerCase() : r.animal), k = culturas[r.produto] || { id: r.produto, nome: r.produto || '' };
+            const fem = FEMEA.has(r.animal), o = fem ? 'a' : 'o';
+            if (r.evento === 'radioativo') {
+                const ainda = Date.parse(r.em) + 30 * 60000 > agora();
+                toast(`${ico('raio', 16)} O reator deixou ${fem ? 'a sua' : 'o seu'} ${nome} <b>radioativ${o}</b>: ${ainda ? `por meia hora ${fem ? 'ela' : 'ele'} dá 1 ${esc(k.nome.toLowerCase())} a cada 2 minutos` : `${fem ? 'ela' : 'ele'} deu ${r.qtd} ${esc(nomeQtd(k, r.qtd))} em meia hora`}, direto no celeiro!`, 'festa', 'importante');
+            } else {
+                som.tocar('erro');
+                toast(`${spr(A.ANIMAL[r.animal] || 122, 18)} ${fem ? 'A' : 'O'} ${nome} radioativ${o} não resistiu à radiação do reator. Compre ${fem ? 'outra' : 'outro'} na loja.`, undefined, 'importante');
+            }
         }
     }
     function avisarReservas(estado) {
