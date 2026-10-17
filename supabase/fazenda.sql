@@ -628,7 +628,7 @@ insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem, 
   ('fabrica_auto',  'Fábrica automática', 'energia', 15000, 22, 87, 'automatico', 0, 1, 'Um pedaço do celeiro em qualquer lugar: a rede de canos encostada nela leva e traz do celeiro como se o cano chegasse até ele (sem mexer na ração reservada).'),
   ('robo_colheita', 'Robô colheitador',   'energia', 18000, 23, 88, 'robo',       3, 2, 'Colhe, ara e replanta sozinho os canteiros em volta (3). Gasta 3,2 ⚡ por colheita e 1,6 por plantio.'),
   ('aspersor',      'Aspersor elétrico',  'energia', 12000, 24, 89, 'aspersor',   3, 4, 'Nenhuma erva, praga ou seca nos canteiros em volta (3). Gasta 1,6 ⚡ por problema evitado.'),
-  ('reator',        'Reator nuclear',     'energia', 30000, 25, 90, 'reator',     0, 1, 'Gera 120 ⚡/h sem parar, de dia e de noite (80 na onda de calor, para não esquentar).')
+  ('reator',        'Reator nuclear',     'energia', 30000, 25, 90, 'reator',     0, 1, 'Gera 120 ⚡/h sem parar, de dia e de noite (80 na onda de calor, para não esquentar). Cuidado com a radiação: a cada hora, cada bicho da fazenda tem 1 em 200 de ficar radioativo por meia hora (dá o produto dele a cada 2 minutos, direto no celeiro) e, no fim, 1 em 200 de não resistir.')
 on conflict (id) do update set
   nome = excluded.nome, categoria = excluded.categoria, custo = excluded.custo,
   nivel_min = excluded.nivel_min, ordem = excluded.ordem, efeito = excluded.efeito,
@@ -1546,7 +1546,8 @@ begin
              order by ordem)
         from fazenda_culturas),
     'animais', coalesce((
-      select jsonb_agg(jsonb_build_object('id', id, 'tipo', tipo, 'alimentado_em', alimentado_em) order by id)
+      select jsonb_agg(jsonb_build_object('id', id, 'tipo', tipo, 'alimentado_em', alimentado_em,
+               'radioativo_ate', case when radioativo_ate > now() then radioativo_ate end) order by id)   -- fase 68
         from fazenda_animais where jogador_id = p_jogador), '[]'::jsonb),
     'animais_tipos', (
       select jsonb_agg(to_jsonb(t) order by t.ordem) from fazenda_animais_tipos t),
@@ -1585,6 +1586,9 @@ begin
                              'vendedor', v.apelido, 'ate', f.reservado_ate, 'nova', not f.reserva_vista) order by f.id)
                              from fazenda_feira f join fazenda_jogadores v on v.id = f.vendedor_id
                             where f.reservado_para = p_jogador and f.vendido_em is null and f.reservado_ate > now()), '[]'::jsonb)),
+    -- fase 68: o que a radiação do reator fez nos bichos (ainda não visto)
+    'radiacao', coalesce((select jsonb_agg(jsonb_build_object('evento', r.evento, 'animal', r.animal, 'produto', r.produto, 'qtd', r.qtd, 'em', r.em) order by r.id)
+                            from fazenda_radiacao r where r.jogador_id = p_jogador and not r.visto), '[]'::jsonb),
     -- fase 63: o evento da semana (até quando vai, os prêmios ainda não vistos e os troféus)
     'evento', jsonb_build_object(
       'fim', fazenda_semana_inicio(now()) + interval '7 days',
@@ -1625,6 +1629,7 @@ begin
   update fazenda_semana_premios set visto = true where jogador_id = p_jogador and not visto;   -- e os prêmios do evento (fase 63)
   update fazenda_murchas set visto = true where jogador_id = p_jogador and not visto;   -- e o relatório das murchas (fase 66)
   update fazenda_feira set reserva_vista = true where reservado_para = p_jogador and not reserva_vista;   -- e o que separaram no chat (fase 67)
+  update fazenda_radiacao set visto = true where jogador_id = p_jogador and not visto;   -- e a radiação do reator (fase 68)
   return v_json;
 end;
 $$;
@@ -2931,6 +2936,7 @@ begin
   perform fazenda_trabalhar(v_id);   -- (fase 66: e registra o que murchou sem ninguém colher, e por quê)
   perform fazenda_industria(v_id);
   perform fazenda_feira_vencidos(v_id);   -- fase 50: anúncio vencido volta para o celeiro
+  perform fazenda_reator(v_id);   -- fase 68: a radiação do reator nos bichos
   return fazenda_estado(v_id);
 end;
 $$;
@@ -3154,7 +3160,8 @@ begin
              order by c.posicao)
         from fazenda_canteiros c where c.jogador_id = p_dono), '[]'::jsonb),
     'animais', coalesce((
-      select jsonb_agg(jsonb_build_object('id', id, 'tipo', tipo, 'alimentado_em', alimentado_em) order by id)
+      select jsonb_agg(jsonb_build_object('id', id, 'tipo', tipo, 'alimentado_em', alimentado_em,
+               'radioativo_ate', case when radioativo_ate > now() then radioativo_ate end) order by id)   -- fase 68
         from fazenda_animais where jogador_id = p_dono), '[]'::jsonb),
     'construcoes', coalesce((
       select jsonb_agg(jsonb_build_object('x', x, 'y', y, 'tipo', tipo))
@@ -6740,6 +6747,126 @@ end;
 $$;
 
 -- ------------------------------------------------------------
+-- Fase 68: o reator deixa bicho radioativo.
+-- • Com o reator na fazenda, a cada hora cada bicho tem 1 em 200 de ficar radioativo por meia hora: nesse
+--   tempo ele dá o produto dele a cada 2 minutos (15 ao todo), direto no celeiro, sem ração e sem XP.
+-- • No fim da meia hora, 1 em 200 de o bicho não resistir: ele morre e é preciso comprar outro.
+-- • As horas contam desde que o reator está lá (fazenda_jogadores.radiacao_em; no máximo as últimas 24 de
+--   uma vez) e são sorteadas quando a fazenda carrega (fazenda_reator, dentro do fazenda_carregar).
+-- • fazenda_radiacao guarda o que aconteceu (7 dias), para o aviso no jogo.
+-- (No jogo, sem SQL: as moças ajudantes cada uma de um jeito e as faíscas do eletricista.)
+-- ------------------------------------------------------------
+alter table public.fazenda_animais add column if not exists radioativo_de timestamptz;
+alter table public.fazenda_animais add column if not exists radioativo_ate timestamptz;
+alter table public.fazenda_animais add column if not exists radioativo_dado smallint not null default 0;   -- quantos já deu
+alter table public.fazenda_jogadores add column if not exists radiacao_em timestamptz;   -- a última hora sorteada
+
+create table if not exists public.fazenda_radiacao (
+  id         bigint generated always as identity primary key,
+  jogador_id uuid not null references public.fazenda_jogadores(id) on delete cascade,
+  animal     text not null,   -- o tipo do bicho
+  evento     text not null check (evento in ('radioativo', 'morreu')),
+  produto    text,
+  qtd        int,
+  em         timestamptz not null default now(),
+  visto      boolean not null default false
+);
+create index if not exists fazenda_radiacao_jogador on public.fazenda_radiacao (jogador_id, em);
+alter table public.fazenda_radiacao enable row level security;
+revoke all on public.fazenda_radiacao from anon, authenticated;
+
+update public.fazenda_itens
+   set descricao = 'Gera 120 ⚡/h sem parar, de dia e de noite (80 na onda de calor, para não esquentar). Cuidado com a radiação: a cada hora, cada bicho da fazenda tem 1 em 200 de ficar radioativo por meia hora (dá o produto dele a cada 2 minutos, direto no celeiro) e, no fim, 1 em 200 de não resistir.'
+ where id = 'reator';
+
+create or replace function public.fazenda_radiacao_regras()
+returns jsonb language sql immutable as $$
+  select '{"chance": 200, "minutos": 30, "cada_seg": 120, "morte": 200, "horas_max": 24}'::jsonb;
+$$;
+
+-- Entrega o que os bichos radioativos deram até p_ate (1 produto a cada 2 min) e fecha a radiação que já
+-- acabou: 1 em 200 de o bicho morrer; senão ele volta ao normal.
+create or replace function public.fazenda_radiacao_fechar(p_jogador uuid, p_ate timestamptz)
+returns void
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_r     jsonb := fazenda_radiacao_regras();
+  v_cada  int := (v_r->>'cada_seg')::int;
+  v_total int := (v_r->>'minutos')::int * 60 / (v_r->>'cada_seg')::int;
+  a       record;
+  v_deu   int;
+begin
+  for a in select an.id, an.tipo, an.radioativo_de, an.radioativo_ate, an.radioativo_dado, t.produto
+             from fazenda_animais an join fazenda_animais_tipos t on t.id = an.tipo
+            where an.jogador_id = p_jogador and an.radioativo_de is not null and an.radioativo_de <= p_ate
+              for update of an loop
+    v_deu := least(v_total, floor(extract(epoch from least(p_ate, a.radioativo_ate) - a.radioativo_de) / v_cada)::int);
+    if v_deu > a.radioativo_dado then
+      insert into fazenda_celeiro (jogador_id, item, quantidade) values (p_jogador, a.produto, v_deu - a.radioativo_dado)
+      on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
+      update fazenda_animais set radioativo_dado = v_deu where id = a.id;
+    end if;
+    if p_ate >= a.radioativo_ate then
+      if random() < 1.0 / (v_r->>'morte')::int then
+        delete from fazenda_animais where id = a.id;
+        insert into fazenda_radiacao (jogador_id, animal, evento, em) values (p_jogador, a.tipo, 'morreu', a.radioativo_ate);
+      else
+        update fazenda_animais set radioativo_de = null, radioativo_ate = null, radioativo_dado = 0 where id = a.id;
+      end if;
+    end if;
+  end loop;
+end;
+$$;
+
+-- Sorteia as horas que passaram com o reator na fazenda (no máximo as últimas 24) e entrega o que os
+-- radioativos deram. Sem reator, para de contar (quem já estava radioativo termina a meia hora).
+create or replace function public.fazenda_reator(p_jogador uuid)
+returns void
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_r     jsonb := fazenda_radiacao_regras();
+  v_max   int := (v_r->>'horas_max')::int;
+  v_desde timestamptz;
+  v_n     int;
+  v_t     timestamptz;
+  a       record;
+begin
+  if not exists (select 1 from fazenda_construcoes where jogador_id = p_jogador and tipo = 'reator') then
+    update fazenda_jogadores set radiacao_em = null where id = p_jogador and radiacao_em is not null;
+    perform fazenda_radiacao_fechar(p_jogador, now());
+    return;
+  end if;
+  select radiacao_em into v_desde from fazenda_jogadores where id = p_jogador for update;
+  if v_desde is null then   -- o reator acabou de chegar: conta daqui para a frente
+    update fazenda_jogadores set radiacao_em = now() where id = p_jogador;
+    return;
+  end if;
+  v_n := floor(extract(epoch from now() - v_desde) / 3600)::int;
+  if v_n > v_max then v_desde := v_desde + make_interval(hours => v_n - v_max); v_n := v_max; end if;
+  for k in 1..v_n loop
+    v_t := v_desde + make_interval(hours => k);
+    perform fazenda_radiacao_fechar(p_jogador, v_t);   -- o que acabou antes desta hora fecha primeiro
+    for a in update fazenda_animais an
+                set radioativo_de = v_t, radioativo_ate = v_t + make_interval(mins => (v_r->>'minutos')::int), radioativo_dado = 0
+              where an.jogador_id = p_jogador and an.radioativo_de is null and an.criado_em <= v_t
+                and random() < 1.0 / (v_r->>'chance')::int
+             returning an.tipo loop
+      insert into fazenda_radiacao (jogador_id, animal, evento, produto, qtd, em)
+      select p_jogador, a.tipo, 'radioativo', t.produto, (v_r->>'minutos')::int * 60 / (v_r->>'cada_seg')::int, v_t
+        from fazenda_animais_tipos t where t.id = a.tipo;
+    end loop;
+  end loop;
+  if v_n > 0 then update fazenda_jogadores set radiacao_em = v_desde + make_interval(hours => v_n) where id = p_jogador; end if;
+  perform fazenda_radiacao_fechar(p_jogador, now());
+  delete from fazenda_radiacao where jogador_id = p_jogador and em < now() - interval '7 days';
+end;
+$$;
+
+-- ------------------------------------------------------------
 -- Permissões: só a API pública fica executável pela chave anon
 -- ------------------------------------------------------------
 revoke execute on function
@@ -6901,7 +7028,10 @@ revoke execute on function
   public.fazenda_chat_palavras(),
   public.fazenda_chat_palavrao(text),
   public.fazenda_chat_texto(text),
-  public.fazenda_feira_criar(uuid, text, int, int, uuid, bigint)
+  public.fazenda_feira_criar(uuid, text, int, int, uuid, bigint),
+  public.fazenda_radiacao_regras(),
+  public.fazenda_radiacao_fechar(uuid, timestamptz),
+  public.fazenda_reator(uuid)
 from public, anon, authenticated;
 
 grant execute on function
