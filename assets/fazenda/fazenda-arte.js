@@ -480,7 +480,36 @@
         // 112 concha e estrela-do-mar
         ['................', '................', '................', '................', '................', '................',
          '..........aaa...', '....a....adPPa..', '...aia..aPPmPPa.', '..aiiia..aPPPa..', '.aiigiia..aQa...', '..aiaia....a....',
-         '.aia.aia........', '..a...a.........', '................', '................']
+         '.aia.aia........', '..a...a.........', '................', '................'],
+        // fase 69: as figuras das melhorias do alto-mar (no caminho dos níveis e no painel do píer)
+        // 113 barco
+        ['................', '...........a....', '..........ayaa..', '..........aygga.', '.....aaaaaaygga.', '....addddfaygga.',
+         '....adBBdfayaa..', '....adBBdfaya...', '.aaaaddddfayaaa.', 'adddddddddddddda', '.aXXXXXXXXXXXXa.', '..abbbbbbbbbba..',
+         'aaabbbbbbbbbbaaa', 'BBBBBBBBBBBBBBBB', 'BaaBaaBaaBaaBaaB', '................'],
+        // 114 vara de pesca
+        ['................', '................', '............aaa.', '...........aynfa', '..........aynafa', '.........aynaafa',
+         '........ayna.afa', '.......ayna..afa', '......ayna...afa', '....aayna....afa', '...aKKKa.....afa', '...aKfKa....alla',
+         '.aayKKKa....ala.', 'atttaaa......a..', 'attta...........', '.aaa............'],
+        // 115 motor de popa
+        ['................', '....aaaaaaaa....', '...abbbbbbbba...', '...abXXXXXbbaa..', '...abXXXXXbbKKa.', '...abbbbbbbbaa..',
+         '...aZZZZZZZZa...', '....aalKKaaa....', '.....alKKa......', '.....alKKa......', '......aKKa......', '....aaaKKaaa....',
+         '...afffKKfffa...', '...afffllfffa...', '....aaaaaaaa....', '................'],
+        // 116 sonar
+        ['.......aa.......', '....aaaKKaaa....', '...aKKKSSKKKa...', '..aKKSSSSSSKKa..', '.aKKSSSSSSSSKKa.', '.aKSShSSSSSWWKa.',
+         '.aKSSSSSSWWSSKa.', 'aKSSSSSWWSSSSSKa', 'aKSSSSSSSSSSSSKa', '.aKShSSSSSSSSKa.', '.aKSSSSSSShSSKa.', '.aKKSSSSSSSSKKa.',
+         '..aKKSSSSSSKKa..', '...aKKKSSKKKa...', '....aaaKKaaa....', '.......aa.......'],
+        // 117 caixa de gelo
+        ['.........aaa....', '....aaa.adYYa...', '...adYYaaYYYa...', '...aYYYaaYYYa...', '...aYYYfffaa....', '..aaaaffffaaaa..',
+         '.adddddddddddda.', '.adddddddddddda.', '.aEEEEEEEEEEEEa.', '.aEBBBBBBBBBBEa.', '.aEBBBBBBBBBBEa.', '.aEBBBBBBBBBBEa.',
+         '.aEBBBBBBBBBBEa.', '.aEEEEEEEEEEEEa.', '..aaaaaaaaaaaa..', '................'],
+        // 118 rede de pesca
+        ['................', '..aa.aa.aa.aa...', '.aiiaiiaiiaiia..', '.aiiaiiaiiaiia..', '.azazzazzazzaza.', '.azazzazzazzaza.',
+         '..azaazaazaaza..', '.azazzazzazzaza.', '.azazzazzazzaza.', '..azaazaazaaza..', '.azazzazzazzaza.', '.azazzazzazzaza.',
+         '..azaazaazaaza..', '.azazzazzazzaza.', '..a.aa.aa.aa.a..', '................'],
+        // 119 bússola (kit de expedição)
+        ['.......aa.......', '......aHHa......', '....aaHHHHaa....', '...aHHHYYHHHa...', '..aHHYYYYYYHHa..', '.aHHYYYbXYYYHHa.',
+         '.aHYYYYbXYYYYHa.', 'aHHYYYYbXYYYYHHa', 'aHYYYYYKKYYYYYHa', 'aHYYYYYfdYYYYYHa', 'aHHYYYYfdYYYYHHa', '.aHYYYYfdYYYYHa.',
+         '.aHHYYYfdYYYHHa.', '..aHHYYYYYYHHa..', '...aHHHYYHHHa...', '....aaHHHHaa....']
     ];
     const atlasProprio = document.createElement('canvas');
     atlasProprio.width = 12 * 16;
@@ -507,6 +536,14 @@
             calca: { nome: 'Macacão', cores: { '#52607c': 1, '#8c9cb5': 2 }, y: [9, 16] } } },
         // fase 66: a fazendeira é a moça de cabelo comprido (a mesma da Dona Benta); a de antes, de
         // cabelo curto, parecia careca e barbuda. A flor do cabelo (linhas 3 a 5) não muda com a pele
+        // fase 69: só sai no dia 28 do calendário dourado (fazenda_avatar_exclusivos). As cores de base
+        // (base) valem quando a bolinha escolhida é a "original"
+        fazendeiro_ouro: { nome: 'Fazendeiro de ouro', p: 'farm', i: 109, exclusivo: true,
+            base: { chapeu: ['#9a6b22', '#d9a43a', '#f2d06b'], roupa: ['#8b9bb4', '#c0cbdc', '#f4f6fa'], calca: ['#9a6b22', '#d9a43a', '#f2d06b'] }, regioes: {
+            chapeu: { nome: 'Chapéu', cores: { '#cf8254': 1, '#fec99c': 2 }, y: [0, 7] },
+            pele: { cores: { '#e19a65': 0, '#f7c282': 1 }, y: [6, 16] },
+            roupa: { nome: 'Camisa', cores: { '#f28462': 1 }, y: [9, 16] },
+            calca: { nome: 'Macacão', cores: { '#52607c': 1, '#8c9cb5': 2 }, y: [9, 16] } } },
         fazendeira: { nome: 'Fazendeira', p: 'dungeon', i: 99, regioes: {
             cabelo: { nome: 'Cabelo', cores: { '#763b36': 1, '#bd6c4a': 2 }, y: [0, 14] },
             pele: { cores: { '#e19a65': 0, '#eaa56c': 0, '#f7c282': 1 }, y: [6, 16] },
@@ -589,7 +626,7 @@
         const dados = g.getImageData(0, 0, T, T), d = dados.data;
         for (const [regiao, r] of Object.entries(tipo.regioes)) {
             const n = cfg[regiao] | 0;
-            const tons = n > 0 && AVATAR_CORES[regiao][n - 1];
+            const tons = n > 0 ? AVATAR_CORES[regiao][n - 1] : tipo.base && tipo.base[regiao];   // fase 69: a cor de base do exclusivo
             if (!tons) continue;
             const alvo = Object.fromEntries(Object.entries(r.cores).map(([hex, tom]) => [hex.slice(1), rgbDe(tons[tom])]));
             for (let y = r.y[0]; y < r.y[1]; y++) {
@@ -613,6 +650,7 @@
     function corOriginal(tipo, regiao) {
         const r = (AVATAR_TIPOS[tipo] || {}).regioes && AVATAR_TIPOS[tipo].regioes[regiao];
         if (!r) return null;
+        if (AVATAR_TIPOS[tipo].base && AVATAR_TIPOS[tipo].base[regiao]) return AVATAR_TIPOS[tipo].base[regiao][1];   // fase 69
         const [hex] = Object.entries(r.cores).sort((a, b) => Math.abs(a[1] - 1) - Math.abs(b[1] - 1))[0];
         return hex;
     }
@@ -809,6 +847,8 @@
         // sino: histórico de avisos
         // chat: balão de fala com reticências (fase 67)
         chat: ['..ooooooo..', '.owwwwwwwo.', 'owwwwwwwwso', 'owBwwBwwBso', 'owwwwwwwwso', '.owwwwwwso.', '..oowooooo.', '...owo.....', '...oo......'],
+        // calendário de resgate diário (fase 69): folhinha com a argola, a faixa vermelha e o dia marcado
+        calendario: ['.o.o.o.o.', 'ooooooooo', 'orrrrrrro', 'ooooooooo', 'owwwwwwwo', 'owSwSwSwo', 'owwwwwwwo', 'owSwSwrwo', 'owwwwwwwo', 'ooooooooo'],
         sino: ['....o....', '...oyo...', '..oyyyo..', '..owyyo..', '..owyyo..', '.oyyyyyo.', 'oyyyyyyYo', 'ooooooooo', '...oYo...', '....o....'],
         // diamante: a moeda especial (colher na hora)
         diamante: ['..ooooo..', '.owwbbBo.', 'owbbbbbBo', 'oBbBbBbBo', '.obbbbBo.', '..obbBo..', '...oBo...', '....o....'],
@@ -1151,7 +1191,37 @@
             const k = CERCADOS[c.tipo];
             return { x0: wx(c.x) + 6, y0: wy(c.y) + 3, x1: wx(c.x + k.w) - 22, y1: wy(c.y + k.h) - 21 };
         }
+        // fase 69: por onde o Faísca anda: a estradinha de pedra (senão a de terra); sem estradinha, pela
+        // fazenda toda, longe da plantação (nem no canteiro, nem colado nele, nem em cima de construção)
+        let cacheCaminho = { chave: null, area: null };
+        function areaCaminho() {
+            const cons = construcoesFn() || [], cant = listaCanteiros();
+            const chave = cons.length + ':' + cant.length + ':' + zonasAtuais;
+            if (cacheCaminho.chave === chave) return cacheCaminho.area;
+            let tiles = cons.filter((c) => c.tipo === 'caminho_pedra');
+            if (!tiles.length) tiles = cons.filter((c) => c.tipo === 'caminho_terra');
+            let pontos = tiles.map((c) => ({ x: wx(c.x), y: wy(c.y) }));
+            if (!pontos.length) {
+                const ocupado = new Set();
+                for (const c of cant) for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) ocupado.add((c.x + dx) + ',' + (c.y + dy));
+                for (const c of cons) {
+                    const t = arteItem(c.tipo, EST) || {};
+                    for (let dy = 0; dy < (t.h || 1); dy++) for (let dx = 0; dx < (t.w || 1); dx++) ocupado.add((c.x + dx) + ',' + (c.y + dy));
+                }
+                const cx = caixaTerreno();
+                for (let ty = cx.y0; ty < cx.y1; ty++) {
+                    for (let tx = cx.x0; tx < cx.x1; tx++) if (livre(tx, ty) && !ocupado.has(tx + ',' + ty)) pontos.push({ x: wx(tx), y: wy(ty) });
+                }
+            }
+            const area = pontos.length ? {
+                x0: Math.min(...pontos.map((p) => p.x)), y0: Math.min(...pontos.map((p) => p.y)),
+                x1: Math.max(...pontos.map((p) => p.x)), y1: Math.max(...pontos.map((p) => p.y)), pontos
+            } : null;
+            cacheCaminho = { chave, area };
+            return area;
+        }
         function areaDe(tipo) {
+            if (tipo === 'caminho') { const c = areaCaminho(); if (c) return c; tipo = 'campo'; }
             const cercado = areaCercado(tipo);
             if (cercado) return cercado;
             if (tipo === 'campo') {
@@ -1589,11 +1659,13 @@
                 vistos.add(h.id);
                 // fase 66: descansando numa cama, ele vai até a porta da casa e entra (dormir = { x, y, casa });
                 // sem cama, fica parado na sombra (dormir = { sombra: true }) com os zzz em cima
+                if (atores.has(h.id) && h.area === 'caminho') atores.get(h.id).area = areaDe('caminho');   // fase 69
                 if (atores.has(h.id)) { const b = atores.get(h.id); b.nivel = h.nivel || 1; if (JSON.stringify(b.dormir || null) !== JSON.stringify(h.dormir || null)) { b.dormir = h.dormir || null; if (!b.dormir) b.dentro = false; } continue; }
                 const arte = AJUDANTE_ARTE[h.tipo] || MOCO;
                 const area = areaDe(h.area);
                 const r = rng(hash(h.id));
-                const x = area.x0 + r() * (area.x1 - area.x0), y = area.y0 + r() * (area.y1 - area.y0);
+                const nasce = area.pontos && area.pontos[Math.floor(r() * area.pontos.length)];
+                const x = nasce ? nasce.x : area.x0 + r() * (area.x1 - area.x0), y = nasce ? nasce.y : area.y0 + r() * (area.y1 - area.y0);
                 atores.set(h.id, {
                     dormir: h.dormir || null, dentro: !!(h.dormir && !h.dormir.sombra && h.dormir.ja),   // (já estava lá dentro quando a tela abriu)
                     id: h.id, tipo: h.tipo, i: arte.i, p: arte.p, ferramenta: arte.ferramenta, ferramentaP: arte.ferramentaP, area, x, y, tx: x, ty: y,
@@ -1606,6 +1678,11 @@
 
         // sorteia uns lugares na área do bicho e fica com o mais longe dos outros (ninguém amontoado)
         function lugarLivre(a) {
+            if (a.area.pontos) {   // fase 69: o próximo pedaço da estradinha, perto (até uns 3 quadrados): segue o caminho
+                const perto = a.area.pontos.filter((p) => { const d = Math.hypot(p.x - a.x, p.y - a.y); return d > 2 && d < 3.5 * T; });
+                const lista = perto.length ? perto : a.area.pontos, p = lista[Math.floor(Math.random() * lista.length)];
+                return { x: p.x + (Math.random() - 0.5) * 6, y: p.y + (Math.random() - 0.5) * 4 };
+            }
             let melhor = null, folga = -1;
             for (let k = 0; k < (a.ajudante ? 1 : 6); k++) {
                 const x = a.area.x0 + Math.random() * (a.area.x1 - a.area.x0), y = a.area.y0 + Math.random() * (a.area.y1 - a.area.y0);

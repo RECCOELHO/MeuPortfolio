@@ -1058,9 +1058,10 @@ returns int language sql immutable as $$
   select 250 + 150 * greatest(coalesce(p_zonas, 0), 0);
 $$;
 
+-- fase 69: +2 por nível até o último (era até o 25: o limite parava em 54)
 create or replace function public.fazenda_limite_canteiros(p_nivel int, p_zonas int)
 returns int language sql immutable as $$
-  select least(6 + (p_nivel - 1) * 2, 54)
+  select least(6 + (p_nivel - 1) * 2, 94)
        + coalesce((select sum(coalesce((z->>'canteiros')::int, 6))::int from jsonb_array_elements(fazenda_zonas()) z
                     where (z->>'n')::int <= p_zonas), 0);
 $$;
@@ -1416,6 +1417,7 @@ begin
       'avatares', j.avatares,
       'avatar_precos', fazenda_avatar_precos(),
       'avatar_diamantes', fazenda_avatar_diamantes(),
+      'avatar_exclusivos', fazenda_avatar_exclusivos(),   -- fase 69
       'cercado_gratis', coalesce(j.cercado_gratis, '{}'),   -- fase 45: espécies com o primeiro cercado de graça
       'moedas', j.moedas,
       'diamantes', j.diamantes,
@@ -1586,6 +1588,7 @@ begin
                              'vendedor', v.apelido, 'ate', f.reservado_ate, 'nova', not f.reserva_vista) order by f.id)
                              from fazenda_feira f join fazenda_jogadores v on v.id = f.vendedor_id
                             where f.reservado_para = p_jogador and f.vendido_em is null and f.reservado_ate > now()), '[]'::jsonb)),
+    'calendario', fazenda_calendario_estado(p_jogador),   -- fase 69: o calendário de resgate diário
     -- fase 68: o que a radiação do reator fez nos bichos (ainda não visto)
     'radiacao', coalesce((select jsonb_agg(jsonb_build_object('evento', r.evento, 'animal', r.animal, 'produto', r.produto, 'qtd', r.qtd, 'em', r.em) order by r.id)
                             from fazenda_radiacao r where r.jogador_id = p_jogador and not r.visto), '[]'::jsonb),
@@ -4246,7 +4249,8 @@ declare
 begin
   if jsonb_typeof(p_avatar) is distinct from 'object' then raise exception 'avatar_invalido'; end if;
   if not (fazenda_avatar_precos() ? coalesce(p_avatar->>'tipo', 'fazendeiro')
-          or fazenda_avatar_diamantes() ? coalesce(p_avatar->>'tipo', 'fazendeiro')) then
+          or fazenda_avatar_diamantes() ? coalesce(p_avatar->>'tipo', 'fazendeiro')
+          or fazenda_avatar_exclusivos() ? coalesce(p_avatar->>'tipo', 'fazendeiro')) then   -- fase 69: os exclusivos
     raise exception 'avatar_invalido';
   end if;
   v := jsonb_build_object('tipo', coalesce(p_avatar->>'tipo', 'fazendeiro'));
@@ -4267,6 +4271,8 @@ begin
   v_diam := coalesce((fazenda_avatar_diamantes()->>(v->>'tipo'))::int, 0);
   if (v->>'tipo') = any(j.avatares) then
     v_preco := 0; v_diam := 0;
+  elsif fazenda_avatar_exclusivos() ? (v->>'tipo') then   -- fase 69: exclusivo não se compra, só se ganha
+    raise exception 'avatar_exclusivo';
   elsif v_diam > 0 then   -- personagem de diamante
     if j.diamantes < v_diam then raise exception 'diamantes_insuficientes'; end if;
     update fazenda_jogadores set diamantes = diamantes - v_diam, avatares = array_append(avatares, v->>'tipo') where id = v_id;
@@ -6867,6 +6873,211 @@ end;
 $$;
 
 -- ------------------------------------------------------------
+-- Fase 69: o calendário de resgate diário (e os canteiros até o 45, em fazenda_limite_canteiros).
+-- • 28 dias: um resgate por dia (o dia de Brasília, fazenda_hoje). Faltou um dia? Não perde nada: no
+--   próximo resgate pega o dia seguinte do ciclo. Depois do 28, começa um ciclo novo.
+-- • Trilha grátis para todos: moedas (vezes o nível), XP, café dos ajudantes, XP em dobro e diamantes
+--   nos dias 7, 14, 21 e 28.
+-- • Trilha dourada: liberada com 120 diamantes por ciclo. Dá um prêmio a mais por dia (XP em dobro,
+--   café, pacote de XP, moedas, raros, 50 diamantes de volta) e, no dia 28, o Fazendeiro de ouro, um
+--   personagem que só sai aqui (fazenda_avatar_exclusivos). Liberada no meio do ciclo, já entrega os
+--   prêmios dourados dos dias que passaram.
+-- • No nível 45, XP vira moedas; sem ajudante, o café vira moedas.
+-- ------------------------------------------------------------
+create table if not exists public.fazenda_calendario (
+  jogador_id    uuid primary key references public.fazenda_jogadores(id) on delete cascade,
+  ciclo         int not null default 1,
+  dia           smallint not null default 0,   -- quantos dias do ciclo já resgatou (0 a 28)
+  ultimo        date,                          -- o dia (de Brasília) do último resgate
+  dourado_ciclo int                            -- o ciclo em que liberou a trilha dourada
+);
+alter table public.fazenda_calendario enable row level security;
+revoke all on public.fazenda_calendario from anon, authenticated;
+
+create or replace function public.fazenda_calendario_regras()
+returns jsonb language sql immutable as $$
+  select '{"dias": 28, "dourado": 120}'::jsonb;
+$$;
+
+-- os prêmios de cada dia: g = grátis, d = dourada. moedas: vezes o nível; xp: % do nível; xp2 e cafe: minutos
+create or replace function public.fazenda_calendario_premios()
+returns jsonb language sql immutable as $$
+  select '[
+    {"g": [{"tipo": "moedas", "qtd": 15}],    "d": [{"tipo": "moedas", "qtd": 50}]},
+    {"g": [{"tipo": "xp", "qtd": 3}],         "d": [{"tipo": "xp2", "qtd": 60}]},
+    {"g": [{"tipo": "moedas", "qtd": 20}],    "d": [{"tipo": "cafe", "qtd": 120}]},
+    {"g": [{"tipo": "cafe", "qtd": 30}],      "d": [{"tipo": "xp", "qtd": 10}]},
+    {"g": [{"tipo": "moedas", "qtd": 25}],    "d": [{"tipo": "moedas", "qtd": 60}]},
+    {"g": [{"tipo": "xp2", "qtd": 30}],       "d": [{"tipo": "xp2", "qtd": 60}]},
+    {"g": [{"tipo": "diamantes", "qtd": 3}],  "d": [{"tipo": "diamantes", "qtd": 10}, {"tipo": "item", "item": "luva_perks", "qtd": 1}]},
+    {"g": [{"tipo": "moedas", "qtd": 20}],    "d": [{"tipo": "cafe", "qtd": 120}]},
+    {"g": [{"tipo": "xp", "qtd": 4}],         "d": [{"tipo": "moedas", "qtd": 70}]},
+    {"g": [{"tipo": "moedas", "qtd": 25}],    "d": [{"tipo": "xp", "qtd": 10}]},
+    {"g": [{"tipo": "cafe", "qtd": 30}],      "d": [{"tipo": "xp2", "qtd": 60}]},
+    {"g": [{"tipo": "moedas", "qtd": 30}],    "d": [{"tipo": "cafe", "qtd": 120}]},
+    {"g": [{"tipo": "xp2", "qtd": 30}],       "d": [{"tipo": "moedas", "qtd": 80}]},
+    {"g": [{"tipo": "diamantes", "qtd": 5}],  "d": [{"tipo": "diamantes", "qtd": 10}, {"tipo": "item", "item": "perola_negra", "qtd": 1}]},
+    {"g": [{"tipo": "moedas", "qtd": 25}],    "d": [{"tipo": "xp2", "qtd": 60}]},
+    {"g": [{"tipo": "xp", "qtd": 5}],         "d": [{"tipo": "xp", "qtd": 10}]},
+    {"g": [{"tipo": "moedas", "qtd": 30}],    "d": [{"tipo": "cafe", "qtd": 120}]},
+    {"g": [{"tipo": "cafe", "qtd": 45}],      "d": [{"tipo": "moedas", "qtd": 90}]},
+    {"g": [{"tipo": "moedas", "qtd": 35}],    "d": [{"tipo": "xp2", "qtd": 60}]},
+    {"g": [{"tipo": "xp2", "qtd": 45}],       "d": [{"tipo": "cafe", "qtd": 120}]},
+    {"g": [{"tipo": "diamantes", "qtd": 5}],  "d": [{"tipo": "diamantes", "qtd": 10}, {"tipo": "item", "item": "luva_perks", "qtd": 2}]},
+    {"g": [{"tipo": "moedas", "qtd": 30}],    "d": [{"tipo": "xp", "qtd": 10}]},
+    {"g": [{"tipo": "xp", "qtd": 5}],         "d": [{"tipo": "moedas", "qtd": 100}]},
+    {"g": [{"tipo": "moedas", "qtd": 40}],    "d": [{"tipo": "xp2", "qtd": 60}]},
+    {"g": [{"tipo": "cafe", "qtd": 60}],      "d": [{"tipo": "cafe", "qtd": 120}]},
+    {"g": [{"tipo": "moedas", "qtd": 45}],    "d": [{"tipo": "xp", "qtd": 10}]},
+    {"g": [{"tipo": "xp2", "qtd": 60}],       "d": [{"tipo": "moedas", "qtd": 120}]},
+    {"g": [{"tipo": "diamantes", "qtd": 10}], "d": [{"tipo": "avatar", "avatar": "fazendeiro_ouro"}, {"tipo": "diamantes", "qtd": 20}]}
+  ]'::jsonb;
+$$;
+
+-- personagens que não estão à venda: só saem de um prêmio (o do calendário dourado)
+create or replace function public.fazenda_avatar_exclusivos()
+returns jsonb language sql immutable as $$
+  select '{"fazendeiro_ouro": "calendario"}'::jsonb;
+$$;
+
+-- Entrega um prêmio e devolve o que foi dado de fato (com as moedas já vezes o nível)
+create or replace function public.fazenda_calendario_dar(p_jogador uuid, p jsonb)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_nivel int;
+  v_tipo  text := p->>'tipo';
+  v_qtd   int := coalesce((p->>'qtd')::int, 1);
+  v_xp    int;
+begin
+  select fazenda_nivel(xp) into v_nivel from fazenda_jogadores where id = p_jogador;
+  if v_tipo in ('xp', 'xp2') and v_nivel >= 45 then v_tipo := 'moedas'; v_qtd := 50; end if;   -- no último nível, XP não serve
+  if v_tipo = 'cafe' and not exists (select 1 from fazenda_ajudantes where jogador_id = p_jogador) then v_tipo := 'moedas'; v_qtd := 20; end if;
+  if v_tipo = 'moedas' then
+    update fazenda_jogadores set moedas = moedas + v_qtd * v_nivel where id = p_jogador;
+    return jsonb_build_object('tipo', 'moedas', 'qtd', v_qtd * v_nivel);
+  elsif v_tipo = 'diamantes' then
+    update fazenda_jogadores set diamantes = diamantes + v_qtd where id = p_jogador;
+    return jsonb_build_object('tipo', 'diamantes', 'qtd', v_qtd);
+  elsif v_tipo = 'xp' then
+    v_xp := ceil((fazenda_xp_nivel(v_nivel + 1) - fazenda_xp_nivel(v_nivel)) * v_qtd / 100.0)::int;
+    perform set_config('fazenda.xp_puro', '1', true);
+    update fazenda_jogadores set xp = xp + v_xp where id = p_jogador;
+    perform set_config('fazenda.xp_puro', '', true);
+    return jsonb_build_object('tipo', 'xp', 'qtd', v_xp, 'pct', v_qtd);
+  elsif v_tipo = 'xp2' then
+    update fazenda_jogadores set xp2_ate = greatest(coalesce(xp2_ate, now()), now()) + make_interval(mins => v_qtd) where id = p_jogador;
+    return jsonb_build_object('tipo', 'xp2', 'qtd', v_qtd);
+  elsif v_tipo = 'cafe' then
+    perform fazenda_trabalhar(p_jogador);   -- fecha o trabalho de antes no ritmo de antes (igual ao café da loja)
+    perform fazenda_ajudantes_fechar(p_jogador, null);
+    update fazenda_jogadores
+       set cafe_de = case when cafe_ate > now() then cafe_de else now() end,
+           cafe_ate = greatest(coalesce(cafe_ate, now()), now()) + make_interval(mins => v_qtd)
+     where id = p_jogador;
+    return jsonb_build_object('tipo', 'cafe', 'qtd', v_qtd);
+  elsif v_tipo = 'item' then
+    insert into fazenda_celeiro (jogador_id, item, quantidade) values (p_jogador, p->>'item', v_qtd)
+    on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
+    return jsonb_build_object('tipo', 'item', 'item', p->>'item', 'qtd', v_qtd);
+  elsif v_tipo = 'avatar' then
+    update fazenda_jogadores set avatares = array_append(coalesce(avatares, '{}'), p->>'avatar')
+     where id = p_jogador and not (p->>'avatar' = any(coalesce(avatares, '{}')));
+    return jsonb_build_object('tipo', 'avatar', 'avatar', p->>'avatar');
+  end if;
+  return null;
+end;
+$$;
+
+-- O calendário como o jogo mostra: o ciclo, quantos dias já foram, se dá para resgatar hoje e se a
+-- trilha dourada está liberada. Ciclo acabado e já é outro dia: mostra o ciclo novo (o resgate começa ele).
+create or replace function public.fazenda_calendario_estado(p_jogador uuid)
+returns jsonb
+language plpgsql stable security definer
+set search_path = public, extensions
+as $$
+declare
+  r      record;
+  v_pode boolean;
+  v_dias int := (fazenda_calendario_regras()->>'dias')::int;
+  v_ciclo int := 1;
+  v_dia   int := 0;
+begin
+  select * into r from fazenda_calendario where jogador_id = p_jogador;
+  v_pode := r.ultimo is null or r.ultimo < fazenda_hoje();
+  if found then v_ciclo := r.ciclo; v_dia := r.dia; end if;
+  if v_dia >= v_dias and v_pode then v_ciclo := v_ciclo + 1; v_dia := 0; end if;
+  return jsonb_build_object('ciclo', v_ciclo, 'dia', v_dia, 'pode', v_pode,
+                            'dourado', coalesce(r.dourado_ciclo = v_ciclo, false),
+                            'regras', fazenda_calendario_regras(), 'premios', fazenda_calendario_premios());
+end;
+$$;
+
+create or replace function public.fazenda_calendario_resgatar(p_token text)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id   uuid := fazenda_auth(p_token);
+  v_dias int := (fazenda_calendario_regras()->>'dias')::int;
+  r      record;
+  v_p    jsonb;
+  x      jsonb;
+  v_g    jsonb := '[]'::jsonb;
+  v_d    jsonb := '[]'::jsonb;
+begin
+  insert into fazenda_calendario (jogador_id) values (v_id) on conflict (jogador_id) do nothing;
+  select * into r from fazenda_calendario where jogador_id = v_id for update;   -- dois toques juntos: um só passa
+  if r.ultimo = fazenda_hoje() then raise exception 'calendario_hoje'; end if;
+  if r.dia >= v_dias then r.ciclo := r.ciclo + 1; r.dia := 0; end if;
+  r.dia := r.dia + 1;
+  v_p := fazenda_calendario_premios() -> (r.dia - 1);
+  for x in select * from jsonb_array_elements(v_p->'g') loop v_g := v_g || jsonb_build_array(fazenda_calendario_dar(v_id, x)); end loop;
+  if r.dourado_ciclo = r.ciclo then
+    for x in select * from jsonb_array_elements(v_p->'d') loop v_d := v_d || jsonb_build_array(fazenda_calendario_dar(v_id, x)); end loop;
+  end if;
+  update fazenda_calendario set ciclo = r.ciclo, dia = r.dia, ultimo = fazenda_hoje() where jogador_id = v_id;
+  return jsonb_build_object('dia', r.dia, 'gratis', v_g, 'dourado', v_d, 'estado', fazenda_estado(v_id));
+end;
+$$;
+
+-- Libera a trilha dourada do ciclo de agora (os dias já resgatados ganham o prêmio dourado na hora)
+create or replace function public.fazenda_calendario_dourado(p_token text)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id    uuid := fazenda_auth(p_token);
+  v_regra jsonb := fazenda_calendario_regras();
+  v_preco int := (v_regra->>'dourado')::int;
+  r       record;
+  x       jsonb;
+  v_d     jsonb := '[]'::jsonb;
+begin
+  insert into fazenda_calendario (jogador_id) values (v_id) on conflict (jogador_id) do nothing;
+  select * into r from fazenda_calendario where jogador_id = v_id for update;
+  if r.dia >= (v_regra->>'dias')::int and (r.ultimo is null or r.ultimo < fazenda_hoje()) then   -- o ciclo novo já começou
+    r.ciclo := r.ciclo + 1; r.dia := 0;
+  end if;
+  if r.dourado_ciclo = r.ciclo then raise exception 'ja_dourado'; end if;
+  if (select diamantes from fazenda_jogadores where id = v_id for update) < v_preco then raise exception 'diamantes_insuficientes'; end if;
+  update fazenda_jogadores set diamantes = diamantes - v_preco where id = v_id;
+  insert into fazenda_diamantes_usos (jogador_id, item, diamantes) values (v_id, 'calendario_dourado', v_preco);
+  update fazenda_calendario set ciclo = r.ciclo, dia = r.dia, dourado_ciclo = r.ciclo where jogador_id = v_id;
+  for k in 1..r.dia loop
+    for x in select * from jsonb_array_elements(fazenda_calendario_premios() -> (k - 1) -> 'd') loop
+      v_d := v_d || jsonb_build_array(fazenda_calendario_dar(v_id, x));
+    end loop;
+  end loop;
+  return jsonb_build_object('dourado', v_d, 'estado', fazenda_estado(v_id));
+end;
+$$;
+
+-- ------------------------------------------------------------
 -- Permissões: só a API pública fica executável pela chave anon
 -- ------------------------------------------------------------
 revoke execute on function
@@ -7031,7 +7242,12 @@ revoke execute on function
   public.fazenda_feira_criar(uuid, text, int, int, uuid, bigint),
   public.fazenda_radiacao_regras(),
   public.fazenda_radiacao_fechar(uuid, timestamptz),
-  public.fazenda_reator(uuid)
+  public.fazenda_reator(uuid),
+  public.fazenda_calendario_regras(),
+  public.fazenda_calendario_premios(),
+  public.fazenda_avatar_exclusivos(),
+  public.fazenda_calendario_dar(uuid, jsonb),
+  public.fazenda_calendario_estado(uuid)
 from public, anon, authenticated;
 
 grant execute on function
@@ -7085,5 +7301,7 @@ grant execute on function
   public.fazenda_chat(text, bigint),
   public.fazenda_chat_enviar(text, text, text, int, int),
   public.fazenda_chat_apagar(text, bigint),
-  public.fazenda_chat_vender(text, bigint, int)
+  public.fazenda_chat_vender(text, bigint, int),
+  public.fazenda_calendario_resgatar(text),
+  public.fazenda_calendario_dourado(text)
 to anon, authenticated;
