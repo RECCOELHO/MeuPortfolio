@@ -1132,6 +1132,8 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-10-17-viagens', data: '17/10', titulo: 'Itens pelo cano', itens: [
+            'Depois de mudar uma oficina ou um baú de lugar, os itens não aparecem mais voando por cima da fazenda: só passam pelo cano.'] },
         { id: '2026-10-17-tocar-mover', data: '17/10', titulo: 'Mudar de lugar com um toque', itens: [
             'No <b>Construir</b>, toque numa oficina, casa, máquina ou enfeite que já está na fazenda para pegar e mudar de lugar, mesmo com outro item escolhido na barra (antes aparecia "não cabe aqui"). Se o lugar novo não couber, ele continua na mão até você escolher outro.'] },
         { id: '2026-10-17-mover', data: '17/10', titulo: 'Mover ficou mais leve', itens: [
@@ -2140,7 +2142,11 @@
         for (const g of lista) {
             if (viagensVistas.has(g.id) || itensAndando.length >= MAX_NA_TELA) continue;
             const de = pegada(g.de), para = pegada(g.para);
-            const pontos = [centro(de), ...(g.direto ? [] : caminhoCanos(de, para)), centro(para)];
+            // pelo cano: sem caminho (a oficina ou o baú mudou de lugar, ou o cano saiu depois que a
+            // viagem foi feita), não desenha; antes o item voava em linha reta por cima da fazenda
+            const cam = g.direto ? [] : caminhoCanos(de, para);
+            if (!g.direto && !cam.length) continue;
+            const pontos = [centro(de), ...cam, centro(para)];
             const dur = Math.max(900, (pontos.length - 1) * MS_POR_QUADRADO);
             const rota = `${g.de}>${g.para}`;
             // a hora marcada só vale se for daqui a pouco (o servidor espalha as viagens em até 15 s)
