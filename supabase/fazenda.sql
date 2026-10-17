@@ -1039,8 +1039,8 @@ returns jsonb language sql immutable as $$
            {"n":3,"nome":"Vale do sudeste","x":22,"y":13,"w":10,"h":7,"custo":3500,"nivel":10,"lago":true,"canteiros":6},
            {"n":4,"nome":"Chapada do leste","x":32,"y":0,"w":16,"h":20,"custo":8000,"nivel":13,"canteiros":10},
            {"n":5,"nome":"Várzea do sul","x":0,"y":20,"w":32,"h":12,"custo":18000,"nivel":16,"canteiros":12},
-           {"n":6,"nome":"Sertão do sudeste","x":32,"y":20,"w":16,"h":12,"custo":35000,"nivel":20,"canteiros":10},
-           {"n":7,"nome":"Litoral","x":0,"y":32,"w":48,"h":10,"custo":300000,"nivel":31,"canteiros":10,"mar":true}]'::jsonb;   -- fase 61
+           {"n":6,"nome":"Sertão do sudeste","x":32,"y":20,"w":16,"h":12,"custo":87500,"nivel":20,"canteiros":10},
+           {"n":7,"nome":"Litoral","x":0,"y":32,"w":48,"h":10,"custo":750000,"nivel":31,"canteiros":10,"mar":true}]'::jsonb;   -- fase 61 (fase 72: do 20 em diante, 2,5x)
 $$;
 
 -- (x, y) fica dentro do terreno de quem já comprou p_zonas terrenos?
@@ -1557,7 +1557,7 @@ begin
     'animais_tipos', fazenda_cache_ler('animais_tipos'),
     'construcoes', coalesce((
       select jsonb_agg(jsonb_build_object('x', x, 'y', y, 'tipo', tipo, 'colhido_em', colhido_em, 'iniciado_em', iniciado_em,
-                                          'estoque', estoque, 'prontos', prontos))
+                                          'estoque', estoque, 'prontos', prontos, 'pago', pago))   -- fase 72: pago
         from fazenda_construcoes where jogador_id = p_jogador), '[]'::jsonb),
     'estoque_max', fazenda_estoque_max(),
     'itens', fazenda_cache_itens(v_nivel),   -- fase 57: o limite que vale para o nível de agora (fase 71: pronto, um por nível)
@@ -1659,6 +1659,7 @@ declare
   v_estufa boolean;
   v_xp_colheita boolean;
   v_tarde  boolean := false;
+  v_preco  int;   -- fase 72
 begin
   select * into j from fazenda_jogadores where id = p_jogador for update;
 
@@ -1683,14 +1684,17 @@ begin
     p_acao := 'colher';
   end if;
 
-  -- colher agora (fase 31): 1 diamante deixa pronto na hora o que está crescendo, sem os
+  -- colher agora (fase 31): diamante deixa pronto na hora o que está crescendo, sem os
   -- problemas, e já colhe. Maduro não precisa de diamante: só colhe.
+  -- fase 72: 1 diamante a cada 4 h que faltam (era 1 por planta: caro na alface, barato na baunilha)
   if p_acao = 'agora' then
     if p_bot then raise exception 'acao_invalida'; end if;
     if c.estado <> 'plantado' or now() >= v_murcho then raise exception 'nada_a_fazer'; end if;
     if now() < v_maduro then
-      if j.diamantes < 1 then raise exception 'diamantes_insuficientes'; end if;
-      update fazenda_jogadores set diamantes = diamantes - 1 where id = p_jogador;
+      v_preco := greatest(1, ceil(extract(epoch from v_maduro - now())
+                                  / (3600 * (fazenda_loja_diamantes()->'agora'->>'horas')::numeric)))::int;
+      if j.diamantes < v_preco then raise exception 'diamantes_insuficientes'; end if;
+      update fazenda_jogadores set diamantes = diamantes - v_preco where id = p_jogador;
       c.erva := false; c.praga := false; c.seco := false;
       v_maduro := now();
       v_murcho := now() + make_interval(secs => greatest(k.tempo_seg * 2, 3600));
@@ -1810,8 +1814,12 @@ begin
     on conflict (jogador_id, item)
     do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
     -- XP cheio da planta, mas o mesmo canteiro dá XP no máximo 1 vez a cada 8 min (fase 41)
-    v_xp_colheita := not p_bot and (c.xp_em is null or c.xp_em <= now() - interval '8 minutes');
-    if v_xp_colheita then
+    -- fase 72: o que ajudante, robô ou baú colhe dá metade do XP (antes, nada), somado e gravado uma
+    -- vez só no fim da rodada deles (fazenda_bot_xp)
+    v_xp_colheita := c.xp_em is null or c.xp_em <= now() - interval '8 minutes';
+    if v_xp_colheita and p_bot then
+      perform fazenda_bot_xp(p_jogador, k.xp / 2);
+    elsif v_xp_colheita then
       -- fase 70: fazenda completa: + 2 (o XP de arar e plantar, que antes vinha na hora)
       update fazenda_jogadores set xp = xp + k.xp + fazenda_protegido(p_jogador, 'xp', c.x, c.y)::int + 2 * fazenda_completa(p_jogador)::int
        where id = p_jogador;
@@ -2454,8 +2462,12 @@ begin
       if v_t is not null then
         exit when now() < v_t + make_interval(secs => o.produz_seg);   -- ainda trabalhando
         v_qtd := o.produz_qtd;
-        if v_tri and fazenda_gastar_energia(p_jogador, 10) then v_qtd := v_qtd * 2; end if;   -- triturador
         v_fim := v_t + make_interval(secs => o.produz_seg);
+        -- triturador (fase 72: +50% em vez do dobro, e 15 ⚡ por receita): metade de mais; com 1 por
+        -- receita, uma sim, uma não (pela hora em que fica pronta: receitas emendadas se alternam)
+        if v_tri and fazenda_gastar_energia(p_jogador, 15) then
+          v_qtd := v_qtd + greatest(v_qtd / 2, (floor(extract(epoch from v_fim) / o.produz_seg)::bigint % 2 = 0)::int);
+        end if;
         -- pronto: sai pela rede (outra oficina, celeiro ou baú); o que não sai fica para você pegar
         v_pr := v_pr + v_qtd - case when v_rede then fazenda_rede_entregar(p_jogador, o.x, o.y, o.produz, v_qtd, v_membros, v_fim) else 0 end;
         v_t := null;
@@ -2653,6 +2665,7 @@ begin
     end;
    end loop;
   end loop;
+  perform fazenda_bot_xp_gravar();   -- fase 72: o XP do que colheram, uma vez só
 end;
 $$;
 
@@ -2741,6 +2754,7 @@ begin
     end;
    end loop;
   end loop;
+  perform fazenda_bot_xp_gravar();   -- fase 72: o XP do que colheram, uma vez só
 end;
 $$;
 
@@ -3018,6 +3032,7 @@ begin
     end loop;
   end loop;
   if not v_reg then perform fazenda_murchas_registrar(p_jogador); end if;   -- fase 66
+  perform fazenda_bot_xp_gravar();   -- fase 72: o XP do que colheram, uma vez só
 end;
 $$;
 
@@ -3063,7 +3078,7 @@ begin
 end;
 $$;
 
--- Contrata um ajudante ou evolui o nível dele (2x e 4x o preço de contratar)
+-- Contrata um ajudante ou evolui o nível dele (fase 72: 4x e 8x o preço de contratar; eram 2x e 4x)
 create or replace function public.fazenda_contratar(p_token text, p_tipo text)
 returns jsonb
 language plpgsql security definer
@@ -3084,7 +3099,7 @@ begin
   perform fazenda_ajudantes_fechar(v_id, p_tipo);   -- (fase 46: quem não trabalhou também)
   select nivel into v_nivel from fazenda_ajudantes where jogador_id = v_id and tipo = p_tipo;
   if v_nivel >= 3 then raise exception 'nivel_maximo'; end if;
-  v_custo := case coalesce(v_nivel, 0) when 0 then t.custo when 1 then t.custo * 2 else t.custo * 4 end;
+  v_custo := case coalesce(v_nivel, 0) when 0 then t.custo when 1 then t.custo * 4 else t.custo * 8 end;
   if j.moedas < v_custo then raise exception 'moedas_insuficientes'; end if;
   update fazenda_jogadores set moedas = moedas - v_custo where id = v_id;
   insert into fazenda_ajudantes (jogador_id, tipo) values (v_id, p_tipo)
@@ -3694,8 +3709,10 @@ begin
       when 'animal'  then v_alvo * 15
       else v_alvo * 8
     end + 10 * v_nivel;
+    -- fase 72: o XP é 1,5% do nível (no 30, 634; no 44, 1.636), e no começo o de sempre se for maior
     insert into fazenda_missoes (jogador_id, dia, slot, tipo, alvo, moedas, xp)
-    values (p_jogador, v_hoje, i - 1, v_tipo, v_alvo, v_moeda, 5 + v_nivel * 3)
+    values (p_jogador, v_hoje, i - 1, v_tipo, v_alvo, v_moeda,
+            greatest(5 + v_nivel * 3, ceil(0.015 * (fazenda_xp_nivel(least(v_nivel, 44) + 1) - fazenda_xp_nivel(least(v_nivel, 44))))::int))
     on conflict do nothing;
   end loop;
 end;
@@ -3779,7 +3796,7 @@ begin
     if v_valor >= r.meta then
       insert into fazenda_conquistas (jogador_id, conquista) values (p_jogador, r.id) on conflict do nothing;
       if found then   -- fase 70: só paga quem gravou agora (duas chamadas juntas pagavam duas vezes)
-        update fazenda_jogadores set moedas = moedas + r.recompensa where id = p_jogador;
+        update fazenda_jogadores set moedas = moedas + r.recompensa, diamantes = diamantes + r.diamantes where id = p_jogador;   -- fase 72
       end if;
     end if;
   end loop;
@@ -3837,7 +3854,9 @@ begin
     values (p_jogador, r.produto, 1)
     on conflict (jogador_id, item)
     do update set quantidade = fazenda_celeiro.quantidade + 1;
-    if not p_bot then update fazenda_jogadores set xp = xp + r.produto_xp where id = p_jogador; end if;
+    -- fase 72: o que o ajudante coleta dá metade do XP (antes, nada)
+    if not p_bot then update fazenda_jogadores set xp = xp + r.produto_xp where id = p_jogador;
+    else perform fazenda_bot_xp(p_jogador, r.produto_xp / 2); end if;
     update fazenda_animais set alimentado_em = null where id = p_animal;
     if not p_bot then perform fazenda_missao(p_jogador, 'animal', 1); end if;
     return 1;
@@ -4130,7 +4149,8 @@ begin
      set moedas = moedas - v_custo,
          cercado_gratis = case when i.efeito = 'cercado' then array_remove(cercado_gratis, substr(i.id, 9)) else cercado_gratis end
    where id = v_id;
-  insert into fazenda_construcoes (jogador_id, x, y, tipo, colhido_em) values (v_id, p_x, p_y, i.id, now());
+  -- fase 72: guarda o que pagou (desmanchar devolve a metade disso, não do preço de hoje)
+  insert into fazenda_construcoes (jogador_id, x, y, tipo, colhido_em, pago) values (v_id, p_x, p_y, i.id, now(), v_custo);
   return jsonb_build_object('estado', fazenda_estado(v_id));
 end;
 $$;
@@ -4170,7 +4190,7 @@ begin
 end;
 $$;
 
--- Tira uma construção e devolve metade do preço
+-- Tira uma construção e devolve metade do preço (fase 72: do que pagou)
 create or replace function public.fazenda_demolir(p_token text, p_x int, p_y int)
 returns jsonb
 language plpgsql security definer
@@ -4179,6 +4199,7 @@ as $$
 declare
   v_id   uuid := fazenda_auth(p_token);
   v_tipo text;
+  v_pago int;   -- fase 72
   c      record;
 begin
   -- canteiro: só sai vazio ou arado (planta crescendo, colha ou limpe antes)
@@ -4220,13 +4241,13 @@ begin
   delete from fazenda_oficina_itens where jogador_id = v_id and x = p_x and y = p_y;
 
   delete from fazenda_construcoes where jogador_id = v_id and x = p_x and y = p_y
-  returning tipo into v_tipo;
+  returning tipo, pago into v_tipo, v_pago;
   if v_tipo is null then raise exception 'item_invalido'; end if;
-  update fazenda_jogadores
-     set moedas = moedas + (select custo / 2 from fazenda_itens where id = v_tipo)
-   where id = v_id;
-  return jsonb_build_object('devolvido', (select custo / 2 from fazenda_itens where id = v_tipo),
-                            'estado', fazenda_estado(v_id));
+  -- fase 72: metade do que pagou (com os preços novos, a metade do preço de hoje dava lucro); o que
+  -- veio de presente (o lampião do começo) segue pela metade do preço
+  v_pago := coalesce(v_pago, (select custo from fazenda_itens where id = v_tipo)) / 2;
+  update fazenda_jogadores set moedas = moedas + v_pago where id = v_id;
+  return jsonb_build_object('devolvido', v_pago, 'estado', fazenda_estado(v_id));
 end;
 $$;
 
@@ -4460,9 +4481,9 @@ begin
   if v_nivel < 3 then return null; end if;
   v_tipo := (array['feirante', 'doceira', 'caminhoneiro', 'mascate'])[1 + (('x' || substr(v_h, 1, 4))::bit(16)::int % 4)];
   if v_tipo = 'caminhoneiro' and v_nivel < 8 then v_tipo := 'feirante'; end if;
-  if v_tipo = 'mascate' then
+  if v_tipo = 'mascate' then   -- fase 72: o adubo cobre mais canteiros com o nível (8 + 1 a cada 3 níveis)
     return jsonb_build_object('slot', v_slot, 'tipo', v_tipo, 'ate', to_timestamp((v_slot + 1) * 10800),
-                              'canteiros', 8, 'preco', 40 + 10 * v_nivel);
+                              'canteiros', 8 + v_nivel / 3, 'preco', 40 + 10 * v_nivel);
   end if;
   -- a doceira quer o que seus bichos ou suas oficinas fazem; os outros, o que você planta
   if v_tipo = 'doceira' then
@@ -4486,8 +4507,11 @@ begin
   return jsonb_build_object('slot', v_slot, 'tipo', v_tipo, 'ate', to_timestamp((v_slot + 1) * 10800),
     'item', k.id, 'qtd', v_qtd,
     'paga', round(v_qtd * k.venda * case v_tipo when 'feirante' then 1.5 when 'doceira' then 1.6 else 1.4 end)::int,
-    -- XP de quanto você ganharia colhendo isso (o caminhoneiro dá o dobro)
-    'xp', greatest(1, v_qtd * k.xp * case when v_tipo = 'caminhoneiro' then 2 else 1 end / greatest(k.rendimento, 1)));
+    -- XP de quanto você ganharia colhendo isso (o caminhoneiro dá o dobro); fase 72: pelo menos 1% do nível
+    -- (o caminhoneiro, 2%), que cresce com ele: no fim, o de colher era quase nada
+    'xp', greatest(1, v_qtd * k.xp / greatest(k.rendimento, 1),
+                   ceil(0.01 * (fazenda_xp_nivel(least(v_nivel, 44) + 1) - fazenda_xp_nivel(least(v_nivel, 44))))::int)
+          * case when v_tipo = 'caminhoneiro' then 2 else 1 end);
 end;
 $$;
 
@@ -4983,12 +5007,15 @@ revoke all on public.fazenda_diamantes_usos from anon, authenticated;
 
 create or replace function public.fazenda_loja_diamantes()
 returns jsonb language sql immutable as $$
+  -- fase 72: o café dura 4 h; 1 diamante enche 150 ⚡; salvar murchas, 1 a cada 25 plantas; colher
+  -- agora, 1 a cada 4 h que faltam
   select '{"xp2": {"preco": 15, "horas": 1},
            "xp": {"preco": 10, "pct": 10, "por_dia": 3},
-           "cafe": {"preco": 10, "horas": 2},
-           "energia": {"por": 50},
+           "cafe": {"preco": 10, "horas": 4},
+           "energia": {"por": 150},
            "oficina": {"por_hora": 1},
-           "murchas": {"preco": 1}}'::jsonb;
+           "murchas": {"preco": 1, "por": 25},
+           "agora": {"horas": 4}}'::jsonb;
 $$;
 
 -- o dia da loja (o pacote de XP tem limite por dia) é o de Brasília (UTC-3)
@@ -5094,15 +5121,19 @@ begin
     update fazenda_jogadores set diamantes = diamantes - v_preco, energia = v_cap, energia_em = now() where id = v_id;
 
   elsif p_item = 'murchas' then
-    -- fase 48: 1 diamante salva todas as plantas murchas (voltam maduras, sem problemas)
-    v_preco := (v_loja->>'preco')::int;
+    -- fase 48: o diamante salva todas as plantas murchas (voltam maduras, sem problemas); fase 72: 1 a
+    -- cada 25 plantas (era 1 para todas)
+    select count(*) into v_cap from fazenda_canteiros c join fazenda_culturas k on k.id = c.cultura
+     where c.jogador_id = v_id and c.estado = 'plantado'
+       and now() >= c.plantado_em + make_interval(secs => k.tempo_seg + greatest(k.tempo_seg * 2, 3600));
+    if v_cap = 0 then raise exception 'nada_a_fazer'; end if;
+    v_preco := (v_loja->>'preco')::int * ceil(v_cap / coalesce((v_loja->>'por')::numeric, v_cap))::int;
     if j.diamantes < v_preco then raise exception 'diamantes_insuficientes'; end if;
     update fazenda_canteiros c
        set plantado_em = now() - make_interval(secs => k.tempo_seg), erva = false, praga = false, seco = false, prox_evento = null
       from fazenda_culturas k
      where c.jogador_id = v_id and c.estado = 'plantado' and k.id = c.cultura
        and now() >= c.plantado_em + make_interval(secs => k.tempo_seg + greatest(k.tempo_seg * 2, 3600));
-    if not found then raise exception 'nada_a_fazer'; end if;
     update fazenda_jogadores set diamantes = diamantes - v_preco where id = v_id;
 
   elsif p_item = 'oficina' then
@@ -5617,45 +5648,46 @@ revoke all on public.fazenda_melhorias from anon, authenticated;
 -- pede moedas e materiais raros (itens); o efeito entra em fazenda_mar_item, na pescaria e no marinheiro
 create or replace function public.fazenda_melhorias_tipos()
 returns jsonb language sql immutable as $$
+  -- fase 72: tudo 2x mais caro (o dinheiro do nível 20 em diante estava sobrando)
   select '[{"id":"adubo","nome":"Adubo premium","descricao":"As plantas nascem adiantadas: crescem 10%, 20% e 30% mais rápido (soma com o girassol e a estufa).",
-            "niveis":[{"nivel":23,"custo":50000,"valor":0.1},{"nivel":26,"custo":150000,"valor":0.2},{"nivel":29,"custo":300000,"valor":0.3}]},
+            "niveis":[{"nivel":23,"custo":100000,"valor":0.1},{"nivel":26,"custo":300000,"valor":0.2},{"nivel":29,"custo":600000,"valor":0.3}]},
            {"id":"pomar","nome":"Pomar fértil","descricao":"As árvores do pomar dão frutas 15% e 30% mais rápido.",
-            "niveis":[{"nivel":24,"custo":80000,"valor":0.15},{"nivel":28,"custo":200000,"valor":0.3}]},
+            "niveis":[{"nivel":24,"custo":160000,"valor":0.15},{"nivel":28,"custo":400000,"valor":0.3}]},
            {"id":"pes","nome":"Mais pés de fruta","descricao":"Mais 1 e mais 2 pés de cada fruta no pomar, além dos 4 que os terrenos dão.",
-            "niveis":[{"nivel":25,"custo":60000,"valor":1},{"nivel":30,"custo":120000,"valor":2}]},
+            "niveis":[{"nivel":25,"custo":120000,"valor":1},{"nivel":30,"custo":240000,"valor":2}]},
            {"id":"barco","nome":"Barco","mar":true,"descricao":"Barco maior vai mais longe: o cardume é maior, enche mais rápido e tem peixe que o bote não alcança.",
             "base":{"nome":"Bote","valor":1,"intervalo":900,"max":16},
-            "niveis":[{"nivel":34,"custo":400000,"valor":2,"nome":"Traineira","intervalo":720,"max":24},
-                      {"nivel":37,"custo":900000,"valor":3,"nome":"Barco de pesca","intervalo":600,"max":32},
-                      {"nivel":40,"custo":1800000,"valor":4,"nome":"Pesqueiro","intervalo":480,"max":40},
-                      {"nivel":43,"custo":3500000,"valor":5,"nome":"Barco oceânico","intervalo":360,"max":48}]},
+            "niveis":[{"nivel":34,"custo":800000,"valor":2,"nome":"Traineira","intervalo":720,"max":24},
+                      {"nivel":37,"custo":1800000,"valor":3,"nome":"Barco de pesca","intervalo":600,"max":32},
+                      {"nivel":40,"custo":3600000,"valor":4,"nome":"Pesqueiro","intervalo":480,"max":40},
+                      {"nivel":43,"custo":7000000,"valor":5,"nome":"Barco oceânico","intervalo":360,"max":48}]},
            {"id":"vara","nome":"Vara","mar":true,"descricao":"Vara melhor dá mais tempo para fisgar e puxa peixe maior.",
             "base":{"nome":"Vara de bambu","valor":1,"janela":900},
-            "niveis":[{"nivel":32,"custo":150000,"valor":2,"nome":"Vara de fibra","janela":1100},
-                      {"nivel":35,"custo":400000,"valor":3,"nome":"Molinete","janela":1300},
-                      {"nivel":38,"custo":900000,"valor":4,"nome":"Carretilha","janela":1500},
-                      {"nivel":41,"custo":2000000,"valor":5,"nome":"Vara profissional","janela":1800}]},
+            "niveis":[{"nivel":32,"custo":300000,"valor":2,"nome":"Vara de fibra","janela":1100},
+                      {"nivel":35,"custo":800000,"valor":3,"nome":"Molinete","janela":1300},
+                      {"nivel":38,"custo":1800000,"valor":4,"nome":"Carretilha","janela":1500},
+                      {"nivel":41,"custo":4000000,"valor":5,"nome":"Vara profissional","janela":1800}]},
            {"id":"marinheiro","nome":"Marinheiro","mar":true,"descricao":"O Seu Nonato pesca sozinho enquanto você cuida da fazenda: o cesto dele enche por até 8 horas. Cada nível pesca mais rápido.",
-            "niveis":[{"nivel":33,"custo":250000,"valor":1,"nome":"Seu Nonato","intervalo":1800,"max":16},
-                      {"nivel":36,"custo":700000,"valor":2,"nome":"Seu Nonato com rede","intervalo":1200,"max":24},
-                      {"nivel":39,"custo":1800000,"valor":3,"nome":"Seu Nonato com barco de apoio","intervalo":720,"max":40}]},
+            "niveis":[{"nivel":33,"custo":500000,"valor":1,"nome":"Seu Nonato","intervalo":1800,"max":16},
+                      {"nivel":36,"custo":1400000,"valor":2,"nome":"Seu Nonato com rede","intervalo":1200,"max":24},
+                      {"nivel":39,"custo":3600000,"valor":3,"nome":"Seu Nonato com barco de apoio","intervalo":720,"max":40}]},
            {"id":"motor","nome":"Motor","mar":true,"peca":true,"descricao":"Motor mais forte vai e volta mais rápido: o cardume enche mais rápido.",
-            "niveis":[{"nivel":33,"custo":200000,"valor":0.1,"nome":"Motor de popa","itens":{"ferro_forjado":1}},
-                      {"nivel":39,"custo":600000,"valor":0.2,"nome":"Motor a diesel","itens":{"ferro_forjado":2,"ancora":1}},
-                      {"nivel":44,"custo":1500000,"valor":0.3,"nome":"Motor turbo","itens":{"ferro_forjado":3,"ancora":2,"perola_negra":1}}]},
+            "niveis":[{"nivel":33,"custo":400000,"valor":0.1,"nome":"Motor de popa","itens":{"ferro_forjado":1}},
+                      {"nivel":39,"custo":1200000,"valor":0.2,"nome":"Motor a diesel","itens":{"ferro_forjado":2,"ancora":1}},
+                      {"nivel":44,"custo":3000000,"valor":0.3,"nome":"Motor turbo","itens":{"ferro_forjado":3,"ancora":2,"perola_negra":1}}]},
            {"id":"sonar","nome":"Sonar","mar":true,"peca":true,"descricao":"Acha os cardumes de peixe grande e as ostras: mais peixe grande e mais pérola negra.",
-            "niveis":[{"nivel":35,"custo":250000,"valor":1,"perola":150,"nome":"Sonar simples","itens":{"corda_naval":2}},
-                      {"nivel":41,"custo":800000,"valor":2,"perola":100,"nome":"Sonar colorido","itens":{"corda_naval":2,"perola_negra":1}},
-                      {"nivel":45,"custo":2000000,"valor":3,"perola":70,"nome":"Sonar de varredura","itens":{"perola_negra":2,"marlim":1}}]},
+            "niveis":[{"nivel":35,"custo":500000,"valor":1,"perola":150,"nome":"Sonar simples","itens":{"corda_naval":2}},
+                      {"nivel":41,"custo":1600000,"valor":2,"perola":100,"nome":"Sonar colorido","itens":{"corda_naval":2,"perola_negra":1}},
+                      {"nivel":45,"custo":4000000,"valor":3,"perola":70,"nome":"Sonar de varredura","itens":{"perola_negra":2,"marlim":1}}]},
            {"id":"porao","nome":"Porão","mar":true,"peca":true,"descricao":"Guarda o peixe no gelo: às vezes uma fisgada traz 2 peixes.",
-            "niveis":[{"nivel":36,"custo":300000,"valor":0.15,"nome":"Caixa de gelo","itens":{"madeira_nobre":2}},
-                      {"nivel":42,"custo":1000000,"valor":0.3,"nome":"Porão refrigerado","itens":{"madeira_nobre":3,"pedra_cantaria":2}},
-                      {"nivel":45,"custo":2500000,"valor":0.45,"nome":"Câmara fria","itens":{"pedra_cantaria":2,"ferro_forjado":2,"perola_negra":1}}]},
+            "niveis":[{"nivel":36,"custo":600000,"valor":0.15,"nome":"Caixa de gelo","itens":{"madeira_nobre":2}},
+                      {"nivel":42,"custo":2000000,"valor":0.3,"nome":"Porão refrigerado","itens":{"madeira_nobre":3,"pedra_cantaria":2}},
+                      {"nivel":45,"custo":5000000,"valor":0.45,"nome":"Câmara fria","itens":{"pedra_cantaria":2,"ferro_forjado":2,"perola_negra":1}}]},
            {"id":"rede","nome":"Rede de arrasto","mar":true,"peca":true,"descricao":"Para o marinheiro: ele pesca mais rápido (e o cesto continua guardando 8 horas).",
-            "niveis":[{"nivel":37,"custo":300000,"valor":0.15,"nome":"Rede de arrasto","itens":{"corda_naval":2}},
-                      {"nivel":43,"custo":1200000,"valor":0.3,"nome":"Rede dupla","itens":{"corda_naval":3,"ancora":1}}]},
+            "niveis":[{"nivel":37,"custo":600000,"valor":0.15,"nome":"Rede de arrasto","itens":{"corda_naval":2}},
+                      {"nivel":43,"custo":2400000,"valor":0.3,"nome":"Rede dupla","itens":{"corda_naval":3,"ancora":1}}]},
            {"id":"expedicao","nome":"Kit de expedição","mar":true,"peca":true,"descricao":"Bússola, mapa e tanque extra: deixa o barco oceânico pronto para viajar às ilhas (nível 46, na próxima expansão).",
-            "niveis":[{"nivel":45,"custo":3000000,"valor":1,"nome":"Kit de expedição","itens":{"perola_negra":3,"marlim":2,"ancora":2}}]}]'::jsonb;
+            "niveis":[{"nivel":45,"custo":6000000,"valor":1,"nome":"Kit de expedição","itens":{"perola_negra":3,"marlim":2,"ancora":2}}]}]'::jsonb;
 $$;
 
 -- quanto a melhoria vale para o jogador agora (0 = não comprou)
@@ -7631,6 +7663,106 @@ end $$;
 select public.fazenda_cache_montar();
 
 -- ------------------------------------------------------------
+-- Fase 72: os números (a revisão de 17/10 e o "do nível 20 em diante está sobrando dinheiro").
+-- • Preços: o que libera do nível 20 em diante custa 2,5x (construções, oficinas, pomar e os terrenos
+--   6 e 7, em fazenda_zonas); melhorias (fazenda_melhorias_tipos) e evoluir ajudante, 2x. As sementes
+--   ficam como estão.
+-- • Desmanchar devolve a metade do que você pagou (fazenda_construcoes.pago), não a do preço de hoje:
+--   com os preços novos, comprar barato antes e desmanchar depois dava lucro. O cercado que veio de
+--   graça não devolve nada.
+-- • Triturador: 40 mil, 15 ⚡ por receita e +50% (uma receita sim, outra não, sai 1 a mais), em vez do
+--   dobro (fazenda_oficinas_andar).
+-- • O que ajudante, robô e baú colhem (e os bichos que os ajudantes coletam) dá metade do XP.
+-- • Alface em 5 min (era 2). Adega e vinícola em 2 h (eram 4), geleia em 60 min (85) e queijo em 90 (128).
+-- • Missões: o XP é 1,5% do nível. Visitas: pelo menos 1% do nível em XP (o caminhoneiro, 2%), e o
+--   adubo da mascate cobre 8 canteiros + 1 a cada 3 níveis. As moedas de missões e visitas não mudam.
+-- • Diamantes (fazenda_loja_diamantes): salvar murchas, 1 a cada 25 plantas (era 1 para todas);
+--   colher agora, 1 a cada 4 h que faltam (era 1 por planta); 1 diamante enche 150 ⚡ (eram 50); o
+--   café dos ajudantes dura 4 h (eram 2).
+-- • Conquistas dão diamantes (fazenda_conquistas_tipos.diamantes): nível 10, 15, 20, 25, 30, 35 e 40
+--   dão o número do nível; o 45, 100; o Velho Chico, 20; o marlim, 50. Quem já tinha ganha agora, uma
+--   vez só (fazenda_conquistas.diamantes_pagos).
+-- ------------------------------------------------------------
+-- o XP do que os ajudantes, robôs e baús colhem: soma na chamada (fazenda.xp_bot, que volta junto se a
+-- tarefa for desfeita) e grava uma vez só no fim da rodada deles (uma gravação por colheita deixava a
+-- volta de uma fazenda grande 2x mais lenta)
+create or replace function public.fazenda_bot_xp(p_jogador uuid, p_xp int)
+returns void
+language plpgsql
+set search_path = public
+as $$
+declare
+  v text := current_setting('fazenda.xp_bot', true);
+begin
+  if coalesce(p_xp, 0) <= 0 then return; end if;
+  if v is not null and v <> '' and split_part(v, '#', 1) <> p_jogador::text then
+    perform fazenda_bot_xp_gravar();   -- (o de outra fazenda, que não deveria estar aí)
+    v := null;
+  end if;
+  perform set_config('fazenda.xp_bot', p_jogador::text || '#'
+                     || (coalesce(nullif(split_part(coalesce(v, ''), '#', 2), '')::bigint, 0) + p_xp), true);
+end;
+$$;
+
+create or replace function public.fazenda_bot_xp_gravar()
+returns void
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v text := current_setting('fazenda.xp_bot', true);
+begin
+  if v is null or v = '' then return; end if;
+  perform set_config('fazenda.xp_bot', '', true);
+  update fazenda_jogadores set xp = xp + split_part(v, '#', 2)::bigint where id = split_part(v, '#', 1)::uuid;
+end;
+$$;
+
+alter table public.fazenda_construcoes add column if not exists pago int;
+-- o que já estava construído vale pelo preço de antes desta fase (roda antes dos preços novos)
+update public.fazenda_construcoes c set pago = i.custo
+  from public.fazenda_itens i
+ where i.id = c.tipo and c.pago is null;
+
+update public.fazenda_itens i set custo = v.custo
+  from (values
+    ('engenho', 80000), ('fabrica_auto', 37500), ('torrefacao', 85000), ('robo_colheita', 45000),
+    ('fiacao', 90000), ('aspersor', 30000), ('cafeteria', 100000), ('reator', 75000),
+    ('alfaiataria', 112500), ('vitaminas', 50000), ('vinicola', 120000), ('mangueira', 7500),
+    ('guacamolaria', 60000), ('abacateiro', 10000), ('chocolateria', 65000), ('pimentaria', 125000),
+    ('cacaueiro', 12500), ('adega', 75000), ('jabuticabeira', 15000), ('estatua_chico', 75000),
+    ('bombonaria', 150000), ('supercap', 22500),
+    ('triturador', 40000)) v(id, custo)
+ where i.id = v.id;
+update public.fazenda_itens
+   set descricao = 'As oficinas rendem 50% a mais: uma receita sim, outra não, sai 1 produto a mais. Gasta 15 ⚡ por receita.'
+ where id = 'triturador';
+update public.fazenda_itens i set produz_seg = v.seg
+  from (values ('adega', 7200), ('vinicola', 7200), ('casa_geleia', 3600), ('queijaria', 5400)) v(id, seg)
+ where i.id = v.id;
+update public.fazenda_culturas set tempo_seg = 300 where id = 'alface';
+
+alter table public.fazenda_conquistas_tipos add column if not exists diamantes int not null default 0;
+update public.fazenda_conquistas_tipos t set diamantes = v.d
+  from (values ('nivel_10', 10), ('nivel_15', 15), ('nivel_20', 20), ('nivel_25', 25), ('nivel_30', 30),
+               ('nivel_35', 35), ('nivel_40', 40), ('nivel_45', 100), ('velho_chico', 20), ('marlim', 50)) v(id, d)
+ where t.id = v.id;
+-- quem já tinha a conquista ganha os diamantes dela agora, uma vez só (a coluna nasce vazia nas antigas;
+-- as novas já nascem pagas, porque fazenda_checar_conquistas paga na hora)
+alter table public.fazenda_conquistas add column if not exists diamantes_pagos boolean;
+update public.fazenda_jogadores j set diamantes = j.diamantes + x.d
+  from (select c.jogador_id, sum(t.diamantes)::int as d
+          from public.fazenda_conquistas c join public.fazenda_conquistas_tipos t on t.id = c.conquista
+         where c.diamantes_pagos is null and t.diamantes > 0
+         group by c.jogador_id) x
+ where j.id = x.jogador_id;
+update public.fazenda_conquistas set diamantes_pagos = true where diamantes_pagos is null;
+alter table public.fazenda_conquistas alter column diamantes_pagos set default true;
+
+-- os catálogos prontos com os números novos (as melhorias são uma função: o gatilho não vê)
+select public.fazenda_cache_montar();
+
+-- ------------------------------------------------------------
 -- Permissões: só a API pública fica executável pela chave anon
 -- ------------------------------------------------------------
 revoke execute on function
@@ -7815,7 +7947,9 @@ revoke execute on function
   public.fazenda_cache_gravar(text, jsonb),
   public.fazenda_previsao_agora(),
   public.fazenda_auth_ler(text),
-  public.fazenda_semana_tentar_fechar()
+  public.fazenda_semana_tentar_fechar(),
+  public.fazenda_bot_xp(uuid, int),
+  public.fazenda_bot_xp_gravar()
 from public, anon, authenticated;
 
 grant execute on function
