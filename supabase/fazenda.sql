@@ -1452,8 +1452,12 @@ begin
                      where f.vendedor_id = p_jogador and f.vendido_em > now() - interval '7 days'
                      order by f.vendido_em desc limit 10) x), '[]'::jsonb),
       'meus', coalesce((select jsonb_agg(jsonb_build_object('id', f.id, 'item', f.item, 'qtd', f.qtd, 'preco', f.preco,
-                          'ate', f.criado_em + make_interval(hours => (fazenda_feira_regras()->>'horas')::int)) order by f.id)
-                          from fazenda_feira f where f.vendedor_id = p_jogador and f.vendido_em is null), '[]'::jsonb),
+                          'ate', f.criado_em + make_interval(hours => (fazenda_feira_regras()->>'horas')::int),
+                          -- fase 67: separado para quem pediu no chat
+                          'para', case when f.reservado_ate > now() then r.apelido end,
+                          'reservado_ate', case when f.reservado_ate > now() then f.reservado_ate end) order by f.id)
+                          from fazenda_feira f left join fazenda_jogadores r on r.id = f.reservado_para
+                         where f.vendedor_id = p_jogador and f.vendido_em is null), '[]'::jsonb),
       'vendas_novas', coalesce((select jsonb_agg(jsonb_build_object('item', f.item, 'qtd', f.qtd, 'total', f.qtd * f.preco,
                           'recebeu', f.qtd * f.preco - ceil(f.qtd * f.preco * (fazenda_feira_regras()->>'taxa')::int / 100.0)::int,
                           'comprador', c.apelido) order by f.vendido_em)
@@ -1572,6 +1576,15 @@ begin
         select jsonb_object_agg(x.motivo, x.n)
           from (select motivo, count(*) as n from fazenda_murchas
                  where jogador_id = p_jogador and murchou_em > now() - interval '24 hours' group by motivo) x), '{}'::jsonb)),
+    -- fase 67: o chat (o id mais novo, para a bolinha) e o que separaram para você na feira
+    'chat', jsonb_build_object(
+      'ultimo', (select max(c.id) from fazenda_chat c join fazenda_jogadores p on p.id = c.jogador_id
+                  where c.criado_em >= now() - make_interval(mins => (fazenda_chat_regras()->>'minutos')::int)
+                    and c.apagado_em is null and p.banido_em is null),
+      'reservas', coalesce((select jsonb_agg(jsonb_build_object('id', f.id, 'item', f.item, 'qtd', f.qtd, 'preco', f.preco,
+                             'vendedor', v.apelido, 'ate', f.reservado_ate, 'nova', not f.reserva_vista) order by f.id)
+                             from fazenda_feira f join fazenda_jogadores v on v.id = f.vendedor_id
+                            where f.reservado_para = p_jogador and f.vendido_em is null and f.reservado_ate > now()), '[]'::jsonb)),
     -- fase 63: o evento da semana (até quando vai, os prêmios ainda não vistos e os troféus)
     'evento', jsonb_build_object(
       'fim', fazenda_semana_inicio(now()) + interval '7 days',
@@ -1611,6 +1624,7 @@ begin
   update fazenda_feira set visto = true where vendedor_id = p_jogador and vendido_em is not null and not visto;   -- e as vendas da feira
   update fazenda_semana_premios set visto = true where jogador_id = p_jogador and not visto;   -- e os prêmios do evento (fase 63)
   update fazenda_murchas set visto = true where jogador_id = p_jogador and not visto;   -- e o relatório das murchas (fase 66)
+  update fazenda_feira set reserva_vista = true where reservado_para = p_jogador and not reserva_vista;   -- e o que separaram no chat (fase 67)
   return v_json;
 end;
 $$;
@@ -5075,24 +5089,9 @@ language plpgsql security definer
 set search_path = public, extensions
 as $$
 declare
-  v_id    uuid := fazenda_auth(p_token);
-  v_r     jsonb := fazenda_feira_regras();
-  v_faixa int[] := fazenda_feira_faixa(p_item);
-  v_livre int;
+  v_id uuid := fazenda_auth(p_token);
 begin
-  perform fazenda_feira_vencidos(v_id);
-  if v_faixa is null then raise exception 'item_invalido'; end if;
-  if p_qtd is null or p_qtd < 1 or p_qtd > (v_r->>'qtd_max')::int then raise exception 'quantidade_invalida'; end if;
-  if p_preco is null or p_preco < v_faixa[1] or p_preco > v_faixa[2] then raise exception 'preco_invalido'; end if;
-  if (select count(*) from fazenda_feira where vendedor_id = v_id and vendido_em is null) >= fazenda_feira_limite(v_id) then
-    raise exception 'limite_anuncios';   -- (fase 51: compre mais barracas na feira)
-  end if;
-  -- a ração reservada para os bichos fica no celeiro
-  select ce.quantidade - coalesce((select quantidade from fazenda_reservas where jogador_id = v_id and item = p_item), 0) into v_livre
-    from fazenda_celeiro ce where ce.jogador_id = v_id and ce.item = p_item for update;
-  if coalesce(v_livre, 0) < p_qtd then raise exception 'sem_itens'; end if;
-  update fazenda_celeiro set quantidade = quantidade - p_qtd where jogador_id = v_id and item = p_item;
-  insert into fazenda_feira (vendedor_id, item, qtd, preco) values (v_id, p_item, p_qtd, p_preco);
+  perform fazenda_feira_criar(v_id, p_item, p_qtd, p_preco);   -- fase 67: as checagens ficam lá (o chat usa também)
   return jsonb_build_object('estado', fazenda_estado(v_id));
 end;
 $$;
@@ -5132,6 +5131,8 @@ begin
     raise exception 'anuncio_invalido';   -- já vendido, cancelado ou vencido
   end if;
   if a.vendedor_id = v_id then raise exception 'anuncio_seu'; end if;
+  -- fase 67: separado para quem pediu no chat (por 2 h, só essa pessoa compra)
+  if a.reservado_para is not null and a.reservado_para <> v_id and a.reservado_ate > now() then raise exception 'anuncio_reservado'; end if;
   if (select count(*) from fazenda_feira where comprador_id = v_id and vendido_em > now() - interval '1 day')
      >= (v_r->>'compras_dia')::int then
     raise exception 'limite_compras';
@@ -5151,7 +5152,8 @@ begin
 end;
 $$;
 
--- as ofertas abertas dos outros (as mais baratas primeiro; com p_item, só daquele item) e as suas
+-- as ofertas abertas dos outros (as mais baratas primeiro; com p_item, só daquele item) e as suas.
+-- Fase 67: a reservada para outra pessoa não aparece enquanto a reserva vale; a reservada para você vem primeiro.
 create or replace function public.fazenda_feira_lista(p_token text, p_item text default null)
 returns jsonb
 language plpgsql security definer
@@ -5165,19 +5167,22 @@ begin
   return jsonb_build_object(
     'regras', v_r,
     'ofertas', coalesce((
-      select jsonb_agg(o order by (o->>'preco')::int, (o->>'id')::bigint) from (
+      select jsonb_agg(o order by (o ? 'reservado_ate') desc, (o->>'preco')::int, (o->>'id')::bigint) from (
         select jsonb_build_object('id', f.id, 'item', f.item, 'qtd', f.qtd, 'preco', f.preco, 'vendedor', j.apelido,
-                                  'avatar', j.avatar, 'ate', f.criado_em + make_interval(hours => (v_r->>'horas')::int)) as o
+                                  'avatar', j.avatar, 'ate', f.criado_em + make_interval(hours => (v_r->>'horas')::int))
+               || case when f.reservado_para = v_id and f.reservado_ate > now() then jsonb_build_object('reservado_ate', f.reservado_ate) else '{}'::jsonb end as o
           from fazenda_feira f join fazenda_jogadores j on j.id = f.vendedor_id
          where f.vendido_em is null and f.vendedor_id <> v_id
            and f.criado_em >= now() - make_interval(hours => (v_r->>'horas')::int)
+           and (f.reservado_para is null or f.reservado_para = v_id or f.reservado_ate <= now())
            and (p_item is null or f.item = p_item)
-         order by f.preco, f.id
+         order by (f.reservado_para = v_id and f.reservado_ate > now()) desc nulls last, f.preco, f.id
          limit 60) x), '[]'::jsonb),
     'itens', coalesce((
       select jsonb_agg(distinct f.item) from fazenda_feira f
        where f.vendido_em is null and f.vendedor_id <> v_id
-         and f.criado_em >= now() - make_interval(hours => (v_r->>'horas')::int)), '[]'::jsonb),
+         and f.criado_em >= now() - make_interval(hours => (v_r->>'horas')::int)
+         and (f.reservado_para is null or f.reservado_para = v_id or f.reservado_ate <= now())), '[]'::jsonb),
     'compras_hoje', (select count(*) from fazenda_feira where comprador_id = v_id and vendido_em > now() - interval '1 day'));
 end;
 $$;
@@ -6482,6 +6487,259 @@ end;
 $$;
 
 -- ------------------------------------------------------------
+-- Fase 67: o chat global, com pedidos que viram anúncio reservado na barraca.
+-- • fazenda_chat guarda só a última hora: as mensagens somem em 60 min e cada envio apaga as velhas, então
+--   a tabela nunca passa de 1 hora de conversa. Escreve do nível 5 em diante (ler, todo mundo lê); uma
+--   mensagem a cada 8 s, 30 por hora (6 pedidos). Texto até 120 letras, sem palavrão (fazenda_chat_palavras,
+--   comparando o texto normalizado: sem acento, 0→o, 4→a..., letras repetidas juntas) e sem link.
+-- • Pedido: item, quantidade e preço de cada (dentro da faixa da feira). "Vender pra ele"
+--   (fazenda_chat_vender) põe o item na barraca de quem vende, pelo preço do pedido, reservado para quem
+--   pediu por 2 h (só ele vê e compra); depois vira anúncio normal, com as 48 h de sempre.
+-- • Cada um apaga as suas mensagens; o admin apaga qualquer uma (fica em fazenda_admin_log).
+-- ------------------------------------------------------------
+create or replace function public.fazenda_chat_regras()
+returns jsonb language sql immutable as $$
+  select '{"minutos": 60, "nivel": 5, "letras": 120, "intervalo": 8, "por_hora": 30, "pedidos_hora": 6,
+           "reserva_horas": 2, "mostrar": 80}'::jsonb;
+$$;
+
+create table if not exists public.fazenda_chat (
+  id          bigint generated always as identity primary key,
+  jogador_id  uuid not null references public.fazenda_jogadores(id) on delete cascade,
+  texto       text not null default '' check (char_length(texto) <= 120),
+  item        text references public.fazenda_culturas(id),   -- pedido: o item, quantos e quanto paga cada
+  qtd         int check (qtd > 0),
+  preco       int check (preco > 0),
+  criado_em   timestamptz not null default now(),
+  apagado_por uuid references public.fazenda_jogadores(id) on delete set null,
+  apagado_em  timestamptz
+);
+create index if not exists fazenda_chat_criado on public.fazenda_chat (criado_em);
+create index if not exists fazenda_chat_jogador on public.fazenda_chat (jogador_id, criado_em);
+alter table public.fazenda_chat enable row level security;
+revoke all on public.fazenda_chat from anon, authenticated;
+
+-- o anúncio reservado para quem pediu no chat (pedido_id sem chave: a mensagem some em 1 h)
+alter table public.fazenda_feira add column if not exists reservado_para uuid references public.fazenda_jogadores(id) on delete set null;
+alter table public.fazenda_feira add column if not exists reservado_ate timestamptz;
+alter table public.fazenda_feira add column if not exists pedido_id bigint;
+alter table public.fazenda_feira add column if not exists reserva_vista boolean not null default false;
+create index if not exists fazenda_feira_pedido on public.fazenda_feira (pedido_id) where pedido_id is not null;
+create index if not exists fazenda_feira_reservado on public.fazenda_feira (reservado_para) where reservado_para is not null;
+
+-- o texto como o filtro enxerga: minúsculo, sem acento, 0→o 1→i 3→e 4→a 5→s 7→t @→a $→s e letras
+-- repetidas juntas ("pooorrra" → "pora"); a lista passa pela mesma conta
+create or replace function public.fazenda_chat_norm(p text)
+returns text language sql immutable as $$
+  select regexp_replace(translate(lower(coalesce(p, '')), 'áàâãäéèêëíìîïóòôõöúùûüç013457@$', 'aaaaaeeeeiiiiooooouuuucoieastas'),
+                        '([a-z])\1+', '\1', 'g');
+$$;
+create or replace function public.fazenda_chat_palavras()
+returns text[] language sql immutable as $$
+  select array['porra', 'caralho', 'karalho', 'buceta', 'boceta', 'xoxota', 'xota', 'puta', 'puto', 'putaria', 'merda', 'bosta',
+               'cu', 'cuzao', 'foder', 'foda', 'fodase', 'fodido', 'fudido', 'fuder', 'fdp', 'pqp', 'vsf', 'tnc', 'vtnc', 'krl',
+               'crl', 'pnc', 'cacete', 'piroca', 'punheta', 'punheteiro', 'siririca', 'boquete', 'viado', 'bicha',
+               'arrombado', 'arrombada', 'babaca', 'otario', 'otaria', 'corno', 'corna', 'vagabundo', 'vagabunda', 'vadia',
+               'desgracado', 'desgracada', 'retardado', 'retardada', 'estupro', 'estuprador', 'escroto', 'escrota',
+               'filho da puta', 'vai se foder', 'pau no cu'];
+$$;
+-- tem palavrão? palavra inteira (com plural), e também soletrado com espaço ou ponto ("p o r r a")
+create or replace function public.fazenda_chat_palavrao(p text)
+returns boolean language sql immutable as $$
+  with l as (select string_agg(regexp_replace(fazenda_chat_norm(w), '([.*+?()\[\]{}|^$\\])', '\\\1', 'g'), '|') as re
+               from unnest(fazenda_chat_palavras()) w),
+       t as (select fazenda_chat_norm(p) as n)
+  select t.n ~ ('\m(' || l.re || ')s?\M')
+      or exists (select 1 from regexp_matches(t.n, '(?:\m[a-z]\M[^a-z]{1,2}){2,}\m[a-z]\M', 'g') m
+                  where regexp_replace(regexp_replace(m[1], '[^a-z]', '', 'g'), '([a-z])\1+', '\1', 'g') ~ ('^(' || l.re || ')s?$'))
+    from l, t;
+$$;
+-- limpa o texto (sem caractere de controle, espaços juntos) e barra o que não pode
+create or replace function public.fazenda_chat_texto(p_texto text)
+returns text
+language plpgsql immutable
+set search_path = public, extensions
+as $$
+declare
+  v text := btrim(regexp_replace(regexp_replace(coalesce(p_texto, ''), '[[:cntrl:]]', ' ', 'g'), '\s+', ' ', 'g'));
+begin
+  if char_length(v) > (fazenda_chat_regras()->>'letras')::int then raise exception 'chat_longo'; end if;
+  if v ~* '(https?://|www\.|\.(com|net|org|br|gg|io|me|ly|xyz|site|online|app|link)(\M|/)|discord\.|t\.me/|wa\.me/)' then
+    raise exception 'chat_link';
+  end if;
+  if fazenda_chat_palavrao(v) then raise exception 'chat_palavrao'; end if;
+  return v;
+end;
+$$;
+
+-- A conversa da última hora (as 80 mais novas, sem as apagadas e sem as de banidos). Com p_depois, só as
+-- novas, os ids que sumiram (apagados) e quem atendeu os pedidos (para a busca de 5 em 5 s ficar leve).
+create or replace function public.fazenda_chat(p_token text, p_depois bigint default null)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id uuid := fazenda_auth(p_token);
+  v_r  jsonb := fazenda_chat_regras();
+  v_de timestamptz := now() - make_interval(mins => (v_r->>'minutos')::int);
+  j    record;
+begin
+  select fazenda_nivel(xp) as nivel, admin into j from fazenda_jogadores where id = v_id;
+  return jsonb_build_object(
+    'regras', v_r,
+    'pode_escrever', j.nivel >= (v_r->>'nivel')::int,
+    'admin', j.admin is not null,
+    'mensagens', coalesce((
+      select jsonb_agg(m order by (m->>'id')::bigint) from (
+        select jsonb_build_object('id', c.id, 'jogador', c.jogador_id, 'apelido', p.apelido, 'avatar', p.avatar,
+                 'nivel', fazenda_nivel(p.xp), 'admin', p.admin, 'texto', c.texto, 'em', c.criado_em,
+                 'pedido', case when c.item is not null then jsonb_build_object('item', c.item, 'qtd', c.qtd, 'preco', c.preco) end) as m
+          from fazenda_chat c join fazenda_jogadores p on p.id = c.jogador_id
+         where c.criado_em >= v_de and c.apagado_em is null and p.banido_em is null
+           and (p_depois is null or c.id > p_depois)
+         order by c.id desc
+         limit (v_r->>'mostrar')::int) x), '[]'::jsonb),
+    'apagadas', case when p_depois is null then '[]'::jsonb else coalesce((
+      select jsonb_agg(c.id) from fazenda_chat c join fazenda_jogadores p on p.id = c.jogador_id
+       where c.criado_em >= v_de and c.id <= p_depois and (c.apagado_em is not null or p.banido_em is not null)), '[]'::jsonb) end,
+    'atendidos', coalesce((
+      select jsonb_object_agg(x.pedido_id::text, x.quem) from (
+        select f.pedido_id, jsonb_agg(jsonb_build_object('apelido', vj.apelido, 'qtd', f.qtd) order by f.id) as quem
+          from fazenda_feira f join fazenda_jogadores vj on vj.id = f.vendedor_id
+          join fazenda_chat c on c.id = f.pedido_id
+         where c.criado_em >= v_de
+         group by f.pedido_id) x), '{}'::jsonb));
+end;
+$$;
+
+create or replace function public.fazenda_chat_enviar(p_token text, p_texto text, p_item text default null,
+                                                     p_qtd int default null, p_preco int default null)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id    uuid := fazenda_auth(p_token);
+  v_r     jsonb := fazenda_chat_regras();
+  v_texto text;
+  v_faixa int[];
+  u       record;
+  v_n     int;
+  v_ped   int;
+  v_novo  bigint;
+begin
+  -- o que passou de 60 min some de vez: a tabela nunca guarda mais de 1 hora de conversa
+  delete from fazenda_chat where criado_em < now() - make_interval(mins => (v_r->>'minutos')::int);
+  if (select fazenda_nivel(xp) from fazenda_jogadores where id = v_id) < (v_r->>'nivel')::int then raise exception 'chat_nivel'; end if;
+  v_texto := fazenda_chat_texto(p_texto);
+  if p_item is null and v_texto = '' then raise exception 'chat_vazio'; end if;
+  if p_item is not null then
+    v_faixa := fazenda_feira_faixa(p_item);
+    if v_faixa is null then raise exception 'item_invalido'; end if;
+    if p_qtd is null or p_qtd < 1 or p_qtd > (fazenda_feira_regras()->>'qtd_max')::int then raise exception 'quantidade_invalida'; end if;
+    if p_preco is null or p_preco < v_faixa[1] or p_preco > v_faixa[2] then raise exception 'preco_invalido'; end if;
+  end if;
+  perform pg_advisory_xact_lock(hashtext('fazenda_chat:' || v_id::text));   -- dois envios juntos não furam o limite
+  select texto, item, criado_em into u from fazenda_chat where jogador_id = v_id order by id desc limit 1;
+  if found and u.criado_em > now() - make_interval(secs => (v_r->>'intervalo')::int) then raise exception 'chat_rapido'; end if;
+  if found and p_item is null and u.item is null and lower(u.texto) = lower(v_texto) then raise exception 'chat_repetida'; end if;
+  select count(*), count(item) into v_n, v_ped from fazenda_chat where jogador_id = v_id and criado_em > now() - interval '1 hour';
+  if v_n >= (v_r->>'por_hora')::int or (p_item is not null and v_ped >= (v_r->>'pedidos_hora')::int) then
+    raise exception 'chat_limite';
+  end if;
+  insert into fazenda_chat (jogador_id, texto, item, qtd, preco)
+  values (v_id, v_texto, p_item, case when p_item is not null then p_qtd end, case when p_item is not null then p_preco end)
+  returning id into v_novo;
+  return jsonb_build_object('id', v_novo);
+end;
+$$;
+
+create or replace function public.fazenda_chat_apagar(p_token text, p_id bigint)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id uuid := fazenda_auth(p_token);
+  m    record;
+begin
+  select * into m from fazenda_chat where id = p_id and apagado_em is null;
+  if not found then raise exception 'mensagem_sumiu'; end if;
+  if m.jogador_id <> v_id then
+    perform fazenda_admin_id(p_token);   -- a dos outros, só o admin (sem_permissao)
+    insert into fazenda_admin_log (admin_id, alvo_id, acao, motivo)
+    values (v_id, m.jogador_id, 'apagar_chat', left(coalesce(nullif(m.texto, ''), '(pedido de ' || m.item || ')'), 200));
+  end if;
+  update fazenda_chat set apagado_em = now(), apagado_por = v_id where id = p_id;
+  return jsonb_build_object('ok', true);
+end;
+$$;
+
+-- Cria o anúncio na barraca (o anunciar da feira e o "vender pra ele" do chat passam por aqui). Com
+-- p_para, fica reservado para essa pessoa por 2 h.
+create or replace function public.fazenda_feira_criar(p_vendedor uuid, p_item text, p_qtd int, p_preco int,
+                                                     p_para uuid default null, p_pedido bigint default null)
+returns bigint
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_r     jsonb := fazenda_feira_regras();
+  v_faixa int[] := fazenda_feira_faixa(p_item);
+  v_livre int;
+  v_novo  bigint;
+begin
+  perform fazenda_feira_vencidos(p_vendedor);
+  if v_faixa is null then raise exception 'item_invalido'; end if;
+  if p_qtd is null or p_qtd < 1 or p_qtd > (v_r->>'qtd_max')::int then raise exception 'quantidade_invalida'; end if;
+  if p_preco is null or p_preco < v_faixa[1] or p_preco > v_faixa[2] then raise exception 'preco_invalido'; end if;
+  if (select count(*) from fazenda_feira where vendedor_id = p_vendedor and vendido_em is null) >= fazenda_feira_limite(p_vendedor) then
+    raise exception 'limite_anuncios';   -- (fase 51: compre mais barracas na feira)
+  end if;
+  -- a ração reservada para os bichos fica no celeiro
+  select ce.quantidade - coalesce((select quantidade from fazenda_reservas where jogador_id = p_vendedor and item = p_item), 0) into v_livre
+    from fazenda_celeiro ce where ce.jogador_id = p_vendedor and ce.item = p_item for update;
+  if coalesce(v_livre, 0) < p_qtd then raise exception 'sem_itens'; end if;
+  update fazenda_celeiro set quantidade = quantidade - p_qtd where jogador_id = p_vendedor and item = p_item;
+  insert into fazenda_feira (vendedor_id, item, qtd, preco, reservado_para, reservado_ate, pedido_id)
+  values (p_vendedor, p_item, p_qtd, p_preco, p_para,
+          case when p_para is not null then now() + make_interval(hours => (fazenda_chat_regras()->>'reserva_horas')::int) end, p_pedido)
+  returning id into v_novo;
+  return v_novo;
+end;
+$$;
+
+-- "Vender pra ele": o pedido do chat vira anúncio na sua barraca, pelo preço do pedido, reservado para quem
+-- pediu. Vários podem atender o mesmo pedido, até somar a quantidade pedida.
+create or replace function public.fazenda_chat_vender(p_token text, p_id bigint, p_qtd int)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id   uuid := fazenda_auth(p_token);
+  v_r    jsonb := fazenda_chat_regras();
+  m      record;
+  v_ja   int;
+  v_novo bigint;
+begin
+  select c.* into m from fazenda_chat c join fazenda_jogadores p on p.id = c.jogador_id
+   where c.id = p_id and c.item is not null and c.apagado_em is null and p.banido_em is null
+     and c.criado_em >= now() - make_interval(mins => (v_r->>'minutos')::int)
+     for update of c;
+  if not found then raise exception 'pedido_sumiu'; end if;
+  if m.jogador_id = v_id then raise exception 'pedido_seu'; end if;
+  select coalesce(sum(qtd), 0) into v_ja from fazenda_feira where pedido_id = p_id;
+  if v_ja >= m.qtd then raise exception 'pedido_atendido'; end if;
+  if p_qtd is null or p_qtd < 1 or p_qtd > m.qtd - v_ja then raise exception 'quantidade_invalida'; end if;
+  v_novo := fazenda_feira_criar(v_id, m.item, p_qtd, m.preco, m.jogador_id, p_id);
+  return jsonb_build_object('id', v_novo, 'para', (select apelido from fazenda_jogadores where id = m.jogador_id),
+                            'ate', (select reservado_ate from fazenda_feira where id = v_novo), 'estado', fazenda_estado(v_id));
+end;
+$$;
+
+-- ------------------------------------------------------------
 -- Permissões: só a API pública fica executável pela chave anon
 -- ------------------------------------------------------------
 revoke execute on function
@@ -6637,7 +6895,13 @@ revoke execute on function
   public.fazenda_mar_perola(uuid),
   public.fazenda_barco_cores(),
   public.fazenda_perks(),
-  public.fazenda_murchas_registrar(uuid)
+  public.fazenda_murchas_registrar(uuid),
+  public.fazenda_chat_regras(),
+  public.fazenda_chat_norm(text),
+  public.fazenda_chat_palavras(),
+  public.fazenda_chat_palavrao(text),
+  public.fazenda_chat_texto(text),
+  public.fazenda_feira_criar(uuid, text, int, int, uuid, bigint)
 from public, anon, authenticated;
 
 grant execute on function
@@ -6687,5 +6951,9 @@ grant execute on function
   public.fazenda_mar_fisgar(text),
   public.fazenda_mar_recolher(text),
   public.fazenda_evento(text),
-  public.fazenda_barco_pintar(text, jsonb)
+  public.fazenda_barco_pintar(text, jsonb),
+  public.fazenda_chat(text, bigint),
+  public.fazenda_chat_enviar(text, text, text, int, int),
+  public.fazenda_chat_apagar(text, bigint),
+  public.fazenda_chat_vender(text, bigint, int)
 to anon, authenticated;

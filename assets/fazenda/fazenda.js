@@ -34,7 +34,7 @@
         diarioVisto: 'fazenda_diario_visto', mudo: 'fazenda_mudo', tutorial: 'fazenda_tutorial', avisos: 'fazenda_avisos', convite: 'fazenda_convite',
         historico: 'fazenda_historico', historicoVisto: 'fazenda_historico_visto',
         volMusica: 'fazenda_vol_musica', volEfeitos: 'fazenda_vol_efeitos', faixaMusica: 'fazenda_faixa_musica',
-        novidades: 'fazenda_novidades'
+        novidades: 'fazenda_novidades', chatVisto: 'fazenda_chat_visto', chatSilencio: 'fazenda_chat_silencio'
     };
     const store = {
         get(k) { try { return localStorage.getItem(k); } catch { return null; } },
@@ -47,6 +47,20 @@
         token_invalido: 'Sessão expirada. Entre de novo com seu código.',
         conta_banida: 'Esta fazenda foi suspensa por desrespeitar as regras do jogo.',
         sem_permissao: 'Só os admins do jogo podem fazer isso.',
+        // fase 67: o chat
+        chat_nivel: 'Você já lê o chat; escrever libera no nível 5.',
+        chat_vazio: 'Escreva alguma coisa antes de enviar.',
+        chat_longo: 'Mensagem muito comprida: até 120 letras.',
+        chat_link: 'Link não pode no chat (protege todo mundo de golpe).',
+        chat_palavrao: 'Essa mensagem tem palavra que não pode no chat.',
+        chat_rapido: 'Calma! Uma mensagem a cada 8 segundos.',
+        chat_repetida: 'Você acabou de mandar essa mesma mensagem.',
+        chat_limite: 'Você já mandou muitas mensagens nesta hora (30, ou 6 pedidos). Espere um pouco.',
+        mensagem_sumiu: 'Essa mensagem já sumiu.',
+        pedido_seu: 'Esse pedido é seu.',
+        pedido_sumiu: 'Esse pedido já sumiu do chat (passou de 1 hora ou foi apagado).',
+        pedido_atendido: 'Esse pedido já foi atendido.',
+        anuncio_reservado: 'Esse lote está separado para quem pediu no chat. Daqui a pouco, se a pessoa não comprar, ele fica livre.',
         admin_propria_conta: 'Isso não vale para a sua própria conta (nem para a do dono).',
         admin_alvo_admin: 'Essa conta é admin: o dono tira o admin antes de banir.',
         admin_motivo: 'Escreva o motivo do banimento.',
@@ -1104,6 +1118,10 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-10-17-chat', data: '17/10', titulo: 'Chat de todos os jogadores', itens: [
+            'No menu tem <b>Chat</b>: converse com todo mundo (as mensagens somem em 1 hora). Escreve do nível 5; ler, todo mundo lê.',
+            '<b>Pedir item</b>: diga o que você procura, quantos e quanto paga cada. Quem tiver toca em <b>Vender</b> e o lote vai para a barraca dele, <b>separado para você por 2 horas</b>.',
+            'Sem palavrão e sem link. Dá para silenciar alguém e visitar a fazenda de quem escreveu.'] },
         { id: '2026-10-17-praia', data: '17/10', titulo: 'A praia, as luzes da noite e as novidades', itens: [
             'A <b>praia</b> agora aparece no celular também: arraste até lá embaixo para ver a areia e o mar.',
             'Na areia não tem mais mata: são <b>coqueiros, dunas, pedras e conchas</b>. Enquanto a praia não é sua, uma duna fecha a passagem; a placa mostra onde comprar.',
@@ -2642,6 +2660,8 @@
         if (cm) { cm.textContent = fm; cm.hidden = !fm; }
         const ce = $('hudEvento'), fe = fimEvento() - agora();   // fase 63: faltam menos de 6 horas para o evento fechar
         if (ce) ce.hidden = !(fe > 0 && fe < 6 * 3600e3);
+        const hc = $('hudChat');   // fase 67: mensagem nova no chat
+        if (hc) { hc.hidden = !chatNaoLido(); atualizarAlertaMenu(); }
         if (el.hudPerfil) {
             const prox = j.nivel < NIVEL_MAX ? liberaNoNivel(j.nivel + 1).slice(0, 3).map((x) => x.nome).join(', ') : '';
             el.hudPerfil.title = j.nivel < NIVEL_MAX
@@ -2870,6 +2890,7 @@
         else trabalhoDosAjudantes(antes, estado);
         avisarConvites(estado);
         avisarFeira(estado);
+        avisarReservas(estado);   // fase 67
         desenharClima();
         agendarAvisos();
         energiaEm = agora();
@@ -2920,7 +2941,8 @@
     // celular: o ☰ mostra a soma dos avisos que ficaram dentro dele (missões e diário)
     function atualizarAlertaMenu() {
         if (!el.menuCont) return;
-        const n = [el.missoesCont, el.diarioCont].reduce((soma, b) => soma + (b && !b.hidden ? Number(b.textContent) || 0 : 0), 0);
+        const n = [el.missoesCont, el.diarioCont].reduce((soma, b) => soma + (b && !b.hidden ? Number(b.textContent) || 0 : 0), 0)
+            + (chatNaoLido() ? 1 : 0);   // fase 67
         el.menuCont.textContent = n;
         el.menuCont.hidden = !n;
     }
@@ -3630,6 +3652,13 @@
             el.painelTitulo.innerHTML = `${itemDe(culturas.trofeu_ouro || { id: 'trofeu_ouro' }, 30)} Evento da semana`;
             corpo.innerHTML = htmlEvento();
             if (!soAtualizar) carregarEvento();
+        } else if (nome === 'chat') {   // fase 67: o chat global
+            const txt = ($('chatTexto') || {}).value || '';
+            el.painelTitulo.innerHTML = `${ico('chat', 26)} Chat`;
+            corpo.innerHTML = htmlChat();
+            if ($('chatTexto')) $('chatTexto').value = txt;
+            desenharChat(true);
+            if (!soAtualizar) { carregarChat(true); agendarChat(); }
         } else if (nome === 'novidades') {   // fase 67: o que mudou no jogo
             const lista = novidadesVer || NOVIDADES;
             novidadesVer = null;
@@ -3741,6 +3770,7 @@
                 <ul class="ajuda">
                     <li>Toque num canteiro e ele faz a ação certa: <b>arar</b>, <b>plantar</b>, <b>cuidar</b> ou <b>colher</b>.</li>
                     <li><b>XP das plantas:</b> colher dá o XP de cada planta (aparece na loja), em qualquer nível. O mesmo canteiro dá XP de colheita no máximo uma vez a cada 8 minutos: a alface, que cresce em 2, dá XP de 4 em 4 colheitas. Cuidar dá +1 XP. Arar dá XP só até o nível 5.</li>
+                    <li>No <b>Chat</b> (no menu) você conversa com todos os jogadores; as mensagens somem em 1 hora. Do nível 5 em diante dá para escrever e <b>pedir um item</b> (quantos e quanto paga cada): quem tiver toca em <b>Vender</b> e o lote vai para a barraca dele, separado para você por 2 horas (depois vira anúncio normal). Sem palavrão e sem link; dá para silenciar alguém.</li>
                     <li>Na <b>Feira</b> (no menu) os jogadores vendem uns para os outros: anuncie um lote do celeiro com o seu preço (entre metade e o triplo da venda normal) e compre de outros o que falta para as suas receitas. Quem vende recebe tudo; o anúncio dura 2 dias. Toda fazenda já tem uma <b>barraca na feira</b>, na clareira da mata à esquerda do celeiro: cada barraca dá 2 anúncios e mostra em cima o que você vende. Do nível 5 em diante dá para comprar mais 3 no painel da Feira.</li>
                     <li>Em <b>Metas</b> (no menu) está tudo o que o seu nível libera: construir cada oficina, máquina e cercado, ter cada bicho, contratar cada ajudante, comprar os terrenos e ocupar os canteiros. Com tudo em dia, <b>+50% de XP</b> até o próximo nível (do nível 20 em diante, a <b>fazenda completa</b>: <b>+75%</b>, e arar e plantar também dão XP); o que ficou dos níveis de trás também aparece lá.</li>
                     <li>Na loja, aba <b>Melhorias</b> (do nível 23 em diante): compras caras que valem para sempre. Adubo premium (plantas mais rápidas), pomar fértil (árvores mais rápidas) e mais pés de fruta.</li>
@@ -4148,7 +4178,7 @@
                     const total = o.qtd * o.preco, k = culturas[o.item] || { id: o.item, nome: o.item, venda: 0 };
                     return `<div class="item"><span class="ico">${itemDe(k, 36)}</span>
                         <span><span class="nome">${o.qtd} × ${nomeK(o.item)}</span>
-                            <span class="det"><span>${moeda(o.preco)} cada (na venda normal, ${k.venda})</span><span>de ${A.htmlAvatar(o.avatar, 16)} ${esc(o.vendedor)}</span><span>acaba em ${resta(o.ate)}</span></span></span>
+                            <span class="det"><span>${moeda(o.preco)} cada (na venda normal, ${k.venda})</span><span>de ${A.htmlAvatar(o.avatar, 16)} ${esc(o.vendedor)}</span><span>acaba em ${resta(o.ate)}</span>${o.reservado_ate ? `<span class="feira-reservado">separado pra você até ${hora(o.reservado_ate)}</span>` : ''}</span></span>
                         <button type="button" class="botao pequeno verde" data-feira-comprar="${o.id}"${S.jogador.moedas >= total ? '' : ' disabled'}>Comprar<br>${ico('moeda', 14)} ${total}</button></div>`;
                 }).join('') + '</div>' : '<p class="vazio-msg">Ninguém está vendendo isso agora. Volte daqui a pouco!</p>');
             }
@@ -4173,7 +4203,7 @@
         } else {
             const meus = (S.feira && S.feira.meus) || [], vendidos = (S.feira && S.feira.vendidos) || [];
             corpo = meus.length ? '<div class="lista">' + meus.map((a) => `<div class="item"><span class="ico">${itemDe(culturas[a.item] || { id: a.item }, 36)}</span>
-                <span><span class="nome">${a.qtd} × ${nomeK(a.item)}</span><span class="det"><span>${moeda(a.preco)} cada · total ${a.qtd * a.preco}</span><span>acaba em ${resta(a.ate)}</span></span></span>
+                <span><span class="nome">${a.qtd} × ${nomeK(a.item)}</span><span class="det"><span>${moeda(a.preco)} cada · total ${a.qtd * a.preco}</span><span>acaba em ${resta(a.ate)}</span>${a.para ? `<span class="feira-reservado">separado para ${esc(a.para)} até ${hora(a.reservado_ate)}</span>` : ''}</span></span>
                 <button type="button" class="botao pequeno creme" data-feira-cancelar="${a.id}">Cancelar</button></div>`).join('') + '</div>'
                 : '<p class="vazio-msg">Nenhum anúncio aberto. Na aba Vender você coloca um lote do celeiro à venda.</p>';
             corpo += dicaBarraca();
@@ -4183,6 +4213,150 @@
         }
         const lim = limiteFeira();
         return abas + corpo + `<p class="aviso">Na feira você compra de outros jogadores o que falta para as suas receitas e vende o que sobra, recebendo tudo. Preço entre metade e o triplo da venda normal (os itens raros vão do mínimo deles, de 50 mil para cima, até o triplo; o peixe do Velho Chico, peça do píer, de 50 a 150 mil); o anúncio dura ${r.horas / 24} dias (vencido, volta para o celeiro). O que você compra aqui serve para receitas, entregas e missões; revendido ao jogo, dá as moedas mas não o XP. Você pode ter ${lim} anúncios: ${r.por_barraca || 2} por barraca (as suas ficam na mata, à esquerda do celeiro).</p>`;
+    }
+    /* ---------- Chat (fase 67) ----------
+       As mensagens da última hora (fazenda_chat). Com o painel aberto, busca só as novas de 5 em 5 s
+       (direto no rpc, sem a fila das ações), e só redesenha a lista (o que você digita fica). */
+    const chat = { msgs: [], ultimo: 0, regras: null, pode: false, admin: false, atendidos: {} };
+    let chatTimer = null, chatBuscando = false, chatEnviando = false, chatPedindo = false, chatPedidoItem = null, chatAssinatura = '';
+    const silenciados = () => { try { return JSON.parse(store.get(LS.chatSilencio) || '[]'); } catch { return []; } };
+    function chatNaoLido() { return painelAtual !== 'chat' && !!(S && S.chat && S.chat.ultimo) && S.chat.ultimo > (Number(store.get(LS.chatVisto)) || 0); }
+    function marcarChatLido() {
+        const ult = Math.max(chat.ultimo || 0, (S && S.chat && S.chat.ultimo) || 0);
+        if (ult > (Number(store.get(LS.chatVisto)) || 0)) store.set(LS.chatVisto, String(ult));
+        const b = $('hudChat');
+        if (b) b.hidden = true;
+        atualizarAlertaMenu();
+    }
+    async function carregarChat(completo) {
+        if (chatBuscando) return;
+        chatBuscando = true;
+        try {
+            const tudo = completo || !chat.msgs.length;
+            const r = await rpc('fazenda_chat', { p_token: token, p_depois: tudo ? null : chat.ultimo });
+            const primeira = !chat.regras;
+            Object.assign(chat, { regras: r.regras, pode: r.pode_escrever, admin: r.admin, atendidos: r.atendidos || {} });
+            if (tudo) chat.msgs = r.mensagens || [];
+            else {
+                const fora = new Set(r.apagadas || []);
+                chat.msgs = chat.msgs.filter((m) => !fora.has(m.id)).concat(r.mensagens || []);
+            }
+            const desde = agora() - (chat.regras.minutos || 60) * 60000;   // passou de 1 hora, some daqui também
+            chat.msgs = chat.msgs.filter((m) => Date.parse(m.em) >= desde).slice(-120);
+            chat.ultimo = chat.msgs.reduce((a, m) => Math.max(a, m.id), chat.ultimo || 0);
+            if (painelAtual !== 'chat') return;
+            marcarChatLido();
+            if (primeira) abrirPainel('chat', true);   // agora sabe se pode escrever: monta o formulário
+            else desenharChat();
+        } catch (e) {
+            if (completo && painelAtual === 'chat') { const l = $('chatLista'); if (l && !chat.msgs.length) l.innerHTML = `<p class="vazio-msg">${esc(e.message)}</p>`; }
+        } finally {
+            chatBuscando = false;
+        }
+    }
+    function agendarChat() {
+        clearTimeout(chatTimer);
+        chatTimer = setTimeout(async () => {
+            if (painelAtual !== 'chat') return;   // fechou: para de buscar
+            if (!document.hidden && Date.now() - mexeuEm < 5 * 60000) await carregarChat(false);
+            agendarChat();
+        }, 5000);
+    }
+    function htmlPedidoChat(m, eu) {
+        const p = m.pedido, k = culturas[p.item] || { id: p.item, nome: p.item };
+        const quem = chat.atendidos[m.id] || [], ja = quem.reduce((a, x) => a + x.qtd, 0), falta = p.qtd - ja;
+        const pode = Math.min(livreFeira(p.item), falta);
+        let acao;
+        if (eu) acao = ja ? `<button type="button" class="botao pequeno verde" data-chat-feira="${esc(p.item)}">Ver na feira</button>` : '<small>esperando alguém</small>';
+        else if (falta <= 0) acao = '<small>pedido completo</small>';
+        else if (pode > 0) acao = `<input type="number" min="1" max="${pode}" value="${pode}" data-chat-qtd="${m.id}" aria-label="Quantos vender"><button type="button" class="botao pequeno verde" data-chat-vender="${m.id}">Vender pra ${esc(m.apelido)}</button>`;
+        else acao = `<small>você não tem ${esc(nomeQtd(k, 2))} sobrando</small>`;
+        return `<div class="chat-pedido">${itemDe(k, 28)}<span class="txt">Procuro <b>${p.qtd} ${esc(nomeQtd(k, p.qtd))}</b>, pago ${moeda(p.preco)} cada${quem.length
+            ? `<br><small>atendido por ${quem.map((x) => `${esc(x.apelido)} (${x.qtd})`).join(', ')}</small>` : ''}</span><span class="acao">${acao}</span></div>`;
+    }
+    function htmlMsgChat(m) {
+        const eu = m.jogador === S.jogador.id, acoes = [];
+        if (!eu) acoes.push(`<button type="button" data-visitar="${esc(m.jogador)}">visitar</button>`, `<button type="button" data-chat-silenciar="${esc(m.jogador)}">silenciar</button>`);
+        if (eu || chat.admin) acoes.push(`<button type="button" data-chat-apagar="${m.id}">apagar</button>`);
+        return `<div class="chat-msg${eu ? ' eu' : ''}">
+            <div class="chat-quem">${A.htmlAvatar(m.avatar, 20)} <b>${esc(m.apelido)}</b><small>nv ${m.nivel}${m.admin ? ' · admin' : ''} · ${tempoAtras(m.em)}</small><span class="chat-acoes">${acoes.join('')}</span></div>
+            ${m.texto ? `<div class="chat-texto">${esc(m.texto)}</div>` : ''}${m.pedido ? htmlPedidoChat(m, eu) : ''}
+        </div>`;
+    }
+    // redesenha a lista só quando muda alguma coisa (e uma vez por minuto, pelo "há N min"), guardando as quantidades digitadas
+    function desenharChat(forca) {
+        const lista = $('chatLista');
+        if (!lista || !S) return;
+        const sil = silenciados(), msgs = chat.msgs.filter((m) => !sil.includes(m.jogador));
+        const assinatura = JSON.stringify([msgs.map((m) => m.id), chat.atendidos, sil, Math.floor(agora() / 60000), chat.regras ? 1 : 0]);
+        if (!forca && assinatura === chatAssinatura) return;
+        chatAssinatura = assinatura;
+        const perto = lista.scrollHeight - lista.scrollTop - lista.clientHeight < 80;
+        const digitado = {};
+        lista.querySelectorAll('[data-chat-qtd]').forEach((i) => { digitado[i.dataset.chatQtd] = i.value; });
+        lista.innerHTML = msgs.length ? msgs.map(htmlMsgChat).join('')
+            : `<p class="vazio-msg">${chat.regras ? 'Ninguém falou nada na última hora. Puxe assunto!' : 'Abrindo o chat…'}</p>`;
+        lista.querySelectorAll('[data-chat-qtd]').forEach((i) => { if (digitado[i.dataset.chatQtd] != null) i.value = digitado[i.dataset.chatQtd]; });
+        if (perto || forca) lista.scrollTop = lista.scrollHeight;
+    }
+    // o que dá para pedir: tudo que tem preço na feira
+    const nomePedido = (id) => esc((culturas[id] || { nome: id }).nome);
+    const itensPedido = () => Object.values(culturas).filter((k) => k.venda > 0).map((k) => k.id).sort((a, b) => nomePedido(a).localeCompare(nomePedido(b)));
+    function htmlPedirChat() {
+        const itens = itensPedido();
+        if (!itens.includes(chatPedidoItem)) chatPedidoItem = itens.includes('tomate') ? 'tomate' : itens[0];
+        const k = culturas[chatPedidoItem], [min, max] = faixaFeira(k);
+        return `<div class="chat-pedir">
+            <label>O que você procura <select data-chat-item>${itens.map((id) => `<option value="${esc(id)}"${id === chatPedidoItem ? ' selected' : ''}>${nomePedido(id)}</option>`).join('')}</select></label>
+            <label>Quantos <input type="number" id="chatQtd" min="1" max="99" value="10"></label>
+            <label>Pago cada <input type="number" id="chatPreco" min="${min}" max="${max}" value="${Math.min(max, Math.max(min, k.venda))}"></label>
+            <p class="det">${itemDe(k, 16)} Na venda normal, ${moeda(k.venda)}. Pode oferecer de ${numero(min)} a ${numero(max)} cada.</p>
+        </div>`;
+    }
+    function htmlChat() {
+        const r = chat.regras || {}, sil = silenciados().length;
+        const escrever = !chat.regras ? ''
+            : !chat.pode ? `<p class="aviso">${ico('cadeado', 14)} Você já lê o chat; para escrever, chegue ao nível ${r.nivel}.</p>`
+            : `${chatPedindo ? htmlPedirChat() : ''}
+               <form class="chat-form" data-chat-form autocomplete="off">
+                   <input type="text" id="chatTexto" maxlength="${r.letras || 120}" enterkeyhint="send" placeholder="${chatPedindo ? 'Um recado junto (opcional)' : 'Escreva para todo mundo…'}">
+                   <button type="submit" class="botao pequeno verde">${chatPedindo ? 'Pedir' : 'Enviar'}</button>
+                   <button type="button" class="botao pequeno creme" data-chat-pedir>${chatPedindo ? 'Só texto' : `${ico('moeda', 14)} Pedir item`}</button>
+               </form>`;
+        return `<div class="chat-lista" id="chatLista"></div>${escrever}
+            <p class="det">As mensagens somem em 1 hora. Sem palavrão e sem link. Quem atende o seu pedido põe o lote na barraca dele, separado para você por ${r.reserva_horas || 2} h.${sil
+                ? ` <button type="button" class="botao pequeno creme" data-chat-dessilenciar>Mostrar ${sil === 1 ? 'quem silenciei' : `os ${sil} silenciados`}</button>` : ''}</p>`;
+    }
+    async function enviarChat() {
+        const inp = $('chatTexto'), texto = ((inp && inp.value) || '').trim();
+        const args = { p_token: token, p_texto: texto };
+        if (chatPedindo) {
+            const k = culturas[chatPedidoItem], [min, max] = faixaFeira(k);
+            const qtd = Number(($('chatQtd') || {}).value), preco = Number(($('chatPreco') || {}).value);
+            if (!(qtd >= 1 && qtd <= 99)) return toast('Quantidade entre 1 e 99.', 'erro');
+            if (!(preco >= min && preco <= max)) return toast(`Preço de cada entre ${numero(min)} e ${numero(max)}.`, 'erro');
+            Object.assign(args, { p_item: chatPedidoItem, p_qtd: qtd, p_preco: preco });
+        } else if (!texto) return;
+        if (chatEnviando) return;
+        chatEnviando = true;
+        try {
+            await rpc('fazenda_chat_enviar', args);
+            if (inp) inp.value = '';
+            if (chatPedindo) { chatPedindo = false; abrirPainel('chat', true); }
+            await carregarChat(false);
+            const l = $('chatLista');
+            if (l) l.scrollTop = l.scrollHeight;
+        } catch (e) {
+            tratarErro(e);
+        } finally {
+            chatEnviando = false;
+        }
+    }
+    function avisarReservas(estado) {
+        for (const rv of ((estado.chat && estado.chat.reservas) || []).filter((x) => x.nova)) {
+            const k = culturas[rv.item] || { id: rv.item, nome: rv.item };
+            toast(`${itemDe(k, 18)} <b>${esc(rv.vendedor)}</b> separou ${rv.qtd} ${esc(nomeQtd(k, rv.qtd))} pra você na feira, até ${hora(rv.ate)}. Abra a Feira para comprar.`, 'festa', 'importante');
+        }
     }
     function avisarFeira(estado) {
         for (const v of (estado.feira && estado.feira.vendas_novas) || []) {
@@ -4970,6 +5144,43 @@
         }
         const ir = e.target.closest('[data-painel-ir]');
         if (ir) { abrirPainel(ir.dataset.painelIr); return; }
+        // fase 67: o chat
+        if (e.target.closest('[data-chat-pedir]')) { chatPedindo = !chatPedindo; abrirPainel('chat', true); return; }
+        const chf = e.target.closest('[data-chat-feira]');
+        if (chf) { abaFeira = 'comprar'; feiraFiltro = chf.dataset.chatFeira; abrirPainel('feira'); return; }
+        const chv = e.target.closest('[data-chat-vender]');
+        if (chv) {
+            const id = Number(chv.dataset.chatVender), m = chat.msgs.find((x) => x.id === id);
+            const qtd = Number((el.painelCorpo.querySelector(`[data-chat-qtd="${id}"]`) || {}).value);
+            if (!m || !(qtd >= 1)) return;
+            chv.disabled = true;
+            enfileirar([], async () => {
+                const r = await rpc('fazenda_chat_vender', { p_token: token, p_id: id, p_qtd: qtd });
+                aplicarEstado(r.estado);
+                som.tocar('moeda');
+                toast(`${itemDe(culturas[m.pedido.item] || { id: m.pedido.item }, 18)} Separado na sua barraca para <b>${esc(r.para)}</b> até ${hora(r.ate)}. Se não comprar até lá, vira anúncio normal.`, 'festa');
+                await carregarChat(false);
+            }).finally(() => desenharChat(true));   // de novo com o botão (deu certo ou não)
+            return;
+        }
+        const cha = e.target.closest('[data-chat-apagar]');
+        if (cha) {
+            const id = Number(cha.dataset.chatApagar), m = chat.msgs.find((x) => x.id === id);
+            if (!m || !confirm(m.jogador === S.jogador.id ? 'Apagar a sua mensagem?' : `Apagar a mensagem de ${m.apelido} para todo mundo?`)) return;
+            rpc('fazenda_chat_apagar', { p_token: token, p_id: id })
+                .then(() => { chat.msgs = chat.msgs.filter((x) => x.id !== id); desenharChat(true); })
+                .catch(tratarErro);
+            return;
+        }
+        const chs = e.target.closest('[data-chat-silenciar]');
+        if (chs) {
+            const quem = chs.dataset.chatSilenciar, m = chat.msgs.find((x) => x.jogador === quem);
+            store.set(LS.chatSilencio, JSON.stringify([...new Set([...silenciados(), quem])]));
+            toast(`Você não vai mais ver as mensagens de <b>${esc(m ? m.apelido : 'quem você silenciou')}</b> (só neste aparelho).`);
+            abrirPainel('chat', true);
+            return;
+        }
+        if (e.target.closest('[data-chat-dessilenciar]')) { store.del(LS.chatSilencio); abrirPainel('chat', true); return; }
         if (e.target.closest('[data-fechar]')) {
             fecharPainel();
             if (store.get(LS.tutorial) === null) iniciarTutorial();
@@ -5072,6 +5283,13 @@
     el.painelCorpo.addEventListener('change', (e) => {   // fase 50: trocar o item a anunciar na feira
         const sel = e.target.closest('[data-feira-item]');
         if (sel) { feiraItem = sel.value; abrirPainel('feira', true); }
+        const ci = e.target.closest('[data-chat-item]');   // fase 67: o item do pedido no chat
+        if (ci) { chatPedidoItem = ci.value; abrirPainel('chat', true); }
+    });
+    el.painelCorpo.addEventListener('submit', (e) => {   // fase 67: enviar no chat
+        if (!e.target.closest('[data-chat-form]')) return;
+        e.preventDefault();
+        enviarChat();
     });
     el.painelFechar.addEventListener('click', fecharPainel);
     el.painel.addEventListener('click', (e) => { if (e.target === el.painel) fecharPainel(); });
