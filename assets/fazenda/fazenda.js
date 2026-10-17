@@ -1132,6 +1132,8 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-10-17-tocar-mover', data: '17/10', titulo: 'Mudar de lugar com um toque', itens: [
+            'No <b>Construir</b>, toque numa oficina, casa, máquina ou enfeite que já está na fazenda para pegar e mudar de lugar, mesmo com outro item escolhido na barra (antes aparecia "não cabe aqui"). Se o lugar novo não couber, ele continua na mão até você escolher outro.'] },
         { id: '2026-10-17-mover', data: '17/10', titulo: 'Mover ficou mais leve', itens: [
             'Mover oficinas e outros itens de lugar não trava mais o jogo, mesmo movendo várias coisas seguidas: o item vai para o lugar novo na hora e os canos já mostram a ligação nova.'] },
         { id: '2026-10-17-conteudo', data: '17/10', titulo: 'Árvores, praia e o baú da sorte', itens: [
@@ -2504,7 +2506,7 @@
             return mostrarStatus(it ? `${A.htmlItem(c.tipo, 22)} Toque para escolher ${esc(it.nome.toLowerCase())} e depois o novo lugar.` : 'Toque num item para mover.');
         }
         const sel = tipoItem(constr.tipo);
-        if (c) return mostrarStatus(`${A.htmlItem(c.tipo, 22)} ${esc(it ? it.nome : c.tipo)}. ${it && it.descricao ? esc(it.descricao) + ' ' : ''}Use Mover ou Guardar para mudar.`);
+        if (c) return mostrarStatus(`${A.htmlItem(c.tipo, 22)} ${esc(it ? it.nome : c.tipo)}. ${it && it.descricao ? esc(it.descricao) + ' ' : ''}Toque nele para mudar de lugar, ou use Guardar.`);
         if (sel && sel.id === 'canteiro') return mostrarStatus(`${A.htmlItem('canteiro', 22)} Toque para colocar um canteiro (sobram ${canteirosLivres()}).`);
         mostrarStatus(sel ? `${A.htmlItem(sel.id, 22)} Toque para colocar ${esc(sel.nome.toLowerCase())} (${cercadoGratis(sel) ? 'de graça' : moeda(sel.custo)}).` : 'Escolha um item na barra de baixo.');
     }
@@ -2515,6 +2517,7 @@
         constr.modo = 'colocar';
         constr.movendo = null;
         constr.rapido = false;
+        constr.voltar = null;
         document.body.classList.add('construindo');
         el.barraConstr.hidden = false;
         el.barra.hidden = true;
@@ -2528,6 +2531,7 @@
         constr.ativo = false;
         constr.movendo = null;
         constr.rapido = false;
+        constr.voltar = null;
         document.body.classList.remove('construindo');
         el.barraConstr.hidden = true;
         el.barra.hidden = false;
@@ -2576,6 +2580,19 @@
         if (!A.livre(x, y)) return toast(`Aqui fica ${NOME_AREA(x, y)}.`, 'erro');
         const ocupado = construcaoEm(x, y);
         const cant = canteiroEm(x, y);
+
+        // fase 73c: com um item escolhido para colocar, tocar numa oficina, casa, máquina ou enfeite que já
+        // está lá pega ele para mudar de lugar (quem tocava na oficina para mover ouvia "não cabe aqui").
+        // Caminhos e cercas ficam de fora (pintando caminho, tocar num que já existe não pega nada).
+        const itOcupado = ocupado && tipoItem(ocupado.tipo);
+        if (constr.modo === 'colocar' && ocupado && !(itOcupado && itOcupado.categoria === 'caminho')) {
+            constr.voltar = constr.tipo;   // depois de soltar, volta a colocar o que estava escolhido
+            constr.modo = 'mover';
+            constr.movendo = { x: ocupado.x, y: ocupado.y, tipo: ocupado.tipo, ...tamanhoItem(ocupado.tipo) };
+            atualizarModo();
+            som.tocar('construir');
+            return mostrarStatus(`${A.htmlItem(ocupado.tipo, 22)} Pegou ${esc(itOcupado ? itOcupado.nome.toLowerCase() : 'o item')}! Agora toque no lugar novo (ou nele mesmo para desistir).`);
+        }
 
         if (constr.modo === 'colocar' && constr.tipo === 'canteiro') {
             if (ocupado || cant) return toast(ERROS.lugar_ocupado, 'erro');
@@ -2631,16 +2648,20 @@
             }
             const de = constr.movendo;
             const c = de.tipo === 'canteiro' ? canteiroEm(de.x, de.y) : construcaoEm(de.x, de.y);
+            // fase 73c: quem pegou tocando no item com outro escolhido volta a colocar aquele depois
+            const voltarColocar = () => { if (constr.voltar) { constr.modo = 'colocar'; constr.tipo = constr.voltar; constr.voltar = null; } };
             if (de.x === x && de.y === y) {
                 constr.movendo = null;
                 if (constr.rapido) return fecharConstrucao('Ficou no mesmo lugar.');
+                voltarColocar();
                 return atualizarModo();
             }
             if (!cabeAqui(x, y, de.w, de.h, c)) {
-                if (!constr.rapido) { constr.movendo = null; atualizarModo(); }   // no rápido continua na mão
-                return toast(ERROS.lugar_ocupado, 'erro');
+                if (!constr.rapido && !constr.voltar) { constr.movendo = null; atualizarModo(); }   // no rápido (e pego tocando) continua na mão
+                return toast(de.w > 1 ? `Não cabe aqui: precisa de ${de.w}×${de.h} quadrados livres. Continua na mão: toque em outro lugar (ou nele mesmo para desistir).` : ERROS.lugar_ocupado, 'erro');
             }
             constr.movendo = null;
+            voltarColocar();
             atualizarModo();
             const mover = (s) => {
                 const m = (de.tipo === 'canteiro' ? s.canteiros : s.construcoes).find((k) => k.x === de.x && k.y === de.y);
@@ -5707,6 +5728,7 @@
             constr.modo = 'colocar';
             constr.tipo = it.id;
             constr.movendo = null;
+            constr.voltar = null;
             desenharPaleta();
             atualizarModo();
             mostrarStatus(it.id === 'canteiro'
@@ -5719,6 +5741,7 @@
             if (ferr.dataset.ferramenta === 'pronto') return fecharConstrucao();
             constr.modo = ferr.dataset.ferramenta;
             constr.movendo = null;
+            constr.voltar = null;
             desenharPaleta();
             atualizarModo();
             mostrarStatus(constr.modo === 'mover' ? 'Mover: toque num item ou canteiro e depois no lugar novo.' : 'Guardar: toque num item para tirar (volta metade do valor) ou num canteiro vazio.');
