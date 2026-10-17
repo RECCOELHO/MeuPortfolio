@@ -93,7 +93,7 @@
         limite_pegadas: 'Você já pegou demais hoje. Volte amanhã.',
         sem_racao: 'Falta ração no celeiro.',
         ja_salvou: 'Você já salvou duas plantas nessa fazenda hoje. Volte amanhã!',
-        preco_invalido: 'Preço fora da faixa da feira (entre metade e o triplo da venda normal).',
+        preco_invalido: 'Preço fora da faixa da feira para esse item (a faixa aparece embaixo do preço).',
         limite_anuncios: 'Os seus lugares na feira estão todos ocupados. Cada barraca nova (no painel da Feira, até 4) dá mais 2; ou espere vender ou cancele um.',
         limite_barracas: 'A sua feira já tem as 4 barracas.',
         sem_itens: 'Não tem tudo isso livre no celeiro (a ração reservada fica).',
@@ -1401,13 +1401,16 @@
     function htmlEvento() {
         const reg = regrasEvento(), d = eventoDados;
         const falta = (d ? Date.parse(d.fim) : fimEvento()) - agora();
-        let html = `<p class="fala">Toda semana, de sexta às 22h até a sexta seguinte às 22h, os 3 primeiros de cada categoria ganham diamantes, e o 1º leva um item que só sai daqui. Esta semana fecha ${falta > 0 ? `em <b>${fmtTempo(falta)}</b>` : '<b>agora</b>'}.</p>`;
+        const chance = reg.chance_item == null ? 100 : reg.chance_item;   // fase 64: o item vem na sorte
+        let html = `<p class="fala">Toda semana, de sexta às 22h até a sexta seguinte às 22h, os 3 primeiros de cada categoria ganham diamantes${chance < 100 ? ` e têm ${chance}% de chance de levar um item raro` : ', e o 1º leva um item que só sai daqui'}. Esta semana fecha ${falta > 0 ? `em <b>${fmtTempo(falta)}</b>` : '<b>agora</b>'}.</p>`;
         if (!d) return html + '<p class="vazio-msg">Carregando o placar…</p>';
         html += '<div class="evento-cats">' + reg.categorias.map((c) => {
             const p = (d.placar || {})[c.id] || { top: [], eu: null, total: 0 };
             const premios = [0, 1, 2].map((i) => {
-                const id = c.itens[i], k = id && (culturas[id] || { id, nome: id });
-                return `<span class="chip">${LUGAR[i]} ${ico('diamante', 12)} ${reg.diamantes[i]}${k ? ` + ${itemDe(k, 18)} ${esc(k.nome)}` : ''}</span>`;
+                const id = c.itens[i], k = id && (culturas[id] || { id, nome: id }), sorte = chance < 100 ? `${chance}%: ` : '';
+                const item = k ? ` + ${sorte}${itemDe(k, 18)} ${esc(k.nome)}`
+                    : chance < 100 ? ` + ${sorte}${itemDe(culturas.madeira_nobre || { id: 'madeira_nobre' }, 18)} material do píer` : '';
+                return `<span class="chip">${LUGAR[i]} ${ico('diamante', 12)} ${reg.diamantes[i]}${item}</span>`;
             }).join('');
             const top = p.top.length
                 ? '<ol class="evento-top">' + p.top.map((t, i) => `<li${t.eu ? ' class="eu"' : ''}><span class="pos">${LUGAR[i]}</span>${A.htmlAvatar(t.avatar, 20)}<b>${esc(t.apelido)}${t.eu ? ' (você)' : ''}</b><span class="val">${valorEvento(c.id, t.valor)}</span></li>`).join('') + '</ol>'
@@ -1429,7 +1432,7 @@
                     <span class="det">${ps.map((x) => `<span>${LUGAR[x.posicao - 1]} ${esc(x.apelido)}${x.eu ? ' (você)' : ''}</span>`).join('')}</span></span></div>`;
             }).join('') + '</div>';
         }
-        return html + `<p class="aviso">Convite só conta quando o amigo chega ao nível ${reg.convite_nivel || 5}. Nas moedas, gastar não desconta. Os itens do evento não vendem no celeiro: na feira valem de 60 mil para cima. Quem mais convidou leva o <b>leme dourado</b>, a peça do píer. As conquistas do evento aparecem no seu perfil.</p>`;
+        return html + `<p class="aviso">Convite só conta quando o amigo chega ao nível ${reg.convite_nivel || 5}. Nas moedas, gastar não desconta. ${chance < 100 ? `Cada lugar do pódio tira a sorte: com ${chance}% de chance vem o item (o material do píer é sorteado). ` : ''}Os itens do evento não vendem no celeiro: na feira valem de 60 mil para cima. Quem mais convidou pode levar o <b>leme dourado</b>, a peça do píer. As conquistas do evento aparecem no seu perfil.</p>`;
     }
     function htmlEventoPremio() {
         const reg = regrasEvento(), nomeCat = (id) => (reg.categorias.find((c) => c.id === id) || { nome: id }).nome;
@@ -3530,7 +3533,7 @@
                     <li>A cada 3 horas chega uma <b>visita na porteira</b>, do lado da casa (do nível 3 em diante): o feirante, a doceira e o caminhoneiro compram algo da fazenda pagando bem mais que o celeiro, e a mascate vende adubo. Toque nela para conversar. Bem de vez em quando (1 em cada 100 visitas) vem o <b>mercador</b>, que troca um material raro do píer por frutos fora de época.</li>
                     <li>No nível 31 chega o <b>Litoral</b> (Loja → Terrenos): areia para construir e plantar e o mar. Na areia fica o lugar do <b>píer</b>: toque nele para ver a receita (9 peças difíceis e 100 mil moedas). Peça que falta dá para comprar com diamantes. Guarde o peixe do Velho Chico para o píer, no celeiro, para ele não ir no "Vender tudo".</li>
                     <li>Com o píer pronto, toque no <b>barco</b> para ir para o <b>alto-mar</b>: toque na água para lançar a linha, espere a boia <b>afundar de verdade</b> (às vezes o peixe só belisca) e toque de novo na hora para fisgar. Cada lançada usa 1 peixe do <b>cardume</b>, que enche sozinho com o tempo. Em <b>Melhorar</b>: barco maior (cardume maior e peixes novos), vara melhor (mais tempo para fisgar e peixes maiores) e o marinheiro <b>Seu Nonato</b>, que pesca sozinho por até 8 horas (toque no barquinho dele para recolher). 1 em cada 200 peixes vem com uma <b>pérola negra</b>.</li>
-                    <li>Toda semana tem o <b>evento</b> (no menu): de sexta às 22h até a sexta seguinte às 22h, os 3 primeiros de cada categoria ganham diamantes (60, 35 e 20) e o 1º leva um item que só sai de lá. As categorias: XP ganho na semana (os três levam troféu de ouro, prata e bronze), níveis subidos, moedas ganhas, vendas e compras na barraca da feira e amigos convidados que chegaram ao nível 5 (quem mais convidou leva o <b>leme dourado</b>, a peça do píer). Os troféus e as conquistas do evento ficam no perfil.</li>
+                    <li>Toda semana tem o <b>evento</b> (no menu): de sexta às 22h até a sexta seguinte às 22h, os 3 primeiros de cada categoria ganham diamantes (30, 18 e 10) e cada um tem 50% de chance de levar um item raro: o 1º, o item que só sai do evento; o 2º e o 3º, um material do píer (no ranking, os troféus de prata e bronze). As categorias: XP ganho na semana (troféus de ouro, prata e bronze), níveis subidos, moedas ganhas, vendas e compras na barraca da feira e amigos convidados que chegaram ao nível 5 (o 1º pode levar o <b>leme dourado</b>, a peça do píer). Os troféus e as conquistas do evento ficam no perfil.</li>
                     <li>Cumpra as <b>missões do dia</b> para ganhar moedas e XP extras.</li>
                     <li>Cada nível libera coisas novas e dá um presente de moedas. Toque no seu nome, lá em cima, para abrir o <b>Perfil</b>: lá estão o <b>caminho dos níveis</b>, as conquistas, o seu convite e o botão de <b>personalizar o avatar</b> (fazendeiro, fazendeira, rapaz, mago, viking ou cavaleiro, com as cores que quiser).</li>
                     <li>Em <b>Vizinhos</b> você visita outras fazendas: <b>pega</b> um pouco da colheita madura ou <b>ajuda</b> com os problemas e ganha XP.</li>
@@ -3873,8 +3876,11 @@
         const f = !visita && S && S.feira;
         cena.definirFeira({ barracas: f ? f.barracas || 1 : 1, vende: f ? (f.meus || []).map((a) => A.cultura(a.item).item) : [], vagas: !!f });
     }
+    // a peça do píer que também vende no celeiro (o peixe do Velho Chico) tem preço de peça na feira
+    const precoPecaFeira = (id) => (S && S.pier && S.pier.receita && S.pier.receita.feira && S.pier.receita.feira[id]) || 0;
     const faixaFeira = (k) => {
         if (k.tipo === 'raro') return [k.venda, k.venda * 3];   // fase 60: igual a fazenda_feira_faixa
+        if (precoPecaFeira(k.id)) return [precoPecaFeira(k.id), precoPecaFeira(k.id) * 3];   // fase 61 (a tela não sabia: só o servidor)
         const r = regrasFeira(); return [Math.max(1, Math.floor(k.venda * r.min)), Math.max(1, Math.ceil(k.venda * r.max))];
     };
     // o que dá para anunciar: o que tem no celeiro (fora a ração reservada) e vale alguma coisa
@@ -3919,7 +3925,9 @@
                     <label>Item <select data-feira-item>${itens.map((id) => `<option value="${esc(id)}"${id === feiraItem ? ' selected' : ''}>${nomeK(id)} (${livreFeira(id)})</option>`).join('')}</select></label>
                     <label>Quantidade <input type="number" id="feiraQtd" min="1" max="${Math.min(livre, r.qtd_max)}" value="${Math.min(livre, 10)}"></label>
                     <label>Preço de cada <input type="number" id="feiraPreco" min="${min}" max="${max}" value="${Math.min(max, Math.max(min, Math.round(k.venda * 1.2)))}"></label>
-                    <p class="det"><span class="txt">${itemDe(k, 16)} ${ehRaro(k) ? `Material raro do píer: não vende no celeiro. Na feira, entre ${min} e ${max}, e você recebe tudo.` : `Na venda normal, ${moeda(k.venda)} cada. Na feira, entre ${min} e ${max}, e você recebe tudo.`}</span></p>
+                    <p class="det"><span class="txt">${itemDe(k, 16)} ${ehRaro(k) ? `Item raro: não vende no celeiro. Na feira, entre ${numero(min)} e ${numero(max)}, e você recebe tudo.`
+                        : precoPecaFeira(k.id) ? `Na venda normal, ${moeda(k.venda)} cada. Na feira tem preço de peça do píer: entre ${numero(min)} e ${numero(max)}, e você recebe tudo.`
+                        : `Na venda normal, ${moeda(k.venda)} cada. Na feira, entre ${numero(min)} e ${numero(max)}, e você recebe tudo.`}</span></p>
                     <button type="button" class="botao verde" data-feira-anunciar>Anunciar</button>
                 </div>`;
             }
@@ -3935,7 +3943,7 @@
                 <span><span class="nome"><b>${esc(v.comprador || 'Alguém')}</b> comprou ${v.qtd} × ${nomeK(v.item)}</span><span class="det"><span>+${moeda(v.total)}</span><span>há ${fmtTempo(agora() - Date.parse(v.em))}</span></span></span></div>`).join('') + '</div>';
         }
         const lim = limiteFeira();
-        return abas + corpo + `<p class="aviso">Na feira você compra de outros jogadores o que falta para as suas receitas e vende o que sobra, recebendo tudo. Preço entre metade e o triplo da venda normal (material raro do píer: do mínimo dele, de 100 mil para cima, até o triplo); o anúncio dura ${r.horas / 24} dias (vencido, volta para o celeiro). O que você compra aqui serve para receitas, entregas e missões; revendido ao jogo, dá as moedas mas não o XP. Você pode ter ${lim} anúncios: ${r.por_barraca || 2} por barraca (as suas ficam na mata, à esquerda do celeiro).</p>`;
+        return abas + corpo + `<p class="aviso">Na feira você compra de outros jogadores o que falta para as suas receitas e vende o que sobra, recebendo tudo. Preço entre metade e o triplo da venda normal (os itens raros vão do mínimo deles, de 50 mil para cima, até o triplo; o peixe do Velho Chico, peça do píer, de 50 a 150 mil); o anúncio dura ${r.horas / 24} dias (vencido, volta para o celeiro). O que você compra aqui serve para receitas, entregas e missões; revendido ao jogo, dá as moedas mas não o XP. Você pode ter ${lim} anúncios: ${r.por_barraca || 2} por barraca (as suas ficam na mata, à esquerda do celeiro).</p>`;
     }
     function avisarFeira(estado) {
         for (const v of (estado.feira && estado.feira.vendas_novas) || []) {
@@ -4519,7 +4527,7 @@
             const qtd = Number(($('feiraQtd') || {}).value), preco = Number(($('feiraPreco') || {}).value);
             const k = culturas[feiraItem], [min, max] = faixaFeira(k);
             if (!(qtd >= 1 && qtd <= livreFeira(feiraItem))) return toast(`Quantidade entre 1 e ${livreFeira(feiraItem)}.`, 'erro');
-            if (!(preco >= min && preco <= max)) return toast(`Preço de cada entre ${min} e ${max}.`, 'erro');
+            if (!(preco >= min && preco <= max)) return toast(`Preço de cada entre ${numero(min)} e ${numero(max)}.`, 'erro');
             enfileirar([], async () => {
                 const r = await rpc('fazenda_feira_anunciar', { p_token: token, p_item: feiraItem, p_qtd: qtd, p_preco: preco });
                 aplicarEstado(r.estado);
