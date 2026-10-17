@@ -1132,6 +1132,8 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-10-17-mover', data: '17/10', titulo: 'Mover ficou mais leve', itens: [
+            'Mover oficinas e outros itens de lugar não trava mais o jogo, mesmo movendo várias coisas seguidas: o item vai para o lugar novo na hora e os canos já mostram a ligação nova.'] },
         { id: '2026-10-17-conteudo', data: '17/10', titulo: 'Árvores, praia e o baú da sorte', itens: [
             'Do <b>nível 31 ao 45</b> tem árvore nova a cada 3 níveis: <b>coqueiro</b> (31), <b>cajueiro</b> (34), <b>açaizeiro</b> (37), <b>cupuaçuzeiro</b> (40) e <b>castanheira</b> (43). Cada uma tem a sua oficina no nível seguinte: cocada, cajuína, açaí na tigela, creme de cupuaçu e paçoca.',
             '<b>Sementes de estação</b> novas: maracujá (verão, 33), mexerica (inverno, 36), caqui (outono, 39) e lichia (primavera, 42). Fora da estação, só na estufa.',
@@ -2645,9 +2647,24 @@
                 if (m) { m.x = x; m.y = y; }
             };
             mover(S);
+            cacheCanos = {};   // (a posição mudou no lugar: a rede de canos se refaz com ela)
             if (constr.rapido) fecharConstrucao(`${A.htmlItem(de.tipo, 22)} Mudou de lugar!`);
             som.tocar('construir');
-            enfileirarOtimista(mover, () => rpc('fazenda_mover', { p_token: token, p_x: de.x, p_y: de.y, p_nx: x, p_ny: y }));
+            // fase 73b: o servidor só confirma (p_leve), sem mandar a fazenda inteira de volta: refazer
+            // tudo a cada movimento travava quem movia várias oficinas seguidas. Se ele recusar, a
+            // fazenda volta a ser a do servidor.
+            const o = { refazer: (s) => { mover(s); cacheCanos = {}; } };
+            otimistas.add(o);
+            enfileirar([], async () => {
+                try {
+                    await rpc('fazenda_mover', { p_token: token, p_x: de.x, p_y: de.y, p_nx: x, p_ny: y, p_leve: true });
+                } catch (e) {
+                    otimistas.delete(o);
+                    try { aplicarEstado(await rpc('fazenda_carregar', { p_token: token })); } catch (e2) { /* a próxima busca acerta */ }
+                    throw e;
+                }
+                otimistas.delete(o);
+            });
         } else if (constr.modo === 'guardar' && cant) {
             if (cant.estado === 'plantado') return toast('Tem planta nesse canteiro: colha (ou limpe) antes de guardar.', 'erro');
             const tirar = (s) => { s.canteiros = s.canteiros.filter((c) => c.x !== x || c.y !== y); };
@@ -2945,6 +2962,7 @@
         if (!estado.diario) estado.diario = []; // banco ainda sem o SQL da fase 2
         if (!estado.construcoes) estado.construcoes = [];
         S = estado;
+        cacheCanos = {};   // fase 73b
         if (versaoNova(estado)) return;
         otimistas.forEach((o) => o.refazer(S));   // fase 56: o que ainda está na fila continua na tela
         offset = Date.parse(estado.agora) - Date.now();

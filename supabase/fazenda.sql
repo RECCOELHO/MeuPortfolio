@@ -4159,7 +4159,9 @@ end;
 $$;
 
 -- Leva uma construção de (x, y) para (nx, ny)
-create or replace function public.fazenda_mover(p_token text, p_x int, p_y int, p_nx int, p_ny int)
+-- fase 73b: p_leve devolve só {ok, x, y} (o jogo já mostra o item no lugar; a fazenda inteira a cada
+-- movimento travava quem movia várias coisas seguidas). Sem ele, como antes (o jogo antigo no cache).
+create or replace function public.fazenda_mover(p_token text, p_x int, p_y int, p_nx int, p_ny int, p_leve boolean default false)
 returns jsonb
 language plpgsql security definer
 set search_path = public, extensions
@@ -4176,6 +4178,7 @@ begin
   if v_pos is not null then
     perform fazenda_checar_lugar(v_id, j.zonas, p_nx, p_ny, 1, 1, null, null, v_pos);
     update fazenda_canteiros set x = p_nx, y = p_ny where jogador_id = v_id and posicao = v_pos;
+    if p_leve then return jsonb_build_object('ok', true, 'x', p_nx, 'y', p_ny); end if;
     return jsonb_build_object('estado', fazenda_estado(v_id));
   end if;
 
@@ -4190,6 +4193,7 @@ begin
   -- o que está guardado no baú e o que já chegou pelo cano na oficina vão junto (fase 39)
   update fazenda_bau_itens set x = p_nx, y = p_ny where jogador_id = v_id and x = p_x and y = p_y;
   update fazenda_oficina_itens set x = p_nx, y = p_ny where jogador_id = v_id and x = p_x and y = p_y;
+  if p_leve then return jsonb_build_object('ok', true, 'x', p_nx, 'y', p_ny); end if;
   return jsonb_build_object('estado', fazenda_estado(v_id));
 end;
 $$;
@@ -7938,6 +7942,13 @@ revoke all on sequence public.fazenda_baus_abertos_id_seq from anon, authenticat
 select public.fazenda_cache_montar();
 
 -- ------------------------------------------------------------
+-- Fase 73b: mover sem travar. fazenda_mover(..., p_leve) devolve só {ok, x, y}: o jogo já põe o item
+-- no lugar na hora, e a fazenda inteira de volta a cada movimento (com o jogo refazendo tudo) travava
+-- quem movia várias oficinas seguidas. Sem p_leve, devolve como antes.
+-- ------------------------------------------------------------
+drop function if exists public.fazenda_mover(text, int, int, int, int);
+
+-- ------------------------------------------------------------
 -- Permissões: só a API pública fica executável pela chave anon
 -- ------------------------------------------------------------
 revoke execute on function
@@ -8001,7 +8012,7 @@ revoke execute on function
   public.fazenda_resgatar_missao(text, int),
   public.fazenda_livre(int, int),
   public.fazenda_construir(text, text, int, int),
-  public.fazenda_mover(text, int, int, int, int),
+  public.fazenda_mover(text, int, int, int, int, boolean),
   public.fazenda_demolir(text, int, int),
   public.fazenda_coletar(text, int, int),
   public.fazenda_reservar(text, text, int),
@@ -8141,7 +8152,7 @@ grant execute on function
   public.fazenda_animal(text, text, bigint[]),
   public.fazenda_resgatar_missao(text, int),
   public.fazenda_construir(text, text, int, int),
-  public.fazenda_mover(text, int, int, int, int),
+  public.fazenda_mover(text, int, int, int, int, boolean),
   public.fazenda_demolir(text, int, int),
   public.fazenda_coletar(text, int, int),
   public.fazenda_reservar(text, text, int),
