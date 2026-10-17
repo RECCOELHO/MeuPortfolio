@@ -42,6 +42,127 @@
         5: { w: 70, h: 12, pe: 53, casco: '#f4f1e6', borda: '#d8d2c0', faixa: '#25406e', faixaY: 6, fundo: '#25406e' }
     };
 
+    /* ---------- A pintura e as peças (fase 65: a tunagem) ----------
+       visual = { casco, faixa, bandeira } (nomes; "padrao" = a cor do próprio barco); pecas = o nível de
+       cada peça comprada (motor, sonar, porao, rede, expedicao), que aparece no desenho. */
+    const CORES_BARCO = {
+        branco: '#f4f1e6', azul: '#3b6fb6', vermelho: '#c34b35', verde: '#4e974c', amarelo: '#fdbe53',
+        preto: '#2b2b38', roxo: '#9b4ca3', rosa: '#e98b9b', dourado: '#ffd75e'
+    };
+    const PAL_BANDEIRA = { G: '#4e974c', Y: '#ffe08a', B: '#3b5dc9', K: '#1a1630', W: '#ffffff', R: '#d9452f', O: '#e38628' };
+    const BANDEIRAS = {
+        brasil: ['GGGGGG', 'GYBBYG', 'GYBBYG', 'GGGGGG'],
+        pirata: ['KKKKKK', 'KKWWKK', 'KWKKWK', 'KKKKKK'],
+        xadrez: ['KWKWKW', 'WKWKWK', 'KWKWKW', 'WKWKWK'],
+        coracao: ['WRWRWW', 'WRRRWW', 'WWRWWW', 'WWWWWW'],
+        estrela: ['BBBBBB', 'BBYBBB', 'BYYYBB', 'BBYBBB'],
+        sertao: ['OOOOOO', 'OOYYOO', 'OYYYYO', 'OOOOOO']
+    };
+    // onde vai o sonar (em cima da cabine) em cada barco: [x a partir da popa, y a partir do convés]
+    const SONAR_EM = { 1: [12, -9], 2: [12, -15], 3: [19, -17], 4: [21, -26], 5: [14, -29] };
+
+    function pintarBarco(g, x, wl, n, o) {
+        const ret = (px, py, w, h, cor) => { g.fillStyle = cor; g.fillRect(Math.round(px), Math.round(py), w, h); };
+        const vis = (o && o.visual) || {}, pecas = (o && o.pecas) || {}, noite = (o && o.noite) || 0, t = (o && o.t) || 0;
+        const base = BARCOS[n];
+        const b = { ...base, casco: CORES_BARCO[vis.casco] || base.casco, faixa: CORES_BARCO[vis.faixa] || base.faixa };
+        if (vis.casco === 'dourado') b.fundo = '#d99a2b';
+        const topo = wl - b.h;
+        const bandeira = (bx, by) => {
+            const f = BANDEIRAS[vis.bandeira];
+            f.forEach((linha, yy) => [...linha].forEach((c, xx) => ret(bx + xx, by + yy, 1, 1, PAL_BANDEIRA[c])));
+        };
+        // o que vai em cima do casco
+        if (n === 1) {
+            // remo encostado e o banquinho
+            ret(x + 8, topo - 3, 10, 3, '#7a4a2a'); ret(x + 8, topo - 3, 10, 1, '#9e5f34');
+            for (let k = 0; k < 9; k++) ret(x + 4 + k, topo - 9 + k, 1, 1, '#b8692f');
+        } else if (n === 2) {
+            ret(x + 4, topo - 11, 13, 11, '#f4f1e6'); ret(x + 3, topo - 12, 15, 2, '#d9452f');
+            ret(x + 7, topo - 8, 6, 3, '#79a7e8'); ret(x + 4, topo - 11, 1, 11, '#d8d2c0');
+            ret(x + 23, topo - 22, 2, 22, '#5a3a20');                       // mastro
+            for (let k = 0; k < 13; k++) ret(x + 24 + k, topo - 20 + Math.round(k * 0.7), 1, 1, '#7a4a2a');   // a lança
+            for (let k = 0; k < 4; k++) ret(x + 34 + (k % 2), topo - 11 + k * 2, 1, 1, '#c0cbdc');            // a rede
+            if (BANDEIRAS[vis.bandeira]) bandeira(x + 25, topo - 21); else ret(x + 25, topo - 21, 6, 4, '#d9452f');   // bandeirinha
+        } else if (n === 3) {
+            ret(x + 5, topo - 13, 19, 13, '#f4f1e6'); ret(x + 4, topo - 14, 21, 2, '#566c86');
+            [8, 13, 18].forEach((wx) => ret(x + wx, topo - 10, 3, 3, '#25406e'));
+            ret(x + 6, topo - 5, 4, 4, '#e38628'); ret(x + 7, topo - 4, 2, 2, '#f4f1e6');   // boia salva-vidas
+            ret(x + 11, topo - 22, 1, 8, '#3f2631'); ret(x + 9, topo - 20, 5, 1, '#3f2631');   // antena
+            for (let k = 0; k < 14; k += 2) ret(x + 27 + k, topo - 3, 1, 3, '#c0cbdc');      // guarda-corpo
+            ret(x + 27, topo - 3, 22, 1, '#c0cbdc');
+        } else if (n === 4) {
+            ret(x + 5, topo - 14, 24, 14, '#f4f1e6'); ret(x + 4, topo - 15, 26, 2, '#d9452f');
+            ret(x + 9, topo - 22, 16, 8, '#f4f1e6'); ret(x + 8, topo - 23, 18, 2, '#566c86');
+            [8, 13, 18, 23].forEach((wx) => ret(x + wx, topo - 11, 3, 3, '#25406e'));
+            [12, 17].forEach((wx) => ret(x + wx, topo - 20, 4, 3, '#25406e'));
+            ret(x + 16, topo - 28, 1, 6, '#3f2631'); ret(x + 14, topo - 27, 5, 1, '#3f2631');
+            ret(x + 33, topo - 20, 2, 20, '#e38628');                       // o guindaste
+            for (let k = 0; k < 13; k++) ret(x + 34 + k, topo - 20 + Math.round(k * 0.45), 1, 1, '#e38628');
+            ret(x + 46, topo - 14, 1, 7, '#c0cbdc'); ret(x + 45, topo - 8, 3, 2, '#566c86');
+            if (noite > 0.3) { ret(x + 6, topo - 16, 1, 1, '#ffe08a'); ret(x + 28, topo - 16, 1, 1, '#ffe08a'); }
+        } else {
+            ret(x + 6, topo - 16, 32, 16, '#f4f1e6'); ret(x + 5, topo - 17, 34, 2, '#d8d2c0');
+            ret(x + 8, topo - 12, 28, 4, '#1a1630');                        // a janela corrida da ponte
+            ret(x + 12, topo - 25, 22, 8, '#f4f1e6'); ret(x + 11, topo - 26, 24, 2, '#d8d2c0');
+            ret(x + 14, topo - 23, 18, 3, '#1a1630');
+            ret(x + 20, topo - 31, 6, 5, '#ffffff'); ret(x + 19, topo - 30, 8, 3, '#ffffff'); ret(x + 20, topo - 31, 6, 1, '#c0cbdc');   // o radar
+            ret(x + 31, topo - 38, 1, 12, '#3f2631');                       // mastro com a bandeira
+            if (BANDEIRAS[vis.bandeira]) bandeira(x + 32, topo - 38); else { ret(x + 32, topo - 38, 6, 4, '#4e974c'); ret(x + 34, topo - 37, 2, 2, '#ffe08a'); }
+            for (let k = 0; k < 20; k += 2) ret(x + 42 + k, topo - 3, 1, 3, '#c0cbdc');
+            ret(x + 42, topo - 3, 24, 1, '#c0cbdc');
+            if (noite > 0.3) { ret(x + 9, topo - 11, 2, 2, '#ffe08a'); ret(x + 26, topo - 11, 2, 2, '#ffe08a'); ret(x + 31, topo - 39, 1, 1, '#ff6b6b'); }
+        }
+        // o casco: faixa por faixa, a proa inclinada
+        for (let r = 0; r <= b.h + 2; r++) {
+            const y = wl - b.h + r;
+            const esq = x + Math.round(r * 0.35), dir = x + b.w - Math.round(Math.max(0, r - 1) * 1.6);
+            if (dir <= esq) continue;
+            const cor = r === 0 ? b.borda : r >= b.faixaY && r < b.faixaY + (b.faixaY > 4 ? 6 : 1) ? b.faixa : r > b.h - 2 ? b.fundo : b.casco;
+            ret(esq, y, dir - esq, 1, cor);
+            ret(esq - 1, y, 1, 1, '#3f2631'); ret(dir, y, 1, 1, '#3f2631');
+        }
+        ret(x - 1, wl - b.h - 1, b.w + 2, 1, '#3f2631');
+        // o dourado brilha (uns pontinhos claros que andam devagar pelo casco)
+        if (vis.casco === 'dourado' || vis.faixa === 'dourado') {
+            for (let k = 0; k < 4; k++) {
+                const px = x + 4 + ((k * 17 + Math.floor(t / 300)) % Math.max(8, b.w - 10));
+                ret(px, wl - b.h + (vis.casco === 'dourado' ? 1 : b.faixaY), 1, 1, '#fff6c8');
+            }
+        }
+        if (n === 5) [12, 20, 28].forEach((px) => { ret(x + px, wl - 4, 2, 2, '#79a7e8'); });   // as escotilhas
+        // a bandeira escolhida, num mastrinho na popa (a traineira e o oceânico têm mastro)
+        if (BANDEIRAS[vis.bandeira] && n !== 2 && n !== 5) { ret(x + 1, topo - 13, 1, 13, '#3f2631'); bandeira(x + 2, topo - 13); }
+        // as peças
+        if (pecas.motor) {   // motor de popa (o turbo tem faixa vermelha; o diesel solta fumaça)
+            ret(x - 6, topo - 2, 5, 6, '#566c86'); ret(x - 6, topo - 3, 5, 1, '#3f2631'); ret(x - 4, topo + 4, 1, b.h - 2, '#3f2631');
+            if (pecas.motor >= 3) ret(x - 6, topo, 5, 1, '#d9452f');
+            if (pecas.motor >= 2) ret(x - 7, topo - 5 - (Math.floor(t / 220) % 3), 2, 1, misturar('#c0cbdc', '#4a5577', noite));
+        }
+        if (pecas.sonar) {   // a antena do sonar, com a luzinha piscando
+            const [sx, sy] = SONAR_EM[n], ax = x + sx, ay = topo + sy;
+            if (n === 1) ret(ax, ay + 1, 1, -sy - 1, '#3f2631');
+            ret(ax - 2, ay, 5, 1, '#f4f1e6'); ret(ax - 1, ay + 1, 3, 1, '#c0cbdc');
+            ret(ax, ay - 1, 1, 1, Math.floor(t / 400) % 2 ? '#7ef0a0' : '#2b5f3e');
+            if (pecas.sonar >= 3) { ret(ax - 3, ay, 1, 1, '#f4f1e6'); ret(ax + 3, ay, 1, 1, '#f4f1e6'); }
+        }
+        if (pecas.porao) {   // a caixa de gelo no convés
+            const w = pecas.porao >= 3 ? 9 : 7, px = x + base.pe - 14;
+            ret(px, topo - 4, w, 4, '#79a7e8'); ret(px, topo - 5, w, 1, '#f4f1e6'); ret(px - 1, topo - 5, 1, 5, '#3f2631'); ret(px + w, topo - 5, 1, 5, '#3f2631');
+            if (pecas.porao >= 2) ret(px + 2, topo - 3, 1, 1, '#ffffff');
+        }
+        if (pecas.rede) {   // a rede de arrasto enrolada na popa
+            const w = pecas.rede >= 2 ? 7 : 5;
+            for (let yy = 0; yy < 5; yy++) for (let xx = 0; xx < w; xx++) if ((xx + yy) % 2 === 0) ret(x + 2 + xx, topo - 6 + yy, 1, 1, '#b8692f');
+        }
+        if (pecas.expedicao) {   // o kit de expedição: flâmula amarela na proa (e a lanterna à noite)
+            const bx = x + b.w - 7;
+            ret(bx, topo - 15, 1, 15, '#3f2631');
+            ret(bx + 1, topo - 15, 5, 1, '#ffe08a'); ret(bx + 1, topo - 14, 3, 1, '#ffe08a'); ret(bx + 1, topo - 13, 1, 1, '#ffe08a');
+            if (noite > 0.3) ret(bx - 1, topo - 4, 2, 2, '#ffe08a');
+        }
+    }
+
     function criar(op) {
         const raiz = document.createElement('div');
         raiz.className = 'mar';
@@ -265,6 +386,11 @@
             ret(x + 17, hy - 12, 1, 7, tronco); ret(x + 18, hy - 13, 1, 2, tronco);
             ret(x + 14, hy - 14, 4, 1, verde); ret(x + 18, hy - 14, 4, 1, verde); ret(x + 13, hy - 13, 2, 1, verde); ret(x + 21, hy - 13, 2, 1, verde);
             ret(x + 17, hy - 15, 2, 1, verde);
+            // fase 65: com o kit de expedição, a bandeirinha amarela na ilha (pronto para ir no nível 46)
+            if ((op.pecas ? op.pecas() : {}).expedicao) {
+                ret(x + 6, hy - 11, 1, 6, '#3f2631');
+                ret(x + 7, hy - 11, 4, 1, '#ffe08a'); ret(x + 7, hy - 10, 3, 1, '#ffe08a'); ret(x + 7, hy - 9, 1, 1, '#ffe08a');
+            }
         }
 
         function desenharMar(noite) {
@@ -313,63 +439,10 @@
             g.globalAlpha = 1;
         }
 
-        function casco(x, wl, b) {
-            for (let r = 0; r <= b.h + 2; r++) {
-                const y = wl - b.h + r;
-                const esq = x + Math.round(r * 0.35), dir = x + b.w - Math.round(Math.max(0, r - 1) * 1.6);
-                if (dir <= esq) continue;
-                const cor = r === 0 ? b.borda : r >= b.faixaY && r < b.faixaY + (b.faixaY > 4 ? 6 : 1) ? b.faixa : r > b.h - 2 ? b.fundo : b.casco;
-                ret(esq, y, dir - esq, 1, cor);
-                ret(esq - 1, y, 1, 1, '#3f2631'); ret(dir, y, 1, 1, '#3f2631');
-            }
-            ret(x - 1, wl - b.h - 1, b.w + 2, 1, '#3f2631');
-        }
-
         function desenharBarco(noite) {
-            const n = nivelBarco(), b = BARCOS[n], x = barcoX(), wl = linhaAgua() + balanco, topo = wl - b.h;
-            // o que vai em cima do casco (atrás de você)
-            if (n === 1) {
-                // remo encostado e o banquinho
-                ret(x + 8, topo - 3, 10, 3, '#7a4a2a'); ret(x + 8, topo - 3, 10, 1, '#9e5f34');
-                for (let k = 0; k < 9; k++) ret(x + 4 + k, topo - 9 + k, 1, 1, '#b8692f');
-            } else if (n === 2) {
-                ret(x + 4, topo - 11, 13, 11, '#f4f1e6'); ret(x + 3, topo - 12, 15, 2, '#d9452f');
-                ret(x + 7, topo - 8, 6, 3, '#79a7e8'); ret(x + 4, topo - 11, 1, 11, '#d8d2c0');
-                ret(x + 23, topo - 22, 2, 22, '#5a3a20');                       // mastro
-                for (let k = 0; k < 13; k++) ret(x + 24 + k, topo - 20 + Math.round(k * 0.7), 1, 1, '#7a4a2a');   // a lança
-                for (let k = 0; k < 4; k++) ret(x + 34 + (k % 2), topo - 11 + k * 2, 1, 1, '#c0cbdc');            // a rede
-                ret(x + 25, topo - 21, 6, 4, '#d9452f');                        // bandeirinha
-            } else if (n === 3) {
-                ret(x + 5, topo - 13, 19, 13, '#f4f1e6'); ret(x + 4, topo - 14, 21, 2, '#566c86');
-                [8, 13, 18].forEach((wx) => ret(x + wx, topo - 10, 3, 3, '#25406e'));
-                ret(x + 6, topo - 5, 4, 4, '#e38628'); ret(x + 7, topo - 4, 2, 2, '#f4f1e6');   // boia salva-vidas
-                ret(x + 11, topo - 22, 1, 8, '#3f2631'); ret(x + 9, topo - 20, 5, 1, '#3f2631');   // antena
-                for (let k = 0; k < 14; k += 2) ret(x + 27 + k, topo - 3, 1, 3, '#c0cbdc');      // guarda-corpo
-                ret(x + 27, topo - 3, 22, 1, '#c0cbdc');
-            } else if (n === 4) {
-                ret(x + 5, topo - 14, 24, 14, '#f4f1e6'); ret(x + 4, topo - 15, 26, 2, '#d9452f');
-                ret(x + 9, topo - 22, 16, 8, '#f4f1e6'); ret(x + 8, topo - 23, 18, 2, '#566c86');
-                [8, 13, 18, 23].forEach((wx) => ret(x + wx, topo - 11, 3, 3, '#25406e'));
-                [12, 17].forEach((wx) => ret(x + wx, topo - 20, 4, 3, '#25406e'));
-                ret(x + 16, topo - 28, 1, 6, '#3f2631'); ret(x + 14, topo - 27, 5, 1, '#3f2631');
-                ret(x + 33, topo - 20, 2, 20, '#e38628');                       // o guindaste
-                for (let k = 0; k < 13; k++) ret(x + 34 + k, topo - 20 + Math.round(k * 0.45), 1, 1, '#e38628');
-                ret(x + 46, topo - 14, 1, 7, '#c0cbdc'); ret(x + 45, topo - 8, 3, 2, '#566c86');
-                if (noite > 0.3) { ret(x + 6, topo - 16, 1, 1, '#ffe08a'); ret(x + 28, topo - 16, 1, 1, '#ffe08a'); }
-            } else {
-                ret(x + 6, topo - 16, 32, 16, '#f4f1e6'); ret(x + 5, topo - 17, 34, 2, '#d8d2c0');
-                ret(x + 8, topo - 12, 28, 4, '#1a1630');                        // a janela corrida da ponte
-                ret(x + 12, topo - 25, 22, 8, '#f4f1e6'); ret(x + 11, topo - 26, 24, 2, '#d8d2c0');
-                ret(x + 14, topo - 23, 18, 3, '#1a1630');
-                ret(x + 20, topo - 31, 6, 5, '#ffffff'); ret(x + 19, topo - 30, 8, 3, '#ffffff'); ret(x + 20, topo - 31, 6, 1, '#c0cbdc');   // o radar
-                ret(x + 31, topo - 38, 1, 12, '#3f2631');                       // mastro com a bandeira
-                ret(x + 32, topo - 38, 6, 4, '#4e974c'); ret(x + 34, topo - 37, 2, 2, '#ffe08a');
-                for (let k = 0; k < 20; k += 2) ret(x + 42 + k, topo - 3, 1, 3, '#c0cbdc');
-                ret(x + 42, topo - 3, 24, 1, '#c0cbdc');
-                if (noite > 0.3) { ret(x + 9, topo - 11, 2, 2, '#ffe08a'); ret(x + 26, topo - 11, 2, 2, '#ffe08a'); ret(x + 31, topo - 39, 1, 1, '#ff6b6b'); }
-            }
-            casco(x, wl, b);
-            if (n === 5) [12, 20, 28].forEach((px) => { ret(x + px, wl - 4, 2, 2, '#79a7e8'); });   // as escotilhas
+            const n = nivelBarco(), b = BARCOS[n], x = barcoX(), wl = linhaAgua() + balanco;
+            const d = op.dados() || {};
+            pintarBarco(g, x, wl, n, { visual: d.visual, pecas: op.pecas ? op.pecas() : {}, noite, t });
             // você, com a vara
             const pt = ondeEstou();
             const av = A.avatarCanvas(op.avatar());
@@ -532,5 +605,32 @@
         };
     }
 
-    window.FazendaMar = { criar };
+    // a prévia da pintura (na tela de melhorias): o barco sozinho num pedacinho de mar
+    function previa(canvas, o) {
+        const n = Math.max(1, Math.min(5, (o && o.nivel) | 0 || 1)), W = 92, H = 64, k = 3, wl = 52;
+        const buf = document.createElement('canvas'), g = buf.getContext('2d');
+        buf.width = W; buf.height = H;
+        g.fillStyle = CEU_DIA[3]; g.fillRect(0, 0, W, wl);
+        g.fillStyle = MAR[2]; g.fillRect(0, wl, W, H - wl);
+        const x = Math.round((W - BARCOS[n].w) / 2) + 3;
+        pintarBarco(g, x, wl, n, { visual: o && o.visual, pecas: o && o.pecas });
+        g.globalAlpha = 0.55; g.fillStyle = MAR[3]; g.fillRect(x - 2, wl + 1, BARCOS[n].w + 4, 2); g.globalAlpha = 1;
+        for (let xx = x - 3; xx < x + BARCOS[n].w + 4; xx += 2) { g.fillStyle = ESPUMA; g.fillRect(xx, wl + (Math.floor(xx / 3) % 2), 2, 1); }
+        canvas.width = W * k; canvas.height = H * k;
+        const c = canvas.getContext('2d');
+        c.imageSmoothingEnabled = false;
+        c.drawImage(buf, 0, 0, W * k, H * k);
+    }
+
+    // a bandeira sozinha, como imagem (para os botões da pintura)
+    function bandeiraUrl(nome, k = 4) {
+        const f = BANDEIRAS[nome];
+        if (!f) return '';
+        const c = document.createElement('canvas'), g = c.getContext('2d');
+        c.width = 6 * k; c.height = 4 * k;
+        f.forEach((linha, y) => [...linha].forEach((ch, x) => { g.fillStyle = PAL_BANDEIRA[ch]; g.fillRect(x * k, y * k, k, k); }));
+        return c.toDataURL();
+    }
+
+    window.FazendaMar = { criar, previa, bandeiraUrl, CORES: CORES_BARCO, BANDEIRAS };
 })();

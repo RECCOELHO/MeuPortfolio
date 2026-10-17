@@ -2736,3 +2736,64 @@ body.construindo .status {
     font-size: 13px;
     color: var(--texto-suave);
 }
+
+/* fase 65: a tunagem e a pintura do barco */
+.materiais {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 4px;
+}
+
+.materiais .chip {
+    font-size: 12px;
+}
+
+.materiais .chip.falta {
+    background: #ffd6cc;
+}
+
+.previa-barco {
+    display: flex;
+    justify-content: center;
+    margin: 4px 0 8px;
+}
+
+.previa-barco canvas {
+    width: 100%;
+    max-width: 276px;
+    height: auto;
+    image-rendering: pixelated;
+    box-shadow: 0 -2px 0 var(--o), 0 2px 0 var(--o), -2px 0 0 var(--o), 2px 0 0 var(--o);
+}
+
+.pintura-cores,
+.pintura-bandeiras {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0 0 8px;
+}
+
+.pintura-cores .cor {
+    width: 30px;
+    height: 30px;
+    border: 0;
+    padding: 0;
+    font: 700 13px var(--fonte-texto);
+    color: var(--texto);
+    background: var(--creme-luz);
+    box-shadow: 0 -2px 0 var(--o), 0 2px 0 var(--o), -2px 0 0 var(--o), 2px 0 0 var(--o);
+    cursor: pointer;
+}
+
+.pintura-cores .cor.ativa {
+    outline: 3px solid var(--ouro);
+    outline-offset: 2px;
+}
+
+.pintura-bandeiras img.px {
+    image-rendering: pixelated;
+    margin-right: 4px;
+    vertical-align: middle;
+}
