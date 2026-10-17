@@ -188,6 +188,8 @@
         luva_perks: { item: 1106 },   // fase 66
         // fase 73: as frutas e os produtos do 31 ao 45 e as sementes de estação (broto e meio do pacote)
         coco: { item: 1121 }, caju: { item: 1122 }, acai: { item: 1123 }, cupuacu: { item: 1124 }, castanha: { item: 1125 },
+        leite_cabra: { item: 1148 }, leite_bufala: { item: 1149 }, mussarela: { item: 1150 },   // fase 74
+        sardinha_lata: { item: 1151 }, sashimi: { item: 1152 }, caldeirada: { item: 1153 },
         cocada: { item: 1126 }, cajuina: { item: 1127 }, acai_tigela: { item: 1128 }, creme_cupuacu: { item: 1129 }, pacoca: { item: 1130 },
         maracuja: { fases: [52, 53, 1135], murcho: 55, item: 1131, semente: 1131 },
         mexerica: { fases: [52, 53, 1136], murcho: 55, item: 1132, semente: 1132 },
@@ -209,7 +211,7 @@
         salada:   { fases: [1012, 1012, 1012], murcho: 1012, item: 1012, semente: 1012 }
     };
     const CULTURA_PADRAO = CULTURAS.alface;
-    const ANIMAL = { galinha: 122, vaca: 121, ovelha: 120, porco: 1000, pato: 1001, coelho: 1002 };
+    const ANIMAL = { galinha: 122, vaca: 121, ovelha: 120, porco: 1000, pato: 1001, coelho: 1002, cabra: 1146, bufala: 1147 };   // (fase 74: cabra e búfala)
     // bichos pequenos ficam no galinheiro; os grandes, no pasto
     const PEQUENOS = ['galinha', 'pato', 'coelho'];
 
@@ -622,7 +624,40 @@
         // 145 baú da sorte de ouro
         ['................', '............d...', '..G..........G..', '..............d.', '.aaaaaaaaaaaaaa.', '.aGGGGGGGGGGGGa.',
          '.aHHGHHHHHHGHHa.', '.aHHGHaaaaHGHHa.', '.aaaGaaGGaaGaaa.', '.aHHGHaaaaHGHHa.', '.aHHGHaaaaHGHHa.', '.aHHGHHHHHHGHHa.',
-         '.aHHGHHHHHHGHHa.', '.aHHGHHHHHHGHHa.', '.aaaaaaaaaaaaaa.', '................']
+         '.aHHGHHHHHHGHHa.', '.aHHGHHHHHHGHHa.', '.aaaaaaaaaaaaaa.', '................'],
+        // fase 74: cabra, búfala, os leites, a mussarela e os pratos dos peixes do mar
+        // 146 cabra
+        ['................', '..a.a...........', '.afafa..........', '..affda.........', '..adddda........', '.adeddda........',
+         '.addddddaaaaaa..', '..aadddddddddda.', '....adddddddddda', '....affddddddfda', '....afffddddffa.', '....aaffffffffa.',
+         '.....afa...afa..', '.....afa...afa..', '.....aaa...aaa..', '................'],
+        // 147 búfala
+        ['................', '.aa.............', 'afa.aa..........', '.afaKea.........', '..aKeeea........', '.aeeeeeeaaaaaaa.',
+         'aeKeeeeeeeeeeeea', '.aaeeeeeeeeeeeea', '...aeKeeeeeeeKea', '...aeeeeeeeeeea.', '...aaeeeeeeeeea.', '....aea....aea..',
+         '....aea....aea..', '....aaa....aaa..', '................', '................'],
+        // 148 leite de cabra
+        ['................', '......aaaa......', '......aaaa......', '......adda......', '......adda......', '....addfddda....',
+         '....afddddda....', '....afddddda....', '....afhhhhha....', '....afhhhhha....', '....afhhhhha....', '....afhhhhha....',
+         '....afddddda....', '....afddddda....', '....aaaaaaaa....', '................'],
+        // 149 leite de búfala
+        ['................', '......aaaa......', '......aaaa......', '......adda......', '......adda......', '....addfddda....',
+         '....afddddda....', '....afddddda....', '....afKKKKKa....', '....afKKKKKa....', '....afKKKKKa....', '....afKKKKKa....',
+         '....afddddda....', '....afddddda....', '....aaaaaaaa....', '................'],
+        // 150 mussarela
+        ['................', '................', '................', '.......hvh......', '.....aaaaaa.....', '...aaffddddaa...',
+         '...affdddddda...', '..affdfdddddda..', '..afddddddddda..', '..adddddddddda..', '..adddddddfdda..', '...adddddddda...',
+         '...aadddfddaa...', '.....aaaaaa.....', '................', '................'],
+        // 151 sardinha em lata
+        ['................', '................', '................', '................', '................', '.aKKKKKKKKKKKKa.',
+         '.affffffffffffa.', '.afffffffffaffa.', '.afBKKKKKKKKKfa.', '.afKBBBBBBBBBfa.', '.affffffffffffa.', '.affffffffffffa.',
+         '.aaaaaaaaaaaaaa.', '................', '................', '................'],
+        // 152 sashimi
+        ['................', '................', '................', '................', '................', '................',
+         '................', '...aaaaaaaaaa...', '..adamaamaamaa..', '.addadaadaadada.', '.addaaaaaaaaaha.', '..adddddddddha..',
+         '...aaaaaaaaaa...', '................', '................', '................'],
+        // 153 caldeirada
+        ['................', '................', '................', '.......f..f.....', '......f..f......', '................',
+         '.aaaaaaaaaaaaaa.', '..aiiXiiiviiia..', 'a.adiidiidiXda.a', '..aKKKKKKKKKKa..', '..aKKKKKKKKKKa..', '..aKKKKKKKKKKa..',
+         '..aKKKKKKKKKKa..', '..aaaaaaaaaaaa..', '................', '................']
     ];
     const atlasProprio = document.createElement('canvas');
     atlasProprio.width = 12 * 16;
@@ -779,7 +814,9 @@
         semeadora: { ...MOCA, ferramenta: 10, visual: { cabelo: 4, pele: 1, roupa: 3, extra: 'avental' } }, patinheiro: { ...MOCO, ferramenta: 1003 },
         pastora: { ...MOCA, ferramenta: 74, visual: { cabelo: 2, pele: 4, roupa: 6, extra: 'lenco_cabeca' } }, porqueiro: { ...MOCO, ferramenta: 79 },
         // fase 43: a operária leva uma caixa e o eletricista uma engrenagem (do pacote da fábrica)
-        operaria: { ...MOCA, ferramenta: 73, ferramentaP: 'factory', visual: { cabelo: 0, pele: 3, roupa: 2, extra: 'capacete' } }, eletricista: { ...MOCO, ferramenta: 1120 }   // o alicate
+        operaria: { ...MOCA, ferramenta: 73, ferramentaP: 'factory', visual: { cabelo: 0, pele: 3, roupa: 2, extra: 'capacete' } }, eletricista: { ...MOCO, ferramenta: 1120 },   // o alicate
+        // fase 74: a cabreira com o leite de cabra e o bufaleiro com o de búfala
+        cabreira: { ...MOCA, ferramenta: 1148, visual: { cabelo: 1, pele: 2, roupa: 5, extra: 'lenco' } }, bufaleiro: { ...MOCO, ferramenta: 1149 }
     };
     // fase 68: os acessórios das moças (16 x 16, por cima do desenho, com as letras da PAL_PROPRIA)
     const ACESSORIOS = {
@@ -823,7 +860,9 @@
         cercado_pato: { bicho: 'pato', w: 6, h: 4, chao: 'lago' },
         cercado_vaca: { bicho: 'vaca', w: 7, h: 5, chao: 'cocho' },
         cercado_ovelha: { bicho: 'ovelha', w: 7, h: 5, chao: 'cocho' },
-        cercado_porco: { bicho: 'porco', w: 6, h: 4, chao: 'lama' }
+        cercado_porco: { bicho: 'porco', w: 6, h: 4, chao: 'lama' },
+        cercado_cabra: { bicho: 'cabra', w: 6, h: 4, chao: 'feno' },     // fase 74
+        cercado_bufala: { bicho: 'bufala', w: 7, h: 5, chao: 'lama' }
     };
     function gradeCercado(id) {
         const k = CERCADOS[id];
@@ -916,8 +955,13 @@
             case 'acaiteria': return { p: 'town', w: 2, h: 3, grade: [[52, 55], [64, 67], [89, 91]] };
             case 'cremeria': return { p: 'town', w: 2, h: 3, grade: [[48, 51], [60, 63], [84, 91]] };
             case 'pacocaria': return { p: 'town', w: 2, h: 3, grade: [[99, 102], [111, 114], [124, 125]] };
+            // fase 74: as oficinas dos peixes do mar e a da búfala
+            case 'enlatados': return { p: 'town', w: 2, h: 3, grade: [[48, 51], [60, 63], [88, 87]] };
+            case 'sushiteria': return { p: 'town', w: 2, h: 3, grade: [[52, 55], [64, 67], [89, 87]] };
+            case 'caldeiraria': return { p: 'town', w: 2, h: 3, grade: [[99, 102], [111, 114], [126, 124]] };
+            case 'queijaria_bufala': return { p: 'town', w: 2, h: 3, grade: [[52, 55], [64, 67], [90, 79]] };
             // máquinas (Tiny Factory)
-            case 'cercado_galinha': case 'cercado_coelho': case 'cercado_pato':
+            case 'cercado_galinha': case 'cercado_coelho': case 'cercado_pato': case 'cercado_cabra': case 'cercado_bufala':
             case 'cercado_vaca': case 'cercado_ovelha': case 'cercado_porco':
                 return { p: 'town', w: CERCADOS[id].w, h: CERCADOS[id].h, grade: gradeCercado(id), cercado: CERCADOS[id] };
             case 'cano': return { p: 'farm', i: 1048, cano: true };
