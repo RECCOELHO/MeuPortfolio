@@ -1118,6 +1118,8 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-10-17-ordem', data: '17/10', titulo: 'Construir em ordem', itens: [
+            'No <b>Construir</b>, as oficinas (e o resto) agora aparecem por nível: o que você já pode construir vem primeiro, e o que ainda está travado fica no fim.'] },
         { id: '2026-10-17-reator', data: '17/10', titulo: 'As ajudantes, o eletricista e o reator', itens: [
             'As <b>ajudantes</b> agora são cada uma de um jeito: a granjeira de chapéu de palha, a coelheira de lenço, a semeadora de avental, a pastora de lenço na cabeça e a operária de capacete.',
             'O <b>eletricista</b> solta faíscas: 1 raiozinho por nível.',
@@ -2473,7 +2475,10 @@
         const abas = [['plantacao', 'Plantação'], ['pomar', 'Pomar'], ['bichos', 'Bichos'], ['oficina', 'Oficinas'], ['maquina', 'Máquinas'], ['energia', 'Energia'], ['caminho', 'Cercas e caminhos'], ['natureza', 'Natureza'], ['objeto', 'Objetos'], ['construcao', 'Casas']];
         el.constrAbas.innerHTML = abas.map(([id, txt]) =>
             `<button type="button" data-constr-aba="${id}" class="${constr.aba === id ? 'ativa' : ''}">${txt}</button>`).join('');
-        const lista = constr.aba === 'plantacao' ? [ITEM_CANTEIRO] : S.itens.filter((i) => i.categoria === constr.aba);
+        // por nível (o que já libera primeiro); no mesmo nível, a ordem do catálogo. A ordem do catálogo
+        // segue a fase em que cada item entrou, e deixava oficina liberada no fim da lista
+        const lista = constr.aba === 'plantacao' ? [ITEM_CANTEIRO]
+            : S.itens.filter((i) => i.categoria === constr.aba).sort((a, b) => a.nivel_min - b.nivel_min || a.ordem - b.ordem);
         el.constrItens.innerHTML = lista.map((i) => {
             const travado = i.nivel_min > S.jogador.nivel;
             const sel = constr.modo === 'colocar' && constr.tipo === i.id;
