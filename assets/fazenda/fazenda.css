@@ -2659,3 +2659,80 @@ body.construindo .status {
     padding: 0;
     list-style: none;
 }
+
+/* fase 63: o evento da semana */
+.evento-cats {
+    display: grid;
+    gap: 12px;
+}
+
+.evento-cat {
+    padding: 10px 12px;
+    background: var(--creme-luz);
+    box-shadow: 0 -2px 0 var(--o), 0 2px 0 var(--o), -2px 0 0 var(--o), 2px 0 0 var(--o);
+}
+
+.evento-cat h3 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 2px;
+    font-size: 18px;
+}
+
+.evento-cat .det {
+    margin: 0 0 6px;
+}
+
+.evento-premios {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 6px 0 8px;
+}
+
+.evento-premios .chip {
+    font-size: 12px;
+}
+
+.evento-top {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.evento-top li {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 0;
+}
+
+.evento-top li.eu {
+    background: #fff1c4;
+}
+
+.evento-top .pos {
+    min-width: 26px;
+    font-family: var(--fonte-pixel);
+    font-size: 20px;
+}
+
+.evento-top b {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.evento-top .val {
+    margin-left: auto;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.evento-eu {
+    margin: 6px 0 0;
+    font-size: 13px;
+    color: var(--texto-suave);
+}

@@ -1228,6 +1228,10 @@ begin
   -- visto_em só serve para "jogou nos últimos 30 dias": grava no máximo 1 vez por hora
   -- (cada chamada gravando pesava no orçamento de disco do Supabase)
   update fazenda_jogadores set visto_em = now() where id = v_id and visto_em < now() - interval '1 hour';
+  -- fase 63: a semana do evento virou (sexta 22h)? a primeira chamada fecha, premia e abre a nova
+  if not exists (select 1 from fazenda_semanas where inicio = fazenda_semana_inicio(now())) then
+    perform fazenda_semana_fechar();
+  end if;
   return v_id;
 end;
 $$;
@@ -1554,6 +1558,14 @@ begin
     'camas', jsonb_build_object('total', fazenda_camas(p_jogador), 'ocupadas', fazenda_camas_ocupadas(p_jogador)),   -- fase 59
     'pier', jsonb_build_object('pronto', j.pier_em is not null, 'receita', fazenda_pier_receita()),   -- fase 61
     'mar', fazenda_mar_estado(p_jogador),   -- fase 62: o alto-mar (null sem o píer)
+    -- fase 63: o evento da semana (até quando vai, os prêmios ainda não vistos e os troféus)
+    'evento', jsonb_build_object(
+      'fim', fazenda_semana_inicio(now()) + interval '7 days',
+      'novos', coalesce((select jsonb_agg(jsonb_build_object('semana', semana, 'categoria', categoria, 'posicao', posicao,
+                                   'valor', valor, 'diamantes', diamantes, 'item', item) order by categoria, posicao)
+                           from fazenda_semana_premios where jogador_id = p_jogador and not visto), '[]'::jsonb),
+      'trofeus', fazenda_trofeus(p_jogador),
+      'regras', fazenda_evento_regras()),
     'melhorias_tipos', fazenda_melhorias_tipos(),
     'estatisticas', (select to_jsonb(e) - 'jogador_id' || jsonb_build_object('energia', e.energia + floor(j.energia_gasta)::int)
                        from fazenda_estatisticas e where e.jogador_id = p_jogador),
@@ -1583,6 +1595,7 @@ begin
   update fazenda_ajudantes set relatorio = 0 where jogador_id = p_jogador and relatorio > 0;
   update fazenda_convites set visto = true where dono_id = p_jogador and not visto;   -- idem os amigos novos
   update fazenda_feira set visto = true where vendedor_id = p_jogador and vendido_em is not null and not visto;   -- e as vendas da feira
+  update fazenda_semana_premios set visto = true where jogador_id = p_jogador and not visto;   -- e os prêmios do evento (fase 63)
   return v_json;
 end;
 $$;
@@ -3114,7 +3127,8 @@ begin
       'estatisticas', (select to_jsonb(e) - 'jogador_id' || jsonb_build_object('energia', e.energia + floor(g.energia_gasta)::int)
                          from fazenda_estatisticas e join fazenda_jogadores g on g.id = e.jogador_id where e.jogador_id = p_dono),
       'conquistas', coalesce((select jsonb_agg(conquista order by obtida_em)
-                                from fazenda_conquistas where jogador_id = p_dono), '[]'::jsonb))
+                                from fazenda_conquistas where jogador_id = p_dono), '[]'::jsonb),
+      'trofeus', fazenda_trofeus(p_dono))   -- fase 63: os troféus do evento da semana
   );
 end;
 $$;
@@ -3543,12 +3557,18 @@ declare
   v_constr int;
   v_conv   int;
   v_valor  int;
+  v_ev     jsonb;   -- fase 63
+  v_podios int;
 begin
   insert into fazenda_estatisticas (jogador_id) values (p_jogador) on conflict do nothing;
   select * into s from fazenda_estatisticas where jogador_id = p_jogador;
   select fazenda_nivel(xp) into v_nivel from fazenda_jogadores where id = p_jogador;
   select count(*) into v_constr from fazenda_construcoes where jogador_id = p_jogador;
   select count(*) into v_conv from fazenda_convites where dono_id = p_jogador;
+  -- fase 63: os 1º lugares de cada categoria do evento e os pódios
+  select coalesce(jsonb_object_agg(categoria, n), '{}'::jsonb) into v_ev
+    from (select categoria, count(*) as n from fazenda_semana_premios where jogador_id = p_jogador and posicao = 1 group by categoria) x;
+  select count(*) into v_podios from fazenda_semana_premios where jogador_id = p_jogador;
   for r in
     select t.* from fazenda_conquistas_tipos t
      where not exists (select 1 from fazenda_conquistas c where c.jogador_id = p_jogador and c.conquista = t.id)
@@ -3570,6 +3590,13 @@ begin
       when 'pedidos' then s.pedidos
       when 'peixes_mar' then s.peixes_mar   -- fase 62: o alto-mar
       when 'marlins' then s.marlins
+      when 'evento_ranking' then coalesce((v_ev->>'ranking')::int, 0)   -- fase 63: o evento da semana
+      when 'evento_niveis' then coalesce((v_ev->>'niveis')::int, 0)
+      when 'evento_moedas' then coalesce((v_ev->>'moedas')::int, 0)
+      when 'evento_vendeu' then coalesce((v_ev->>'vendeu')::int, 0)
+      when 'evento_comprou' then coalesce((v_ev->>'comprou')::int, 0)
+      when 'evento_convites' then coalesce((v_ev->>'convites')::int, 0)
+      when 'evento_podio' then v_podios
       else 0
     end;
     if v_valor >= r.meta then
@@ -5949,6 +5976,238 @@ end;
 $$;
 
 -- ------------------------------------------------------------
+-- Fase 63: o evento da semana (ideias de 15/10, etapa 6).
+-- • A semana vai de sexta 22h a sexta 22h (Brasília, UTC−3 como fazenda_hoje). Fecha sozinha: a
+--   primeira chamada depois da virada (fazenda_auth) premia a semana que acabou e tira a "foto" do
+--   começo da nova (XP e moedas ganhas de cada um). Conta o que aconteceu entre a abertura de uma
+--   semana e o fechamento dela: nada se perde e nada conta duas vezes.
+-- • Seis categorias, top 3 de cada (60, 35 e 20 diamantes; o 1º leva o item exclusivo; no ranking,
+--   os três levam troféu): XP ganho na semana, níveis subidos, moedas ganhas (gastar não desconta),
+--   vendido e comprado na barraca (feira) e amigos convidados que chegaram ao nível 5. Quem mais
+--   convidou leva o leme dourado, a peça do píer.
+-- • Os itens exclusivos são raros (só na feira, do mínimo ao triplo, 60 mil para cima). Conquistas
+--   próprias do evento e os troféus no perfil.
+-- ------------------------------------------------------------
+-- moedas ganhas desde sempre (o gatilho soma toda moeda que entra; o que sai não desconta)
+alter table public.fazenda_jogadores add column if not exists moedas_ganhas bigint not null default 0;
+create or replace function public.fazenda_moedas_ganhas()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  if new.moedas > old.moedas then new.moedas_ganhas := old.moedas_ganhas + (new.moedas - old.moedas); end if;
+  return new;
+end;
+$$;
+drop trigger if exists fazenda_moedas_ganhas on public.fazenda_jogadores;
+create trigger fazenda_moedas_ganhas before update of moedas on public.fazenda_jogadores
+  for each row execute function public.fazenda_moedas_ganhas();
+
+insert into public.fazenda_culturas (id, nome, emoji, tempo_seg, custo, venda, rendimento, xp, nivel_min, ordem, tipo) values
+  ('trofeu_ouro',       'Troféu de ouro',    '🏆', 1, 0, 200000, 1, 0, 1,  97, 'raro'),
+  ('trofeu_prata',      'Troféu de prata',   '🥈', 1, 0, 100000, 1, 0, 1,  98, 'raro'),
+  ('trofeu_bronze',     'Troféu de bronze',  '🥉', 1, 0,  60000, 1, 0, 1,  99, 'raro'),
+  ('ampulheta_dourada', 'Ampulheta dourada', '⏳', 1, 0,  80000, 1, 0, 1, 100, 'raro'),
+  ('cofrinho_ouro',     'Cofrinho de ouro',  '🐷', 1, 0, 100000, 1, 0, 1, 101, 'raro'),
+  ('balanca_ouro',      'Balança de ouro',   '⚖️', 1, 0,  80000, 1, 0, 1, 102, 'raro'),
+  ('sacola_ouro',       'Sacola de ouro',    '👜', 1, 0,  80000, 1, 0, 1, 103, 'raro')
+on conflict (id) do update set
+  nome = excluded.nome, emoji = excluded.emoji, venda = excluded.venda, xp = excluded.xp,
+  nivel_min = excluded.nivel_min, ordem = excluded.ordem, tipo = excluded.tipo;
+
+insert into public.fazenda_conquistas_tipos (id, nome, descricao, medida, meta, recompensa, ordem) values
+  ('evento_ranking',  'Campeão da semana', 'Fique em 1º no ranking do evento da semana',        'evento_ranking',   1, 10000, 25),
+  ('evento_niveis',   'Foguete',           'Fique em 1º em níveis no evento da semana',          'evento_niveis',    1, 10000, 26),
+  ('evento_moedas',   'Mão de ouro',       'Fique em 1º em moedas no evento da semana',          'evento_moedas',    1, 10000, 27),
+  ('evento_vendeu',   'Rei da barraca',    'Fique em 1º em vendas na barraca no evento',         'evento_vendeu',    1, 10000, 28),
+  ('evento_comprou',  'Freguês de ouro',   'Fique em 1º em compras na barraca no evento',        'evento_comprou',   1, 10000, 29),
+  ('evento_convites', 'Embaixador',        'Fique em 1º em convites no evento da semana',        'evento_convites',  1, 10000, 30),
+  ('evento_podio',    'No pódio',          'Fique no top 3 de qualquer categoria do evento',     'evento_podio',     1,  5000, 31),
+  ('evento_veterano', 'Veterano dos eventos', 'Suba ao pódio do evento 10 vezes',                'evento_podio',    10, 30000, 32)
+on conflict (id) do update set
+  nome = excluded.nome, descricao = excluded.descricao, medida = excluded.medida,
+  meta = excluded.meta, recompensa = excluded.recompensa, ordem = excluded.ordem;
+
+-- as semanas (inicio = a sexta 22h em que começa; aberta_em = quando a foto foi tirada, e a semana
+-- conta dali; fechada_em = quando premiou), a foto de cada jogador e os prêmios entregues
+create table if not exists public.fazenda_semanas (
+  inicio     timestamptz primary key,
+  aberta_em  timestamptz not null default now(),
+  fechada_em timestamptz
+);
+create table if not exists public.fazenda_semana_base (
+  jogador_id    uuid primary key references public.fazenda_jogadores(id) on delete cascade,
+  semana        timestamptz not null,
+  xp            int not null,
+  moedas_ganhas bigint not null
+);
+create table if not exists public.fazenda_semana_premios (
+  semana     timestamptz not null,
+  categoria  text not null,
+  posicao    smallint not null check (posicao between 1 and 3),
+  jogador_id uuid not null references public.fazenda_jogadores(id) on delete cascade,
+  valor      bigint not null,
+  diamantes  int not null default 0,
+  item       text references public.fazenda_culturas(id),
+  visto      boolean not null default false,
+  primary key (semana, categoria, posicao)
+);
+create index if not exists fazenda_semana_premios_jogador on public.fazenda_semana_premios (jogador_id);
+alter table public.fazenda_semanas enable row level security;
+alter table public.fazenda_semana_base enable row level security;
+alter table public.fazenda_semana_premios enable row level security;
+revoke all on public.fazenda_semanas, public.fazenda_semana_base, public.fazenda_semana_premios from anon, authenticated;
+
+-- a sexta 22h (Brasília) em que começa a semana do instante p_t
+create or replace function public.fazenda_semana_inicio(p_t timestamptz)
+returns timestamptz language sql immutable as $$
+  select (date_trunc('week', (p_t at time zone 'UTC') - interval '25 hours' + interval '3 days')
+          - interval '3 days' + interval '25 hours') at time zone 'UTC';
+$$;
+
+-- as categorias, os diamantes do 1º, 2º e 3º e os itens (o 1º leva o primeiro; no ranking, um por lugar)
+create or replace function public.fazenda_evento_regras()
+returns jsonb language sql immutable as $$
+  select '{"fecha": "sexta às 22h", "diamantes": [60, 35, 20], "convite_nivel": 5,
+           "categorias": [
+             {"id": "ranking",  "nome": "Ranking da semana",  "conta": "XP ganho na semana",            "itens": ["trofeu_ouro", "trofeu_prata", "trofeu_bronze"]},
+             {"id": "niveis",   "nome": "Mais níveis",        "conta": "níveis subidos na semana",      "itens": ["ampulheta_dourada"]},
+             {"id": "moedas",   "nome": "Mais moedas",        "conta": "moedas ganhas na semana",       "itens": ["cofrinho_ouro"]},
+             {"id": "vendeu",   "nome": "Vendeu na barraca",  "conta": "moedas em vendas na feira",     "itens": ["balanca_ouro"]},
+             {"id": "comprou",  "nome": "Comprou na barraca", "conta": "moedas em compras na feira",    "itens": ["sacola_ouro"]},
+             {"id": "convites", "nome": "Mais convites",      "conta": "amigos convidados que chegaram ao nível 5", "itens": ["leme_dourado"]}]}'::jsonb;
+$$;
+
+-- os números de cada jogador numa semana (p_semana = o início dela; conta de p_desde a p_ate).
+-- Quem entrou na semana não tem foto: conta do zero. Quem foi banido não entra.
+create or replace function public.fazenda_semana_placar(p_semana timestamptz, p_desde timestamptz, p_ate timestamptz)
+returns table (jogador_id uuid, apelido text, avatar jsonb, criado_em timestamptz, ranking bigint, niveis bigint,
+               moedas bigint, vendeu bigint, comprou bigint, convites bigint)
+language sql stable security definer set search_path = public as $$
+  select j.id, j.apelido, j.avatar, j.criado_em,
+         (j.xp - coalesce(b.xp, 0))::bigint,
+         (fazenda_nivel(j.xp) - fazenda_nivel(coalesce(b.xp, 0)))::bigint,
+         (j.moedas_ganhas - coalesce(b.moedas_ganhas, 0))::bigint,
+         coalesce((select sum(f.qtd::bigint * f.preco) from fazenda_feira f
+                    where f.vendedor_id = j.id and f.vendido_em >= p_desde and f.vendido_em < p_ate), 0)::bigint,
+         coalesce((select sum(f.qtd::bigint * f.preco) from fazenda_feira f
+                    where f.comprador_id = j.id and f.vendido_em >= p_desde and f.vendido_em < p_ate), 0)::bigint,
+         (select count(*) from fazenda_convites c join fazenda_jogadores a on a.id = c.convidado_id
+           where c.dono_id = j.id and c.criado_em >= p_desde and c.criado_em < p_ate and a.banido_em is null
+             and fazenda_nivel(a.xp) >= (fazenda_evento_regras()->>'convite_nivel')::int)::bigint
+    from fazenda_jogadores j
+    left join fazenda_semana_base b on b.jogador_id = j.id and b.semana = p_semana
+   where j.banido_em is null;
+$$;
+
+-- a posição de cada um em cada categoria (só quem tem valor maior que 0; desempate: XP da semana e
+-- quem chegou antes no jogo)
+create or replace function public.fazenda_semana_posicoes(p_semana timestamptz, p_desde timestamptz, p_ate timestamptz)
+returns table (categoria text, posicao bigint, jogador_id uuid, apelido text, avatar jsonb, valor bigint)
+language sql stable security definer set search_path = public as $$
+  with p as (select * from fazenda_semana_placar(p_semana, p_desde, p_ate)),
+  v as (
+    select 'ranking' as cat, p.jogador_id, p.apelido, p.avatar, p.criado_em, p.ranking as valor, p.ranking as xp from p
+    union all select 'niveis',   p.jogador_id, p.apelido, p.avatar, p.criado_em, p.niveis,   p.ranking from p
+    union all select 'moedas',   p.jogador_id, p.apelido, p.avatar, p.criado_em, p.moedas,   p.ranking from p
+    union all select 'vendeu',   p.jogador_id, p.apelido, p.avatar, p.criado_em, p.vendeu,   p.ranking from p
+    union all select 'comprou',  p.jogador_id, p.apelido, p.avatar, p.criado_em, p.comprou,  p.ranking from p
+    union all select 'convites', p.jogador_id, p.apelido, p.avatar, p.criado_em, p.convites, p.ranking from p)
+  select v.cat, row_number() over (partition by v.cat order by v.valor desc, v.xp desc, v.criado_em), v.jogador_id, v.apelido, v.avatar, v.valor
+    from v where v.valor > 0;
+$$;
+
+-- Fecha a semana que acabou (premia o top 3 de cada categoria) e abre a nova (a foto de cada um).
+-- Roda na primeira chamada depois da sexta 22h (fazenda_auth); a trava impede premiar duas vezes.
+create or replace function public.fazenda_semana_fechar()
+returns void
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_ini  timestamptz := fazenda_semana_inicio(now());
+  v_reg  jsonb := fazenda_evento_regras();
+  s      record;
+  r      record;
+  v_dia  int;
+  v_item text;
+begin
+  if exists (select 1 from fazenda_semanas where inicio = v_ini) then return; end if;
+  perform pg_advisory_xact_lock(hashtext('fazenda_semana'));
+  if exists (select 1 from fazenda_semanas where inicio = v_ini) then return; end if;   -- outra chamada fechou antes
+  -- a última semana aberta (normalmente a que acabou agora)
+  select * into s from fazenda_semanas where fechada_em is null order by inicio desc limit 1;
+  if found then
+    for r in select * from fazenda_semana_posicoes(s.inicio, s.aberta_em, now()) p where p.posicao <= 3 loop
+      v_dia := (v_reg->'diamantes'->>(r.posicao::int - 1))::int;
+      select c->'itens'->>(r.posicao::int - 1) into v_item from jsonb_array_elements(v_reg->'categorias') c where c->>'id' = r.categoria;
+      insert into fazenda_semana_premios (semana, categoria, posicao, jogador_id, valor, diamantes, item)
+      values (s.inicio, r.categoria, r.posicao, r.jogador_id, r.valor, v_dia, v_item);
+      update fazenda_jogadores set diamantes = diamantes + v_dia where id = r.jogador_id;
+      if v_item is not null then
+        insert into fazenda_celeiro (jogador_id, item, quantidade) values (r.jogador_id, v_item, 1)
+        on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + 1;
+      end if;
+    end loop;
+    update fazenda_semanas set fechada_em = now() where fechada_em is null;
+  end if;
+  -- a foto do começo da semana nova
+  insert into fazenda_semana_base (jogador_id, semana, xp, moedas_ganhas)
+  select id, v_ini, xp, moedas_ganhas from fazenda_jogadores
+  on conflict (jogador_id) do update set semana = excluded.semana, xp = excluded.xp, moedas_ganhas = excluded.moedas_ganhas;
+  insert into fazenda_semanas (inicio) values (v_ini);
+end;
+$$;
+
+-- os troféus de um jogador: quantas vezes ficou em 1º, 2º e 3º em cada categoria
+create or replace function public.fazenda_trofeus(p_jogador uuid)
+returns jsonb language sql stable security definer set search_path = public as $$
+  select coalesce(jsonb_object_agg(x.categoria, jsonb_build_array(x.p1, x.p2, x.p3)), '{}'::jsonb) from (
+    select categoria, count(*) filter (where posicao = 1) as p1, count(*) filter (where posicao = 2) as p2,
+           count(*) filter (where posicao = 3) as p3
+      from fazenda_semana_premios where jogador_id = p_jogador group by categoria) x;
+$$;
+
+-- O painel do evento: até quando vai, o top 3 de agora em cada categoria, a sua posição e quem
+-- ganhou na semana passada
+create or replace function public.fazenda_evento(p_token text)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id    uuid := fazenda_auth(p_token);   -- (e fecha a semana, se virou)
+  s       record;
+  v_ant   timestamptz;
+begin
+  select * into s from fazenda_semanas order by inicio desc limit 1;
+  select max(semana) into v_ant from fazenda_semana_premios;
+  return jsonb_build_object(
+    'inicio', s.inicio,
+    'desde', s.aberta_em,
+    'fim', s.inicio + interval '7 days',
+    'regras', fazenda_evento_regras(),
+    'placar', coalesce((
+      select jsonb_object_agg(x.categoria, x.dados) from (
+        select p.categoria, jsonb_build_object(
+                 'top', coalesce(jsonb_agg(jsonb_build_object('apelido', p.apelido, 'avatar', p.avatar, 'valor', p.valor, 'eu', p.jogador_id = v_id)
+                                           order by p.posicao) filter (where p.posicao <= 3), '[]'::jsonb),
+                 'eu', (array_agg(jsonb_build_object('posicao', p.posicao, 'valor', p.valor)) filter (where p.jogador_id = v_id))[1],
+                 'total', count(*)) as dados
+          from fazenda_semana_posicoes(s.inicio, s.aberta_em, now()) p
+         group by p.categoria) x), '{}'::jsonb),
+    'passada', (
+      select jsonb_build_object('semana', v_ant, 'premios', jsonb_agg(jsonb_build_object(
+               'categoria', p.categoria, 'posicao', p.posicao, 'apelido', j.apelido, 'avatar', j.avatar,
+               'valor', p.valor, 'item', p.item, 'diamantes', p.diamantes, 'eu', p.jogador_id = v_id) order by p.categoria, p.posicao))
+        from fazenda_semana_premios p join fazenda_jogadores j on j.id = p.jogador_id
+       where p.semana = v_ant)
+  );
+end;
+$$;
+
+-- abre a semana de agora (a primeira: o evento começa quando este SQL roda)
+select public.fazenda_semana_fechar();
+
+-- ------------------------------------------------------------
 -- Permissões: só a API pública fica executável pela chave anon
 -- ------------------------------------------------------------
 revoke execute on function
@@ -6093,7 +6352,14 @@ revoke execute on function
   public.fazenda_mar_sortear(int, int),
   public.fazenda_mar_item(uuid, text),
   public.fazenda_mar_contar(uuid, text),
-  public.fazenda_mar_estado(uuid)
+  public.fazenda_mar_estado(uuid),
+  public.fazenda_moedas_ganhas(),
+  public.fazenda_semana_inicio(timestamptz),
+  public.fazenda_evento_regras(),
+  public.fazenda_semana_placar(timestamptz, timestamptz, timestamptz),
+  public.fazenda_semana_posicoes(timestamptz, timestamptz, timestamptz),
+  public.fazenda_semana_fechar(),
+  public.fazenda_trofeus(uuid)
 from public, anon, authenticated;
 
 grant execute on function
@@ -6141,5 +6407,6 @@ grant execute on function
   public.fazenda_pier_comprar_peca(text, text),
   public.fazenda_mar_lancar(text),
   public.fazenda_mar_fisgar(text),
-  public.fazenda_mar_recolher(text)
+  public.fazenda_mar_recolher(text),
+  public.fazenda_evento(text)
 to anon, authenticated;
