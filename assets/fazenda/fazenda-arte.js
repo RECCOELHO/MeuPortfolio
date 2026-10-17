@@ -178,6 +178,9 @@
         // fase 62: os peixes do alto-mar e a pérola negra
         sardinha: { item: 1091 }, cavala: { item: 1092 }, robalo: { item: 1093 }, garoupa: { item: 1094 },
         dourado_mar: { item: 1095 }, atum: { item: 1096 }, marlim: { item: 1097 }, perola_negra: { item: 1098 },
+        // fase 63: os prêmios do evento da semana
+        trofeu_ouro: { item: 1099 }, trofeu_prata: { item: 1100 }, trofeu_bronze: { item: 1101 }, ampulheta_dourada: { item: 1102 },
+        cofrinho_ouro: { item: 1103 }, balanca_ouro: { item: 1104 }, sacola_ouro: { item: 1105 },
         // sementes da estação (broto e meio do pacote; madura e fruta próprias)
         moranguinho: { fases: [52, 53, 1013], murcho: 55, item: 1014, semente: 1014 },
         melancia: { fases: [52, 53, 1015], murcho: 55, item: 1016, semente: 1016 },
@@ -428,7 +431,22 @@
         // 97 marlim
         ['......a.........', '.....aEa........', '....aEEEa.......', '...aEEEEEa......', 'a.aEEEEEEEa.....', 'aaIIIIIIIIaa....', 'aEIIIIIIIIIdaaa.', 'aEIIIIIIIIIeIIaa', 'aEIEEEEEEEEEa...', 'aEafffffffffffa.', 'aa.afffffffffa..', 'a...aaaEaaaaaa..', '.......aa.......', '................', '................', '................'],
         // 98 pérola negra
-        ['................', '................', '......aaaa......', '....aaJJJJaa....', '...aJJJJJJJJa...', '..aJdfJJJJJJVa..', '..aJfJJJJJJVVa..', '..aJJJJJJJVVUa..', '..aJJJJJJVVUUa..', '...aJJJVVVUUa...', '.aaaaaVVUUaaaaa.', 'aPmPPaaaaaaPPmPa', 'afPPmPPPPPPmPPfa', '.aflPPPPPPPPlfa.', '..aallllllllaa..', '....aaaaaaaa....']
+        ['................', '................', '......aaaa......', '....aaJJJJaa....', '...aJJJJJJJJa...', '..aJdfJJJJJJVa..', '..aJfJJJJJJVVa..', '..aJJJJJJJVVUa..', '..aJJJJJJVVUUa..', '...aJJJVVVUUa...', '.aaaaaVVUUaaaaa.', 'aPmPPaaaaaaPPmPa', 'afPPmPPPPPPmPPfa', '.aflPPPPPPPPlfa.', '..aallllllllaa..', '....aaaaaaaa....'],
+        // fase 63: os prêmios do evento da semana
+        // 99 troféu de ouro
+        ['................', '..aaaaaaaaaaaa..', '.aGaGGGGGgggaga.', 'aG.aGGGGgggga.ga', 'aG.aGGGGgggga.ga', '.aGaGGGGggggaga.', '..aaGGGggggHaa..', '....aGGgggHa....', '.....aGggHa.....', '......agHa......', '......agHa......', '.....aGggHa.....', '....aaaaaaaa....', '....ayyyyyyna...', '...annnnnnnnna..', '...aaaaaaaaaaa..'],
+        // 100 troféu de prata
+        ['................', '..aaaaaaaaaaaa..', '.adadddddfffafa.', 'ad.addddffffa.fa', 'ad.addddffffa.fa', '.adaddddffffafa.', '..aadddfffflaa..', '....addfffla....', '.....adffla.....', '......afla......', '......afla......', '.....adffla.....', '....aaaaaaaa....', '....ayyyyyyna...', '...annnnnnnnna..', '...aaaaaaaaaaa..'],
+        // 101 troféu de bronze
+        ['................', '..aaaaaaaaaaaa..', '.ajajjjjjkkkaka.', 'aj.ajjjjkkkka.ka', 'aj.ajjjjkkkka.ka', '.ajajjjjkkkkaka.', '..aajjjkkkkNaa..', '....ajjkkkNa....', '.....ajkkNa.....', '......akNa......', '......akNa......', '.....ajkkNa.....', '....aaaaaaaa....', '....ayyyyyyna...', '...annnnnnnnna..', '...aaaaaaaaaaa..'],
+        // 102 ampulheta dourada
+        ['................', '...aaaaaaaaaa...', '...agggggggHa...', '....aaaaaaaa....', '....aYYYYYYa....', '.....aGGGGa.....', '......aGGa......', '.......aa.......', '......aYGa......', '.....aYYGYa.....', '....aYYGGGYa....', '....aGGGGGGa....', '....aaaaaaaa....', '...agggggggHa...', '...aaaaaaaaaa...', '................'],
+        // 103 cofrinho de ouro
+        ['................', '.......aaa......', '......aGGga.....', '......aGHga.....', '...aaaaaaaaa.aa.', '..aGGGGaaGGGaGa.', '.aGGGGGGGGGGGGa.', 'aaGGGGGGGGGaGGGa', 'aGgGGGGGGGGGGaaa', 'aGgGGdGGGGGGGaga', '.aggGGGGGGGGGaaa', '..aggggggggggHa.', '..aHHa....aHHa..', '..aaaa....aaaa..', '................', '................'],
+        // 104 balança de ouro
+        ['................', '.......aa.......', '......aGga......', 'aaaaaaagHaaaaaaa', 'aGGGGGGgHgggggHa', 'aaaaaaagHaaaaaaa', '.a..a..gH..a..a.', '.a..a..gH..a..a.', '.a..a..gH..a..a.', 'aaaaaa.gH.aaaaaa', 'aGggHa.gH.aGggHa', '.aHHa..gH..aHHa.', '..aa...gH...aa..', '....aaagHaaa....', '...aGGggggHHa...', '...aaaaaaaaaa...'],
+        // 105 sacola de ouro
+        ['................', '.....aaaaaa.....', '....aHa..aHa....', '....aHa..aHa....', '..aaaaaaaaaaaa..', '..aGGGGGGGGgga..', '..aGdGGGGGGgga..', '..aGGGGGGGGgga..', '..aGGGaaaaGgga..', '..aGGaGGGgagga..', '..aGGaGgggagga..', '..aGGGaaaaGgga..', '..aGGGGGGGggHa..', '..agggggggggHa..', '..aaaaaaaaaaaa..', '................']
     ];
     const atlasProprio = document.createElement('canvas');
     atlasProprio.width = 12 * 16;

@@ -1160,12 +1160,19 @@
        Só servem no píer (nível 31, no litoral), mas já aparecem desde o nível 1: vêm do mercador (1 em
        cada 100 visitas) e dá para vender na feira, de k.venda (o mínimo) até o triplo. */
     const ehRaro = (k) => !!k && k.tipo === 'raro';
+    // de onde vem cada raro (fase 62: a pérola, do alto-mar; fase 63: os prêmios do evento da semana)
+    function origemRaro(id) {
+        if (id === 'perola_negra') return 'Do alto-mar: 1 em cada 200 peixes vem com uma.';
+        if (id === 'leme_dourado') return 'Peça do píer e prêmio do evento da semana (para quem mais convidou).';
+        if (ITENS_EVENTO.includes(id)) return 'Prêmio do evento da semana: só sai de lá.';
+        return 'Material do píer (nível 31, no terreno do litoral).';
+    }
     function htmlRaroCeleiro(k) {
         return `<div class="item raro">
             <span class="ico">${spr(A.cultura(k.id).item, 44)}</span>
             <span>
                 <span class="nome">${esc(k.nome)} × ${naCeleiro(k.id)} <small class="tag-raro">raro</small></span>
-                <span class="det"><span class="txt">${k.id === 'perola_negra' ? 'Do alto-mar: 1 em cada 200 peixes vem com uma.' : 'Material do píer (nível 31, no terreno do litoral).'} Não vende no celeiro: na feira, de ${moeda(k.venda)} a ${moeda(k.venda * 3)} cada.</span></span>
+                <span class="det"><span class="txt">${origemRaro(k.id)} Não vende no celeiro: na feira, de ${moeda(k.venda)} a ${moeda(k.venda * 3)} cada.</span></span>
             </span>
             <button type="button" class="botao pequeno creme" data-raro-feira="${esc(k.id)}">Na feira</button>
         </div>`;
@@ -1178,7 +1185,7 @@
     const ONDE_PECA = {
         madeira_nobre: 'do mercador ou da feira', corda_naval: 'do mercador ou da feira', pedra_cantaria: 'do mercador ou da feira',
         ferro_forjado: 'do mercador ou da feira', ancora: 'do mercador ou da feira',
-        velho_chico: 'do lago (bem raro) ou da feira', leme_dourado: 'do ranking da semana ou da feira'
+        velho_chico: 'do lago (bem raro) ou da feira', leme_dourado: 'do evento da semana (quem mais convidou) ou da feira'
     };
     const ehPecaPier = (id) => !!(S && S.pier && S.pier.receita && S.pier.receita.itens && S.pier.receita.itens[id]);
     // no celeiro: guardar a peça para o píer (ou soltar), para ela não ir no "Vender tudo"
@@ -1365,6 +1372,82 @@
             <ul class="mar-peixes">${peixes}</ul>
             <p class="aviso">Barco maior vai mais longe e acha peixes novos; vara melhor puxa os maiores. 1 em cada 200 peixes vem com uma <b>pérola negra</b> (na feira, de 50 a 150 mil). Os peixes do mar vendem no celeiro e dão XP na pesca e de novo na venda. As ilhas chegam no nível 46.</p>
             <div class="rodape-painel"><button type="button" class="botao verde" data-mar-ir>${mar ? 'Voltar para o mar' : 'Ir para o alto-mar'}</button></div>`;
+    }
+
+    /* ---------- Fase 63: o evento da semana ----------
+       Fecha toda sexta às 22h (Brasília) e premia o top 3 de cada categoria: o servidor fecha sozinho,
+       na primeira chamada depois da virada (fazenda_semana_fechar). O painel busca o placar de agora
+       (fazenda_evento); o estado traz o fim da semana, os prêmios novos (uma vez só) e os troféus. */
+    let eventoDados = null, eventoPremios = [];
+    const CAT_ICONE = { ranking: 'trofeu_ouro', niveis: 'ampulheta_dourada', moedas: 'cofrinho_ouro', vendeu: 'balanca_ouro', comprou: 'sacola_ouro', convites: 'leme_dourado' };
+    const ITENS_EVENTO = ['trofeu_ouro', 'trofeu_prata', 'trofeu_bronze', 'ampulheta_dourada', 'cofrinho_ouro', 'balanca_ouro', 'sacola_ouro'];
+    const LUGAR = ['1º', '2º', '3º'];
+    const regrasEvento = () => (S && S.evento && S.evento.regras) || { categorias: [], diamantes: [60, 35, 20], convite_nivel: 5 };
+    const fimEvento = () => (S && S.evento && S.evento.fim ? Date.parse(S.evento.fim) : 0);
+    const iconeCat = (cat, px) => itemDe(culturas[CAT_ICONE[cat]] || { id: CAT_ICONE[cat] }, px);
+    const numero = (v) => Number(v || 0).toLocaleString('pt-BR');
+    function valorEvento(cat, v) {
+        if (cat === 'ranking') return `${numero(v)} ${ico('xp', 13)}`;
+        if (cat === 'niveis') return `${v} ${Number(v) === 1 ? 'nível' : 'níveis'}`;
+        if (cat === 'convites') return `${v} ${Number(v) === 1 ? 'amigo' : 'amigos'}`;
+        return moeda(numero(v));   // moedas, vendeu e comprou
+    }
+    function carregarEvento() {
+        enfileirar([], async () => {
+            eventoDados = await rpc('fazenda_evento', { p_token: token });
+            if (painelAtual === 'evento') abrirPainel('evento', true);
+        });
+    }
+    function htmlEvento() {
+        const reg = regrasEvento(), d = eventoDados;
+        const falta = (d ? Date.parse(d.fim) : fimEvento()) - agora();
+        let html = `<p class="fala">Toda semana, de sexta às 22h até a sexta seguinte às 22h, os 3 primeiros de cada categoria ganham diamantes, e o 1º leva um item que só sai daqui. Esta semana fecha ${falta > 0 ? `em <b>${fmtTempo(falta)}</b>` : '<b>agora</b>'}.</p>`;
+        if (!d) return html + '<p class="vazio-msg">Carregando o placar…</p>';
+        html += '<div class="evento-cats">' + reg.categorias.map((c) => {
+            const p = (d.placar || {})[c.id] || { top: [], eu: null, total: 0 };
+            const premios = [0, 1, 2].map((i) => {
+                const id = c.itens[i], k = id && (culturas[id] || { id, nome: id });
+                return `<span class="chip">${LUGAR[i]} ${ico('diamante', 12)} ${reg.diamantes[i]}${k ? ` + ${itemDe(k, 18)} ${esc(k.nome)}` : ''}</span>`;
+            }).join('');
+            const top = p.top.length
+                ? '<ol class="evento-top">' + p.top.map((t, i) => `<li${t.eu ? ' class="eu"' : ''}><span class="pos">${LUGAR[i]}</span>${A.htmlAvatar(t.avatar, 20)}<b>${esc(t.apelido)}${t.eu ? ' (você)' : ''}</b><span class="val">${valorEvento(c.id, t.valor)}</span></li>`).join('') + '</ol>'
+                : '<p class="det">Ninguém pontuou ainda: quem pontuar primeiro já fica em 1º.</p>';
+            return `<div class="evento-cat">
+                <h3>${iconeCat(c.id, 28)} ${esc(c.nome)}</h3>
+                <p class="det">Conta: ${esc(c.conta)}.</p>
+                <div class="evento-premios">${premios}</div>
+                ${top}
+                <p class="evento-eu">${p.eu ? `Você: <b>${p.eu.posicao}º</b> de ${p.total} · ${valorEvento(c.id, p.eu.valor)}` : 'Você ainda não pontuou aqui.'}</p>
+            </div>`;
+        }).join('') + '</div>';
+        const pas = d.passada;
+        if (pas && pas.premios && pas.premios.length) {
+            html += '<h3 class="secao-titulo">Semana passada</h3><div class="lista">' + reg.categorias.map((c) => {
+                const ps = pas.premios.filter((x) => x.categoria === c.id);
+                if (!ps.length) return '';
+                return `<div class="item"><span class="ico">${iconeCat(c.id, 32)}</span><span><span class="nome">${esc(c.nome)}</span>
+                    <span class="det">${ps.map((x) => `<span>${LUGAR[x.posicao - 1]} ${esc(x.apelido)}${x.eu ? ' (você)' : ''}</span>`).join('')}</span></span></div>`;
+            }).join('') + '</div>';
+        }
+        return html + `<p class="aviso">Convite só conta quando o amigo chega ao nível ${reg.convite_nivel || 5}. Nas moedas, gastar não desconta. Os itens do evento não vendem no celeiro: na feira valem de 60 mil para cima. Quem mais convidou leva o <b>leme dourado</b>, a peça do píer. As conquistas do evento aparecem no seu perfil.</p>`;
+    }
+    function htmlEventoPremio() {
+        const reg = regrasEvento(), nomeCat = (id) => (reg.categorias.find((c) => c.id === id) || { nome: id }).nome;
+        return '<p class="fala">O evento da semana fechou e você subiu ao pódio!</p><div class="lista">' + eventoPremios.map((p) => {
+            const k = p.item && (culturas[p.item] || { id: p.item, nome: p.item });
+            return `<div class="item"><span class="ico">${k ? itemDe(k, 40) : iconeCat(p.categoria, 40)}</span><span>
+                <span class="nome">${LUGAR[p.posicao - 1]} lugar: ${esc(nomeCat(p.categoria))}</span>
+                <span class="det"><span class="txt">${valorEvento(p.categoria, p.valor)} · +${p.diamantes} ${ico('diamante', 12)}${k ? ` e <b>${esc(k.nome)}</b> (está no celeiro)` : ''}</span></span></span></div>`;
+        }).join('') + `</div><div class="rodape-painel"><button type="button" class="botao creme" data-painel-ir="evento">Ver o evento</button><button type="button" class="botao verde" data-fechar>Oba!</button></div>`;
+    }
+    // no perfil (o seu e o dos vizinhos): quantas vezes ficou em 1º, 2º e 3º em cada categoria
+    function htmlTrofeus(t) {
+        t = t || {};
+        const linhas = regrasEvento().categorias.filter((c) => t[c.id]).map((c) => {
+            const [o, p, b] = t[c.id];
+            return `<span class="chip">${iconeCat(c.id, 18)}<span>${esc(c.nome)}: ${[o && `${o}× 1º`, p && `${p}× 2º`, b && `${b}× 3º`].filter(Boolean).join(' · ')}</span></span>`;
+        });
+        return linhas.length ? `<div class="chips">${linhas.join('')}</div>` : '<p class="det">Ainda sem pódio no evento da semana. Ele fecha toda sexta às 22h.</p>';
     }
 
     /* ---------- Visitas na porteira: a cada 3 horas chega alguém (fazenda_visitante) ---------- */
@@ -2355,6 +2438,8 @@
         if (bonusM) el.xp.textContent += completa ? ' +75%' : ' +50%';
         const cm = $('hudMetas'), fm = metasDoNivelFaltando();
         if (cm) { cm.textContent = fm; cm.hidden = !fm; }
+        const ce = $('hudEvento'), fe = fimEvento() - agora();   // fase 63: faltam menos de 6 horas para o evento fechar
+        if (ce) ce.hidden = !(fe > 0 && fe < 6 * 3600e3);
         if (el.hudPerfil) {
             const prox = j.nivel < NIVEL_MAX ? liberaNoNivel(j.nivel + 1).slice(0, 3).map((x) => x.nome).join(', ') : '';
             el.hudPerfil.title = j.nivel < NIVEL_MAX
@@ -2596,6 +2681,14 @@
         atualizarTerreno();
         desenharHud();
         if (constr.ativo) desenharPaleta();
+        // fase 63: prêmio novo do evento da semana (o servidor manda uma vez só)
+        const novosEv = (estado.evento && estado.evento.novos) || [];
+        if (novosEv.length) {
+            eventoPremios = novosEv;
+            som.tocar('festa');
+            if (!painelAtual) abrirPainel('eventoPremio');
+            else toast(`${itemDe(culturas.trofeu_ouro || { id: 'trofeu_ouro' }, 20)} Evento da semana: você subiu ao pódio em ${novosEv.length === 1 ? '1 categoria' : novosEv.length + ' categorias'}! Os prêmios já estão com você.`, 'festa', 'importante');
+        }
         if (['loja', 'celeiro', 'missoes', 'oficina', 'energia', 'canteiro', 'bau', 'ajudante', 'pier', 'mar'].includes(painelAtual)) abrirPainel(painelAtual, true);
         if (mar) { if (!S.mar || visita) fecharMar(); else mar.atualizar(); }   // fase 62
     }
@@ -3288,6 +3381,8 @@
                 ${boasVindas ? '' : `
                 <h3 class="secao-titulo">Conquistas (${minhas.length}/${(S.conquistas_tipos || []).length})</h3>
                 ${htmlConquistas(minhas)}
+                <h3 class="secao-titulo">Evento da semana</h3>
+                ${htmlTrofeus(S.evento && S.evento.trofeus)}
                 <h3 class="secao-titulo">Seus números</h3>
                 ${htmlEstatisticas(S.estatisticas)}`}
                 <h3 class="secao-titulo">Código de recuperação</h3>
@@ -3311,6 +3406,13 @@
         } else if (nome === 'pier') {   // fase 61
             el.painelTitulo.innerHTML = `${itemDe(culturas.ancora || { id: 'ancora' }, 30)} Píer`;
             corpo.innerHTML = htmlPier();
+        } else if (nome === 'evento') {   // fase 63: o evento da semana
+            el.painelTitulo.innerHTML = `${itemDe(culturas.trofeu_ouro || { id: 'trofeu_ouro' }, 30)} Evento da semana`;
+            corpo.innerHTML = htmlEvento();
+            if (!soAtualizar) carregarEvento();
+        } else if (nome === 'eventoPremio') {
+            el.painelTitulo.innerHTML = `${itemDe(culturas.trofeu_ouro || { id: 'trofeu_ouro' }, 30)} Você ganhou!`;
+            corpo.innerHTML = htmlEventoPremio();
         } else if (nome === 'mar') {   // fase 62: as melhorias do alto-mar
             el.painelTitulo.innerHTML = `${itemDe(culturas.marlim || { id: 'marlim' }, 30)} Alto-mar`;
             corpo.innerHTML = htmlMarMelhorias();
@@ -3428,6 +3530,7 @@
                     <li>A cada 3 horas chega uma <b>visita na porteira</b>, do lado da casa (do nível 3 em diante): o feirante, a doceira e o caminhoneiro compram algo da fazenda pagando bem mais que o celeiro, e a mascate vende adubo. Toque nela para conversar. Bem de vez em quando (1 em cada 100 visitas) vem o <b>mercador</b>, que troca um material raro do píer por frutos fora de época.</li>
                     <li>No nível 31 chega o <b>Litoral</b> (Loja → Terrenos): areia para construir e plantar e o mar. Na areia fica o lugar do <b>píer</b>: toque nele para ver a receita (9 peças difíceis e 100 mil moedas). Peça que falta dá para comprar com diamantes. Guarde o peixe do Velho Chico para o píer, no celeiro, para ele não ir no "Vender tudo".</li>
                     <li>Com o píer pronto, toque no <b>barco</b> para ir para o <b>alto-mar</b>: toque na água para lançar a linha, espere a boia <b>afundar de verdade</b> (às vezes o peixe só belisca) e toque de novo na hora para fisgar. Cada lançada usa 1 peixe do <b>cardume</b>, que enche sozinho com o tempo. Em <b>Melhorar</b>: barco maior (cardume maior e peixes novos), vara melhor (mais tempo para fisgar e peixes maiores) e o marinheiro <b>Seu Nonato</b>, que pesca sozinho por até 8 horas (toque no barquinho dele para recolher). 1 em cada 200 peixes vem com uma <b>pérola negra</b>.</li>
+                    <li>Toda semana tem o <b>evento</b> (no menu): de sexta às 22h até a sexta seguinte às 22h, os 3 primeiros de cada categoria ganham diamantes (60, 35 e 20) e o 1º leva um item que só sai de lá. As categorias: XP ganho na semana (os três levam troféu de ouro, prata e bronze), níveis subidos, moedas ganhas, vendas e compras na barraca da feira e amigos convidados que chegaram ao nível 5 (quem mais convidou leva o <b>leme dourado</b>, a peça do píer). Os troféus e as conquistas do evento ficam no perfil.</li>
                     <li>Cumpra as <b>missões do dia</b> para ganhar moedas e XP extras.</li>
                     <li>Cada nível libera coisas novas e dá um presente de moedas. Toque no seu nome, lá em cima, para abrir o <b>Perfil</b>: lá estão o <b>caminho dos níveis</b>, as conquistas, o seu convite e o botão de <b>personalizar o avatar</b> (fazendeiro, fazendeira, rapaz, mago, viking ou cavaleiro, com as cores que quiser).</li>
                     <li>Em <b>Vizinhos</b> você visita outras fazendas: <b>pega</b> um pouco da colheita madura ou <b>ajuda</b> com os problemas e ganha XP.</li>
@@ -3502,6 +3605,8 @@
                 <p>Nível <b>${visita.nivel}</b>${p.criado_em ? ` · fazendeiro(a) desde ${desde(p.criado_em)}` : ''}</p>
                 <h3 class="secao-titulo">Conquistas (${(p.conquistas || []).length}/${(S.conquistas_tipos || []).length})</h3>
                 ${htmlConquistas(p.conquistas || [])}
+                <h3 class="secao-titulo">Evento da semana</h3>
+                ${htmlTrofeus(p.trofeus)}
                 <h3 class="secao-titulo">Números</h3>
                 ${htmlEstatisticas(p.estatisticas)}
                 ${S.jogador.admin ? `<p><button type="button" class="botao pequeno creme" data-admin-perfil="${esc(visita.id)}" data-apelido="${esc(visita.apelido)}">${ico('escudo', 14)} Banir esta fazenda</button></p>` : ''}`;
