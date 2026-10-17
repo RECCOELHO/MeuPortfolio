@@ -139,7 +139,8 @@
         fora_de_estacao: 'Essa semente é de outra estação. Espere a época dela (ou plante perto de uma estufa elétrica).',
         sem_energia: 'Sem energia nas baterias. Construa geradores (painel solar, turbina...) e espere carregar.',
         sem_milho: 'O gerador a biomassa queima milho: colha milho e tente de novo.',
-        anuncio_cedo: 'Calma! Espere uns segundos entre um anúncio e outro.',
+        anuncio_cedo: 'Calma! Espere uns minutos entre um anúncio e outro.',
+        anuncio_limite: 'Por hoje chega de anúncio. Volte amanhã!',   // fase 70
         sem_lago: 'Compre o Vale do sudeste (aba Terrenos da loja) para liberar o lago.',
         cesto_vazio: 'O cesto ainda está vazio: o Bira tira um peixe a cada 30 minutos.',
         limite_canteiros: 'Você já usou todos os seus canteiros. Suba de nível ou compre terrenos para ter mais.',
@@ -150,6 +151,9 @@
         sem_litoral: 'Compre o terreno do Litoral (Loja → Terrenos, nível 31) para construir o píer.',
         faltam_pecas: 'Ainda faltam peças do píer. Veja na tela do píer o que falta.',
         peca_nao_falta: 'Essa peça você já tem para o píer.',
+        peca_comprada: 'Com diamantes, só dá para comprar as peças que a receita do píer pede.',   // fase 70
+        muitas_fazendas_ip: 'Já criaram muitas fazendas daqui hoje. Tente mais tarde ou entre na sua com o código.',
+        muitas_tentativas: 'Muitas tentativas de código. Espere uma hora e tente de novo.',
         sem_pier: 'Construa o píer primeiro (no Litoral, do nível 31 em diante).',   // fase 62: o alto-mar
         cardume_vazio: 'O cardume acabou: ele enche sozinho com o tempo.',
         sem_lance: 'A linha não estava na água. Lance de novo.',
@@ -895,14 +899,18 @@
     const XP_PAUSA = 8 * 60000, XP_VENDA = 25;
     const xpDaColheita = (c, k) => (!c || !c.xp_em || agora() - Date.parse(c.xp_em) >= XP_PAUSA ? k.xp : 0);
     const xpVendaDe = (k) => (k.tipo === 'produto' ? 1 : 0);   // (fase 60: raro não vende para o jogo)
-    const ORDEM_TIPO = { Terreno: 0, Mar: 1, Ajudante: 1, Oficina: 1, 'Máquina': 1, Energia: 1, Animal: 2, Cercado: 2, 'Árvore': 2, Semente: 3, Casa: 4, Enfeite: 5 };
+    const ORDEM_TIPO = { Terreno: 0, Mar: 1, Melhoria: 1, Ajudante: 1, Oficina: 1, 'Máquina': 1, Energia: 1, Animal: 2, Cercado: 2, 'Árvore': 2, Semente: 3, Casa: 4, Enfeite: 5 };
     function liberaNoNivel(n) {
         if (!S) return [];
         const r = [];
         for (const z of zonasVenda()) if (z.nivel === n) r.push({ html: spr(39, 24), nome: z.lago ? `${z.nome} (com lago)` : z.nome, tipo: 'Terreno' });
         for (const a of S.animais_tipos || []) if (a.nivel_min === n) r.push({ html: spr(A.ANIMAL[a.id], 24), nome: a.nome, tipo: 'Animal' });
         for (const t of S.ajudantes_tipos || []) if (t.nivel_min === n) r.push({ html: retratoAjudante(t.id, 24), nome: `${t.nome} (${t.papel.toLowerCase()})`, tipo: 'Ajudante' });
-        for (const m of S.melhorias_tipos || []) if (m.mar) m.niveis.forEach((k) => { if (k.nivel === n) r.push({ html: iconeMar(m.id, 24), nome: k.nome, tipo: 'Mar' }); });   // fase 62
+        for (const m of S.melhorias_tipos || []) m.niveis.forEach((k, ix) => {   // fase 62 (fase 70: e as da fazenda, que não apareciam)
+            if (k.nivel !== n) return;
+            r.push(m.mar ? { html: iconeMar(m.id, 24), nome: k.nome, tipo: 'Mar' }
+                : { html: A.htmlItem(m.id === 'adubo' ? 'canteiro' : 'laranjeira', 24), nome: `${m.nome}${m.niveis.length > 1 ? ' ' + (ix + 1) : ''}`, tipo: 'Melhoria' });
+        });
         for (const k of S.culturas) if (k.tipo === 'cultura' && k.nivel_min === n) r.push({ html: itemDe(k, 24), nome: k.estacao ? `${k.nome} (${NOME_ESTACAO[k.estacao]})` : k.nome, tipo: 'Semente' });
         for (const i of S.itens || []) {
             if (i.nivel_min !== n) continue;
@@ -1123,6 +1131,12 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-10-17-seguranca', data: '17/10', titulo: 'Jogo mais justo e seguro', itens: [
+            'Fechamos brechas que davam diamantes, itens e XP de graça para quem mexia no jogo por fora. Quem joga normal não perde nada.',
+            '<b>Evento da semana</b>: o XP comprado com diamantes não conta mais no ranking, o convite conta quando o amigo chega ao <b>nível 10</b> e, na barraca, a mesma pessoa do outro lado vale no máximo 25% do total.',
+            '<b>Fazenda completa</b> (do 20 em diante): o XP de arar e plantar agora vem junto na colheita (+2).',
+            '<b>Calendário</b>: as moedas ficaram bem maiores (crescem com o presente do nível) e a trilha dourada troca a luva do Perks por peças do píer.',
+            'A <b>doceira</b> volta a pedir os produtos novos das oficinas, tem <b>conquista nova nos níveis 15, 30, 35 e 40</b> (quem já passou ganha na hora) e o caminho dos níveis mostra também as melhorias da fazenda.'] },
         { id: '2026-10-17-calendario', data: '17/10', titulo: 'Calendário de prêmios e mais canteiros', itens: [
             'No menu tem o <b>Calendário</b>: um prêmio por dia, 28 dias. Faltou um dia? Não perde: pega o seguinte. Os dias 7, 14, 21 e 28 dão diamantes.',
             'A <b>trilha dourada</b> (com diamantes) dá um prêmio a mais todo dia e, no dia 28, o <b>Fazendeiro de ouro</b>, que só sai lá.',
@@ -1608,7 +1622,7 @@
     const CAT_ICONE = { ranking: 'trofeu_ouro', niveis: 'ampulheta_dourada', moedas: 'cofrinho_ouro', vendeu: 'balanca_ouro', comprou: 'sacola_ouro', convites: 'leme_dourado' };
     const ITENS_EVENTO = ['trofeu_ouro', 'trofeu_prata', 'trofeu_bronze', 'ampulheta_dourada', 'cofrinho_ouro', 'balanca_ouro', 'sacola_ouro'];
     const LUGAR = ['1º', '2º', '3º'];
-    const regrasEvento = () => (S && S.evento && S.evento.regras) || { categorias: [], diamantes: [60, 35, 20], convite_nivel: 5 };
+    const regrasEvento = () => (S && S.evento && S.evento.regras) || { categorias: [], diamantes: [30, 18, 10], convite_nivel: 10 };
     const fimEvento = () => (S && S.evento && S.evento.fim ? Date.parse(S.evento.fim) : 0);
     const iconeCat = (cat, px) => itemDe(culturas[CAT_ICONE[cat]] || { id: CAT_ICONE[cat] }, px);
     const numero = (v) => Number(v || 0).toLocaleString('pt-BR');
@@ -1658,7 +1672,7 @@
                     <span class="det">${ps.map((x) => `<span>${LUGAR[x.posicao - 1]} ${esc(x.apelido)}${x.eu ? ' (você)' : ''}</span>`).join('')}</span></span></div>`;
             }).join('') + '</div>';
         }
-        return html + `<p class="aviso">Convite só conta quando o amigo chega ao nível ${reg.convite_nivel || 5}. Nas moedas, gastar não desconta. ${chance < 100 ? `Cada lugar do pódio tira a sorte: com ${chance}% de chance vem o item (o material do píer é sorteado). ` : ''}Os itens do evento não vendem no celeiro: na feira valem de 60 mil para cima. Quem mais convidou pode levar o <b>leme dourado</b>, a peça do píer. As conquistas do evento aparecem no seu perfil.</p>`;
+        return html + `<p class="aviso">Convite só conta quando o amigo chega ao nível ${reg.convite_nivel || 10}. Nas moedas, gastar não desconta, e o que entra pela barraca fica só em "vendeu". O XP comprado com diamantes (pacote de XP, trilha dourada e a metade a mais do XP em dobro) não conta no ranking nem em níveis. Na barraca, uma mesma pessoa do outro lado vale no máximo 25% do seu total. ${chance < 100 ? `Cada lugar do pódio tira a sorte: com ${chance}% de chance vem o item (o material do píer é sorteado). ` : ''}Os itens do evento não vendem no celeiro: na feira valem de 60 mil para cima. Quem mais convidou pode levar o <b>leme dourado</b>, a peça do píer. As conquistas do evento aparecem no seu perfil.</p>`;
     }
     function htmlEventoPremio() {
         const reg = regrasEvento(), nomeCat = (id) => (reg.categorias.find((c) => c.id === id) || { nome: id }).nome;
@@ -2693,10 +2707,10 @@
         const dobro = j.xp2_ate && Date.parse(j.xp2_ate) > agora();
         el.xpBar.parentElement.classList.toggle('dobro', !!dobro);
         const bonusM = j.bonus_nivel != null && j.bonus_nivel === j.nivel;   // fase 49: metas em dia
-        const completa = bonusM && j.nivel >= 20;   // fase 57: fazenda completa: +75% e arar/plantar dão XP
+        const completa = bonusM && j.nivel >= 20;   // fase 57: fazenda completa: +75% e arar/plantar dão XP (fase 70: na colheita)
         el.xpBar.parentElement.classList.toggle('bonus', bonusM);
         el.xpBar.parentElement.title = [dobro ? `XP em dobro até ${hora(j.xp2_ate)}` : '',
-            completa ? 'Fazenda completa: +75% de XP até o próximo nível, e arar e plantar também dão XP'
+            completa ? 'Fazenda completa: +75% de XP até o próximo nível, e cada colheita sua dá +2 XP (o de arar e plantar)'
                 : bonusM ? 'Metas em dia: +50% de XP até o próximo nível' : ''].filter(Boolean).join(' · ') || 'Experiência';
         if (dobro) el.xp.textContent += ' ×2';
         if (bonusM) el.xp.textContent += completa ? ' +75%' : ' +50%';
@@ -3828,7 +3842,7 @@
                     <li>No <b>Calendário</b> (no menu) tem um prêmio por dia, por 28 dias: moedas, XP, café dos ajudantes, XP em dobro e diamantes nos dias 7, 14, 21 e 28. Faltou um dia? Não perde nada: pega o seguinte. A <b>trilha dourada</b>, liberada com diamantes, dá um prêmio a mais todo dia e, no dia 28, o Fazendeiro de ouro.</li>
                     <li>No <b>Chat</b> (no menu) você conversa com todos os jogadores; as mensagens somem em 1 hora. Do nível 5 em diante dá para escrever e <b>pedir um item</b> (quantos e quanto paga cada): quem tiver toca em <b>Vender</b> e o lote vai para a barraca dele, separado para você por 2 horas (depois vira anúncio normal). Sem palavrão e sem link; dá para silenciar alguém.</li>
                     <li>Na <b>Feira</b> (no menu) os jogadores vendem uns para os outros: anuncie um lote do celeiro com o seu preço (entre metade e o triplo da venda normal) e compre de outros o que falta para as suas receitas. Quem vende recebe tudo; o anúncio dura 2 dias. Toda fazenda já tem uma <b>barraca na feira</b>, na clareira da mata à esquerda do celeiro: cada barraca dá 2 anúncios e mostra em cima o que você vende. Do nível 5 em diante dá para comprar mais 3 no painel da Feira.</li>
-                    <li>Em <b>Metas</b> (no menu) está tudo o que o seu nível libera: construir cada oficina, máquina e cercado, ter cada bicho, contratar cada ajudante, comprar os terrenos e ocupar os canteiros. Com tudo em dia, <b>+50% de XP</b> até o próximo nível (do nível 20 em diante, a <b>fazenda completa</b>: <b>+75%</b>, e arar e plantar também dão XP); o que ficou dos níveis de trás também aparece lá.</li>
+                    <li>Em <b>Metas</b> (no menu) está tudo o que o seu nível libera: construir cada oficina, máquina e cercado, ter cada bicho, contratar cada ajudante, comprar os terrenos e ocupar os canteiros. Com tudo em dia, <b>+50% de XP</b> até o próximo nível (do nível 20 em diante, a <b>fazenda completa</b>: <b>+75%</b>, e cada colheita sua dá +2 XP, o de arar e plantar); o que ficou dos níveis de trás também aparece lá.</li>
                     <li>Na loja, aba <b>Melhorias</b> (do nível 23 em diante): compras caras que valem para sempre. Adubo premium (plantas mais rápidas), pomar fértil (árvores mais rápidas) e mais pés de fruta.</li>
                     <li>Toque numa planta crescendo para abrir o menu dela: quanto falta, <b>colher agora</b> por 1 ${ico('diamante', 14)} diamante (fica pronta na hora e vai para o celeiro), <b>arrancar</b>, ou arrancar e plantar a semente escolhida. Você começa com 10 diamantes e ganha 5 a cada nível. Em <b>Loja → Diamantes</b> eles também compram <b>XP em dobro</b> por 1 hora, um <b>pacote de XP</b> (até 3 por dia), o <b>café dos ajudantes</b> (em dobro por 2 horas), <b>energia</b> cheia na hora, uma <b>oficina terminando agora</b> e <b>personagens especiais</b> para o avatar.</li>
                     <li>As plantas crescem em tempo real, mesmo com a página fechada.</li>
@@ -3836,11 +3850,11 @@
                     <li>Depois de madura, a planta <b>murcha</b> se ficar tempo demais sem colher.</li>
                     <li>Toque no <b>celeiro</b> para vender a colheita, compre sementes melhores e suba de nível para ganhar canteiros. <b>Vender produtos também dá XP</b>: 1 a cada 25 moedas (o que sai das oficinas, dos bichos, do lago e do pomar). A planta vendida não dá XP: ela já deu na colheita.</li>
                     <li>Os canteiros ficam onde você quiser: <b>Construir → Plantação</b> para colocar, <b>Mover</b> para mudar de lugar. Lado a lado eles viram fileiras.</li>
-                    <li>Na loja, aba <b>Terrenos</b>, compre pedaços da mata em volta para a fazenda crescer (e ganhar mais canteiros). São 6 terrenos, e os três últimos são grandes.</li>
+                    <li>Na loja, aba <b>Terrenos</b>, compre pedaços da mata em volta para a fazenda crescer (e ganhar mais canteiros). São 7 terrenos, e os últimos são grandes (o 7º é o Litoral, com a praia).</li>
                     <li>Todo item do Construir faz alguma coisa: evita seca, praga ou erva, adianta o crescimento, dá itens e XP extras, protege dos vizinhos ou aumenta a <b>beleza</b> (bônus nas vendas). Toque num item para ver o que ele faz.</li>
                     <li>Na loja, aba <b>Ajudantes</b>: contrate pessoas que aram, plantam, cuidam, colhem e tratam dos animais sozinhas (12 tarefas por hora no nível 1, 30 no 2 e 90 no 3). Os cuidadores de bicho (Dona Cida, Nina, Bento, Pedrinho, Lia e Tonho) deixam a espécie deles mais rápida: −10% no tempo por nível, somando com o fardo de feno. O <b>Seu Zé</b> também aduba os canteiros crescendo: +1 item na colheita; o <b>Juca</b> colhe também o pomar. A <b>Dona Lurdes</b> (operária, nível 12) cuida das oficinas: leva o que ficou pronto para o celeiro e enche o estoque delas; o <b>Faísca</b> (eletricista, nível 17) faz tudo o que é elétrico gastar menos. Ajudante não gasta energia. Com a fazenda aberta, dá para ver cada um indo até onde trabalhou.</li>
                     <li>Em <b>Construir → Oficinas</b> tem uma oficina para cada matéria-prima: padaria, queijaria, conservas, prensa de óleo, peixaria, defumadouro, casa de sucos, sorveteria, ateliê de penas, cozinha de moqueca, empório (que usa o óleo da prensa), adega e outras. Toque nela para abrir o painel: guarde ingredientes no <b>estoque</b> (até 10 receitas) e ela trabalha sozinha, uma receita atrás da outra. O painel mostra quanto valem os ingredientes, quanto vale o produto e o <b>lucro</b>. Quando aparecer o balão, toque para pegar.</li>
-                    <li>Fruta só dá no pé: em <b>Construir → Pomar</b> tem amoreira, laranjeira, limoeiro, goiabeira e, do nível 26 ao 29, mangueira, abacateiro, cacaueiro e jabuticabeira. Cada árvore dá frutas sozinha: quando aparecer o balão, toque nela para colher. Cada fruta tem <b>1 pé</b>, e mais 1 a cada 2 terrenos comprados (até 4 de cada): quanto mais terreno, maior o pomar. Para colher sozinho: um <b>baú</b> encostado na árvore, com energia, colhe e guarda (e manda pela rede de canos); ou o <b>Juca</b> (colhedor) colhe as que não têm baú e leva para o celeiro.</li>
+                    <li>Fruta só dá no pé: em <b>Construir → Pomar</b> tem amoreira, laranjeira, limoeiro, goiabeira e, do nível 26 ao 29, mangueira, abacateiro, cacaueiro e jabuticabeira. Cada árvore dá frutas sozinha: quando aparecer o balão, toque nela para colher. Cada fruta tem <b>1 pé</b>, e mais 1 a cada 2 terrenos comprados (até 4 de cada; com a melhoria <b>Mais pés de fruta</b>, até 6): quanto mais terreno, maior o pomar. Para colher sozinho: um <b>baú</b> encostado na árvore, com energia, colhe e guarda (e manda pela rede de canos); ou o <b>Juca</b> (colhedor) colhe as que não têm baú e leva para o celeiro.</li>
                     <li>Em <b>Construir → Máquinas</b>: irrigador, pulverizador e robô capinador evitam seca, pragas e ervas por perto; o alarme protege dos vizinhos; trator e colheitadeira ajudam na fazenda toda.</li>
                     <li>Na loja tem <b>animais</b> (até 5 de cada; cada um sai 50% mais caro que o anterior). Cada bicho mora no <b>cercado</b> dele: construa o cercado da espécie em <b>Construir → Bichos</b> antes de comprar (quem já tinha bicho sem cercado ganha o primeiro de graça, e os bichos ficam no galinheiro ou no pasto antigo até ele ficar pronto). Cercado com bicho dentro não dá para desmanchar, só mudar de lugar. Dê ração (sai do celeiro) e colete ovos, leite e lã. No celeiro, <b>Reservar</b> guarda a ração deles para não ir junto no "Vender tudo".</li>
                     <li>No botão <b>Construir</b> você coloca cercas, caminhos, árvores, flores e objetos onde quiser. Toque em <b>Pronto</b> para fechar.</li>
@@ -3858,7 +3872,7 @@
                     <li>Com o píer pronto, toque no <b>barco</b> para ir para o <b>alto-mar</b>: toque na água para lançar a linha, espere a boia <b>afundar de verdade</b> (às vezes o peixe só belisca) e toque de novo na hora para fisgar. Cada lançada usa 1 peixe do <b>cardume</b>, que enche sozinho com o tempo. Em <b>Melhorar</b>: barco maior (cardume maior e peixes novos), vara melhor (mais tempo para fisgar e peixes maiores) e o marinheiro <b>Seu Nonato</b>, que pesca sozinho por até 8 horas (toque no barquinho dele para recolher). 1 em cada 200 peixes vem com uma <b>pérola negra</b>.</li>
                     <li>Bem de vez em quando (1 em cada 30 visitas) aparece o <b>Perks</b>, o 1º do ranking: ele pede muita planta fácil (tipo 1000 milhos) e paga com 4 <b>luvas do Perks</b>. Visitando um vizinho, cada luva pega 1 canteiro mesmo com alarme (só gasta no canteiro protegido). E quando uma planta murcha sem ninguém colher, o jogo diz por quê: sem colhedor, o Juca dormindo, a fazenda fechada mais de 8 h ou canteiro demais para o nível dele.</li>
                     <li>Em <b>Melhorar</b>, no alto-mar, também dá para <b>tunar o barco</b> com peças que pedem moedas e materiais raros (os do mercador, a pérola negra e o marlim-azul): <b>motor</b> (o cardume enche mais rápido), <b>sonar</b> (mais peixe grande e mais pérola), <b>porão</b> (às vezes 2 peixes numa fisgada), <b>rede de arrasto</b> (o marinheiro pesca mais rápido) e o <b>kit de expedição</b>, que deixa o barco oceânico pronto para as ilhas do nível 46. A <b>pintura</b> muda a cor do casco, da faixa e a bandeira.</li>
-                    <li>Toda semana tem o <b>evento</b> (no menu): de sexta às 22h até a sexta seguinte às 22h, os 3 primeiros de cada categoria ganham diamantes (30, 18 e 10) e cada um tem 50% de chance de levar um item raro: o 1º, o item que só sai do evento; o 2º e o 3º, um material do píer (no ranking, os troféus de prata e bronze). As categorias: XP ganho na semana (troféus de ouro, prata e bronze), níveis subidos, moedas ganhas, vendas e compras na barraca da feira e amigos convidados que chegaram ao nível 5 (o 1º pode levar o <b>leme dourado</b>, a peça do píer). Os troféus e as conquistas do evento ficam no perfil.</li>
+                    <li>Toda semana tem o <b>evento</b> (no menu): de sexta às 22h até a sexta seguinte às 22h, os 3 primeiros de cada categoria ganham diamantes (30, 18 e 10) e cada um tem 50% de chance de levar um item raro: o 1º, o item que só sai do evento; o 2º e o 3º, um material do píer (no ranking, os troféus de prata e bronze). As categorias: XP ganho na semana (troféus de ouro, prata e bronze), níveis subidos, moedas ganhas, vendas e compras na barraca da feira e amigos convidados que chegaram ao nível 10 (o 1º pode levar o <b>leme dourado</b>, a peça do píer). O XP comprado com diamantes não conta no ranking nem em níveis, e na barraca uma mesma pessoa do outro lado vale no máximo 25% do total. Os troféus e as conquistas do evento ficam no perfil.</li>
                     <li>Cumpra as <b>missões do dia</b> para ganhar moedas e XP extras.</li>
                     <li>Cada nível libera coisas novas e dá um presente de moedas. Toque no seu nome, lá em cima, para abrir o <b>Perfil</b>: lá estão o <b>caminho dos níveis</b>, as conquistas, o seu convite e o botão de <b>personalizar o avatar</b> (fazendeiro, fazendeira, rapaz, mago, viking ou cavaleiro, com as cores que quiser).</li>
                     <li>Em <b>Vizinhos</b> você visita outras fazendas: <b>pega</b> um pouco da colheita madura ou <b>ajuda</b> com os problemas e ganha XP.</li>
@@ -3907,7 +3921,7 @@
             const falta = j.xp_proximo - j.xp;
             corpo.innerHTML = `
                 <p>Você está no nível <b>${j.nivel}</b>${j.nivel < NIVEL_MAX ? `: faltam <b>${falta}</b> ${ico('xp', 14)} para o próximo.` : '. Fazenda completa!'}</p>
-                <p class="aviso">Colher, cuidar dos canteiros, os animais, as missões e vender produtos dão XP. Cada nível traz um presente de moedas e 5 diamantes. Do nível 10 em diante cada nível pede mais XP que o anterior (do 16 em diante, 35% a mais a cada nível), e o presente dobra.</p>
+                <p class="aviso">Colher, cuidar dos canteiros, os animais, as missões e vender produtos dão XP. Cada nível traz um presente de moedas e 5 diamantes. Do nível 10 em diante cada nível pede mais XP que o anterior (do 16 ao 25, 35% a mais a cada nível; do 25 em diante, 7%), e do 11 em diante o presente dobra. O 45 é o último nível.</p>
                 <ol class="caminho">${Array.from({ length: NIVEL_MAX }, (_, i) => i + 1).map((n) => {
                     const x = extrasDoNivel(n);
                     const lista = liberaNoNivel(n);
@@ -4291,7 +4305,8 @@
         if ((p.tipo === 'xp' || p.tipo === 'xp2') && n >= NIVEL_MAX) p = { tipo: 'moedas', qtd: 50 };   // igual ao servidor
         const k = p.item ? culturas[p.item] || { id: p.item, nome: p.item } : null;
         switch (p.tipo) {
-            case 'moedas': return { html: ico('moeda', 16), curto: numero(p.qtd * n), longo: `${numero(p.qtd * n)} moedas` };
+            case 'moedas': { const m = p.qtd * Math.max(Math.floor(presenteNivel(n) / 10), 1);   // fase 70: um décimo do presente do nível
+                return { html: ico('moeda', 16), curto: numero(m), longo: `${numero(m)} moedas` }; }
             case 'diamantes': return { html: ico('diamante', 16), curto: String(p.qtd), longo: `${p.qtd} diamantes` };
             case 'xp': return { html: ico('xp', 16), curto: `${p.qtd}%`, longo: `${p.qtd}% do XP do nível` };
             case 'xp2': return { html: ico('xp', 16), curto: `×2 ${tempoCal(p.qtd)}`, longo: `XP em dobro por ${tempoCal(p.qtd)}` };
@@ -4536,9 +4551,9 @@
         const faltam = metas.filter((m) => !m.feito).length;
         return `${bonusMetas()
                 ? (n >= 20   // fase 57: fazenda completa
-                    ? `<p class="aviso"><b>Fazenda completa!</b> Até o nível ${n + 1}, todo XP vem com <b>+75%</b>, e arar e plantar também dão XP. No próximo nível chegam metas novas: cumpra de novo para manter o bônus.</p>`
+                    ? `<p class="aviso"><b>Fazenda completa!</b> Até o nível ${n + 1}, todo XP vem com <b>+75%</b>, e cada colheita sua dá <b>+2 XP</b> a mais (o de arar e plantar). No próximo nível chegam metas novas: cumpra de novo para manter o bônus.</p>`
                     : `<p class="aviso"><b>Tudo em dia!</b> Até o nível ${n + 1}, todo XP vem com <b>+50%</b>. No próximo nível chegam metas novas: cumpra de novo para manter o bônus.</p>`)
-                : `<p class="aviso">Faltam <b>${faltam}</b> meta${faltam === 1 ? '' : 's'}. Com tudo o que o seu nível libera em dia, você ganha <b>${n >= 20 ? '+75% de XP e XP também por arar e plantar' : '+50% de XP'}</b> até o próximo nível.</p>`}
+                : `<p class="aviso">Faltam <b>${faltam}</b> meta${faltam === 1 ? '' : 's'}. Com tudo o que o seu nível libera em dia, você ganha <b>${n >= 20 ? '+75% de XP e +2 XP em cada colheita' : '+50% de XP'}</b> até o próximo nível.</p>`}
             <h3 class="secao-titulo">Nível ${n}</h3><div class="lista">${doNivel.map(linha).join('')}</div>
             ${deTras.length ? `<h3 class="secao-titulo">Ficaram para trás (${deTras.length})</h3><div class="lista">${deTras.map(linha).join('')}</div>` : ''}
             ${feitas ? `<p class="det">${feitas} meta${feitas === 1 ? '' : 's'} dos níveis anteriores já cumprida${feitas === 1 ? '' : 's'}.</p>` : ''}`;
@@ -5671,6 +5686,7 @@
         mostrarErroEntrada('');
         try {
             const r = await rpc(fn, args);
+            if (!r || !r.token) throw Object.assign(new Error(ERROS[r && r.message] || 'Algo deu errado na fazenda.'), { code: r && r.message });
             token = r.token;
             store.set(LS.token, token);
             aplicarEstado(r.estado);
