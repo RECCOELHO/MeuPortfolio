@@ -1279,7 +1279,7 @@ declare
   v_ce     text;
 begin
   -- chovendo agora: a chuva rega tudo (some a seca dos canteiros)
-  if fazenda_clima_em(now()) = 'chuva' then
+  if fazenda_clima_agora() = 'chuva' then   -- (fase 71: uma conta por chamada)
     update fazenda_canteiros set seco = false where jogador_id = p_jogador and estado = 'plantado' and seco;
   end if;
   for r in
@@ -1368,7 +1368,8 @@ declare
   v_max   int;
   v_json  jsonb;
   v_ener  real;
-  v_clima jsonb := fazenda_clima_previsao(now());
+  v_prev  jsonb := fazenda_previsao_agora();   -- fase 71: a previsão do clima e do vento, pronta (uma por minuto)
+  v_clima jsonb := v_prev->'clima';
   v_metas jsonb;
   v_bonus int;
 begin
@@ -1513,7 +1514,7 @@ begin
     'energia', jsonb_build_object(
       'carga', round(v_ener::numeric, 1),
       'calmo', fazenda_vento_calmo(now()),   -- fase 48: sem vento agora (a turbina quase para)
-      'vento', fazenda_vento_previsao(now()),
+      'vento', v_prev->'vento',
       'capacidade', fazenda_capacidade(p_jogador),
       'por_hora', fazenda_energia_taxa(p_jogador, now()) + 50 * (
         select count(*) from fazenda_construcoes c join fazenda_itens i on i.id = c.tipo
@@ -1549,27 +1550,18 @@ begin
     'reservas', coalesce((
       select jsonb_object_agg(item, quantidade)
         from fazenda_reservas where jogador_id = p_jogador), '{}'::jsonb),
-    'culturas', (
-      select jsonb_agg(jsonb_build_object(
-               'id', id, 'nome', nome, 'emoji', emoji, 'tempo_seg', tempo_seg,
-               'custo', custo, 'venda', venda, 'rendimento', rendimento,
-               'xp', xp, 'nivel_min', nivel_min, 'tipo', tipo, 'estacao', estacao)
-             order by ordem)
-        from fazenda_culturas),
+    'culturas', fazenda_cache_ler('culturas'),   -- fase 71: os catálogos vêm prontos (fazenda_cache)
     'animais', coalesce((
       select jsonb_agg(jsonb_build_object('id', id, 'tipo', tipo, 'alimentado_em', alimentado_em,
                'radioativo_ate', case when radioativo_ate > now() then radioativo_ate end) order by id)   -- fase 68
         from fazenda_animais where jogador_id = p_jogador), '[]'::jsonb),
-    'animais_tipos', (
-      select jsonb_agg(to_jsonb(t) order by t.ordem) from fazenda_animais_tipos t),
+    'animais_tipos', fazenda_cache_ler('animais_tipos'),
     'construcoes', coalesce((
       select jsonb_agg(jsonb_build_object('x', x, 'y', y, 'tipo', tipo, 'colhido_em', colhido_em, 'iniciado_em', iniciado_em,
                                           'estoque', estoque, 'prontos', prontos))
         from fazenda_construcoes where jogador_id = p_jogador), '[]'::jsonb),
     'estoque_max', fazenda_estoque_max(),
-    'itens', (   -- fase 57: o limite que vale para o nível de agora
-      select jsonb_agg(to_jsonb(t) || jsonb_build_object('limite', fazenda_limite_maquina(t.id, t.limite, v_nivel)) order by t.ordem)
-        from fazenda_itens t),
+    'itens', fazenda_cache_itens(v_nivel),   -- fase 57: o limite que vale para o nível de agora (fase 71: pronto, um por nível)
     'melhorias', coalesce((select jsonb_object_agg(id, nivel) from fazenda_melhorias where jogador_id = p_jogador), '{}'::jsonb),
     'camas', jsonb_build_object('total', fazenda_camas(p_jogador), 'ocupadas', fazenda_camas_ocupadas(p_jogador)),   -- fase 59
     'pier', jsonb_build_object('pronto', j.pier_em is not null, 'receita', fazenda_pier_receita()),   -- fase 61
@@ -1609,14 +1601,13 @@ begin
                            from fazenda_semana_premios where jogador_id = p_jogador and not visto), '[]'::jsonb),
       'trofeus', fazenda_trofeus(p_jogador),
       'regras', fazenda_evento_regras()),
-    'melhorias_tipos', fazenda_melhorias_tipos(),
+    'melhorias_tipos', fazenda_cache_ler('melhorias_tipos'),
     'estatisticas', (select to_jsonb(e) - 'jogador_id' || jsonb_build_object('energia', e.energia + floor(j.energia_gasta)::int)
                        from fazenda_estatisticas e where e.jogador_id = p_jogador),
     'conquistas', coalesce((
       select jsonb_agg(jsonb_build_object('id', conquista, 'em', obtida_em) order by obtida_em)
         from fazenda_conquistas where jogador_id = p_jogador), '[]'::jsonb),
-    'conquistas_tipos', (
-      select jsonb_agg(to_jsonb(t) order by t.ordem) from fazenda_conquistas_tipos t),
+    'conquistas_tipos', fazenda_cache_ler('conquistas_tipos'),
     'criado_em', j.criado_em,
     'missoes', coalesce((
       select jsonb_agg(jsonb_build_object(
@@ -1631,8 +1622,7 @@ begin
                'hoje', coalesce((select f.feito from fazenda_ajudantes_feito f where f.jogador_id = p_jogador and f.tipo = h.tipo and f.dia = fazenda_hoje()), '{}'::jsonb),
                'ontem', coalesce((select f.feito from fazenda_ajudantes_feito f where f.jogador_id = p_jogador and f.tipo = h.tipo and f.dia = fazenda_hoje() - 1), '{}'::jsonb)))
         from fazenda_ajudantes h where h.jogador_id = p_jogador), '[]'::jsonb),
-    'ajudantes_tipos', (
-      select jsonb_agg(to_jsonb(t) order by t.ordem) from fazenda_ajudantes_tipos t)
+    'ajudantes_tipos', fazenda_cache_ler('ajudantes_tipos')
   );
   -- o relatório (o que fizeram enquanto você estava fora) aparece uma vez só
   update fazenda_ajudantes set relatorio = 0 where jogador_id = p_jogador and relatorio > 0;
@@ -1810,7 +1800,7 @@ begin
     -- cada problema não resolvido custa 1 unidade; o que os vizinhos pegaram também sai
     v_qtd := greatest(k.rendimento - (c.erva::int + c.praga::int + c.seco::int) - c.roubado, 1)
              + fazenda_tem_efeito(p_jogador, 'colheita')::int          -- colheitadeira
-             + (fazenda_clima_em(now()) = 'sol')::int                    -- colheita no sol
+             + (fazenda_clima_agora() = 'sol')::int                      -- colheita no sol (fase 71: uma conta por chamada)
              + fazenda_protegido(p_jogador, 'adubo', c.x, c.y)::int     -- cogumelos, barril, colmeia
              + c.adubado::int;                                          -- adubo do Seu Zé
     if fazenda_protegido(p_jogador, 'sorte', c.x, c.y) and random() < 0.15 then
@@ -2530,8 +2520,13 @@ declare
   v_qtd   int;
   v_livre int;
   v_peixes jsonb;
+  v_seguro boolean;   -- fase 71
 begin
   for b in select x, y from fazenda_construcoes where jogador_id = p_jogador and tipo = 'bau' loop
+   -- fase 71: cada baú num lote só (modo rápido); deu erro, o lote volta e é refeito no modo seguro
+   for v_tent in 1..2 loop
+    v_seguro := v_tent = 2;
+    begin
     v_livre := fazenda_bau_livre(p_jogador, b.x, b.y);
     -- canteiros: o bloco encostado no baú (canteiros encostados uns nos outros)
     for k in
@@ -2549,11 +2544,17 @@ begin
          and now() < c.plantado_em + make_interval(secs => u.tempo_seg + greatest(u.tempo_seg * 2, 3600))
     loop
       exit when v_livre <= 0 or not fazenda_gastar_energia(p_jogador, 2);
-      begin
-        v_qtd := fazenda_aplicar(p_jogador, 'colher', k.posicao, null, true);   -- cai no celeiro...
-        perform fazenda_bau_guardar(p_jogador, b.x, b.y, k.cultura, v_qtd, k.x, k.y);   -- ...e passa para o baú
+      if v_seguro then
+        begin
+          v_qtd := fazenda_aplicar(p_jogador, 'colher', k.posicao, null, true);   -- cai no celeiro...
+          perform fazenda_bau_guardar(p_jogador, b.x, b.y, k.cultura, v_qtd, k.x, k.y);   -- ...e passa para o baú
+          v_livre := v_livre - v_qtd;
+        exception when others then null; end;
+      else
+        v_qtd := fazenda_aplicar(p_jogador, 'colher', k.posicao, null, true);
+        perform fazenda_bau_guardar(p_jogador, b.x, b.y, k.cultura, v_qtd, k.x, k.y);
         v_livre := v_livre - v_qtd;
-      exception when others then null; end;
+      end if;
     end loop;
 
     -- cercados encostados: coleta o produto (para o baú) e dá ração (do baú, se ele tiver; senão do celeiro)
@@ -2567,7 +2568,32 @@ begin
          and (((b.x = p.x - 1 or b.x = p.x + i.largura) and b.y between p.y and p.y + i.altura - 1)
            or ((b.y = p.y - 1 or b.y = p.y + i.altura) and b.x between p.x and p.x + i.largura - 1))
     loop
-      begin
+      if v_seguro then
+        begin
+          if m.alimentado_em is not null and now() >= m.alimentado_em + make_interval(secs => m.tempo_seg)
+             and v_livre > 0 and fazenda_gastar_energia(p_jogador, 2) then
+            perform fazenda_animal_um(p_jogador, m.id, 'coletar', true);
+            perform fazenda_bau_guardar(p_jogador, b.x, b.y, m.produto, 1, m.px, m.py);
+            v_livre := v_livre - 1;
+            m.alimentado_em := null;
+          end if;
+        exception when others then null;
+        end;
+        begin
+          if m.alimentado_em is null and fazenda_energia_atualizar(p_jogador) >= fazenda_energia_preco(p_jogador, 2) then
+            if coalesce((select quantidade from fazenda_bau_itens where jogador_id = p_jogador and x = b.x and y = b.y and item = m.racao), 0) >= m.racao_qtd then
+              update fazenda_bau_itens set quantidade = quantidade - m.racao_qtd where jogador_id = p_jogador and x = b.x and y = b.y and item = m.racao;
+              insert into fazenda_celeiro (jogador_id, item, quantidade) values (p_jogador, m.racao, m.racao_qtd)   -- passa pelo celeiro
+              on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
+              perform fazenda_viagem(p_jogador, m.racao, m.racao_qtd, b.x, b.y, m.px, m.py, true, now());
+              v_livre := v_livre + m.racao_qtd;
+            end if;
+            perform fazenda_animal_um(p_jogador, m.id, 'alimentar', true);   -- sem ração: pula (e desfaz o de cima)
+            perform fazenda_gastar_energia(p_jogador, 2);
+          end if;
+        exception when others then null;
+        end;
+      else
         if m.alimentado_em is not null and now() >= m.alimentado_em + make_interval(secs => m.tempo_seg)
            and v_livre > 0 and fazenda_gastar_energia(p_jogador, 2) then
           perform fazenda_animal_um(p_jogador, m.id, 'coletar', true);
@@ -2575,22 +2601,22 @@ begin
           v_livre := v_livre - 1;
           m.alimentado_em := null;
         end if;
-      exception when others then null;
-      end;
-      begin
-        if m.alimentado_em is null and fazenda_energia_atualizar(p_jogador) >= fazenda_energia_preco(p_jogador, 2) then
-          if coalesce((select quantidade from fazenda_bau_itens where jogador_id = p_jogador and x = b.x and y = b.y and item = m.racao), 0) >= m.racao_qtd then
-            update fazenda_bau_itens set quantidade = quantidade - m.racao_qtd where jogador_id = p_jogador and x = b.x and y = b.y and item = m.racao;
-            insert into fazenda_celeiro (jogador_id, item, quantidade) values (p_jogador, m.racao, m.racao_qtd)   -- passa pelo celeiro
-            on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
-            perform fazenda_viagem(p_jogador, m.racao, m.racao_qtd, b.x, b.y, m.px, m.py, true, now());
-            v_livre := v_livre + m.racao_qtd;
+        -- (no modo rápido, só tenta a ração que existe: no baú ou no celeiro)
+        if coalesce((select quantidade from fazenda_bau_itens where jogador_id = p_jogador and x = b.x and y = b.y and item = m.racao), 0) >= m.racao_qtd
+           or coalesce((select quantidade from fazenda_celeiro where jogador_id = p_jogador and item = m.racao), 0) >= m.racao_qtd then
+          if m.alimentado_em is null and fazenda_energia_atualizar(p_jogador) >= fazenda_energia_preco(p_jogador, 2) then
+            if coalesce((select quantidade from fazenda_bau_itens where jogador_id = p_jogador and x = b.x and y = b.y and item = m.racao), 0) >= m.racao_qtd then
+              update fazenda_bau_itens set quantidade = quantidade - m.racao_qtd where jogador_id = p_jogador and x = b.x and y = b.y and item = m.racao;
+              insert into fazenda_celeiro (jogador_id, item, quantidade) values (p_jogador, m.racao, m.racao_qtd)   -- passa pelo celeiro
+              on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
+              perform fazenda_viagem(p_jogador, m.racao, m.racao_qtd, b.x, b.y, m.px, m.py, true, now());
+              v_livre := v_livre + m.racao_qtd;
+            end if;
+            perform fazenda_animal_um(p_jogador, m.id, 'alimentar', true);   -- sem ração: pula (e desfaz o de cima)
+            perform fazenda_gastar_energia(p_jogador, 2);
           end if;
-          perform fazenda_animal_um(p_jogador, m.id, 'alimentar', true);   -- sem ração: pula (e desfaz o de cima)
-          perform fazenda_gastar_energia(p_jogador, 2);
         end if;
-      exception when others then null;
-      end;
+      end if;
     end loop;
 
     -- árvores do pomar (e a amoreira) encostadas: colhe as frutas prontas
@@ -2622,6 +2648,11 @@ begin
         end loop;
       end if;
     end if;
+    exit;   -- deu certo: o próximo baú
+    exception when others then
+      if v_seguro then raise; end if;
+    end;
+   end loop;
   end loop;
 end;
 $$;
@@ -2638,6 +2669,7 @@ declare
   cc    record;
   m     record;
   v_sem text;
+  v_seguro boolean;   -- fase 71
 begin
   perform fazenda_energia_atualizar(p_jogador);
   delete from fazenda_viagens where jogador_id = p_jogador and criada_em < now() - interval '10 minutes';
@@ -2651,6 +2683,10 @@ begin
     select c.x, c.y, i.raio from fazenda_construcoes c join fazenda_itens i on i.id = c.tipo
      where c.jogador_id = p_jogador and i.efeito = 'robo'
   loop
+   -- fase 71: cada robô num lote só (modo rápido); deu erro, volta e refaz no modo seguro
+   for v_tent in 1..2 loop
+    v_seguro := v_tent = 2;
+    begin
     for cc in
       select x.posicao, x.estado, x.cultura,
              coalesce(x.estado = 'plantado'
@@ -2661,29 +2697,50 @@ begin
        order by x.posicao
     loop
       if cc.maduro then
-        begin   -- colhe (e ara, se não tiver trator): 4 ⚡ (fase 43; era 3)
+        if v_seguro then
+          begin   -- colhe (e ara, se não tiver trator): 4 ⚡ (fase 43; era 3)
+            if not fazenda_gastar_energia(p_jogador, 4) then exit; end if;
+            perform fazenda_aplicar(p_jogador, 'colher', cc.posicao, null, true);
+            if (select estado from fazenda_canteiros where jogador_id = p_jogador and posicao = cc.posicao) = 'vazio' then
+              perform fazenda_aplicar(p_jogador, 'arar', cc.posicao, null, true);
+            end if;
+          exception when others then null;
+          end;
+          begin   -- replanta a mesma semente (paga com suas moedas): 2 ⚡
+            if fazenda_gastar_energia(p_jogador, 2) then
+              perform fazenda_aplicar(p_jogador, 'plantar', cc.posicao, cc.cultura, true);
+            end if;
+          exception when others then null;
+          end;
+        else
           if not fazenda_gastar_energia(p_jogador, 4) then exit; end if;
           perform fazenda_aplicar(p_jogador, 'colher', cc.posicao, null, true);
           if (select estado from fazenda_canteiros where jogador_id = p_jogador and posicao = cc.posicao) = 'vazio' then
             perform fazenda_aplicar(p_jogador, 'arar', cc.posicao, null, true);
           end if;
-        exception when others then null;
-        end;
-        begin   -- replanta a mesma semente (paga com suas moedas): 2 ⚡
-          if fazenda_gastar_energia(p_jogador, 2) then
+          -- (no modo rápido, só replanta o que dá: estação, estufa, nível e moedas)
+          if fazenda_bot_pode_plantar(p_jogador, cc.cultura, cc.posicao) and fazenda_gastar_energia(p_jogador, 2) then
             perform fazenda_aplicar(p_jogador, 'plantar', cc.posicao, cc.cultura, true);
           end if;
-        exception when others then null;
-        end;
+        end if;
       elsif cc.estado = 'arado' and v_sem is not null then
-        begin   -- canteiro arado vazio: planta a última semente que você usou (2 ⚡)
-          if fazenda_gastar_energia(p_jogador, 2) then
-            perform fazenda_aplicar(p_jogador, 'plantar', cc.posicao, v_sem, true);
-          end if;
-        exception when others then null;
-        end;
+        if v_seguro then
+          begin   -- canteiro arado vazio: planta a última semente que você usou (2 ⚡)
+            if fazenda_gastar_energia(p_jogador, 2) then
+              perform fazenda_aplicar(p_jogador, 'plantar', cc.posicao, v_sem, true);
+            end if;
+          exception when others then null;
+          end;
+        elsif fazenda_bot_pode_plantar(p_jogador, v_sem, cc.posicao) and fazenda_gastar_energia(p_jogador, 2) then
+          perform fazenda_aplicar(p_jogador, 'plantar', cc.posicao, v_sem, true);
+        end if;
       end if;
     end loop;
+    exit;   -- deu certo: o próximo robô
+    exception when others then
+      if v_seguro then raise; end if;
+    end;
+   end loop;
   end loop;
 end;
 $$;
@@ -2696,6 +2753,11 @@ $$;
 
 -- Os ajudantes fazem o trabalho acumulado desde a última vez (até 8 horas).
 -- Roda quando a fazenda carrega (abrir a página e a cada 30 s com ela aberta).
+-- Fase 71: cada ajudante trabalha num lote só. Primeiro no modo rápido: cada tarefa direto, sem o
+-- "exception" em volta de cada uma (cada um abria uma sub-transação; com centenas delas numa chamada o
+-- banco ficava lento para todo mundo e a volta depois de horas fora passava dos 3 s). Se alguma tarefa
+-- der erro, o lote daquele ajudante volta e é refeito no modo seguro, cada tarefa protegida como antes.
+-- O resultado é o mesmo. A estação sai uma vez só e a semeadora conta as sementes plantadas uma vez só.
 create or replace function public.fazenda_trabalhar(p_jogador uuid)
 returns void
 language plpgsql security definer
@@ -2719,6 +2781,10 @@ declare
   v_cama  boolean;           -- fase 59: cansou e tem cama livre numa casinha
   v_log   jsonb;             -- fase 59: o que ele fez nesta rodada ({"colheu": 3, ...})
   v_reg   boolean := false;  -- fase 66: as murchas já foram registradas nesta rodada?
+  v_seguro boolean;          -- fase 71: refazendo o lote no modo seguro?
+  v_est   text := fazenda_estacao_em(now());   -- fase 71: a estação de agora (uma vez só)
+  v_cont  jsonb;             -- fase 71: quantos canteiros de cada semente (o rodízio da semeadora)
+  v_moedas int;
 begin
   select cafe_de, cafe_ate into v_cafe_de, v_cafe_ate from fazenda_jogadores where id = p_jogador;
   for a in
@@ -2739,203 +2805,218 @@ begin
        where jogador_id = p_jogador and tipo = a.tipo;
       a.energia := 100; a.credito := 0; a.atualizado_em := a.descanso_ate;
     end if;
+    -- com o jogador na fazenda a semeadora descansa (o tempo online não conta para ela)
+    if a.funcao = 'plantar' and coalesce((select carregado_antes > now() - interval '2 minutes' from fazenda_jogadores where id = p_jogador), false) then
+      update fazenda_ajudantes set atualizado_em = now() where jogador_id = p_jogador and tipo = a.tipo;
+      continue;
+    end if;
     v_custo := 100 / (fazenda_ritmo(a.nivel) * 8);
-    v_log := '{}'::jsonb;
     -- fase 43: com o café (diamantes) o tempo dentro dele vale em dobro
     v_seg := extract(epoch from now() - a.atualizado_em)::real
            + case when v_cafe_ate is null then 0
                   else greatest(extract(epoch from least(now(), v_cafe_ate) - greatest(a.atualizado_em, v_cafe_de))::real, 0) end;
     v_cred := least(a.credito + v_seg / 3600 * fazenda_ritmo(a.nivel), fazenda_ritmo(a.nivel) * 8);
     v_n := least(floor(v_cred), floor(a.energia / v_custo + 0.001))::int;   -- fase 59: e o que a energia deixa
-    v_feito := 0;
 
-    if v_n > 0 and a.funcao = 'colher' then
-      -- fase 48: também o que murchou depois da última olhada dele (até 8 h): com a fazenda fechada ele
-      -- teria colhido a tempo; o que murcha primeiro vai primeiro
-      for c in
-        select cc.posicao, now() >= cc.plantado_em + make_interval(secs => k.tempo_seg + greatest(k.tempo_seg * 2, 3600)) as murcha
-          from fazenda_canteiros cc join fazenda_culturas k on k.id = cc.cultura
-         where cc.jogador_id = p_jogador and cc.estado = 'plantado'
-           and now() >= cc.plantado_em + make_interval(secs => k.tempo_seg)
-           and cc.plantado_em + make_interval(secs => k.tempo_seg + greatest(k.tempo_seg * 2, 3600))
-               > greatest(a.atualizado_em, now() - interval '8 hours')
-         order by cc.plantado_em + make_interval(secs => k.tempo_seg + greatest(k.tempo_seg * 2, 3600)) limit v_n
-      loop
-        begin perform fazenda_aplicar(p_jogador, case when c.murcha then 'colher_tarde' else 'colher' end, c.posicao, null, true); v_feito := v_feito + 1; v_log := fazenda_conta(v_log, 'colheu');
-        exception when others then null; end;
-      end loop;
-      -- fase 43: com o tempo que sobra, colhe as frutas do pomar (para o celeiro); a árvore encostada
-      -- num baú fica para o baú (é ela que alimenta a rede de canos)
-      if v_feito < v_n then
-        for c in
-          select k.x, k.y, k.tipo, i.produz, i.produz_qtd from fazenda_construcoes k join fazenda_itens i on i.id = k.tipo
-           where k.jogador_id = p_jogador and i.categoria = 'pomar' and i.produz is not null
-             and (k.colhido_em is null or now() >= k.colhido_em + make_interval(secs => i.produz_seg))
-             and not exists (select 1 from fazenda_construcoes b
-                              where b.jogador_id = p_jogador and b.tipo = 'bau' and abs(b.x - k.x) + abs(b.y - k.y) = 1)
-           order by k.colhido_em nulls first, k.x, k.y limit v_n - v_feito
-        loop
-          update fazenda_construcoes set colhido_em = fazenda_colhido_agora(p_jogador, c.tipo) where jogador_id = p_jogador and x = c.x and y = c.y;
-          insert into fazenda_celeiro (jogador_id, item, quantidade) values (p_jogador, c.produz, c.produz_qtd)
-          on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
-          v_feito := v_feito + 1; v_log := fazenda_conta(v_log, 'frutas');
-        end loop;
-      end if;
-
-    elsif v_n > 0 and a.funcao = 'oficina' then
-      -- fase 43, a operária: a rede anda primeiro (ela só faz o que a rede não fez)...
-      perform fazenda_oficinas_andar(p_jogador);
-      -- ...leva para o celeiro o que ficou pronto esperando...
-      for c in
-        select k.x, k.y, k.prontos, i.produz from fazenda_construcoes k join fazenda_itens i on i.id = k.tipo
-         where k.jogador_id = p_jogador and i.entradas is not null and k.prontos > 0
-         order by i.ordem, k.x, k.y
-      loop
-        exit when v_feito >= v_n;
-        insert into fazenda_celeiro (jogador_id, item, quantidade) values (p_jogador, c.produz, c.prontos)
-        on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
-        update fazenda_construcoes set prontos = 0 where jogador_id = p_jogador and x = c.x and y = c.y;
-        v_feito := v_feito + 1; v_log := fazenda_conta(v_log, 'levou', c.prontos);
-      end loop;
-      -- ...e enche o estoque com o que tem no celeiro, uma receita por vez em rodízio (a parada já começa)
-      v_ok := true;
-      while v_ok and v_feito < v_n loop
-        v_ok := false;
-        for c in
-          select k.x, k.y, i.entradas from fazenda_construcoes k join fazenda_itens i on i.id = k.tipo
-           where k.jogador_id = p_jogador and i.entradas is not null
-             and k.estoque + (k.iniciado_em is not null)::int < fazenda_estoque_max()
-           order by i.ordem, k.x, k.y
-        loop
-          exit when v_feito >= v_n;
-          if fazenda_abastecer(p_jogador, c.entradas, 1) = 1 then
-            update fazenda_construcoes
-               set iniciado_em = coalesce(iniciado_em, now()),
-                   estoque = estoque + case when iniciado_em is null then 0 else 1 end
-             where jogador_id = p_jogador and x = c.x and y = c.y;
-            v_feito := v_feito + 1; v_log := fazenda_conta(v_log, 'encheu');
-            v_ok := true;
+    for v_tent in 1..2 loop   -- fase 71: 1 = modo rápido; 2 = deu erro, refaz no modo seguro
+      v_seguro := v_tent = 2;
+      v_feito := 0;
+      v_log := '{}'::jsonb;
+      begin
+        if v_n > 0 and a.funcao = 'colher' then
+          -- fase 48: também o que murchou depois da última olhada dele (até 8 h): com a fazenda fechada ele
+          -- teria colhido a tempo; o que murcha primeiro vai primeiro
+          for c in
+            select cc.posicao, now() >= cc.plantado_em + make_interval(secs => k.tempo_seg + greatest(k.tempo_seg * 2, 3600)) as murcha
+              from fazenda_canteiros cc join fazenda_culturas k on k.id = cc.cultura
+             where cc.jogador_id = p_jogador and cc.estado = 'plantado'
+               and now() >= cc.plantado_em + make_interval(secs => k.tempo_seg)
+               and cc.plantado_em + make_interval(secs => k.tempo_seg + greatest(k.tempo_seg * 2, 3600))
+                   > greatest(a.atualizado_em, now() - interval '8 hours')
+             order by cc.plantado_em + make_interval(secs => k.tempo_seg + greatest(k.tempo_seg * 2, 3600)) limit v_n
+          loop
+            if fazenda_bot_aplicar(p_jogador, case when c.murcha then 'colher_tarde' else 'colher' end, c.posicao, null, v_seguro) is not null then
+              v_feito := v_feito + 1; v_log := fazenda_conta(v_log, 'colheu');
+            end if;
+          end loop;
+          -- fase 43: com o tempo que sobra, colhe as frutas do pomar (para o celeiro); a árvore encostada
+          -- num baú fica para o baú (é ela que alimenta a rede de canos)
+          if v_feito < v_n then
+            for c in
+              select k.x, k.y, k.tipo, i.produz, i.produz_qtd from fazenda_construcoes k join fazenda_itens i on i.id = k.tipo
+               where k.jogador_id = p_jogador and i.categoria = 'pomar' and i.produz is not null
+                 and (k.colhido_em is null or now() >= k.colhido_em + make_interval(secs => i.produz_seg))
+                 and not exists (select 1 from fazenda_construcoes b
+                                  where b.jogador_id = p_jogador and b.tipo = 'bau' and abs(b.x - k.x) + abs(b.y - k.y) = 1)
+               order by k.colhido_em nulls first, k.x, k.y limit v_n - v_feito
+            loop
+              update fazenda_construcoes set colhido_em = fazenda_colhido_agora(p_jogador, c.tipo) where jogador_id = p_jogador and x = c.x and y = c.y;
+              insert into fazenda_celeiro (jogador_id, item, quantidade) values (p_jogador, c.produz, c.produz_qtd)
+              on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
+              v_feito := v_feito + 1; v_log := fazenda_conta(v_log, 'frutas');
+            end loop;
           end if;
-        end loop;
-      end loop;
 
-    elsif v_n > 0 and a.funcao = 'arar' then
-      for c in
-        select cc.posicao from fazenda_canteiros cc left join fazenda_culturas k on k.id = cc.cultura
-         where cc.jogador_id = p_jogador
-           and (cc.estado = 'vazio'
-                or (cc.estado = 'plantado' and now() >= cc.plantado_em + make_interval(secs => k.tempo_seg + greatest(k.tempo_seg * 2, 3600))))
-         order by cc.posicao limit v_n
-      loop
-        begin perform fazenda_aplicar(p_jogador, 'arar', c.posicao, null, true); v_feito := v_feito + 1; v_log := fazenda_conta(v_log, 'arou');
-        exception when others then null; end;
-      end loop;
-      -- sobrou tempo: aduba os canteiros que estão crescendo (+1 item na colheita de cada um)
-      if v_feito < v_n then
-        for c in
-          select cc.posicao from fazenda_canteiros cc join fazenda_culturas k on k.id = cc.cultura
-           where cc.jogador_id = p_jogador and cc.estado = 'plantado' and not cc.adubado
-             and now() < cc.plantado_em + make_interval(secs => k.tempo_seg)
-           order by cc.plantado_em limit v_n - v_feito
-        loop
-          begin perform fazenda_aplicar(p_jogador, 'adubar', c.posicao, null, true); v_feito := v_feito + 1; v_log := fazenda_conta(v_log, 'adubou');
-          exception when others then null; end;
-        end loop;
-      end if;
+        elsif v_n > 0 and a.funcao = 'oficina' then
+          -- fase 43, a operária: a rede anda primeiro (ela só faz o que a rede não fez)...
+          perform fazenda_oficinas_andar(p_jogador);
+          -- ...leva para o celeiro o que ficou pronto esperando...
+          for c in
+            select k.x, k.y, k.prontos, i.produz from fazenda_construcoes k join fazenda_itens i on i.id = k.tipo
+             where k.jogador_id = p_jogador and i.entradas is not null and k.prontos > 0
+             order by i.ordem, k.x, k.y
+          loop
+            exit when v_feito >= v_n;
+            insert into fazenda_celeiro (jogador_id, item, quantidade) values (p_jogador, c.produz, c.prontos)
+            on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
+            update fazenda_construcoes set prontos = 0 where jogador_id = p_jogador and x = c.x and y = c.y;
+            v_feito := v_feito + 1; v_log := fazenda_conta(v_log, 'levou', c.prontos);
+          end loop;
+          -- ...e enche o estoque com o que tem no celeiro, uma receita por vez em rodízio (a parada já começa)
+          v_ok := true;
+          while v_ok and v_feito < v_n loop
+            v_ok := false;
+            for c in
+              select k.x, k.y, i.entradas from fazenda_construcoes k join fazenda_itens i on i.id = k.tipo
+               where k.jogador_id = p_jogador and i.entradas is not null
+                 and k.estoque + (k.iniciado_em is not null)::int < fazenda_estoque_max()
+               order by i.ordem, k.x, k.y
+            loop
+              exit when v_feito >= v_n;
+              if fazenda_abastecer(p_jogador, c.entradas, 1) = 1 then
+                update fazenda_construcoes
+                   set iniciado_em = coalesce(iniciado_em, now()),
+                       estoque = estoque + case when iniciado_em is null then 0 else 1 end
+                 where jogador_id = p_jogador and x = c.x and y = c.y;
+                v_feito := v_feito + 1; v_log := fazenda_conta(v_log, 'encheu');
+                v_ok := true;
+              end if;
+            end loop;
+          end loop;
 
-    elsif a.funcao = 'plantar' and coalesce((select carregado_antes > now() - interval '2 minutes' from fazenda_jogadores where id = p_jogador), false) then
-      -- com o jogador na fazenda ela descansa (o tempo online não conta para ela)
-      update fazenda_ajudantes set atualizado_em = now() where jogador_id = p_jogador and tipo = a.tipo;
-      continue;
-
-    elsif v_n > 0 and a.funcao = 'plantar' then
-      v_nivel := fazenda_nivel((select xp from fazenda_jogadores where id = p_jogador));
-      for c in
-        select posicao from fazenda_canteiros
-         where jogador_id = p_jogador and estado = 'arado' order by posicao limit v_n
-      loop
-        -- rodízio com todas as sementes da estação que o nível libera: a menos plantada primeiro,
-        -- pulando as que o dinheiro não paga
-        v_ok := false;
-        for v_sem in
-          select k.id from fazenda_culturas k
-           where k.tipo = 'cultura' and k.nivel_min <= v_nivel
-             and (k.estacao is null or k.estacao = fazenda_estacao_em(now()))
-             and k.custo <= (select moedas from fazenda_jogadores where id = p_jogador)
-           order by (select count(*) from fazenda_canteiros cc
-                      where cc.jogador_id = p_jogador and cc.estado = 'plantado' and cc.cultura = k.id), k.ordem
-        loop
-          begin
-            perform fazenda_aplicar(p_jogador, 'plantar', c.posicao, v_sem, true);
-            v_feito := v_feito + 1; v_ok := true; v_log := fazenda_conta(v_log, 'plantou');
-            exit;
-          exception when others then null;
-          end;
-        end loop;
-        exit when not v_ok;   -- nenhuma semente que o dinheiro pague: para
-      end loop;
-
-    elsif v_n > 0 and a.funcao = 'cuidar' then
-      for c in
-        select cc.posicao, cc.erva, cc.praga, cc.seco from fazenda_canteiros cc join fazenda_culturas k on k.id = cc.cultura
-         where cc.jogador_id = p_jogador and cc.estado = 'plantado' and (cc.erva or cc.praga or cc.seco)
-           and now() < cc.plantado_em + make_interval(secs => k.tempo_seg + greatest(k.tempo_seg * 2, 3600))
-         order by cc.plantado_em
-      loop
-        exit when v_feito >= v_n;
-        begin
-          if c.erva and v_feito < v_n then perform fazenda_aplicar(p_jogador, 'erva', c.posicao, null, true); v_feito := v_feito + 1; v_log := fazenda_conta(v_log, 'erva'); end if;
-          if c.praga and v_feito < v_n then perform fazenda_aplicar(p_jogador, 'praga', c.posicao, null, true); v_feito := v_feito + 1; v_log := fazenda_conta(v_log, 'praga'); end if;
-          if c.seco and v_feito < v_n then perform fazenda_aplicar(p_jogador, 'seco', c.posicao, null, true); v_feito := v_feito + 1; v_log := fazenda_conta(v_log, 'seco'); end if;
-        exception when others then null;
-        end;
-      end loop;
-
-    elsif v_n > 0 and a.funcao = 'animal' then
-      for m in
-        select an.id, an.alimentado_em, t.tempo_seg from fazenda_animais an join fazenda_animais_tipos t on t.id = an.tipo
-         where an.jogador_id = p_jogador and an.tipo = a.alvo order by an.id
-      loop
-        exit when v_feito >= v_n;
-        -- coletar e dar ração em blocos separados: faltar ração não desfaz a coleta
-        begin
-          if m.alimentado_em is not null and now() >= m.alimentado_em + make_interval(secs => m.tempo_seg) then
-            perform fazenda_animal_um(p_jogador, m.id, 'coletar', true);
-            v_feito := v_feito + 1; v_log := fazenda_conta(v_log, 'coletou');
-            m.alimentado_em := null;
+        elsif v_n > 0 and a.funcao = 'arar' then
+          for c in
+            select cc.posicao from fazenda_canteiros cc left join fazenda_culturas k on k.id = cc.cultura
+             where cc.jogador_id = p_jogador
+               and (cc.estado = 'vazio'
+                    or (cc.estado = 'plantado' and now() >= cc.plantado_em + make_interval(secs => k.tempo_seg + greatest(k.tempo_seg * 2, 3600))))
+             order by cc.posicao limit v_n
+          loop
+            if fazenda_bot_aplicar(p_jogador, 'arar', c.posicao, null, v_seguro) is not null then
+              v_feito := v_feito + 1; v_log := fazenda_conta(v_log, 'arou');
+            end if;
+          end loop;
+          -- sobrou tempo: aduba os canteiros que estão crescendo (+1 item na colheita de cada um)
+          if v_feito < v_n then
+            for c in
+              select cc.posicao from fazenda_canteiros cc join fazenda_culturas k on k.id = cc.cultura
+               where cc.jogador_id = p_jogador and cc.estado = 'plantado' and not cc.adubado
+                 and now() < cc.plantado_em + make_interval(secs => k.tempo_seg)
+               order by cc.plantado_em limit v_n - v_feito
+            loop
+              if fazenda_bot_aplicar(p_jogador, 'adubar', c.posicao, null, v_seguro) is not null then
+                v_feito := v_feito + 1; v_log := fazenda_conta(v_log, 'adubou');
+              end if;
+            end loop;
           end if;
-        exception when others then null;
-        end;
-        begin
-          if m.alimentado_em is null and v_feito < v_n then
-            perform fazenda_animal_um(p_jogador, m.id, 'alimentar', true);   -- sem ração no celeiro: pula
-            v_feito := v_feito + 1; v_log := fazenda_conta(v_log, 'alimentou');
-          end if;
-        exception when others then null;
-        end;
-      end loop;
-    end if;
 
-    -- fase 46: quem não fez nada não é regravado: o crédito continua saindo do tempo desde
-    -- atualizado_em (até 8 h), igual; contratar/evoluir e o café fecham a conta antes (fazenda_ajudantes_fechar)
-    if v_feito > 0 then
-      -- fase 59: gasta a energia; sem energia para mais uma tarefa, descansa sozinho: 2 h numa cama
-      -- livre das casinhas, 4 h na sombra se todas estiverem ocupadas
-      v_energia := greatest(a.energia - v_feito * v_custo, 0);
-      v_cama := v_energia < v_custo and fazenda_camas_ocupadas(p_jogador) < fazenda_camas(p_jogador);
-      update fazenda_ajudantes
-         set credito = v_cred - v_feito, atualizado_em = now(), relatorio = relatorio + v_feito,
-             energia = v_energia,
-             descanso_ate = case when v_energia < v_custo then now() + case when v_cama then interval '2 hours' else interval '4 hours' end end,
-             descanso_motivo = case when v_energia < v_custo then 'cansou' end,
-             descanso_casa = case when v_energia < v_custo then v_cama end,
-             -- fase 66: a janela do último descanso fica guardada (para o relatório da planta murcha)
-             ultimo_descanso_de = case when v_energia < v_custo then now() else ultimo_descanso_de end,
-             ultimo_descanso_ate = case when v_energia < v_custo then now() + case when v_cama then interval '2 hours' else interval '4 hours' end else ultimo_descanso_ate end,
-             ultimo_descanso_motivo = case when v_energia < v_custo then case when v_cama then 'cama' else 'sombra' end else ultimo_descanso_motivo end
-       where jogador_id = p_jogador and tipo = a.tipo;
-      perform fazenda_ajudante_registrar(p_jogador, a.tipo, v_log);
-    end if;
+        elsif v_n > 0 and a.funcao = 'plantar' then
+          v_nivel := fazenda_nivel((select xp from fazenda_jogadores where id = p_jogador));
+          -- (fase 71: a conta de cada semente sai uma vez e anda junto com o que ela planta)
+          select coalesce(jsonb_object_agg(x.cultura, x.n), '{}'::jsonb) into v_cont
+            from (select cultura, count(*) as n from fazenda_canteiros
+                   where jogador_id = p_jogador and estado = 'plantado' group by cultura) x;
+          for c in
+            select posicao from fazenda_canteiros
+             where jogador_id = p_jogador and estado = 'arado' order by posicao limit v_n
+          loop
+            -- rodízio com todas as sementes da estação que o nível libera: a menos plantada primeiro,
+            -- pulando as que o dinheiro não paga
+            v_ok := false;
+            select moedas into v_moedas from fazenda_jogadores where id = p_jogador;
+            for v_sem in
+              select k.id from fazenda_culturas k
+               where k.tipo = 'cultura' and k.nivel_min <= v_nivel
+                 and (k.estacao is null or k.estacao = v_est)
+                 and k.custo <= v_moedas
+               order by coalesce((v_cont->>k.id)::int, 0), k.ordem
+            loop
+              if fazenda_bot_aplicar(p_jogador, 'plantar', c.posicao, v_sem, v_seguro) is not null then
+                v_feito := v_feito + 1; v_ok := true; v_log := fazenda_conta(v_log, 'plantou');
+                v_cont := v_cont || jsonb_build_object(v_sem, coalesce((v_cont->>v_sem)::int, 0) + 1);
+                exit;
+              end if;
+            end loop;
+            exit when not v_ok;   -- nenhuma semente que o dinheiro pague: para
+          end loop;
+
+        elsif v_n > 0 and a.funcao = 'cuidar' then
+          for c in
+            select cc.posicao, cc.erva, cc.praga, cc.seco from fazenda_canteiros cc join fazenda_culturas k on k.id = cc.cultura
+             where cc.jogador_id = p_jogador and cc.estado = 'plantado' and (cc.erva or cc.praga or cc.seco)
+               and now() < cc.plantado_em + make_interval(secs => k.tempo_seg + greatest(k.tempo_seg * 2, 3600))
+             order by cc.plantado_em
+          loop
+            exit when v_feito >= v_n;
+            if c.erva and v_feito < v_n and fazenda_bot_aplicar(p_jogador, 'erva', c.posicao, null, v_seguro) is not null then
+              v_feito := v_feito + 1; v_log := fazenda_conta(v_log, 'erva');
+            end if;
+            if c.praga and v_feito < v_n and fazenda_bot_aplicar(p_jogador, 'praga', c.posicao, null, v_seguro) is not null then
+              v_feito := v_feito + 1; v_log := fazenda_conta(v_log, 'praga');
+            end if;
+            if c.seco and v_feito < v_n and fazenda_bot_aplicar(p_jogador, 'seco', c.posicao, null, v_seguro) is not null then
+              v_feito := v_feito + 1; v_log := fazenda_conta(v_log, 'seco');
+            end if;
+          end loop;
+
+        elsif v_n > 0 and a.funcao = 'animal' then
+          for m in
+            select an.id, an.alimentado_em, t.tempo_seg, t.racao, t.racao_qtd from fazenda_animais an join fazenda_animais_tipos t on t.id = an.tipo
+             where an.jogador_id = p_jogador and an.tipo = a.alvo order by an.id
+          loop
+            exit when v_feito >= v_n;
+            -- coletar e dar ração separados: faltar ração não desfaz a coleta
+            if m.alimentado_em is not null and now() >= m.alimentado_em + make_interval(secs => m.tempo_seg) then
+              if fazenda_bot_animal(p_jogador, m.id, 'coletar', v_seguro) then
+                v_feito := v_feito + 1; v_log := fazenda_conta(v_log, 'coletou');
+                m.alimentado_em := null;
+              end if;
+            end if;
+            -- sem ração no celeiro: pula (fase 71: confere antes de tentar)
+            if m.alimentado_em is null and v_feito < v_n
+               and coalesce((select quantidade from fazenda_celeiro where jogador_id = p_jogador and item = m.racao), 0) >= m.racao_qtd then
+              if fazenda_bot_animal(p_jogador, m.id, 'alimentar', v_seguro) then
+                v_feito := v_feito + 1; v_log := fazenda_conta(v_log, 'alimentou');
+              end if;
+            end if;
+          end loop;
+        end if;
+
+        -- fase 46: quem não fez nada não é regravado: o crédito continua saindo do tempo desde
+        -- atualizado_em (até 8 h), igual; contratar/evoluir e o café fecham a conta antes (fazenda_ajudantes_fechar)
+        if v_feito > 0 then
+          -- fase 59: gasta a energia; sem energia para mais uma tarefa, descansa sozinho: 2 h numa cama
+          -- livre das casinhas, 4 h na sombra se todas estiverem ocupadas
+          v_energia := greatest(a.energia - v_feito * v_custo, 0);
+          v_cama := v_energia < v_custo and fazenda_camas_ocupadas(p_jogador) < fazenda_camas(p_jogador);
+          update fazenda_ajudantes
+             set credito = v_cred - v_feito, atualizado_em = now(), relatorio = relatorio + v_feito,
+                 energia = v_energia,
+                 descanso_ate = case when v_energia < v_custo then now() + case when v_cama then interval '2 hours' else interval '4 hours' end end,
+                 descanso_motivo = case when v_energia < v_custo then 'cansou' end,
+                 descanso_casa = case when v_energia < v_custo then v_cama end,
+                 -- fase 66: a janela do último descanso fica guardada (para o relatório da planta murcha)
+                 ultimo_descanso_de = case when v_energia < v_custo then now() else ultimo_descanso_de end,
+                 ultimo_descanso_ate = case when v_energia < v_custo then now() + case when v_cama then interval '2 hours' else interval '4 hours' end else ultimo_descanso_ate end,
+                 ultimo_descanso_motivo = case when v_energia < v_custo then case when v_cama then 'cama' else 'sombra' end else ultimo_descanso_motivo end
+           where jogador_id = p_jogador and tipo = a.tipo;
+          perform fazenda_ajudante_registrar(p_jogador, a.tipo, v_log);
+        end if;
+        exit;   -- deu certo: o próximo ajudante
+      exception when others then
+        if v_seguro then raise; end if;   -- (no modo seguro cada tarefa já se protege: este erro é de verdade)
+      end;
+    end loop;
   end loop;
   if not v_reg then perform fazenda_murchas_registrar(p_jogador); end if;   -- fase 66
 end;
@@ -4817,7 +4898,7 @@ language plpgsql security definer
 set search_path = public, extensions
 as $$
 declare
-  v_id uuid := fazenda_auth(p_token);
+  v_id uuid := fazenda_auth_ler(p_token);   -- fase 71: só lê, sem a fila de uma por vez
   c    record;
 begin
   select * into c from fazenda_compras where id = p_compra and jogador_id = v_id;
@@ -5237,7 +5318,7 @@ language plpgsql security definer
 set search_path = public, extensions
 as $$
 declare
-  v_id uuid := fazenda_auth(p_token);
+  v_id uuid := fazenda_auth_ler(p_token);   -- fase 71: só lê, sem a fila de uma por vez
   v_r  jsonb := fazenda_feira_regras();
 begin
   perform fazenda_feira_vencidos(v_id);
@@ -5579,11 +5660,16 @@ returns jsonb language sql immutable as $$
 $$;
 
 -- quanto a melhoria vale para o jogador agora (0 = não comprou)
+-- (fase 71: o catálogo vem pronto do cache, e só é lido quando o jogador tem a melhoria)
 create or replace function public.fazenda_melhoria(p_jogador uuid, p_id text)
-returns real language sql stable security definer set search_path = public as $$
-  select coalesce((select (m->'niveis'->(g.nivel - 1)->>'valor')::real
-                     from fazenda_melhorias g, jsonb_array_elements(fazenda_melhorias_tipos()) m
-                    where g.jogador_id = p_jogador and g.id = p_id and m->>'id' = p_id), 0)::real;
+returns real language plpgsql stable security definer set search_path = public as $$
+declare
+  v_n int;
+begin
+  select nivel into v_n from fazenda_melhorias where jogador_id = p_jogador and id = p_id;
+  if v_n is null then return 0; end if;
+  return coalesce((fazenda_cache_ler('melhorias')->p_id->'niveis'->(v_n - 1)->>'valor')::real, 0);
+end;
 $$;
 
 -- o limite de cada máquina no nível (null = sem limite)
@@ -6401,26 +6487,55 @@ language plpgsql security definer
 set search_path = public, extensions
 as $$
 declare
-  v_id    uuid := fazenda_auth(p_token);   -- (e fecha a semana, se virou)
+  v_id    uuid := fazenda_auth_ler(p_token);   -- (e fecha a semana, se virou; fase 71: sem a fila de uma por vez)
   s       record;
+  c       record;
   v_ant   timestamptz;
+  v_vez   boolean;
 begin
   select * into s from fazenda_semanas order by inicio desc limit 1;
   select max(semana) into v_ant from fazenda_semana_premios;
+  -- fase 71: o placar de todos fica pronto por 1 minuto; um recalcula e os outros leem o pronto (quem
+  -- chega na primeira vez da semana espera o que está calculando)
+  select * into c from fazenda_semana_cache where semana = s.inicio;
+  if not found or c.calculado_em < now() - interval '1 minute' then
+    if found then v_vez := pg_try_advisory_xact_lock(7071, hashtext(s.inicio::text));
+    else perform pg_advisory_xact_lock(7071, hashtext(s.inicio::text)); v_vez := true;
+    end if;
+    if v_vez then
+      select * into c from fazenda_semana_cache where semana = s.inicio;   -- (quem esperou pode já ter o novo)
+      if not found or c.calculado_em < now() - interval '1 minute' then
+        with p as (select * from fazenda_semana_posicoes(s.inicio, s.aberta_em, now()))
+        insert into fazenda_semana_cache (semana, calculado_em, top, posicoes, totais)
+        select s.inicio, now(),
+               coalesce((select jsonb_object_agg(t.categoria, t.lista) from (
+                 select categoria, jsonb_agg(jsonb_build_object('apelido', apelido, 'avatar', avatar, 'valor', valor, 'id', jogador_id) order by posicao) as lista
+                   from p where posicao <= 3 group by categoria) t), '{}'::jsonb),
+               coalesce((select jsonb_object_agg(q.jogador, q.cats) from (
+                 select jogador_id::text as jogador, jsonb_object_agg(categoria, jsonb_build_array(posicao, valor)) as cats
+                   from p group by jogador_id) q), '{}'::jsonb),
+               coalesce((select jsonb_object_agg(n.categoria, n.total) from (
+                 select categoria, count(*) as total from p group by categoria) n), '{}'::jsonb)
+        on conflict (semana) do update
+          set calculado_em = excluded.calculado_em, top = excluded.top, posicoes = excluded.posicoes, totais = excluded.totais
+        returning * into c;
+      end if;
+    end if;
+  end if;
   return jsonb_build_object(
     'inicio', s.inicio,
     'desde', s.aberta_em,
     'fim', s.inicio + interval '7 days',
     'regras', fazenda_evento_regras(),
     'placar', coalesce((
-      select jsonb_object_agg(x.categoria, x.dados) from (
-        select p.categoria, jsonb_build_object(
-                 'top', coalesce(jsonb_agg(jsonb_build_object('apelido', p.apelido, 'avatar', p.avatar, 'valor', p.valor, 'eu', p.jogador_id = v_id)
-                                           order by p.posicao) filter (where p.posicao <= 3), '[]'::jsonb),
-                 'eu', (array_agg(jsonb_build_object('posicao', p.posicao, 'valor', p.valor)) filter (where p.jogador_id = v_id))[1],
-                 'total', count(*)) as dados
-          from fazenda_semana_posicoes(s.inicio, s.aberta_em, now()) p
-         group by p.categoria) x), '{}'::jsonb),
+      select jsonb_object_agg(k.categoria, jsonb_build_object(
+               'top', coalesce((select jsonb_agg((t.e - 'id') || jsonb_build_object('eu', t.e->>'id' = v_id::text) order by t.ord)
+                                  from jsonb_array_elements(c.top->k.categoria) with ordinality t(e, ord)), '[]'::jsonb),
+               'eu', case when c.posicoes->(v_id::text) ? k.categoria
+                          then jsonb_build_object('posicao', (c.posicoes->(v_id::text)->k.categoria->>0)::bigint,
+                                                  'valor', (c.posicoes->(v_id::text)->k.categoria->>1)::bigint) end,
+               'total', (c.totais->>k.categoria)::bigint))
+        from jsonb_object_keys(c.totais) k(categoria)), '{}'::jsonb),
     'passada', (
       select jsonb_build_object('semana', v_ant, 'premios', jsonb_agg(jsonb_build_object(
                'categoria', p.categoria, 'posicao', p.posicao, 'apelido', j.apelido, 'avatar', j.avatar,
@@ -6669,7 +6784,7 @@ language plpgsql security definer
 set search_path = public, extensions
 as $$
 declare
-  v_id uuid := fazenda_auth(p_token);
+  v_id uuid := fazenda_auth_ler(p_token);   -- fase 71: só lê, sem a fila de uma por vez
   v_r  jsonb := fazenda_chat_regras();
   v_de timestamptz := now() - make_interval(mins => (v_r->>'minutos')::int);
   j    record;
@@ -7217,6 +7332,261 @@ returns text language sql stable as $$
 $$;
 
 -- ------------------------------------------------------------
+-- Fase 71: o servidor mais leve (o "servidor sobrecarregado" do jogo).
+-- • Ajudantes, baús e robôs trabalham em lote: cada um primeiro no modo rápido, com as tarefas direto,
+--   sem um "exception" em volta de cada uma. Cada um desses blocos abria uma sub-transação, e centenas
+--   numa chamada deixavam o banco lento para todos; a volta depois de horas fora passava dos 3 s e era
+--   desfeita. Se uma tarefa der erro, o lote daquele ajudante, baú ou robô volta e é refeito no modo
+--   seguro, como antes. O resultado é o mesmo (fazenda_bot_aplicar, fazenda_bot_animal,
+--   fazenda_bot_pode_plantar).
+-- • O clima de agora sai uma vez por chamada (fazenda_clima_agora), e a estação uma vez por rodada dos
+--   ajudantes.
+-- • Os catálogos que o estado manda em toda ação (culturas, itens, bichos, conquistas, ajudantes e
+--   melhorias) ficam prontos em fazenda_cache. Gatilhos refazem o cache quando uma fase mexe nas tabelas
+--   (o fim de cada faseN.sql também refaz, por causa das melhorias, que são uma função).
+-- • A previsão do clima e do vento (a do vento olhava 24 h para a frente em todo estado) fica pronta uma
+--   vez por minuto (fazenda_previsao_agora). Quem grava no cache não faz fila: um grava, os outros seguem.
+-- • O placar do evento fica pronto por 1 minuto (fazenda_semana_cache): um calcula, os outros leem.
+-- • O que só lê (chat, evento, status da compra, lista da feira) não espera na fila de uma chamada por
+--   vez (fazenda_auth_ler).
+-- ------------------------------------------------------------
+create table if not exists public.fazenda_cache (
+  chave text primary key,
+  valor jsonb not null,
+  em    timestamptz not null default now()
+);
+alter table public.fazenda_cache enable row level security;
+revoke all on public.fazenda_cache from anon, authenticated;
+
+create table if not exists public.fazenda_semana_cache (
+  semana       timestamptz primary key,
+  calculado_em timestamptz not null,
+  top          jsonb not null,   -- {categoria: [os 3 primeiros]}
+  posicoes     jsonb not null,   -- {jogador: {categoria: [posição, valor]}}
+  totais       jsonb not null    -- {categoria: quantos têm valor}
+);
+alter table public.fazenda_semana_cache enable row level security;
+revoke all on public.fazenda_semana_cache from anon, authenticated;
+
+-- uma tarefa de ajudante, baú ou robô num canteiro: no modo rápido direto (o erro sobe e o lote todo é
+-- refeito no modo seguro); no modo seguro, protegida (null = não deu)
+create or replace function public.fazenda_bot_aplicar(p_jogador uuid, p_acao text, p_posicao int, p_cultura text, p_seguro boolean)
+returns int
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+begin
+  if not p_seguro then return fazenda_aplicar(p_jogador, p_acao, p_posicao, p_cultura, true); end if;
+  begin
+    return fazenda_aplicar(p_jogador, p_acao, p_posicao, p_cultura, true);
+  exception when others then
+    return null;
+  end;
+end;
+$$;
+
+-- o mesmo para um bicho (coletar ou dar ração)
+create or replace function public.fazenda_bot_animal(p_jogador uuid, p_animal bigint, p_acao text, p_seguro boolean)
+returns boolean
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+begin
+  if not p_seguro then perform fazenda_animal_um(p_jogador, p_animal, p_acao, true); return true; end if;
+  begin
+    perform fazenda_animal_um(p_jogador, p_animal, p_acao, true);
+    return true;
+  exception when others then
+    return false;
+  end;
+end;
+$$;
+
+-- o robô consegue plantar essa semente nesse canteiro? (as checagens de fazenda_aplicar: arado,
+-- nível, moedas e a estação ou uma estufa por perto)
+create or replace function public.fazenda_bot_pode_plantar(p_jogador uuid, p_cultura text, p_posicao int)
+returns boolean language sql stable security definer set search_path = public as $$
+  select coalesce((
+    select c.estado = 'arado' and k.tipo = 'cultura' and fazenda_nivel(j.xp) >= k.nivel_min and j.moedas >= k.custo
+           and (k.estacao is null or k.estacao = fazenda_estacao_em(now()) or fazenda_protegido(p_jogador, 'estufa', c.x, c.y))
+      from fazenda_canteiros c, fazenda_culturas k, fazenda_jogadores j
+     where c.jogador_id = p_jogador and c.posicao = p_posicao and k.id = p_cultura and j.id = p_jogador), false);
+$$;
+
+-- o clima de agora, uma conta só por chamada (o now() é o mesmo a chamada toda)
+create or replace function public.fazenda_clima_agora()
+returns text
+language plpgsql
+set search_path = public
+as $$
+declare
+  k text := now()::text || '|' || coalesce(current_setting('fazenda.clima_teste', true), '');
+  v text := current_setting('fazenda.clima_memo', true);
+begin
+  if v is not null and v <> '' and split_part(v, '#', 1) = k then return split_part(v, '#', 2); end if;
+  v := fazenda_clima_em(now());
+  perform set_config('fazenda.clima_memo', k || '#' || v, true);
+  return v;
+end;
+$$;
+
+-- o valor de um catálogo, montado na hora
+create or replace function public.fazenda_cache_valor(p_chave text)
+returns jsonb language sql stable security definer set search_path = public as $$
+  select case p_chave
+    when 'culturas' then (
+      select jsonb_agg(jsonb_build_object(
+               'id', id, 'nome', nome, 'emoji', emoji, 'tempo_seg', tempo_seg,
+               'custo', custo, 'venda', venda, 'rendimento', rendimento,
+               'xp', xp, 'nivel_min', nivel_min, 'tipo', tipo, 'estacao', estacao)
+             order by ordem)
+        from fazenda_culturas)
+    when 'animais_tipos' then (select jsonb_agg(to_jsonb(t) order by t.ordem) from fazenda_animais_tipos t)
+    when 'conquistas_tipos' then (select jsonb_agg(to_jsonb(t) order by t.ordem) from fazenda_conquistas_tipos t)
+    when 'ajudantes_tipos' then (select jsonb_agg(to_jsonb(t) order by t.ordem) from fazenda_ajudantes_tipos t)
+    when 'melhorias_tipos' then fazenda_melhorias_tipos()
+    when 'melhorias' then (select jsonb_object_agg(m->>'id', m) from jsonb_array_elements(fazenda_melhorias_tipos()) m)
+  end;
+$$;
+
+-- refaz o cache (os gatilhos chamam; o fim de cada faseN.sql também)
+create or replace function public.fazenda_cache_montar()
+returns void
+language plpgsql security definer
+set search_path = public
+as $$
+begin
+  insert into fazenda_cache (chave, valor, em)
+  select k, fazenda_cache_valor(k), now()
+    from unnest(array['culturas', 'animais_tipos', 'conquistas_tipos', 'ajudantes_tipos', 'melhorias_tipos', 'melhorias']) k
+  on conflict (chave) do update set valor = excluded.valor, em = excluded.em;
+  delete from fazenda_cache where chave like 'itens:%';   -- os itens de cada nível se refazem na próxima vez
+end;
+$$;
+
+-- um catálogo pronto (sem o cache, monta na hora: só lê)
+create or replace function public.fazenda_cache_ler(p_chave text)
+returns jsonb language sql stable security definer set search_path = public as $$
+  select coalesce((select valor from fazenda_cache where chave = p_chave), fazenda_cache_valor(p_chave));
+$$;
+
+-- grava no cache sem fazer fila: só quem pegar a vez grava (a vez fica com ele até a chamada acabar); os
+-- outros usam o que montaram e seguem, sem esperar a linha do cache
+create or replace function public.fazenda_cache_gravar(p_chave text, p_valor jsonb)
+returns void
+language plpgsql security definer
+set search_path = public
+as $$
+begin
+  if pg_try_advisory_xact_lock(7072, hashtext(p_chave)) then
+    insert into fazenda_cache (chave, valor, em) values (p_chave, p_valor, now())
+    on conflict (chave) do update set valor = excluded.valor, em = excluded.em;
+  end if;
+end;
+$$;
+
+-- a previsão do clima e do vento (igual para todo mundo): montada uma vez por minuto. A do vento olha as
+-- próximas 24 h e era a parte mais pesada do estado, que vai em toda ação. Com o clima ou a estação de
+-- teste ligados, monta na hora.
+create or replace function public.fazenda_previsao_agora()
+returns jsonb
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  k text := to_char(date_trunc('minute', now()), 'YYYY-MM-DD HH24:MI');
+  v jsonb;
+begin
+  if coalesce(current_setting('fazenda.clima_teste', true), '') <> '' or coalesce(current_setting('fazenda.estacao_teste', true), '') <> '' then
+    return jsonb_build_object('clima', fazenda_clima_previsao(now()), 'vento', fazenda_vento_previsao(now()));
+  end if;
+  select valor into v from fazenda_cache where chave = 'previsao' and valor->>'minuto' = k;
+  if v is null then
+    v := jsonb_build_object('minuto', k, 'clima', fazenda_clima_previsao(now()), 'vento', fazenda_vento_previsao(now()));
+    perform fazenda_cache_gravar('previsao', v);
+  end if;
+  return v;
+end;
+$$;
+
+-- os itens com o limite do nível (painel solar e turbina sobem com o nível): um por nível, montado na
+-- primeira vez que alguém daquele nível precisa
+create or replace function public.fazenda_cache_itens(p_nivel int)
+returns jsonb
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  k text := 'itens:' || p_nivel;
+  v jsonb;
+begin
+  select valor into v from fazenda_cache where chave = k;
+  if v is null then
+    select jsonb_agg(to_jsonb(t) || jsonb_build_object('limite', fazenda_limite_maquina(t.id, t.limite, p_nivel)) order by t.ordem)
+      into v from fazenda_itens t;
+    perform fazenda_cache_gravar(k, v);
+  end if;
+  return v;
+end;
+$$;
+
+create or replace function public.fazenda_cache_gatilho()
+returns trigger
+language plpgsql security definer
+set search_path = public
+as $$
+begin
+  perform fazenda_cache_montar();
+  return null;
+end;
+$$;
+drop trigger if exists fazenda_cache_culturas on public.fazenda_culturas;
+create trigger fazenda_cache_culturas after insert or update or delete or truncate on public.fazenda_culturas
+  for each statement execute function public.fazenda_cache_gatilho();
+drop trigger if exists fazenda_cache_itens on public.fazenda_itens;
+create trigger fazenda_cache_itens after insert or update or delete or truncate on public.fazenda_itens
+  for each statement execute function public.fazenda_cache_gatilho();
+drop trigger if exists fazenda_cache_conquistas on public.fazenda_conquistas_tipos;
+create trigger fazenda_cache_conquistas after insert or update or delete or truncate on public.fazenda_conquistas_tipos
+  for each statement execute function public.fazenda_cache_gatilho();
+drop trigger if exists fazenda_cache_animais on public.fazenda_animais_tipos;
+create trigger fazenda_cache_animais after insert or update or delete or truncate on public.fazenda_animais_tipos
+  for each statement execute function public.fazenda_cache_gatilho();
+drop trigger if exists fazenda_cache_ajudantes on public.fazenda_ajudantes_tipos;
+create trigger fazenda_cache_ajudantes after insert or update or delete or truncate on public.fazenda_ajudantes_tipos
+  for each statement execute function public.fazenda_cache_gatilho();
+
+-- as mesmas checagens do fazenda_auth, sem a trava de uma chamada por vez: para o que só lê (o chat, o
+-- evento, o status da compra, a lista da feira), que não precisa esperar atrás de um carregar lento
+create or replace function public.fazenda_auth_ler(p_token text)
+returns uuid
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id uuid;
+begin
+  if p_token is null or length(p_token) < 32 then
+    raise exception 'token_invalido';
+  end if;
+  select jogador_id into v_id from fazenda_sessoes where token_hash = encode(digest(p_token, 'sha256'), 'hex');
+  if v_id is null then
+    raise exception 'token_invalido';
+  end if;
+  if exists (select 1 from fazenda_jogadores where id = v_id and banido_em is not null) then
+    raise exception 'conta_banida';
+  end if;
+  if not exists (select 1 from fazenda_semanas where inicio = fazenda_semana_inicio(now())) then
+    perform fazenda_semana_fechar();
+  end if;
+  return v_id;
+end;
+$$;
+
+-- monta o cache agora (e cada faseN.sql daqui para a frente refaz no fim)
+select public.fazenda_cache_montar();
+
+-- ------------------------------------------------------------
 -- Permissões: só a API pública fica executável pela chave anon
 -- ------------------------------------------------------------
 revoke execute on function
@@ -7388,7 +7758,19 @@ revoke execute on function
   public.fazenda_calendario_dar(uuid, jsonb),
   public.fazenda_calendario_estado(uuid),
   public.fazenda_ip(),
-  public.fazenda_anuncio(text)
+  public.fazenda_anuncio(text),
+  public.fazenda_bot_aplicar(uuid, text, int, text, boolean),
+  public.fazenda_bot_animal(uuid, bigint, text, boolean),
+  public.fazenda_bot_pode_plantar(uuid, text, int),
+  public.fazenda_clima_agora(),
+  public.fazenda_cache_valor(text),
+  public.fazenda_cache_montar(),
+  public.fazenda_cache_ler(text),
+  public.fazenda_cache_itens(int),
+  public.fazenda_cache_gatilho(),
+  public.fazenda_cache_gravar(text, jsonb),
+  public.fazenda_previsao_agora(),
+  public.fazenda_auth_ler(text)
 from public, anon, authenticated;
 
 grant execute on function

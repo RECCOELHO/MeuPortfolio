@@ -1131,6 +1131,10 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-10-17-leve', data: '17/10', titulo: 'Servidor mais leve', itens: [
+            'O aviso de <b>servidor sobrecarregado</b> deve aparecer bem menos: o trabalho dos ajudantes, dos robôs e dos baús ficou de 2 a 5 vezes mais rápido no servidor, principalmente quando você volta depois de horas fora.',
+            'Nada muda no que eles fazem: colhem, plantam e cuidam igual a antes.',
+            'O placar do evento atualiza de minuto em minuto, e o chat busca mensagens novas de 10 em 10 segundos.'] },
         { id: '2026-10-17-seguranca', data: '17/10', titulo: 'Jogo mais justo e seguro', itens: [
             'Fechamos brechas que davam diamantes, itens e XP de graça para quem mexia no jogo por fora. Quem joga normal não perde nada.',
             '<b>Evento da semana</b>: o XP comprado com diamantes não conta mais no ranking, o convite conta quando o amigo chega ao <b>nível 10</b> e, na barraca, a mesma pessoa do outro lado vale no máximo 25% do total.',
@@ -4404,7 +4408,7 @@
             if (painelAtual !== 'chat') return;   // fechou: para de buscar
             if (!document.hidden && Date.now() - mexeuEm < 5 * 60000) await carregarChat(false);
             agendarChat();
-        }, 5000);
+        }, 10000);   // fase 71: de 10 em 10 s (eram 5: pesava no servidor)
     }
     function htmlPedidoChat(m, eu) {
         const p = m.pedido, k = culturas[p.item] || { id: p.item, nome: p.item };
