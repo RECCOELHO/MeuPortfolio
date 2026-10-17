@@ -26,6 +26,7 @@
     const T = 16;           // tamanho do tile
     const COLS = 12;        // colunas dos atlas
     const LINHAS = 11;
+    const LINHAS_PROPRIA = 15;   // fase 73: a arte própria passou de 132 peças (os pacotes do Kenney continuam com 11 linhas)
 
     const PAL = {
         o: '#3f2631', g: '#84c669', G: '#4e974c', l: '#c6e58d', y: '#fdbe53', Y: '#e38628',
@@ -185,6 +186,13 @@
         trofeu_ouro: { item: 1099 }, trofeu_prata: { item: 1100 }, trofeu_bronze: { item: 1101 }, ampulheta_dourada: { item: 1102 },
         cofrinho_ouro: { item: 1103 }, balanca_ouro: { item: 1104 }, sacola_ouro: { item: 1105 },
         luva_perks: { item: 1106 },   // fase 66
+        // fase 73: as frutas e os produtos do 31 ao 45 e as sementes de estação (broto e meio do pacote)
+        coco: { item: 1121 }, caju: { item: 1122 }, acai: { item: 1123 }, cupuacu: { item: 1124 }, castanha: { item: 1125 },
+        cocada: { item: 1126 }, cajuina: { item: 1127 }, acai_tigela: { item: 1128 }, creme_cupuacu: { item: 1129 }, pacoca: { item: 1130 },
+        maracuja: { fases: [52, 53, 1135], murcho: 55, item: 1131, semente: 1131 },
+        mexerica: { fases: [52, 53, 1136], murcho: 55, item: 1132, semente: 1132 },
+        caqui:    { fases: [52, 53, 1137], murcho: 55, item: 1133, semente: 1133 },
+        lichia:   { fases: [52, 53, 1138], murcho: 55, item: 1134, semente: 1134 },
         // sementes da estação (broto e meio do pacote; madura e fruta próprias)
         moranguinho: { fases: [52, 53, 1013], murcho: 55, item: 1014, semente: 1014 },
         melancia: { fases: [52, 53, 1015], murcho: 55, item: 1016, semente: 1016 },
@@ -513,11 +521,112 @@
         // 120 alicate do eletricista (cabos amarelos)
         ['................', '................', '................', '................', '................', '................',
          '.......aa.......', '......adla......', '......afla......', '.....afdfla.....', '.....aeaaea.....', '.....agaaga.....',
-         '....aga..aga....', '....aHa..aHa....', '.....a....a.....', '................']
+         '....aga..aga....', '....aHa..aHa....', '.....a....a.....', '................'],
+        // fase 73: as frutas e os produtos do 31 ao 45, as sementes de estação, a praia e os baús da sorte
+        // 121 coco
+        ['................', '................', '................', '.....aaaaaa.....', '....annyyyya....', '...annyyyyyya...',
+         '..annyayyayyya..', '..anyyyyyyyyya..', '..ayyyyyayyyya..', '..ayyyyyyyyyya..', '..ayyyyyyyyyya..', '...ayyyyyyyya...',
+         '....ayyyyyya....', '.....aaaaaa.....', '................', '................'],
+        // 122 caju
+        ['................', '................', '......aaaa......', '....aaccXXaa....', '....accXXXXa....', '...accXXXXXXa...',
+         '...acXXXXXXXa...', '...aXXXXXXXXa...', '....aXXXXXXa....', '....aaXXXXaa....', '......aaaa......', '......ayya......',
+         '.....ayynna.....', '......anna......', '......aaaa......', '................'],
+        // 123 açaí (cacho)
+        ['................', '................', '....vv.vv.vv....', '......v..v..v...', '.....a..aVa.....', '....aVaaVUVa....',
+         '...aVUVaaVa.a...', '....aVaa.a.aVa..', '.....aaVa.aVUVa.', '.....aVUVaaaVa..', '.....aaVaaVaaa..', '....aVaaaVUVaVa.',
+         '...aVUVaVaVaVUVa', '....aVaVUVa.aVa.', '.....a.aVa...a..', '........a.......'],
+        // 124 cupuaçu
+        ['................', '........v.......', '......aaaa......', '.....awwnna.....', '....awwnynna....', '....awnnnnna....',
+         '...awnynnnnna...', '...annnnnnnna...', '...annnnnynna...', '...annnnnnnna...', '...annnnnnnna...', '....annynnna....',
+         '....annnnnya....', '.....annnna.....', '......aaaa......', '................'],
+        // 125 castanha-do-pará (ouriço aberto)
+        ['................', '................', '................', '.....aaaaaa.....', '....annyyyya....', '...annyyyyyya...',
+         '..annaayyaayya..', '..anaxxaaxxaya..', '..ayaxxaaxxaya..', '..ayyaaaaaayya..', '..ayyyaxxayyya..', '..ayyyaxxayyya..',
+         '...ayyyaayyya...', '....ayyyyyya....', '.....aaaaaa.....', '................'],
+        // 126 cocada
+        ['................', '................', '................', '................', '................', '................',
+         '................', '..aaaaaaaaaaaa..', '..axxxxxxxxxxa..', '..axdxdxxxdxxa..', '..axxxxdxxxxxa..', '..axxdxxxdxdxa..',
+         '..awwwwwwwwwwa..', '..aaaaaaaaaaaa..', '................', '................'],
+        // 127 cajuína (garrafa)
+        ['................', '......aaaa......', '......ayya......', '......aaaa......', '......adda......', '.....aGGGGa.....',
+         '.....axGGGa.....', '....axGGGGGa....', '....axGGGGGa....', '....axXXXXXa....', '....axddddda....', '....axXXXXXa....',
+         '....axGGGGGa....', '....axGGGGGa....', '....aaaaaaaa....', '................'],
+        // 128 açaí na tigela
+        ['................', '................', '................', '................', '................', '....aaaadaaa....',
+         '..aaUUrVVXVVaa..', '..aUUGVVVVVGVa..', '..aaVVVVVVVVaa..', '..afaaaaaaaafa..', '...affffffffa...', '...affffffffa...',
+         '....affffffa....', '....aaaaaaaa....', '................', '................'],
+        // 129 creme de cupuaçu (pote)
+        ['................', '................', '................', '.......aa.......', '....aaaynaaa....', '...ajjjjjwjja...',
+         '...ajjjjjjjja...', '...aaaajjaaaa...', '...axxxaaxxxa...', '...awwwwwwwwa...', '...axxxxxxxxa...', '...awwwwwwwwa...',
+         '...axxxxxxxxa...', '...axxxxxxxxa...', '...aaaaaaaaaa...', '................'],
+        // 130 paçoca (3 tabletes)
+        ['................', '................', '................', '................', '..aaaaaaaaaaaa..', '..axwxxaaxwxxa..',
+         '..awxxwaawxxwa..', '..axxwxaaxxwxa..', '..aaaaaaaaaaaa..', '.....aaaaaa.....', '.....axxwxa.....', '.....axwxxa.....',
+         '.....awxxwa.....', '.....aaaaaa.....', '................', '................'],
+        // 131 maracujá
+        ['................', '................', '........vv......', '......aaaa......', '....aasGGGaa....', '...assGGGGGGa...',
+         '...asGGGGGHGa...', '..asGGGGGGGGGa..', '..aGGGHGGGGGGa..', '..aGGGGGGGHGGa..', '..aGGGGGGGGGGa..', '...aGGGGHGGGa...',
+         '...aGGGHGGGGa...', '....aaGGGGaa....', '......aaaa......', '................'],
+        // 132 mexerica
+        ['................', '................', '.........vv.....', '........a.h.....', '.....aaaaaa.....', '...aaggiiiiaa...',
+         '...aggiiiiiia...', '..aggiiiiiiiia..', '..agiiiiiiiiia..', '..aiiiiiiiiiia..', '..aiiiNiiiNiia..', '...aiiiiiiiia...',
+         '...aaiiiiiiaa...', '.....aaaaaa.....', '................', '................'],
+        // 133 caqui
+        ['................', '................', '................', '........a.......', '.....vvvvvvv....', '...avOOccccva...',
+         '...aOOcccccca...', '..aOOcccccccca..', '..aOccccccccca..', '..acccccccccca..', '..acccccccccca..', '...acccccccca...',
+         '...aaccccccaa...', '.....aaaaaa.....', '................', '................'],
+        // 134 lichia
+        ['................', '................', '........v.......', '.......v.v......', '........vaaa....', '....aaaammrra...',
+         '...ammramrrra...', '...amrrarrRra...', '...arraaaarra...', '...arammrraa....', '....aamrrra.....', '.....arrRra.....',
+         '.....arrrra.....', '......aaaa......', '................', '................'],
+        // 135 pé de maracujá
+        ['................', '................', '................', '....MMLLLLLL....', '...MMDDDDDDDL...', '..MMDDGGDDGGDL..',
+         '..MDDDGHDDGHDL..', '..LDGGDDDDDDDL..', '..LDGHDDDDDDDL..', '..LDDDDDDDDGGL..', '..LDDDDGGDDGHL..', '...LDDDGHDDDL...',
+         '....LLLLLLLL....', '.......LL.......', '.......LL.......', '.......aa.......'],
+        // 136 pé de mexerica
+        ['................', '................', '................', '....MMLLLLLL....', '...MMDDDDDDDL...', '..MMDDiiDDiiDL..',
+         '..MDDDiNDDiNDL..', '..LDiiDDDDDDDL..', '..LDiNDDDDDDDL..', '..LDDDDDDDDiiL..', '..LDDDDiiDDiNL..', '...LDDDiNDDDL...',
+         '....LLLLLLLL....', '.......LL.......', '.......LL.......', '.......aa.......'],
+        // 137 pé de caqui
+        ['................', '................', '................', '....MMLLLLLL....', '...MMDDDDDDDL...', '..MMDDccDDccDL..',
+         '..MDDDcNDDcNDL..', '..LDccDDDDDDDL..', '..LDcNDDDDDDDL..', '..LDDDDDDDDccL..', '..LDDDDccDDcNL..', '...LDDDcNDDDL...',
+         '....LLLLLLLL....', '.......LL.......', '.......LL.......', '.......aa.......'],
+        // 138 pé de lichia
+        ['................', '................', '................', '....MMLLLLLL....', '...MMDDDDDDDL...', '..MMDDrrDDrrDL..',
+         '..MDDDrRDDrRDL..', '..LDrrDDDDDDDL..', '..LDrRDDDDDDDL..', '..LDDDDDDDDrrL..', '..LDDDDrrDDrRL..', '...LDDDrRDDDL...',
+         '....LLLLLLLL....', '.......LL.......', '.......LL.......', '.......aa.......'],
+        // 139 guarda-sol
+        ['........a.......', '.......ada......', '......adXXa.....', '.....adXXdda....', '...adXXddXXdda..', '..adXXddXXddXXa.',
+         'aaaaaaaaaaaaaaaa', '........u.......', '........u.......', '........u.......', '........u.......', '........u.......',
+         '........u.......', '........u.......', '........u.......', '.......pup......'],
+        // 140 cadeira de praia
+        ['................', '................', '................', '................', '..add...........', '...aBB..........',
+         '....add.........', '.....aBB........', '......add.......', '.......aBB......', '........BBBBBB..', '....u...auaaua..',
+         '....u....u..u...', '....u....u..u...', '....u....u..u...', '................'],
+        // 141 castelo de areia
+        ['................', '.......aXX......', '.......aX.......', '.......a........', '....a.aa.a.a....', '....aaaaaaaa....',
+         '....aooooooa....', '....aooooooa....', '..a.aooooooa.a..', '..aaaaaaaaaaaa..', '..aooooooooooa..', '..aoooaaaaoooa..',
+         '..aoooaqqaoooa..', '..appppppppppa..', '..aaaaaaaaaaaa..', '................'],
+        // 142 barraca de coco
+        ['................', '................', '................', '.aaaaaaaaaaaaaa.', '.adXdXdXdXdXdXa.', '.aaaaaaaaaaaaaa.',
+         '..u..aa..aa..u..', '..u.ayyaayya.u..', '..u.ayyaayya.u..', '..aaaaaaaaaaaa..', '..annnnnnnnnna..', '..annnnnnnnnna..',
+         '..annnnnnnnnna..', '..ayyyyyyyyyya..', '..aaaaaaaaaaaa..', '................'],
+        // 143 baú da sorte de madeira
+        ['................', '............d...', '..G..........G..', '..............d.', '.aaaaaaaaaaaaaa.', '.ayyyyyyyyyyyya.',
+         '.annynnnnnnynna.', '.annynaaaanynna.', '.aaayaaGGaayaaa.', '.annynaaaanynna.', '.annynaaaanynna.', '.annynnnnnnynna.',
+         '.annynnnnnnynna.', '.annynnnnnnynna.', '.aaaaaaaaaaaaaa.', '................'],
+        // 144 baú da sorte de prata
+        ['................', '............d...', '..G..........G..', '..............d.', '.aaaaaaaaaaaaaa.', '.affffffffffffa.',
+         '.allfllllllflla.', '.allflaaaalflla.', '.aaafaaGGaafaaa.', '.allflaaaalflla.', '.allflaaaalflla.', '.allfllllllflla.',
+         '.allfllllllflla.', '.allfllllllflla.', '.aaaaaaaaaaaaaa.', '................'],
+        // 145 baú da sorte de ouro
+        ['................', '............d...', '..G..........G..', '..............d.', '.aaaaaaaaaaaaaa.', '.aGGGGGGGGGGGGa.',
+         '.aHHGHHHHHHGHHa.', '.aHHGHaaaaHGHHa.', '.aaaGaaGGaaGaaa.', '.aHHGHaaaaHGHHa.', '.aHHGHaaaaHGHHa.', '.aHHGHHHHHHGHHa.',
+         '.aHHGHHHHHHGHHa.', '.aHHGHHHHHHGHHa.', '.aaaaaaaaaaaaaa.', '................']
     ];
     const atlasProprio = document.createElement('canvas');
     atlasProprio.width = 12 * 16;
-    atlasProprio.height = LINHAS * 16;   // mesmo formato dos pacotes (htmlTile conta 12 x 11)
+    atlasProprio.height = LINHAS_PROPRIA * 16;   // 12 colunas como os pacotes, mais linhas (htmlTile conta)
     {
         const g = atlasProprio.getContext('2d');
         PROPRIA.forEach((linhas, n) => linhas.forEach((linha, y) => [...linha].forEach((ch, x) => {
@@ -745,7 +854,14 @@
             case 'amoreira': return { p: 'farm', i: 78 };
             case 'laranjeira': case 'limoeiro': case 'goiabeira': case 'mangueira':
             case 'abacateiro': case 'cacaueiro': case 'jabuticabeira':
+            case 'coqueiro': case 'cajueiro': case 'acaizeiro': case 'cupuacuzeiro': case 'castanheira':   // fase 73
                 return { p: 'pomar', i: 2 * POMAR[id].n + 1, topo: 2 * POMAR[id].n };
+            // fase 73: a praia (só na areia)
+            case 'cadeira_praia': return { p: 'farm', i: 1140 };
+            case 'guarda_sol': return { p: 'farm', i: 1139 };
+            case 'coqueiro_praia': return { p: 'farm', i: 1000 + PRAIA.coqueiro.i, topo: 1000 + PRAIA.coqueiro.topo };
+            case 'castelo_areia': return { p: 'farm', i: 1141 };
+            case 'barraca_coco': return { p: 'farm', i: 1142 };
             case 'pedras': return { p: 'farm', i: 89 };
             case 'tora': return { p: 'town', i: 106 };
             case 'placa': return { p: 'town', i: 83 };
@@ -794,6 +910,12 @@
             case 'vinicola': return { p: 'town', w: 2, h: 3, grade: [[99, 102], [111, 114], [126, 123]] };
             case 'pimentaria': return { p: 'town', w: 2, h: 3, grade: [[52, 55], [64, 67], [88, 87]] };
             case 'bombonaria': return { p: 'town', w: 2, h: 3, grade: [[48, 51], [60, 63], [86, 91]] };
+            // fase 73: as oficinas das frutas do 31 ao 45
+            case 'doceria_coco': return { p: 'town', w: 2, h: 3, grade: [[52, 55], [64, 67], [84, 91]] };
+            case 'cajuinaria': return { p: 'town', w: 2, h: 3, grade: [[48, 51], [60, 63], [86, 79]] };
+            case 'acaiteria': return { p: 'town', w: 2, h: 3, grade: [[52, 55], [64, 67], [89, 91]] };
+            case 'cremeria': return { p: 'town', w: 2, h: 3, grade: [[48, 51], [60, 63], [84, 91]] };
+            case 'pacocaria': return { p: 'town', w: 2, h: 3, grade: [[99, 102], [111, 114], [124, 125]] };
             // máquinas (Tiny Factory)
             case 'cercado_galinha': case 'cercado_coelho': case 'cercado_pato':
             case 'cercado_vaca': case 'cercado_ovelha': case 'cercado_porco':
@@ -928,7 +1050,7 @@
         const img = pacote === 'farm' ? '' : pacote === 'propria' ? `background-image:url('${urlPropria}');`
             : pacote === 'pomar' ? `background-image:url('${urlPomar}');`
             : `background-image:url('assets/fazenda/${ARQUIVOS[pacote]}');`;
-        return `<span class="px-spr" style="${img}width:${px}px;height:${px}px;background-size:${COLS * px}px ${LINHAS * px}px;background-position:-${c * px}px -${l * px}px" aria-hidden="true"></span>`;
+        return `<span class="px-spr" style="${img}width:${px}px;height:${px}px;background-size:${COLS * px}px ${(pacote === 'propria' ? LINHAS_PROPRIA : LINHAS) * px}px;background-position:-${c * px}px -${l * px}px" aria-hidden="true"></span>`;
     }
 
     // Ícone de item para a UI (árvores altas mostram as duas peças)
@@ -955,7 +1077,13 @@
         mangueira: { n: 3, cores: ['#d9452f', '#fdbe53'], onde: 'copa' },
         abacateiro: { n: 4, cores: ['#1e2a1a', '#5a7a3a'], onde: 'copa' },
         cacaueiro: { n: 5, cores: ['#c96b28', '#f0a04b'], onde: 'tronco' },
-        jabuticabeira: { n: 6, cores: ['#262b44', '#6b2f74'], onde: 'tronco' }
+        jabuticabeira: { n: 6, cores: ['#262b44', '#6b2f74'], onde: 'tronco' },
+        // fase 73
+        coqueiro: { n: 7, cores: ['#8a4a2b', '#b4673a'], onde: 'copa' },
+        cajueiro: { n: 8, cores: ['#d9452f', '#fdbe53'], onde: 'copa' },
+        acaizeiro: { n: 9, cores: ['#3f2631', '#6b2f74'], onde: 'copa' },
+        cupuacuzeiro: { n: 10, cores: ['#8a4a2b', '#c96b28'], onde: 'tronco' },
+        castanheira: { n: 11, cores: ['#6e5a48', '#b8955c'], onde: 'copa' }
     };
     let urlPomar = null;
     function montarPomar() {

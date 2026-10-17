@@ -183,7 +183,7 @@ alter table public.fazenda_itens add column if not exists largura smallint not n
 alter table public.fazenda_itens add column if not exists altura smallint not null default 1;
 alter table public.fazenda_itens drop constraint if exists fazenda_itens_categoria_check;
 alter table public.fazenda_itens add constraint fazenda_itens_categoria_check
-  check (categoria in ('caminho', 'natureza', 'objeto', 'construcao', 'maquina', 'oficina', 'energia', 'bichos', 'pomar'));
+  check (categoria in ('caminho', 'natureza', 'objeto', 'construcao', 'maquina', 'oficina', 'energia', 'bichos', 'pomar', 'praia'));   -- (fase 73: praia)
 -- Fase 5: máquinas. efeito = o que fazem; raio = alcance em quadrados (0 = fazenda toda);
 -- limite = quantas cada jogador pode ter (null = à vontade)
 alter table public.fazenda_itens add column if not exists efeito text;
@@ -1451,6 +1451,7 @@ begin
     'zonas_venda', fazenda_zonas(),
     'pacotes_diamantes', fazenda_pacotes_diamantes(),
     'loja_diamantes', fazenda_loja_diamantes(),
+    'baus_sorte', fazenda_baus_sorte(),   -- fase 73
     -- fase 50: a feira (os seus anúncios abertos e o que vendeu desde a última olhada)
     'feira', jsonb_build_object(
       'regras', fazenda_feira_regras(),
@@ -4119,6 +4120,8 @@ begin
   if not found then raise exception 'item_invalido'; end if;
   if fazenda_nivel(j.xp) < i.nivel_min then raise exception 'nivel_insuficiente'; end if;
   perform fazenda_checar_lugar(v_id, j.zonas, p_x, p_y, i.largura, i.altura);
+  -- fase 73: o que é da praia só vai na areia do Litoral (y 32 a 36)
+  if i.categoria = 'praia' and not (p_y >= 32 and p_y + i.altura - 1 <= 36) then raise exception 'so_na_areia'; end if;
   if i.limite is not null   -- fase 57: painel solar e turbina sobem com o nível
      and (select count(*) from fazenda_construcoes where jogador_id = v_id and tipo = i.id)
          >= fazenda_limite_maquina(i.id, i.limite, fazenda_nivel(j.xp)) then
@@ -4180,6 +4183,7 @@ begin
    where c.jogador_id = v_id and c.x = p_x and c.y = p_y;
   if not found then raise exception 'item_invalido'; end if;
   perform fazenda_checar_lugar(v_id, j.zonas, p_nx, p_ny, i.largura, i.altura, p_x, p_y);
+  if i.categoria = 'praia' and not (p_ny >= 32 and p_ny + i.altura - 1 <= 36) then raise exception 'so_na_areia'; end if;   -- fase 73
   update fazenda_construcoes set x = p_nx, y = p_ny
    where jogador_id = v_id and x = p_x and y = p_y;
   if not found then raise exception 'item_invalido'; end if;
@@ -7763,6 +7767,177 @@ alter table public.fazenda_conquistas alter column diamantes_pagos set default t
 select public.fazenda_cache_montar();
 
 -- ------------------------------------------------------------
+-- Fase 73: o que liberar do nível 31 ao 45 (parte 1) e o baú da sorte.
+-- • Pomar: coqueiro (31), cajueiro (34), açaizeiro (37), cupuaçuzeiro (40) e castanheira (43), cada um
+--   com a sua oficina no nível seguinte (o produto vale ~1,7x os ingredientes, como nas fases 38 e 58).
+-- • Sementes de estação do 31 em diante: maracujá (verão, 33), mexerica (inverno, 36), caqui (outono, 39)
+--   e lichia (primavera, 42); fora da estação, só na estufa, como as outras.
+-- • Praia (categoria nova): guarda-sol, cadeira, castelo de areia, barraca de coco e coqueiro, só na
+--   areia do Litoral (y 32 a 36; fazenda_construir e fazenda_mover). Só enfeitam (beleza).
+-- • Baú da sorte (fazenda_abrir_bau_sorte): comprado com moedas, sem limite, para gastar o que sobra.
+--   Madeira 50 mil, prata 250 mil, ouro 1 milhão; vem de tudo, mas o que é bom vem pouco: na média
+--   volta menos da metade. O que vem não conta no evento (moedas) nem dá XP na venda (da_feira).
+-- ------------------------------------------------------------
+alter table public.fazenda_itens drop constraint if exists fazenda_itens_categoria_check;
+alter table public.fazenda_itens add constraint fazenda_itens_categoria_check
+  check (categoria in ('caminho', 'natureza', 'objeto', 'construcao', 'maquina', 'oficina', 'energia', 'bichos', 'pomar', 'praia'));
+
+insert into public.fazenda_culturas (id, nome, emoji, tempo_seg, custo, venda, rendimento, xp, nivel_min, ordem, tipo) values
+  ('coco',          'Coco',               '🥥', 1, 0,   70, 1,   9, 31, 57, 'produto'),
+  ('caju',          'Caju',               '🍊', 1, 0,   80, 1,  10, 34, 58, 'produto'),
+  ('acai',          'Açaí',               '🫐', 1, 0,   90, 1,  11, 37, 59, 'produto'),
+  ('cupuacu',       'Cupuaçu',            '🍊', 1, 0,  220, 1,  26, 40, 105, 'produto'),
+  ('castanha',      'Castanha-do-pará',   '🌰', 1, 0,  260, 1,  30, 43, 106, 'produto'),
+  ('cocada',        'Cocada',             '🍬', 1, 0,  700, 1,  70, 32, 107, 'produto'),
+  ('cajuina',       'Cajuína',            '🧃', 1, 0,  545, 1,  54, 35, 108, 'produto'),
+  ('acai_tigela',   'Açaí na tigela',     '🍧', 1, 0,  580, 1,  58, 38, 109, 'produto'),
+  ('creme_cupuacu', 'Creme de cupuaçu',   '🍮', 1, 0, 1215, 1, 120, 41, 110, 'produto'),
+  ('pacoca',        'Paçoca',             '🍪', 1, 0, 1675, 1, 165, 44, 111, 'produto')
+on conflict (id) do update set
+  nome = excluded.nome, emoji = excluded.emoji, venda = excluded.venda, xp = excluded.xp,
+  nivel_min = excluded.nivel_min, ordem = excluded.ordem, tipo = excluded.tipo;
+insert into public.fazenda_culturas (id, nome, emoji, tempo_seg, custo, venda, rendimento, xp, nivel_min, ordem, tipo, estacao) values
+  ('maracuja', 'Maracujá', '🍈', 21600, 200, 45,  9,  60, 33, 19, 'cultura', 'verao'),
+  ('mexerica', 'Mexerica', '🍊', 28800, 260, 55, 10,  80, 36, 20, 'cultura', 'inverno'),
+  ('caqui',    'Caqui',    '🍅', 36000, 320, 70,  9, 100, 39, 21, 'cultura', 'outono'),
+  ('lichia',   'Lichia',   '🍒', 43200, 400, 85,  9, 120, 42, 22, 'cultura', 'primavera')
+on conflict (id) do update set
+  nome = excluded.nome, emoji = excluded.emoji, tempo_seg = excluded.tempo_seg, custo = excluded.custo, venda = excluded.venda,
+  rendimento = excluded.rendimento, xp = excluded.xp, nivel_min = excluded.nivel_min, ordem = excluded.ordem,
+  tipo = excluded.tipo, estacao = excluded.estacao;
+
+insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem, beleza, produz, produz_seg, produz_qtd, por_terreno, grupo, descricao) values
+  ('coqueiro',     'Coqueiro',     'pomar', 20000, 31, 117, 3, 'coco',     32400,  6, 1, null, 'Dá 6 cocos a cada 9 horas: toque nele para colher. Pomar: 1 pé de cada fruta, +1 a cada 2 terrenos (até 4).'),
+  ('cajueiro',     'Cajueiro',     'pomar', 25000, 34, 118, 3, 'caju',     36000,  8, 1, null, 'Dá 8 cajus a cada 10 horas: toque nele para colher. Pomar: 1 pé de cada fruta, +1 a cada 2 terrenos (até 4).'),
+  ('acaizeiro',    'Açaizeiro',    'pomar', 30000, 37, 119, 3, 'acai',     39600, 10, 1, null, 'Dá 10 açaís a cada 11 horas: toque nele para colher. Pomar: 1 pé de cada fruta, +1 a cada 2 terrenos (até 4).'),
+  ('cupuacuzeiro', 'Cupuaçuzeiro', 'pomar', 40000, 40, 120, 3, 'cupuacu',  43200,  5, 1, null, 'Dá 5 cupuaçus a cada 12 horas: toque nele para colher. Pomar: 1 pé de cada fruta, +1 a cada 2 terrenos (até 4).'),
+  ('castanheira',  'Castanheira',  'pomar', 50000, 43, 121, 3, 'castanha', 50400,  6, 1, null, 'Dá 6 castanhas a cada 14 horas: toque nela para colher. Pomar: 1 pé de cada fruta, +1 a cada 2 terrenos (até 4).')
+on conflict (id) do update set
+  nome = excluded.nome, categoria = excluded.categoria, custo = excluded.custo, nivel_min = excluded.nivel_min, ordem = excluded.ordem,
+  beleza = excluded.beleza, produz = excluded.produz, produz_seg = excluded.produz_seg, produz_qtd = excluded.produz_qtd,
+  por_terreno = excluded.por_terreno, grupo = excluded.grupo, descricao = excluded.descricao;
+insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem, largura, altura,
+                                  produz, produz_seg, produz_qtd, entradas, limite, beleza, descricao) values
+  ('doceria_coco',     'Doceria de coco',    'oficina', 120000, 32, 99, 2, 3, 'cocada',        5400, 1, '{"coco": 3, "acucar": 1}', 2, 5, '3 cocos + 1 açúcar → cocada.'),
+  ('cajuinaria',       'Cajuína',            'oficina', 150000, 35, 99, 2, 3, 'cajuina',       7200, 1, '{"caju": 4}', 2, 5, '4 cajus → cajuína.'),
+  ('acaiteria',        'Açaiteria',          'oficina', 180000, 38, 99, 2, 3, 'acai_tigela',   5400, 1, '{"acai": 3, "leite": 1}', 2, 5, '3 açaís + 1 leite → açaí na tigela.'),
+  ('cremeria',         'Creme de cupuaçu',   'oficina', 220000, 41, 99, 2, 3, 'creme_cupuacu', 7200, 1, '{"cupuacu": 2, "leite": 1, "acucar": 1}', 2, 5, '2 cupuaçus + 1 leite + 1 açúcar → creme de cupuaçu.'),
+  ('pacocaria',        'Paçocaria',          'oficina', 250000, 44, 99, 2, 3, 'pacoca',        7200, 1, '{"castanha": 3, "acucar": 1}', 2, 5, '3 castanhas + 1 açúcar → paçoca.')
+on conflict (id) do update set
+  nome = excluded.nome, categoria = excluded.categoria, custo = excluded.custo, nivel_min = excluded.nivel_min,
+  ordem = excluded.ordem, largura = excluded.largura, altura = excluded.altura, produz = excluded.produz,
+  produz_seg = excluded.produz_seg, produz_qtd = excluded.produz_qtd, entradas = excluded.entradas,
+  limite = excluded.limite, beleza = excluded.beleza, descricao = excluded.descricao;
+insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem, beleza, descricao) values
+  ('cadeira_praia', 'Cadeira de praia', 'praia',  6000, 31, 130, 2, 'Para ver o mar. Só na areia do Litoral.'),
+  ('guarda_sol',    'Guarda-sol',       'praia',  8000, 31, 131, 3, 'Sombra na areia. Só na areia do Litoral.'),
+  ('coqueiro_praia','Coqueiro da praia','praia', 12000, 31, 132, 4, 'Só enfeita: o coco é do coqueiro do pomar. Só na areia do Litoral.'),
+  ('castelo_areia', 'Castelo de areia', 'praia', 15000, 31, 133, 4, 'Com bandeirinha e tudo. Só na areia do Litoral.'),
+  ('barraca_coco',  'Barraca de coco',  'praia', 25000, 31, 134, 5, 'Água de coco gelada na beira do mar. Só na areia do Litoral.')
+on conflict (id) do update set
+  nome = excluded.nome, categoria = excluded.categoria, custo = excluded.custo, nivel_min = excluded.nivel_min,
+  ordem = excluded.ordem, beleza = excluded.beleza, descricao = excluded.descricao;
+
+-- os baús da sorte: preço, nível e as chances (raro, o prêmio grande, diamantes, itens; o resto é moeda)
+create or replace function public.fazenda_baus_sorte()
+returns jsonb language sql immutable as $$
+  select '{"madeira": {"nome": "Baú de madeira", "preco": 50000,   "nivel": 20, "raro": 0.004, "grande": 0.02, "diamantes": [5, 10],  "chance_diamantes": 0.08, "chance_itens": 0.35},
+           "prata":   {"nome": "Baú de prata",   "preco": 250000,  "nivel": 25, "raro": 0.015, "grande": 0.02, "diamantes": [15, 30], "chance_diamantes": 0.08, "chance_itens": 0.35},
+           "ouro":    {"nome": "Baú de ouro",    "preco": 1000000, "nivel": 30, "raro": 0.05,  "grande": 0.02, "diamantes": [40, 80], "chance_diamantes": 0.08, "chance_itens": 0.35}}'::jsonb;
+$$;
+
+-- abre um baú da sorte: paga, sorteia e entrega. Os prêmios:
+--   raro (o mais caro, mais difícil: peso 1 / preço) · o prêmio grande (2x o preço em moedas) · diamantes
+--   · itens que o seu nível já tem (de 30% a 90% do preço, pelo preço do celeiro) · moedas (15% a 45%)
+create or replace function public.fazenda_abrir_bau_sorte(p_token text, p_tipo text)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id    uuid := fazenda_auth(p_token);
+  v_b     jsonb := fazenda_baus_sorte() -> p_tipo;
+  j       record;
+  k       record;
+  v_preco int;
+  v_r     double precision := random();
+  v_lim   double precision;
+  v_moeda int := 0;
+  v_diam  int := 0;
+  v_item  text;
+  v_qtd   int := 0;
+  v_tipo  text;
+begin
+  if v_b is null then raise exception 'item_invalido'; end if;
+  select * into j from fazenda_jogadores where id = v_id for update;
+  if fazenda_nivel(j.xp) < (v_b->>'nivel')::int then raise exception 'nivel_insuficiente'; end if;
+  v_preco := (v_b->>'preco')::int;
+  if j.moedas < v_preco then raise exception 'moedas_insuficientes'; end if;
+
+  -- as faixas do sorteio, uma depois da outra (raro, grande, diamantes, itens; o resto é moeda)
+  v_lim := (v_b->>'raro')::float8;
+  if v_r < v_lim then
+    v_tipo := 'raro';
+    select c.id into v_item from fazenda_culturas c
+     where c.tipo = 'raro' and c.venda > 0
+     order by -ln(greatest(random(), 1e-12)) * c.venda limit 1;   -- sorteio com peso 1 / preço
+    v_qtd := 1;
+  elsif v_r < v_lim + (v_b->>'grande')::float8 then
+    v_tipo := 'grande';
+    v_moeda := v_preco * 2;
+  elsif v_r < v_lim + (v_b->>'grande')::float8 + (v_b->>'chance_diamantes')::float8 then
+    v_tipo := 'diamantes';
+    v_diam := (v_b->'diamantes'->>0)::int + floor(random() * ((v_b->'diamantes'->>1)::int - (v_b->'diamantes'->>0)::int + 1))::int;
+  elsif v_r < v_lim + (v_b->>'grande')::float8 + (v_b->>'chance_diamantes')::float8 + (v_b->>'chance_itens')::float8 then
+    v_tipo := 'itens';
+    select c.* into k from fazenda_culturas c
+     where c.tipo in ('cultura', 'produto') and c.venda > 0 and c.nivel_min <= fazenda_nivel(j.xp)
+     order by random() limit 1;
+    v_item := k.id;
+    v_qtd := greatest(1, round(v_preco * (0.3 + random() * 0.6) / k.venda))::int;
+  else
+    v_tipo := 'moedas';
+    v_moeda := round(v_preco * (0.15 + random() * 0.3))::int;
+  end if;
+
+  -- o que veio do baú não conta como moeda ganha no evento (o gatilho soma o que entra)
+  update fazenda_jogadores
+     set moedas = moedas - v_preco + v_moeda, diamantes = diamantes + v_diam,
+         moedas_ganhas = moedas_ganhas - greatest(v_moeda - v_preco, 0)
+   where id = v_id;
+  if v_item is not null then   -- e vendido no celeiro dá as moedas, mas não o XP (como o da feira)
+    insert into fazenda_celeiro (jogador_id, item, quantidade, da_feira) values (v_id, v_item, v_qtd, v_qtd)
+    on conflict (jogador_id, item) do update
+      set quantidade = fazenda_celeiro.quantidade + excluded.quantidade, da_feira = fazenda_celeiro.da_feira + excluded.da_feira;
+  end if;
+  insert into fazenda_baus_abertos (jogador_id, tipo, preco, premio, item, qtd, moedas, diamantes)
+  values (v_id, p_tipo, v_preco, v_tipo, v_item, v_qtd, v_moeda, v_diam);
+  return jsonb_build_object('premio', jsonb_build_object('tipo', v_tipo, 'item', v_item, 'qtd', v_qtd, 'moedas', v_moeda, 'diamantes', v_diam),
+                            'preco', v_preco, 'estado', fazenda_estado(v_id));
+end;
+$$;
+
+-- o que saiu de cada baú (para conferir as chances depois)
+create table if not exists public.fazenda_baus_abertos (
+  id         bigserial primary key,
+  jogador_id uuid not null references public.fazenda_jogadores(id) on delete cascade,
+  tipo       text not null,
+  preco      int  not null,
+  premio     text not null,
+  item       text,
+  qtd        int  not null default 0,
+  moedas     int  not null default 0,
+  diamantes  int  not null default 0,
+  em         timestamptz not null default now()
+);
+create index if not exists fazenda_baus_abertos_jogador on public.fazenda_baus_abertos (jogador_id, em);
+alter table public.fazenda_baus_abertos enable row level security;
+revoke all on public.fazenda_baus_abertos from anon, authenticated;
+revoke all on sequence public.fazenda_baus_abertos_id_seq from anon, authenticated;
+
+select public.fazenda_cache_montar();
+
+-- ------------------------------------------------------------
 -- Permissões: só a API pública fica executável pela chave anon
 -- ------------------------------------------------------------
 revoke execute on function
@@ -7949,7 +8124,8 @@ revoke execute on function
   public.fazenda_auth_ler(text),
   public.fazenda_semana_tentar_fechar(),
   public.fazenda_bot_xp(uuid, int),
-  public.fazenda_bot_xp_gravar()
+  public.fazenda_bot_xp_gravar(),
+  public.fazenda_baus_sorte()
 from public, anon, authenticated;
 
 grant execute on function
@@ -8004,5 +8180,6 @@ grant execute on function
   public.fazenda_chat_apagar(text, bigint),
   public.fazenda_chat_vender(text, bigint, int),
   public.fazenda_calendario_resgatar(text),
-  public.fazenda_calendario_dourado(text)
+  public.fazenda_calendario_dourado(text),
+  public.fazenda_abrir_bau_sorte(text, text)
 to anon, authenticated;

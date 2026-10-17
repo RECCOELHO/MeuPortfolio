@@ -171,6 +171,7 @@
         item_invalido: 'Item inválido.',
         lugar_reservado: 'Esse lugar é reservado (celeiro, casa, pasto, galinheiro) ou fica na mata fora do seu terreno.',
         lugar_ocupado: 'Já tem algo nesse lugar.',
+        so_na_areia: 'Isso é da praia: só vai na areia do Litoral.',
         limite_construcoes: 'Sua fazenda chegou ao limite de construções. Cada terreno comprado dá espaço para mais 150; ou guarde algumas que não usa.',
         missao_invalida: 'Missão não encontrada.',
         ja_resgatada: 'Você já pegou essa recompensa.',
@@ -914,7 +915,7 @@
         for (const k of S.culturas) if (k.tipo === 'cultura' && k.nivel_min === n) r.push({ html: itemDe(k, 24), nome: k.estacao ? `${k.nome} (${NOME_ESTACAO[k.estacao]})` : k.nome, tipo: 'Semente' });
         for (const i of S.itens || []) {
             if (i.nivel_min !== n) continue;
-            const tipo = i.categoria === 'maquina' ? 'Máquina' : i.categoria === 'energia' ? 'Energia' : i.categoria === 'oficina' ? 'Oficina' : i.categoria === 'construcao' ? 'Casa' : i.categoria === 'bichos' ? 'Cercado' : i.categoria === 'pomar' ? 'Árvore' : 'Enfeite';
+            const tipo = i.categoria === 'maquina' ? 'Máquina' : i.categoria === 'energia' ? 'Energia' : i.categoria === 'oficina' ? 'Oficina' : i.categoria === 'construcao' ? 'Casa' : i.categoria === 'bichos' ? 'Cercado' : i.categoria === 'pomar' ? 'Árvore' : i.categoria === 'praia' ? 'Praia' : 'Enfeite';
             r.push({ html: A.htmlItem(i.id, 24), nome: i.nome, tipo });
         }
         return r.sort((a, b) => ORDEM_TIPO[a.tipo] - ORDEM_TIPO[b.tipo]);
@@ -1131,6 +1132,11 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-10-17-conteudo', data: '17/10', titulo: 'Árvores, praia e o baú da sorte', itens: [
+            'Do <b>nível 31 ao 45</b> tem árvore nova a cada 3 níveis: <b>coqueiro</b> (31), <b>cajueiro</b> (34), <b>açaizeiro</b> (37), <b>cupuaçuzeiro</b> (40) e <b>castanheira</b> (43). Cada uma tem a sua oficina no nível seguinte: cocada, cajuína, açaí na tigela, creme de cupuaçu e paçoca.',
+            '<b>Sementes de estação</b> novas: maracujá (verão, 33), mexerica (inverno, 36), caqui (outono, 39) e lichia (primavera, 42). Fora da estação, só na estufa.',
+            '<b>Praia</b> (Construir → Praia): guarda-sol, cadeira, castelo de areia, barraca de coco e coqueiro, só na areia do Litoral.',
+            '<b>Baú da sorte</b> (Loja → Baús): madeira por 50 mil, prata por 250 mil e ouro por 1 milhão. Vem de tudo, até item raro, mas é sorte: quase sempre volta menos do que custou.'] },
         { id: '2026-10-17-numeros', data: '17/10', titulo: 'Preços novos e diamantes rendendo mais', itens: [
             'Do <b>nível 20 em diante</b> as moedas estavam sobrando: o que libera do 20 para cima (construções, oficinas, árvores do pomar e os terrenos 6 e 7) ficou <b>2,5 vezes mais caro</b>, e as <b>melhorias</b> e <b>evoluir ajudante</b>, 2 vezes. As sementes continuam com o mesmo preço.',
             'Guardar uma construção devolve a metade do que <b>você pagou</b> por ela.',
@@ -2530,7 +2536,7 @@
 
     function desenharPaleta() {
         if (!S || !S.itens) return;
-        const abas = [['plantacao', 'Plantação'], ['pomar', 'Pomar'], ['bichos', 'Bichos'], ['oficina', 'Oficinas'], ['maquina', 'Máquinas'], ['energia', 'Energia'], ['caminho', 'Cercas e caminhos'], ['natureza', 'Natureza'], ['objeto', 'Objetos'], ['construcao', 'Casas']];
+        const abas = [['plantacao', 'Plantação'], ['pomar', 'Pomar'], ['bichos', 'Bichos'], ['oficina', 'Oficinas'], ['maquina', 'Máquinas'], ['energia', 'Energia'], ['caminho', 'Cercas e caminhos'], ['natureza', 'Natureza'], ['objeto', 'Objetos'], ['construcao', 'Casas'], ['praia', 'Praia']];
         el.constrAbas.innerHTML = abas.map(([id, txt]) =>
             `<button type="button" data-constr-aba="${id}" class="${constr.aba === id ? 'ativa' : ''}">${txt}</button>`).join('');
         // por nível (o que já libera primeiro); no mesmo nível, a ordem do catálogo. A ordem do catálogo
@@ -3593,7 +3599,7 @@
             if (!soAtualizar) tutorialEvento('loja');
             el.painelTitulo.innerHTML = `${spr(9, 32)} Loja`;
             const abas = `<div class="painel-abas" role="tablist">
-                ${[['sementes', 'Sementes'], ['animais', 'Animais'], ['ajudantes', 'Ajudantes'], ['terrenos', 'Terrenos'], ['melhorias', 'Melhorias'], ['diamantes', 'Diamantes']].map(([id, txt]) =>
+                ${[['sementes', 'Sementes'], ['animais', 'Animais'], ['ajudantes', 'Ajudantes'], ['terrenos', 'Terrenos'], ['melhorias', 'Melhorias'], ['baus', 'Baús'], ['diamantes', 'Diamantes']].map(([id, txt]) =>
                     `<button type="button" role="tab" data-aba-loja="${id}" class="${abaLoja === id ? 'ativa' : ''}">${txt}</button>`).join('')}
             </div>`;
             if (abaLoja === 'animais') corpo.innerHTML = abas + htmlLojaAnimais();
@@ -3601,6 +3607,7 @@
             else if (abaLoja === 'melhorias') corpo.innerHTML = abas + htmlLojaMelhorias();
             else if (abaLoja === 'ajudantes') corpo.innerHTML = abas + htmlLojaAjudantes();
             else if (abaLoja === 'diamantes') corpo.innerHTML = abas + htmlLojaDiamantes();
+            else if (abaLoja === 'baus') corpo.innerHTML = abas + htmlLojaBaus();
             else corpo.innerHTML = abas + htmlLojaSementes();
         } else if (nome === 'missoes') {
             el.painelTitulo.innerHTML = `${ico('missao', 26)} Missões do dia`;
@@ -4136,6 +4143,33 @@
                     : `<button type="button" class="botao pequeno verde" data-comprar="terreno:${z.n}">${ico('moeda', 14)} ${z.custo}</button>`}
             </div>`;
         }).join('') + '</div><p class="aviso">Cada terreno abre um pedaço da mata em volta: mais espaço para canteiros, cercados, máquinas e enfeites, e mais canteiros no seu limite. Os três últimos são grandes. Também dá para tocar na placa no mapa.</p>';
+    }
+
+    /* ---------- Baús da sorte (fase 73): para gastar as moedas que sobram ----------
+       O servidor sorteia (fazenda_abrir_bau_sorte); vem de tudo, mas o que é bom vem pouco. */
+    const ICONE_BAU = { madeira: 1143, prata: 1144, ouro: 1145 };
+    let ultimoBau = null;   // o que saiu no último baú (aparece em cima da lista)
+    function textoPremioBau(p) {
+        if (!p) return '';
+        if (p.tipo === 'moedas' || p.tipo === 'grande') return `${ico('moeda', 18)} <b>${p.moedas.toLocaleString('pt-BR')}</b> moedas${p.tipo === 'grande' ? ': o prêmio grande!' : ''}`;
+        if (p.tipo === 'diamantes') return `${ico('diamante', 18)} <b>${p.diamantes}</b> diamantes`;
+        const k = culturas[p.item] || { id: p.item, nome: p.item };
+        return `${itemDe(k, 22)} <b>${p.qtd}</b> ${esc(k.nome.toLowerCase())}${p.tipo === 'raro' ? ': item raro!' : ''}`;
+    }
+    function htmlLojaBaus() {
+        const b = S.baus_sorte;
+        if (!b) return '<p class="vazio-msg">Os baús chegam em breve.</p>';
+        return (ultimoBau ? `<p class="aviso">Saiu do ${esc(ultimoBau.nome.toLowerCase())}: ${textoPremioBau(ultimoBau.premio)}.</p>` : '')
+            + '<div class="lista">' + Object.entries(b).sort((x, y) => x[1].preco - y[1].preco).map(([id, t]) => {
+                const travado = S.jogador.nivel < t.nivel;
+                return `<div class="item${travado ? ' travada' : ''}">
+                    <span class="ico">${travado ? ico('cadeado', 28) : spr(ICONE_BAU[id] || 1143, 44)}</span>
+                    <span><span class="nome">${esc(t.nome)}</span>
+                        <span class="det"><span>De tudo um pouco; raro é difícil</span></span></span>
+                    ${travado ? `<span class="preco">Nível ${t.nivel}</span>`
+                        : `<button type="button" class="botao pequeno verde" data-bau-sorte="${id}"${S.jogador.moedas < t.preco ? ' disabled' : ''}>Abrir<br>${ico('moeda', 14)} ${t.preco.toLocaleString('pt-BR')}</button>`}
+                </div>`;
+            }).join('') + `</div><p class="aviso">Um jeito de gastar as moedas que sobram, sem limite. É sorte: quase sempre volta menos do que custou, e só de vez em quando vem algo bem bom. O que vem dos baús não conta nas moedas do evento, e vendido no celeiro dá as moedas, mas não o XP.</p>`;
     }
 
     /* ---------- Melhorias (fase 57): compras caras e permanentes para o fim de jogo ----------
@@ -5270,6 +5304,22 @@
         const cerc = e.target.closest('[data-construir-cercado]');
         if (cerc) {
             irConstruir(cerc.dataset.construirCercado);
+            return;
+        }
+        const bs = e.target.closest('[data-bau-sorte]');
+        if (bs) {   // fase 73: baú da sorte (é caro: pergunta antes)
+            const t = S.baus_sorte && S.baus_sorte[bs.dataset.bauSorte];
+            if (!t || !confirm(`Abrir o ${t.nome.toLowerCase()} por ${t.preco.toLocaleString('pt-BR')} moedas? É sorte: quase sempre volta menos do que custou.`)) return;
+            bs.disabled = true;
+            enfileirar([], async () => {
+                const r = await rpc('fazenda_abrir_bau_sorte', { p_token: token, p_tipo: bs.dataset.bauSorte });
+                aplicarEstado(r.estado);
+                ultimoBau = { nome: t.nome, premio: r.premio };
+                const bom = r.premio.tipo === 'raro' || r.premio.tipo === 'grande';
+                toast(`${spr(ICONE_BAU[bs.dataset.bauSorte] || 1143, 22)} ${textoPremioBau(r.premio)}`, bom ? 'festa' : undefined);
+                som.tocar(bom ? 'festa' : 'moeda');
+                if (painelAtual === 'loja') abrirPainel('loja', true);
+            }).finally(() => { bs.disabled = false; });
             return;
         }
         const comp = e.target.closest('[data-comprar]');
