@@ -3714,7 +3714,8 @@ begin
   elsif p_categoria = 'melhoria' then
     -- fase 57: o próximo nível da melhoria (p_tipo = adubo, pomar ou pes)
     -- fase 62: e as do alto-mar (barco, vara e marinheiro), que pedem o píer pronto
-    select (n->>'nivel')::int as nivel, (n->>'custo')::int as custo, coalesce((m->>'mar')::boolean, false) as mar into a
+    select (n->>'nivel')::int as nivel, (n->>'custo')::int as custo, coalesce((m->>'mar')::boolean, false) as mar,
+           n->'itens' as itens into a
       from jsonb_array_elements(fazenda_melhorias_tipos()) m,
            jsonb_array_elements(m->'niveis') with ordinality as x(n, i)
      where m->>'id' = p_tipo
@@ -3722,16 +3723,31 @@ begin
     if not found then raise exception 'melhoria_max'; end if;
     if a.mar and j.pier_em is null then raise exception 'sem_pier'; end if;
     if fazenda_nivel(j.xp) < a.nivel then raise exception 'nivel_insuficiente'; end if;
+    -- fase 65: a rede é do marinheiro; o kit de expedição pede o barco oceânico
+    if p_tipo = 'rede' and fazenda_mar_item(v_id, 'marinheiro') is null then raise exception 'sem_marinheiro'; end if;
+    if p_tipo = 'expedicao' and coalesce((select nivel from fazenda_melhorias where jogador_id = v_id and id = 'barco'), 0) < 4 then
+      raise exception 'barco_pequeno';
+    end if;
     if j.moedas < a.custo then raise exception 'moedas_insuficientes'; end if;
-    -- barco ou marinheiro novo muda o ritmo: o que já está no cardume (ou no cesto) fica lá
-    v_n := case when p_tipo in ('barco', 'marinheiro') then fazenda_mar_contar(v_id, p_tipo) end;
+    -- fase 65: as peças pedem materiais raros do celeiro (o que está guardado para o píer fica)
+    if exists (select 1 from jsonb_each_text(coalesce(a.itens, '{}'::jsonb)) e
+                where coalesce((select quantidade from fazenda_celeiro where jogador_id = v_id and item = e.key), 0)
+                    - coalesce((select quantidade from fazenda_reservas where jogador_id = v_id and item = e.key), 0) < e.value::int) then
+      raise exception 'faltam_materiais';
+    end if;
+    -- barco ou marinheiro novo (e o motor e a rede) mudam o ritmo: o que já está no cardume (ou no cesto) fica lá
+    v_n := case when p_tipo in ('barco', 'motor') then fazenda_mar_contar(v_id, 'barco')
+                when p_tipo in ('marinheiro', 'rede') then fazenda_mar_contar(v_id, 'marinheiro') end;
     update fazenda_jogadores set moedas = moedas - a.custo where id = v_id;
+    update fazenda_celeiro c set quantidade = c.quantidade - e.value::int
+      from jsonb_each_text(coalesce(a.itens, '{}'::jsonb)) e
+     where c.jogador_id = v_id and c.item = e.key;
     insert into fazenda_melhorias (jogador_id, id, nivel) values (v_id, p_tipo, 1)
     on conflict (jogador_id, id) do update set nivel = fazenda_melhorias.nivel + 1;
-    if p_tipo = 'barco' then
+    if p_tipo in ('barco', 'motor') then
       update fazenda_jogadores set mar_em = now() - make_interval(secs => v_n * (fazenda_mar_item(v_id, 'barco')->>'intervalo')::int)
        where id = v_id;
-    elsif p_tipo = 'marinheiro' then
+    elsif p_tipo in ('marinheiro', 'rede') then
       update fazenda_jogadores set marinheiro_em = now() - make_interval(secs => v_n * (fazenda_mar_item(v_id, 'marinheiro')->>'intervalo')::int)
        where id = v_id;
     end if;
@@ -5386,6 +5402,8 @@ revoke all on public.fazenda_melhorias from anon, authenticated;
 -- fase 62: barco, vara e marinheiro são do alto-mar (mar = só com o píer; aparecem na tela do barco, não
 -- na loja). base = o que vem com o píer; intervalo/max = o cardume do barco (ou o cesto do marinheiro),
 -- em segundos e peixes; janela = o tempo de fisgar da vara, em milésimos de segundo
+-- fase 65: a tunagem do barco (peca = true): motor, sonar, porão, rede e o kit de expedição. Cada nível
+-- pede moedas e materiais raros (itens); o efeito entra em fazenda_mar_item, na pescaria e no marinheiro
 create or replace function public.fazenda_melhorias_tipos()
 returns jsonb language sql immutable as $$
   select '[{"id":"adubo","nome":"Adubo premium","descricao":"As plantas nascem adiantadas: crescem 10%, 20% e 30% mais rápido (soma com o girassol e a estufa).",
@@ -5409,7 +5427,24 @@ returns jsonb language sql immutable as $$
            {"id":"marinheiro","nome":"Marinheiro","mar":true,"descricao":"O Seu Nonato pesca sozinho enquanto você cuida da fazenda: o cesto dele enche por até 8 horas. Cada nível pesca mais rápido.",
             "niveis":[{"nivel":33,"custo":250000,"valor":1,"nome":"Seu Nonato","intervalo":1800,"max":16},
                       {"nivel":36,"custo":700000,"valor":2,"nome":"Seu Nonato com rede","intervalo":1200,"max":24},
-                      {"nivel":39,"custo":1800000,"valor":3,"nome":"Seu Nonato com barco de apoio","intervalo":720,"max":40}]}]'::jsonb;
+                      {"nivel":39,"custo":1800000,"valor":3,"nome":"Seu Nonato com barco de apoio","intervalo":720,"max":40}]},
+           {"id":"motor","nome":"Motor","mar":true,"peca":true,"descricao":"Motor mais forte vai e volta mais rápido: o cardume enche mais rápido.",
+            "niveis":[{"nivel":33,"custo":200000,"valor":0.1,"nome":"Motor de popa","itens":{"ferro_forjado":1}},
+                      {"nivel":39,"custo":600000,"valor":0.2,"nome":"Motor a diesel","itens":{"ferro_forjado":2,"ancora":1}},
+                      {"nivel":44,"custo":1500000,"valor":0.3,"nome":"Motor turbo","itens":{"ferro_forjado":3,"ancora":2,"perola_negra":1}}]},
+           {"id":"sonar","nome":"Sonar","mar":true,"peca":true,"descricao":"Acha os cardumes de peixe grande e as ostras: mais peixe grande e mais pérola negra.",
+            "niveis":[{"nivel":35,"custo":250000,"valor":1,"perola":150,"nome":"Sonar simples","itens":{"corda_naval":2}},
+                      {"nivel":41,"custo":800000,"valor":2,"perola":100,"nome":"Sonar colorido","itens":{"corda_naval":2,"perola_negra":1}},
+                      {"nivel":45,"custo":2000000,"valor":3,"perola":70,"nome":"Sonar de varredura","itens":{"perola_negra":2,"marlim":1}}]},
+           {"id":"porao","nome":"Porão","mar":true,"peca":true,"descricao":"Guarda o peixe no gelo: às vezes uma fisgada traz 2 peixes.",
+            "niveis":[{"nivel":36,"custo":300000,"valor":0.15,"nome":"Caixa de gelo","itens":{"madeira_nobre":2}},
+                      {"nivel":42,"custo":1000000,"valor":0.3,"nome":"Porão refrigerado","itens":{"madeira_nobre":3,"pedra_cantaria":2}},
+                      {"nivel":45,"custo":2500000,"valor":0.45,"nome":"Câmara fria","itens":{"pedra_cantaria":2,"ferro_forjado":2,"perola_negra":1}}]},
+           {"id":"rede","nome":"Rede de arrasto","mar":true,"peca":true,"descricao":"Para o marinheiro: ele pesca mais rápido (e o cesto continua guardando 8 horas).",
+            "niveis":[{"nivel":37,"custo":300000,"valor":0.15,"nome":"Rede de arrasto","itens":{"corda_naval":2}},
+                      {"nivel":43,"custo":1200000,"valor":0.3,"nome":"Rede dupla","itens":{"corda_naval":3,"ancora":1}}]},
+           {"id":"expedicao","nome":"Kit de expedição","mar":true,"peca":true,"descricao":"Bússola, mapa e tanque extra: deixa o barco oceânico pronto para viajar às ilhas (nível 46, na próxima expansão).",
+            "niveis":[{"nivel":45,"custo":3000000,"valor":1,"nome":"Kit de expedição","itens":{"perola_negra":3,"marlim":2,"ancora":2}}]}]'::jsonb;
 $$;
 
 -- quanto a melhoria vale para o jogador agora (0 = não comprou)
@@ -5732,6 +5767,7 @@ $$;
 -- ------------------------------------------------------------
 alter table public.fazenda_jogadores add column if not exists mar_em timestamptz;          -- desde quando o cardume enche
 alter table public.fazenda_jogadores add column if not exists marinheiro_em timestamptz;   -- desde quando o cesto do marinheiro enche
+alter table public.fazenda_jogadores add column if not exists barco_visual jsonb;          -- fase 65: a pintura do barco (casco, faixa, bandeira)
 alter table public.fazenda_estatisticas add column if not exists peixes_mar int not null default 0;
 alter table public.fazenda_estatisticas add column if not exists marlins int not null default 0;
 
@@ -5813,12 +5849,27 @@ $$;
 
 -- o barco, a vara ou o marinheiro que o jogador tem agora (o nível 0 é o "base", que vem com o píer;
 -- o marinheiro não tem base: null = não contratado)
+-- fase 65: o motor deixa o cardume do barco mais rápido; a rede, o marinheiro (e o cesto dele cresce
+-- junto, para continuar guardando 8 horas)
 create or replace function public.fazenda_mar_item(p_jogador uuid, p_id text)
 returns jsonb language sql stable security definer set search_path = public as $$
-  select case when coalesce(g.nivel, 0) = 0 then m->'base' else m->'niveis'->(g.nivel - 1) end
-    from jsonb_array_elements(fazenda_melhorias_tipos()) m
-    left join fazenda_melhorias g on g.jogador_id = p_jogador and g.id = p_id
-   where m->>'id' = p_id;
+  select case when x.i is null then null
+              when p_id = 'barco' and fazenda_melhoria(p_jogador, 'motor') > 0
+                then x.i || jsonb_build_object('intervalo', round((x.i->>'intervalo')::int * (1 - fazenda_melhoria(p_jogador, 'motor')))::int)
+              when p_id = 'marinheiro' and fazenda_melhoria(p_jogador, 'rede') > 0
+                then x.i || jsonb_build_object('intervalo', round((x.i->>'intervalo')::int * (1 - fazenda_melhoria(p_jogador, 'rede')))::int,
+                                               'max', ceil((x.i->>'max')::int / (1 - fazenda_melhoria(p_jogador, 'rede'))::numeric)::int)
+              else x.i end
+    from (select case when coalesce(g.nivel, 0) = 0 then m->'base' else m->'niveis'->(g.nivel - 1) end as i
+            from jsonb_array_elements(fazenda_melhorias_tipos()) m
+            left join fazenda_melhorias g on g.jogador_id = p_jogador and g.id = p_id
+           where m->>'id' = p_id) x;
+$$;
+
+-- fase 65: 1 pérola a cada quantos peixes (o sonar baixa de 200 para 150, 100 e 70)
+create or replace function public.fazenda_mar_perola(p_jogador uuid)
+returns int language sql stable security definer set search_path = public as $$
+  select coalesce((fazenda_mar_item(p_jogador, 'sonar')->>'perola')::int, (fazenda_mar_regras()->>'perola')::int);
 $$;
 
 -- quantos peixes há agora no cardume (p_qual = 'barco') ou no cesto do marinheiro ('marinheiro'):
@@ -5844,8 +5895,10 @@ returns jsonb language sql stable security definer set search_path = public as $
            'cesto', case when m.i is not null then
                       jsonb_build_object('desde', j.marinheiro_em, 'intervalo', (m.i->>'intervalo')::int, 'max', (m.i->>'max')::int) end,
            'peixes', (select jsonb_agg(jsonb_build_object('id', t.peixe, 'chance', t.chance))
-                        from fazenda_mar_peixes((b.i->>'valor')::int, (v.i->>'valor')::int) t),
-           'regras', fazenda_mar_regras()) end
+                        from fazenda_mar_peixes((b.i->>'valor')::int, (v.i->>'valor')::int + fazenda_melhoria(p_jogador, 'sonar')::int) t),
+           'regras', fazenda_mar_regras(),
+           'perola', fazenda_mar_perola(p_jogador),                  -- fase 65: o sonar acha mais pérola
+           'visual', coalesce(j.barco_visual, '{}'::jsonb)) end
     from fazenda_jogadores j
     cross join lateral (select fazenda_mar_item(p_jogador, 'barco') as i) b
     cross join lateral (select fazenda_mar_item(p_jogador, 'vara') as i) v
@@ -5879,11 +5932,11 @@ begin
   update fazenda_jogadores
      set mar_em = greatest(coalesce(mar_em, now() - v_cheio), now() - v_cheio) + make_interval(secs => (v_b->>'intervalo')::int)
    where id = v_id;
-  v_peixe := fazenda_mar_sortear((v_b->>'valor')::int, (v_v->>'valor')::int);
+  v_peixe := fazenda_mar_sortear((v_b->>'valor')::int, (v_v->>'valor')::int + fazenda_melhoria(v_id, 'sonar')::int);   -- fase 65: o sonar
   v_espera := (v_g->>'mordida_min')::int + floor(random() * ((v_g->>'mordida_max')::int - (v_g->>'mordida_min')::int))::int;
   select x.o into v_tam from jsonb_array_elements(fazenda_mar_tabela()) with ordinality as x(p, o) where x.p->>'id' = v_peixe;
   insert into fazenda_mar_lances (jogador_id, peixe, perola, mordida_em, janela_ms)
-  values (v_id, v_peixe, random() < 1.0 / (v_g->>'perola')::int, now() + make_interval(secs => v_espera / 1000.0), (v_v->>'janela')::int)
+  values (v_id, v_peixe, random() < 1.0 / fazenda_mar_perola(v_id), now() + make_interval(secs => v_espera / 1000.0), (v_v->>'janela')::int)
   on conflict (jogador_id) do update set
     peixe = excluded.peixe, perola = excluded.perola, mordida_em = excluded.mordida_em,
     janela_ms = excluded.janela_ms, criado_em = now();
@@ -5904,6 +5957,7 @@ declare
   v_g  jsonb := fazenda_mar_regras();
   l    record;
   v_xp int;
+  v_qtd int;   -- fase 65: o porão às vezes traz 2
 begin
   perform 1 from fazenda_jogadores where id = v_id for update;
   delete from fazenda_mar_lances where jogador_id = v_id returning * into l;
@@ -5914,19 +5968,20 @@ begin
   if now() > l.mordida_em + make_interval(secs => (l.janela_ms + (v_g->>'folga_ms')::int) / 1000.0) then
     return jsonb_build_object('pegou', false, 'motivo', 'tarde', 'mar', fazenda_mar_estado(v_id));
   end if;
-  insert into fazenda_celeiro (jogador_id, item, quantidade) values (v_id, l.peixe, 1)
-  on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + 1;
+  v_qtd := case when random() < fazenda_melhoria(v_id, 'porao') then 2 else 1 end;   -- fase 65: o porão
+  insert into fazenda_celeiro (jogador_id, item, quantidade) values (v_id, l.peixe, v_qtd)
+  on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
   if l.perola then
     insert into fazenda_celeiro (jogador_id, item, quantidade) values (v_id, 'perola_negra', 1)
     on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + 1;
   end if;
-  select xp into v_xp from fazenda_culturas where id = l.peixe;
+  select xp * v_qtd into v_xp from fazenda_culturas where id = l.peixe;
   update fazenda_jogadores set xp = xp + v_xp where id = v_id;
   insert into fazenda_estatisticas (jogador_id) values (v_id) on conflict do nothing;
-  update fazenda_estatisticas set peixes_mar = peixes_mar + 1, marlins = marlins + (l.peixe = 'marlim')::int
+  update fazenda_estatisticas set peixes_mar = peixes_mar + v_qtd, marlins = marlins + (l.peixe = 'marlim')::int * v_qtd
    where jogador_id = v_id;
-  perform fazenda_missao(v_id, 'colher', 1);
-  return jsonb_build_object('pegou', true, 'peixe', l.peixe, 'perola', l.perola, 'xp', v_xp, 'estado', fazenda_estado(v_id));
+  perform fazenda_missao(v_id, 'colher', v_qtd);
+  return jsonb_build_object('pegou', true, 'peixe', l.peixe, 'qtd', v_qtd, 'perola', l.perola, 'xp', v_xp, 'estado', fazenda_estado(v_id));
 end;
 $$;
 
@@ -5957,9 +6012,9 @@ begin
   v_n := fazenda_mar_contar(v_id, 'marinheiro');
   if v_n <= 0 then raise exception 'cesto_mar_vazio'; end if;
   for v_k in 1..v_n loop
-    v_p := fazenda_mar_sortear((v_b->>'valor')::int, (v_v->>'valor')::int);
+    v_p := fazenda_mar_sortear((v_b->>'valor')::int, (v_v->>'valor')::int + fazenda_melhoria(v_id, 'sonar')::int);   -- fase 65: o sonar
     v_peixes := jsonb_set(v_peixes, array[v_p], to_jsonb(coalesce((v_peixes->>v_p)::int, 0) + 1));
-    if random() < 1.0 / (v_g->>'perola')::int then v_perolas := v_perolas + 1; end if;
+    if random() < 1.0 / fazenda_mar_perola(v_id) then v_perolas := v_perolas + 1; end if;
   end loop;
   update fazenda_jogadores
      set marinheiro_em = greatest(coalesce(marinheiro_em, now()),
@@ -6231,6 +6286,65 @@ $$;
 select public.fazenda_semana_fechar();
 
 -- ------------------------------------------------------------
+-- Fase 65: a tunagem do barco (até o nível 45, para as ilhas do 46).
+-- • Peças (melhorias do mar com peca = true, em fazenda_melhorias_tipos): motor (o cardume enche mais
+--   rápido), sonar (mais peixe grande e mais pérola), porão (às vezes 2 peixes numa fisgada), rede de
+--   arrasto (o marinheiro pesca mais rápido) e o kit de expedição (deixa o barco oceânico pronto para as
+--   ilhas). Cada nível pede moedas e materiais raros (do mercador, a pérola negra e o marlim-azul) e
+--   aparece no desenho do barco. A compra é a de sempre: fazenda_comprar(…, 'melhoria', …).
+-- • A pintura: a cor do casco e da faixa e a bandeira (barco_visual). 20 mil moedas por mudança; o
+--   dourado pede 1 pérola negra.
+-- ------------------------------------------------------------
+create or replace function public.fazenda_barco_cores()
+returns jsonb language sql immutable as $$
+  select '{"preco": 20000, "dourado": "perola_negra",
+           "cores": ["padrao", "branco", "azul", "vermelho", "verde", "amarelo", "preto", "roxo", "rosa", "dourado"],
+           "bandeiras": ["padrao", "brasil", "pirata", "xadrez", "coracao", "estrela", "sertao"]}'::jsonb;
+$$;
+
+create or replace function public.fazenda_barco_pintar(p_token text, p_visual jsonb)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id      uuid := fazenda_auth(p_token);
+  v_cat     jsonb := fazenda_barco_cores();
+  j         record;
+  v_atual   jsonb;
+  v_novo    jsonb;
+  v_mud     int := 0;
+  v_perolas int := 0;
+  k         text;
+begin
+  select * into j from fazenda_jogadores where id = v_id for update;
+  if j.pier_em is null then raise exception 'sem_pier'; end if;
+  v_atual := coalesce(j.barco_visual, '{}'::jsonb);
+  v_novo := jsonb_build_object('casco', coalesce(p_visual->>'casco', 'padrao'), 'faixa', coalesce(p_visual->>'faixa', 'padrao'),
+                               'bandeira', coalesce(p_visual->>'bandeira', 'padrao'));
+  if not (v_cat->'cores' ? (v_novo->>'casco')) or not (v_cat->'cores' ? (v_novo->>'faixa'))
+     or not (v_cat->'bandeiras' ? (v_novo->>'bandeira')) then
+    raise exception 'cor_invalida';
+  end if;
+  foreach k in array array['casco', 'faixa', 'bandeira'] loop
+    if v_novo->>k is distinct from coalesce(v_atual->>k, 'padrao') then
+      v_mud := v_mud + 1;
+      if v_novo->>k = 'dourado' then v_perolas := v_perolas + 1; end if;
+    end if;
+  end loop;
+  if v_mud = 0 then raise exception 'nada_mudou'; end if;
+  if j.moedas < v_mud * (v_cat->>'preco')::int then raise exception 'moedas_insuficientes'; end if;
+  if v_perolas > 0 and coalesce((select quantidade from fazenda_celeiro where jogador_id = v_id and item = v_cat->>'dourado'), 0)
+                       - coalesce((select quantidade from fazenda_reservas where jogador_id = v_id and item = v_cat->>'dourado'), 0) < v_perolas then
+    raise exception 'faltam_materiais';
+  end if;
+  update fazenda_celeiro set quantidade = quantidade - v_perolas where v_perolas > 0 and jogador_id = v_id and item = v_cat->>'dourado';
+  update fazenda_jogadores set moedas = moedas - v_mud * (v_cat->>'preco')::int, barco_visual = v_novo where id = v_id;
+  return jsonb_build_object('estado', fazenda_estado(v_id));
+end;
+$$;
+
+-- ------------------------------------------------------------
 -- Permissões: só a API pública fica executável pela chave anon
 -- ------------------------------------------------------------
 revoke execute on function
@@ -6382,7 +6496,9 @@ revoke execute on function
   public.fazenda_semana_placar(timestamptz, timestamptz, timestamptz),
   public.fazenda_semana_posicoes(timestamptz, timestamptz, timestamptz),
   public.fazenda_semana_fechar(),
-  public.fazenda_trofeus(uuid)
+  public.fazenda_trofeus(uuid),
+  public.fazenda_mar_perola(uuid),
+  public.fazenda_barco_cores()
 from public, anon, authenticated;
 
 grant execute on function
@@ -6431,5 +6547,6 @@ grant execute on function
   public.fazenda_mar_lancar(text),
   public.fazenda_mar_fisgar(text),
   public.fazenda_mar_recolher(text),
-  public.fazenda_evento(text)
+  public.fazenda_evento(text),
+  public.fazenda_barco_pintar(text, jsonb)
 to anon, authenticated;
