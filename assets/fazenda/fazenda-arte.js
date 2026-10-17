@@ -475,11 +475,12 @@
             pele: { cores: { '#e19a65': 0, '#f7c282': 1 }, y: [6, 16] },
             roupa: { nome: 'Camisa', cores: { '#f28462': 1 }, y: [9, 16] },
             calca: { nome: 'Macacão', cores: { '#52607c': 1, '#8c9cb5': 2 }, y: [9, 16] } } },
-        fazendeira: { nome: 'Fazendeira', p: 'farm', i: 108, regioes: {
-            cabelo: { nome: 'Cabelo', cores: { '#763b36': 1, '#bd6c4a': 2 }, y: [0, 10] },
-            pele: { cores: { '#e19a65': 0, '#f7c282': 1 }, y: [4, 16] },
-            roupa: { nome: 'Blusa', cores: { '#f28462': 1, '#c34b35': 0 }, y: [10, 14] },   // os punhos acompanham a blusa
-            calca: { nome: 'Macacão', cores: { '#52607c': 1 }, y: [10, 16] } } },
+        // fase 66: a fazendeira é a moça de cabelo comprido (a mesma da Dona Benta); a de antes, de
+        // cabelo curto, parecia careca e barbuda. A flor do cabelo (linhas 3 a 5) não muda com a pele
+        fazendeira: { nome: 'Fazendeira', p: 'dungeon', i: 99, regioes: {
+            cabelo: { nome: 'Cabelo', cores: { '#763b36': 1, '#bd6c4a': 2 }, y: [0, 14] },
+            pele: { cores: { '#e19a65': 0, '#eaa56c': 0, '#f7c282': 1 }, y: [6, 16] },
+            roupa: { nome: 'Vestido', cores: { '#9b4ca3': 1, '#d176d0': 2 }, y: [11, 16] } } },
         rapaz: { nome: 'Rapaz', p: 'dungeon', i: 85, regioes: {
             cabelo: { nome: 'Cabelo', cores: { '#763b36': 1, '#bd6c4a': 2 }, y: [0, 10] },
             pele: { cores: { '#e19a65': 0, '#f7c282': 1 }, y: [4, 16] },
@@ -498,8 +499,8 @@
         cavaleiro: { nome: 'Cavaleiro', p: 'dungeon', i: 97, regioes: {
             roupa: { nome: 'Armadura', cores: { '#52607c': 0, '#8b9bb4': 1, '#c0cbdc': 2 }, y: [0, 16] },
             pele: { cores: { '#e19a65': 0, '#f7c282': 1 }, y: [0, 16] } } },
-        // fase 43: os de diamante (fazenda_avatar_diamantes). Os da doceira, do caminhoneiro e da
-        // mascate (99, 112, 100) ficam só para as visitas da porteira
+        // fase 43: os de diamante (fazenda_avatar_diamantes). Os do caminhoneiro e da mascate
+        // (112, 100) ficam só para as visitas da porteira
         soldado: { nome: 'Soldado', p: 'dungeon', i: 98, regioes: {
             cabelo: { nome: 'Cabelo', cores: { '#bd6c4a': 2, '#763b36': 1 }, y: [0, 9] },
             pele: { cores: { '#e19a65': 0, '#f7c282': 1 }, y: [0, 16] },
