@@ -175,6 +175,9 @@
         madeira_nobre: { item: 1085 }, corda_naval: { item: 1086 }, pedra_cantaria: { item: 1087 },
         ferro_forjado: { item: 1088 }, ancora: { item: 1089 },
         leme_dourado: { item: 1090 },   // fase 61
+        // fase 62: os peixes do alto-mar e a pérola negra
+        sardinha: { item: 1091 }, cavala: { item: 1092 }, robalo: { item: 1093 }, garoupa: { item: 1094 },
+        dourado_mar: { item: 1095 }, atum: { item: 1096 }, marlim: { item: 1097 }, perola_negra: { item: 1098 },
         // sementes da estação (broto e meio do pacote; madura e fruta próprias)
         moranguinho: { fases: [52, 53, 1013], murcho: 55, item: 1014, semente: 1014 },
         melancia: { fases: [52, 53, 1015], murcho: 55, item: 1016, semente: 1016 },
@@ -208,7 +211,9 @@
         // plantas da estação
         O: '#f0a04b', N: '#c96b28', L: '#3e8948', M: '#9fd06c', r: '#e8434a', s: '#fbe7a1', C: '#b9e08a', D: '#6aa84f',
         // máquinas elétricas
-        E: '#3b5dc9', F: '#29366f', K: '#566c86', W: '#a7f070'
+        E: '#3b5dc9', F: '#29366f', K: '#566c86', W: '#a7f070',
+        // fase 62: o alto-mar (verde-água, o fundo do mar e a pérola negra)
+        T: '#3fb6c9', S: '#1f7f94', Y: '#cdeef4', I: '#25406e', J: '#1a1630'
     };
     const PROPRIA = [
         // 0 porco
@@ -406,7 +411,24 @@
         ['................', '.......aa.......', '......affa......', '......afla......', '.......aa.......', '....aaaKaaaa....', '....aKKKKKKa....', '.......aK.......', '.......aKa......', '.a.....aKa....a.', 'aKa....aKa...aKa', '.aKa...aKa..aKa.', '..aKaa.aKa.aKa..', '...aKKaaKaaKa...', '....aaKKKKKa....', '......aaaaa.....'],
         // fase 61: o leme dourado (prêmio do ranking da semana, peça do píer)
         // 90 leme dourado (aro dourado com brilho, miolo de madeira com os raios e 8 manoplas)
-        ['......ayGa......', '..a...ayGa...a..', '.aGa.aayGaa.aGa.', '..ayaGGGdddaya..', '...aggGaaddda...', '..agganaanadda..', 'aaaggnaGGanddaaa', 'GGGHaaGaaGaadGGG', 'yyyHaaGaaGaaGyyy', 'aaaHHnaGGanGGaaa', '..aHHanaanagGa..', '...aHHHaaggga...', '..ayaHHHHggaya..', '.aGa.aayGaa.aGa.', '..a...ayGa...a..', '......ayGa......']
+        ['......ayGa......', '..a...ayGa...a..', '.aGa.aayGaa.aGa.', '..ayaGGGdddaya..', '...aggGaaddda...', '..agganaanadda..', 'aaaggnaGGanddaaa', 'GGGHaaGaaGaadGGG', 'yyyHaaGaaGaaGyyy', 'aaaHHnaGGanGGaaa', '..aHHanaanagGa..', '...aHHHaaggga...', '..ayaHHHHggaya..', '.aGa.aayGaa.aGa.', '..a...ayGa...a..', '......ayGa......'],
+        // fase 62: os peixes do alto-mar (de lado, a cabeça para a direita) e a pérola negra
+        // 91 sardinha
+        ['................', '................', '................', '................', '..........aa....', '........aaBBa...', 'a.....aaEEEEEaa.', 'aa...aEEEEEEdaEa', 'aBa.aEEEEEEEeaEa', 'aBBaEEEEEEEEEEEa', 'aBBaTTTTTTTTTTTa', 'aBa.aYYYYYYYYYYa', 'aa...aaYYYYYaa..', 'a......aaaaa....', '................', '................'],
+        // 92 cavala
+        ['................', '................', '................', '................', '..........aa....', '........aaSSa...', 'a.....aaSSSSSaa.', 'aa...aSSSSSSdaSa', 'aSa.aSSSSSSSeaSa', 'aSSaSSSSSSSSSSSa', 'aSSaBBBBBBBBBBBa', 'aSa.affffffffffa', 'aa...aafffffaa..', 'a......aaaaa....', '................', '................'],
+        // 93 robalo
+        ['................', '................', '................', '................', '..........aa....', '........aalla...', 'a.....aaKKKKKaa.', 'aa...aKKKKKKdaKa', 'ala.aKKKKKKKeaKa', 'allaKKKKKKKKKKKa', 'allaeeeeeeeeeeea', 'ala.affffffffffa', 'aa...aafffffaa..', 'a......aaaaa....', '................', '................'],
+        // 94 garoupa
+        ['................', '................', '........aaa.....', '.......aNNNa....', 'a....aayyyyyaa..', 'aa..ayyyyyyyyyya', 'aNaayysysyyyydya', 'aNNayyyyyyyyyyea', 'aNNasysyyysyyyya', 'aNNannnnnnnnnnna', 'aNNajjjjjjjjjjja', 'aNa.ajjjjjjjjjja', 'aa...ajjjjjjjaa.', 'a.....aaaNaaaa..', '........aa......', '................'],
+        // 95 dourado-do-mar
+        ['................', '................', '....aaaaaaaa....', '...aDDDDDDDDa...', 'a.aLLLLLLLLLLa..', 'aaLLLLLLLLLdLaa.', 'aDaLBLBLBLLeLaLa', 'aDDaLLLLLLLLLLLa', 'aDDaggggggggggga', 'aDDagGgGgGgGgGga', 'aDa.aGGGGGGGGGGa', 'aa...aaGGGGGGGa.', 'a......aDaaaa...', '........a.......', '................', '................'],
+        // 96 atum
+        ['................', '................', '........aa......', '.......agga.....', 'a....aaaFFFaaa..', 'aa..aFFFFFFFFFFa', 'agaagaFFFFFFFdFa', 'aggaFFFFFFFFFeaa', 'aggagallllllllla', 'aggafafffffffffa', 'agaagafffffffffa', 'aa..afffffffffa.', 'a....aaagaaaaa..', '........aa......', '................', '................'],
+        // 97 marlim
+        ['......a.........', '.....aEa........', '....aEEEa.......', '...aEEEEEa......', 'a.aEEEEEEEa.....', 'aaIIIIIIIIaa....', 'aEIIIIIIIIIdaaa.', 'aEIIIIIIIIIeIIaa', 'aEIEEEEEEEEEa...', 'aEafffffffffffa.', 'aa.afffffffffa..', 'a...aaaEaaaaaa..', '.......aa.......', '................', '................', '................'],
+        // 98 pérola negra
+        ['................', '................', '......aaaa......', '....aaJJJJaa....', '...aJJJJJJJJa...', '..aJdfJJJJJJVa..', '..aJfJJJJJJVVa..', '..aJJJJJJJVVUa..', '..aJJJJJJVVUUa..', '...aJJJVVVUUa...', '.aaaaaVVUUaaaaa.', 'aPmPPaaaaaaPPmPa', 'afPPmPPPPPPmPPfa', '.aflPPPPPPPPlfa.', '..aallllllllaa..', '....aaaaaaaa....']
     ];
     const atlasProprio = document.createElement('canvas');
     atlasProprio.width = 12 * 16;
@@ -991,6 +1013,7 @@
         let construcao = { ativo: false };                 // estado do modo construir
         let zonaVenda = null;                              // próximo terreno à venda (ZONAS) ou null
         let pierPronto = false;                            // fase 61: o píer já foi construído?
+        let pausada = false;                               // fase 62: no alto-mar, a fazenda para de desenhar
         let clima = null;                                  // sol | nublado | chuva | calor | vento
         let lago = null;                                   // { prontos, max } do seu lago, ou null
         // visita na porteira: { tipo, item (tile do balão), x, y, tx, ty, saindo }
@@ -1788,6 +1811,7 @@
                 limitarCamera();
             }
             const movendo = deslizando || (toque && toque.arrastou) || precisaDesenhar;
+            if (pausada) { requestAnimationFrame(quadroAnim); return; }   // fase 62: no alto-mar a fazenda não desenha
             if (movendo || agora - ultimoDesenho >= 1000 / 24) {
                 ultimoDesenho = agora;
                 precisaDesenhar = false;
@@ -2386,7 +2410,9 @@
                 const topo = a.v && a.v.estado !== 'produzindo' ? a.y - 22 : a.y;
                 if (px >= a.x - 1 && px < a.x + T + 1 && py >= topo && py < a.y + T) return 'a:' + a.id;
             }
-            if (zonasAtuais >= 7 && (dentroRet(MAPA.pier, tx, ty) || (pierPronto && tx >= MAPA.pier.x + MAPA.pier.w && tx <= MAPA.pier.x + MAPA.pier.w + 2 && ty >= 38 && ty <= 40))) return 'pier';   // fase 61 (e o barco)
+            // fase 62: o barco atracado leva para o alto-mar; o píer (ou o lugar dele) abre a tela do píer
+            if (zonasAtuais >= 7 && pierPronto && tx >= MAPA.pier.x + MAPA.pier.w && tx <= MAPA.pier.x + MAPA.pier.w + 2 && ty >= 38 && ty <= 40) return 'barco';
+            if (zonasAtuais >= 7 && dentroRet(MAPA.pier, tx, ty)) return 'pier';   // fase 61
             const cant = listaCanteiros().find((k) => k.x === tx && k.y === ty);
             if (cant) return cant.posicao;
             const cons = (construcoesFn() || []).find((c) => {
@@ -2514,6 +2540,7 @@
             else if (alvo === 'lago') { if (cb.aoLago) cb.aoLago(); }
             else if (alvo === 'visitante') { if (cb.aoVisitante) cb.aoVisitante(); }
             else if (alvo === 'pier') { if (cb.aoPier) cb.aoPier(); }
+            else if (alvo === 'barco') { if (cb.aoBarco) cb.aoBarco(); else if (cb.aoPier) cb.aoPier(); }   // fase 62
             else if (typeof alvo === 'object' && alvo.construcao) { if (cb.aoConstrucao) cb.aoConstrucao(alvo.construcao.x, alvo.construcao.y); }
             else if (typeof alvo === 'object') { if (cb.aoAnimal) cb.aoAnimal(alvo.animal); }
             else if (cb.aoCanteiro) cb.aoCanteiro(alvo);
@@ -2620,6 +2647,7 @@
             // seu lago: { prontos, max } (null na visita ou sem o terreno 3)
             definirLago(l) { lago = l || null; },
             definirPier(pronto) { if (!!pronto === pierPronto) return; pierPronto = !!pronto; montarFundo(); precisaDesenhar = true; },   // fase 61
+            pausar(sim) { pausada = !!sim; if (!pausada) precisaDesenhar = true; },   // fase 62
             // avatar do fazendeiro que anda na fazenda (null = o do pacote)
             definirAvatar(cfg) { avatarAtual = cfg || null; },
             // visita na porteira ({ tipo, item }) ou null (ela vai embora andando)
@@ -2721,6 +2749,9 @@
         cultura: (id) => CULTURAS[id] || CULTURA_PADRAO,
         // fase 59: este arquivo conhece o item / a cultura? (o servidor pode ter coisas novas antes do
         // jogo aberto recarregar: aí tudo novo aparecia como pedra)
-        conhece: (id, cultura) => (cultura ? !!CULTURAS[id] : !arteItem(id, 0).desconhecido)
+        conhece: (id, cultura) => (cultura ? !!CULTURAS[id] : !arteItem(id, 0).desconhecido),
+        // fase 62: para a cena do alto-mar (fazenda-mar.js) desenhar com a mesma arte
+        desenharTile: tile,
+        avatarCanvas
     };
 })();
