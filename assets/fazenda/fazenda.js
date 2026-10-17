@@ -1134,7 +1134,8 @@
         { id: '2026-10-17-leve', data: '17/10', titulo: 'Servidor mais leve', itens: [
             'O aviso de <b>servidor sobrecarregado</b> deve aparecer bem menos: o trabalho dos ajudantes, dos robôs e dos baús ficou de 2 a 5 vezes mais rápido no servidor, principalmente quando você volta depois de horas fora.',
             'Nada muda no que eles fazem: colhem, plantam e cuidam igual a antes.',
-            'O placar do evento atualiza de minuto em minuto, e o chat busca mensagens novas de 10 em 10 segundos.'] },
+            'O placar do evento atualiza de minuto em minuto, e o chat busca mensagens novas de 10 em 10 segundos.',
+            'A virada da semana do evento (sexta às 22h) não trava mais o jogo de ninguém.'] },
         { id: '2026-10-17-seguranca', data: '17/10', titulo: 'Jogo mais justo e seguro', itens: [
             'Fechamos brechas que davam diamantes, itens e XP de graça para quem mexia no jogo por fora. Quem joga normal não perde nada.',
             '<b>Evento da semana</b>: o XP comprado com diamantes não conta mais no ranking, o convite conta quando o amigo chega ao <b>nível 10</b> e, na barraca, a mesma pessoa do outro lado vale no máximo 25% do total.',

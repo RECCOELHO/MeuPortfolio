@@ -23,6 +23,9 @@
 -- • O placar do evento fica pronto por 1 minuto (fazenda_semana_cache): um calcula, os outros leem.
 -- • O que só lê (chat, evento, status da compra, lista da feira) não espera na fila de uma chamada por
 --   vez (fazenda_auth_ler).
+-- • O fechamento da semana não trava ninguém (fazenda_semana_tentar_fechar: só uma chamada tenta, as
+--   outras seguem) e, com o pg_cron, é o relógio do banco que fecha, na sexta às 22h01. O placar só conta
+--   quem jogou na semana (quem não jogou tem tudo zerado), o que deixa o fechamento e o Evento leves.
 -- ------------------------------------------------------------
 create table if not exists public.fazenda_cache (
   chave text primary key,
@@ -250,17 +253,88 @@ begin
   if exists (select 1 from fazenda_jogadores where id = v_id and banido_em is not null) then
     raise exception 'conta_banida';
   end if;
-  if not exists (select 1 from fazenda_semanas where inicio = fazenda_semana_inicio(now())) then
-    perform fazenda_semana_fechar();
-  end if;
+  perform fazenda_semana_tentar_fechar();
   return v_id;
 end;
 $$;
+
+-- A semana do evento virou (sexta 22h)? Fecha sem fila: só uma chamada tenta (a vez fica com ela até
+-- acabar) e as outras seguem com a semana de antes. Antes, todas esperavam na mesma trava e, se o
+-- fechamento passasse dos 3 s, todas falhavam. Com o relógio do banco (pg_cron) ligado, quem fecha é ele
+-- (às 22h01 e conferindo de 10 em 10 min); as chamadas só tentam se ele atrasar mais de 15 min.
+create or replace function public.fazenda_semana_tentar_fechar()
+returns void
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+begin
+  if exists (select 1 from fazenda_semanas where inicio = fazenda_semana_inicio(now())) then return; end if;
+  -- (session_user: quem abriu a conexão; nas chamadas do jogo é o authenticator, no pg_cron é o postgres)
+  if session_user <> 'postgres' and exists (select 1 from pg_extension where extname = 'pg_cron')
+     and now() < fazenda_semana_inicio(now()) + interval '15 minutes' then
+    return;   -- o relógio do banco fecha (sem o limite de 3 s das chamadas)
+  end if;
+  if pg_try_advisory_xact_lock(hashtext('fazenda_semana')) then
+    perform fazenda_semana_fechar();
+  end if;
+end;
+$$;
+
+-- o relógio do banco: fecha a semana na sexta às 22h01 (sábado 01:01 UTC) e confere de 10 em 10 min.
+-- Sem o pg_cron, só avisa (as chamadas continuam fechando, sem fila).
+do $$
+begin
+  begin
+    create extension if not exists pg_cron with schema pg_catalog;
+  exception when others then
+    raise notice 'Fase 71: o pg_cron não ligou aqui (%). No Supabase: Database > Extensions > pg_cron, ligue e rode este arquivo de novo.', sqlerrm;
+    return;
+  end;
+  perform cron.unschedule(jobid) from cron.job where jobname in ('fazenda_semana', 'fazenda_semana_conferir');
+  perform cron.schedule('fazenda_semana', '1 1 * * 6', 'select public.fazenda_semana_fechar()');
+  perform cron.schedule('fazenda_semana_conferir', '*/10 * * * *', 'select public.fazenda_semana_tentar_fechar()');
+  raise notice 'Fase 71: o relógio do banco fecha a semana do evento na sexta às 22h01.';
+end $$;
 
 -- monta o cache agora (e cada faseN.sql daqui para a frente refaz no fim)
 select public.fazenda_cache_montar();
 
 -- as funções que já existiam e mudaram
+
+create or replace function public.fazenda_auth(p_token text)
+returns uuid
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id uuid;
+begin
+  if p_token is null or length(p_token) < 32 then
+    raise exception 'token_invalido';
+  end if;
+  select jogador_id into v_id
+    from fazenda_sessoes
+   where token_hash = encode(digest(p_token, 'sha256'), 'hex');
+  if v_id is null then
+    raise exception 'token_invalido';
+  end if;
+  -- fase 53: conta banida pelos admins não entra (nenhuma chamada passa daqui)
+  if exists (select 1 from fazenda_jogadores where id = v_id and banido_em is not null) then
+    raise exception 'conta_banida';
+  end if;
+  -- fase 70: uma chamada de cada vez por jogador (a próxima espera esta terminar). Chamadas juntas
+  -- duplicavam o baú, pagavam a conquista e o presente do nível duas vezes e furavam os limites do dia.
+  perform pg_advisory_xact_lock(7070, hashtext(v_id::text));
+  -- fase 63: a semana do evento virou (sexta 22h)? a primeira chamada fecha, premia e abre a nova
+  -- (fase 70: antes de gravar o visto_em, para não segurar a linha do jogador enquanto espera o fechamento;
+  -- fase 71: sem fila: só uma chamada tenta, as outras seguem; o relógio do banco também fecha)
+  perform fazenda_semana_tentar_fechar();
+  -- visto_em só serve para "jogou nos últimos 30 dias": grava no máximo 1 vez por hora
+  -- (cada chamada gravando pesava no orçamento de disco do Supabase)
+  update fazenda_jogadores set visto_em = now() where id = v_id and visto_em < now() - interval '1 hour';
+  return v_id;
+end;
+$$;
 
 -- Materializa os problemas (erva, praga, seca) que "aconteceram" enquanto a
 -- planta crescia. Só ocorrem antes de a planta amadurecer.
@@ -1321,6 +1395,38 @@ begin
 end;
 $$;
 
+-- os números de cada jogador numa semana (p_semana = o início dela; conta de p_desde a p_ate).
+-- Quem entrou na semana não tem foto: conta do zero. Quem foi banido não entra.
+create or replace function public.fazenda_semana_placar(p_semana timestamptz, p_desde timestamptz, p_ate timestamptz)
+returns table (jogador_id uuid, apelido text, avatar jsonb, criado_em timestamptz, ranking bigint, niveis bigint,
+               moedas bigint, vendeu bigint, comprou bigint, convites bigint)
+language sql stable security definer set search_path = public as $$
+  -- fase 70: o XP comprado com diamante não conta (ranking e níveis); na barraca, uma mesma pessoa do
+  -- outro lado conta no máximo 25% do total (duas contas vendendo uma para a outra não ganham sozinhas)
+  select j.id, j.apelido, j.avatar, j.criado_em,
+         (j.xp - coalesce(b.xp, 0) - (j.xp_pago - coalesce(b.xp_pago, 0)))::bigint,
+         (fazenda_nivel((j.xp - (j.xp_pago - coalesce(b.xp_pago, 0)))::int) - fazenda_nivel(coalesce(b.xp, 0)))::bigint,
+         (j.moedas_ganhas - coalesce(b.moedas_ganhas, 0))::bigint,
+         coalesce((select sum(least(t.v, ceil(t.total * 0.25))) from (
+                    select sum(f.qtd::bigint * f.preco) as v, sum(sum(f.qtd::bigint * f.preco)) over () as total from fazenda_feira f
+                     where f.vendedor_id = j.id and f.vendido_em >= p_desde and f.vendido_em < p_ate group by f.comprador_id) t), 0)::bigint,
+         coalesce((select sum(least(t.v, ceil(t.total * 0.25))) from (
+                    select sum(f.qtd::bigint * f.preco) as v, sum(sum(f.qtd::bigint * f.preco)) over () as total from fazenda_feira f
+                     where f.comprador_id = j.id and f.vendido_em >= p_desde and f.vendido_em < p_ate group by f.vendedor_id) t), 0)::bigint,
+         (select count(*) from fazenda_convites c join fazenda_jogadores a on a.id = c.convidado_id
+           where c.dono_id = j.id and c.criado_em >= p_desde and c.criado_em < p_ate and a.banido_em is null
+             and fazenda_nivel(a.xp) >= (fazenda_evento_regras()->>'convite_nivel')::int)::bigint
+    from fazenda_jogadores j
+    left join fazenda_semana_base b on b.jogador_id = j.id and b.semana = p_semana
+   where j.banido_em is null
+     -- fase 71: só quem jogou na semana (visto_em, com 1 h de folga), vendeu ou comprou na feira ou trouxe
+     -- convite nela: quem não jogou tem tudo zerado (e o placar de todos pesava no fechamento e no Evento)
+     and (j.visto_em >= p_desde - interval '1 hour'
+          or exists (select 1 from fazenda_feira f
+                      where (f.vendedor_id = j.id or f.comprador_id = j.id) and f.vendido_em >= p_desde and f.vendido_em < p_ate)
+          or exists (select 1 from fazenda_convites c where c.dono_id = j.id and c.criado_em >= p_desde and c.criado_em < p_ate));
+$$;
+
 -- O painel do evento: até quando vai, o top 3 de agora em cada categoria, a sua posição e quem
 -- ganhou na semana passada
 create or replace function public.fazenda_evento(p_token text)
@@ -1493,7 +1599,8 @@ revoke execute on function
   public.fazenda_cache_gatilho(),
   public.fazenda_cache_gravar(text, jsonb),
   public.fazenda_previsao_agora(),
-  public.fazenda_auth_ler(text)
+  public.fazenda_auth_ler(text),
+  public.fazenda_semana_tentar_fechar()
 from public, anon, authenticated;
 
 grant execute on function
