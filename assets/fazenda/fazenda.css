@@ -2928,3 +2928,104 @@ body.construindo .status {
     color: var(--grama-esc);
     font-weight: 700;
 }
+
+/* fase 69: o calendário de resgate diário */
+.cal-grade {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 4px;
+    margin: 8px 0;
+}
+
+.cal-dia {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    min-height: 66px;
+    padding: 3px 1px;
+    border: 2px solid var(--o);
+    border-radius: 6px;
+    background: #fff;
+    font-size: 11px;
+    text-align: center;
+    cursor: pointer;
+}
+
+.cal-dia.grande {
+    background: #fff6dc;
+}
+
+.cal-dia.feito {
+    opacity: 0.5;
+}
+
+.cal-dia.feito::after {
+    content: '✓';
+    position: absolute;
+    top: 0;
+    right: 3px;
+    color: var(--grama-esc);
+    font-weight: 900;
+}
+
+.cal-dia.hoje {
+    background: #fff1b8;
+    box-shadow: 0 0 0 3px var(--ouro);
+    animation: cal-pulsa 1.2s ease-in-out infinite;
+}
+
+@keyframes cal-pulsa {
+    50% { box-shadow: 0 0 0 5px var(--ouro); }
+}
+
+.cal-num {
+    font-family: var(--fonte-pixel);
+    font-size: 15px;
+    line-height: 1;
+}
+
+.cal-g,
+.cal-d {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+}
+
+.cal-q {
+    width: 100%;
+    font-size: 10px;
+    line-height: 1.1;
+    overflow-wrap: anywhere;
+}
+
+.cal-d {
+    width: 100%;
+    margin-top: auto;
+    padding-top: 2px;
+    border-top: 1px dashed var(--madeira-esc);
+}
+
+.cal-d.trancado {
+    filter: grayscale(1);
+    opacity: 0.45;
+}
+
+.cal-dourado {
+    display: grid;
+    gap: 8px;
+    margin-top: 10px;
+    padding: 10px;
+    border: 2px solid var(--o);
+    border-radius: 8px;
+    background: linear-gradient(#fff3c4, #fde39a);
+}
+
+.cal-dourado-ok {
+    margin-top: 10px;
+    font-weight: 700;
+    color: var(--laranja);
+}

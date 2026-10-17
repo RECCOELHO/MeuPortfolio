@@ -34,7 +34,8 @@
         diarioVisto: 'fazenda_diario_visto', mudo: 'fazenda_mudo', tutorial: 'fazenda_tutorial', avisos: 'fazenda_avisos', convite: 'fazenda_convite',
         historico: 'fazenda_historico', historicoVisto: 'fazenda_historico_visto',
         volMusica: 'fazenda_vol_musica', volEfeitos: 'fazenda_vol_efeitos', faixaMusica: 'fazenda_faixa_musica',
-        novidades: 'fazenda_novidades', chatVisto: 'fazenda_chat_visto', chatSilencio: 'fazenda_chat_silencio'
+        novidades: 'fazenda_novidades', chatVisto: 'fazenda_chat_visto', chatSilencio: 'fazenda_chat_silencio',
+        calendarioVisto: 'fazenda_calendario_visto'
     };
     const store = {
         get(k) { try { return localStorage.getItem(k); } catch { return null; } },
@@ -47,6 +48,10 @@
         token_invalido: 'Sessão expirada. Entre de novo com seu código.',
         conta_banida: 'Esta fazenda foi suspensa por desrespeitar as regras do jogo.',
         sem_permissao: 'Só os admins do jogo podem fazer isso.',
+        // fase 69: o calendário
+        calendario_hoje: 'Você já pegou o prêmio de hoje. Volte amanhã!',
+        ja_dourado: 'A trilha dourada já está liberada neste ciclo.',
+        avatar_exclusivo: 'Esse personagem só sai no dia 28 do calendário dourado.',
         // fase 67: o chat
         chat_nivel: 'Você já lê o chat; escrever libera no nível 5.',
         chat_vazio: 'Escreva alguma coisa antes de enviar.',
@@ -884,7 +889,7 @@
        fazenda_limite_canteiros no SQL. */
     const NIVEL_MAX = 45;   // fase 61: o litoral e o alto-mar vão do 31 ao 45
     const presenteNivel = (n) => (n > 10 ? 100 : 50) * n;   // do 10 em diante sobe devagar, e o presente dobra
-    const limiteCanteirosNivel = (n) => Math.min(6 + (n - 1) * 2, 54);
+    const limiteCanteirosNivel = (n) => Math.min(6 + (n - 1) * 2, 94);   // fase 69: +2 por nível até o 45 (parava no 25)
     // Colher dá o XP cheio da planta, mas o mesmo canteiro no máximo 1 vez a cada 8 min (igual a
     // fazenda_aplicar: canteiros.xp_em). Vender dá 1 XP a cada 25 moedas, só dos produtos.
     const XP_PAUSA = 8 * 60000, XP_VENDA = 25;
@@ -1118,6 +1123,12 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-10-17-calendario', data: '17/10', titulo: 'Calendário de prêmios e mais canteiros', itens: [
+            'No menu tem o <b>Calendário</b>: um prêmio por dia, 28 dias. Faltou um dia? Não perde: pega o seguinte. Os dias 7, 14, 21 e 28 dão diamantes.',
+            'A <b>trilha dourada</b> (com diamantes) dá um prêmio a mais todo dia e, no dia 28, o <b>Fazendeiro de ouro</b>, que só sai lá.',
+            'Agora você ganha <b>+2 canteiros a cada nível até o 45</b> (antes parava no 25).',
+            'No caminho dos níveis, as melhorias do mar ganharam figuras de verdade: barco, vara, motor, sonar, caixa de gelo, rede e bússola.',
+            'O <b>Faísca</b> saiu do meio da plantação: agora com um alicate na mão, ele fica no meio dos painéis solares, turbinas e baterias, mexendo neles. Sem nenhum deles, anda pela estradinha.'] },
         { id: '2026-10-17-luzes', data: '17/10', titulo: 'Luzes da noite', itens: [
             'Postes perto um do outro agora juntam a luz numa área só, sem encolher e sem ficar estourado.',
             'A luz dos canos ficou bem mais discreta: é só um sinal da rede.'] },
@@ -1143,7 +1154,8 @@
             '<b>Mandar descansar</b> só com menos de 75% de energia. O ajudante vai até a casa e sai zzz do telhado; toque na casa para ver quem dorme.',
             'A <b>fazendeira</b> e as <b>ajudantes</b> agora têm cabelo comprido.'] }
     ];
-    let novidadesVer = null, novidadesDepois = false, novidadesChecadas = false;
+    let novidadesVer = null, novidadesChecadas = false;
+    const paineisDepois = [];   // painéis que abrem sozinhos quando fechar o que está aberto (novidades, calendário)
     function checarNovidades(estado) {
         if (novidadesChecadas) return;
         novidadesChecadas = true;
@@ -1154,13 +1166,14 @@
         if (!lista.length) return;
         novidadesVer = lista;
         if (!painelAtual) abrirPainel('novidades');
-        else novidadesDepois = true;   // abre quando fechar o que está aberto (o relatório das murchas, o prêmio...)
+        else paineisDepois.push('novidades');   // abre quando fechar o que está aberto (o relatório das murchas, o prêmio...)
     }
     const retratoAjudante = (id, px) => {
         const a = A.AJUDANTE_ARTE[id] || { p: 'factory', i: 120 };
         return (A.htmlAjudante && A.htmlAjudante(id, px)) || spr(a.i, px, a.p);   // fase 68: as moças, cada uma de um jeito
     };
     function areaAjudante(t) {
+        if (t.funcao === 'energia') return 'energia';   // fase 69: o Faísca não mexe na roça: anda no meio dos painéis e turbinas (sem eles, na estradinha)
         return t.funcao === 'animal' ? t.alvo : 'campo';
     }
     /* ---- fase 66: quem dorme onde ----
@@ -1263,10 +1276,12 @@
     let rascunhoAvatar = null;
     const precoAvatar = (tipo) => ((S.jogador.avatar_precos || {})[tipo]) || 0;
     const diamAvatar = (tipo) => ((S.jogador.avatar_diamantes || {})[tipo]) || 0;   // fase 43: os de diamante
-    const temAvatar = (tipo) => (!precoAvatar(tipo) && !diamAvatar(tipo)) || (S.jogador.avatares || []).includes(tipo);
+    const exclusivoAvatar = (tipo) => tipo in (S.jogador.avatar_exclusivos || {});   // fase 69: só ganhando (calendário dourado)
+    const temAvatar = (tipo) => (S.jogador.avatares || []).includes(tipo) || (!exclusivoAvatar(tipo) && !precoAvatar(tipo) && !diamAvatar(tipo));
     // o servidor ainda sem a fase 43 não vende os de diamante: eles nem aparecem
-    const avatarAVenda = (id) => id in (S.jogador.avatar_precos || {}) || id in (S.jogador.avatar_diamantes || {}) || !S.jogador.avatar_precos;
-    const etiquetaAvatar = (id) => temAvatar(id) ? (precoAvatar(id) || diamAvatar(id) ? 'seu' : 'grátis')
+    const avatarAVenda = (id) => id in (S.jogador.avatar_precos || {}) || id in (S.jogador.avatar_diamantes || {}) || exclusivoAvatar(id) || !S.jogador.avatar_precos;
+    const etiquetaAvatar = (id) => exclusivoAvatar(id) ? (temAvatar(id) ? 'seu' : `${ico('calendario', 11)} dourado`)
+        : temAvatar(id) ? (precoAvatar(id) || diamAvatar(id) ? 'seu' : 'grátis')
         : diamAvatar(id) ? `${ico('diamante', 11)} ${diamAvatar(id)}` : `${ico('moeda', 11)} ${precoAvatar(id).toLocaleString('pt-BR')}`;
     function htmlEditorAvatar() {
         const a = rascunhoAvatar, tipo = A.AVATAR_TIPOS[a.tipo], cores = A.AVATAR_CORES;
@@ -1287,6 +1302,8 @@
                 <button type="button" class="botao creme" data-painel-ir="conta">Cancelar</button>
                 ${temAvatar(a.tipo)
                     ? '<button type="button" class="botao verde" data-av-salvar>Salvar</button>'
+                    : exclusivoAvatar(a.tipo)
+                    ? `<button type="button" class="botao creme" data-painel-ir="calendario">${ico('calendario', 14)} Só no dia 28 do calendário dourado</button>`
                     : diamAvatar(a.tipo)
                     ? `<button type="button" class="botao verde" data-av-salvar${(S.jogador.diamantes || 0) >= diamAvatar(a.tipo) ? '' : ' disabled'}>Comprar ${esc(tipo.nome.toLowerCase())} por ${ico('diamante', 14)} ${diamAvatar(a.tipo)}</button>`
                     : `<button type="button" class="botao verde" data-av-salvar${S.jogador.moedas >= precoAvatar(a.tipo) ? '' : ' disabled'}>Comprar ${esc(tipo.nome.toLowerCase())} por ${ico('moeda', 14)} ${precoAvatar(a.tipo).toLocaleString('pt-BR')}</button>`}
@@ -1488,8 +1505,10 @@
         if (id === 'expedicao') return 'o barco fica pronto para viajar às ilhas (nível 46, na próxima expansão)';
         return `pesca 1 peixe a cada ${minutos(k.intervalo)} min, até ${k.max} no cesto`;
     }
-    const ICONE_MAR = { barco: 'ancora', vara: 'robalo', motor: 'ferro_forjado', sonar: 'perola_negra', porao: 'atum', rede: 'corda_naval', expedicao: 'leme_dourado' };
-    const iconeMar = (id, px) => (id === 'marinheiro' ? A.htmlTile(120, px, 'factory') : spr(A.cultura(ICONE_MAR[id] || 'robalo').item, px));
+    // fase 69: cada melhoria do mar com a figura dela (antes eram itens que não tinham nada a ver: um peixe
+    // para a vara, uma barra de ferro para o motor, a pérola para o sonar...)
+    const ICONE_MAR = { barco: 1113, vara: 1114, motor: 1115, sonar: 1116, porao: 1117, rede: 1118, expedicao: 1119 };
+    const iconeMar = (id, px) => (id === 'marinheiro' ? A.htmlTile(120, px, 'factory') : spr(ICONE_MAR[id] || 1114, px));
     const PECAS_MAR = ['motor', 'sonar', 'porao', 'rede', 'expedicao'];
     const pecasMar = () => Object.fromEntries(PECAS_MAR.map((id) => [id, S ? melhoriaNivel(id) : 0]));
     // a pintura (o rascunho, até apertar "Pintar"); as cores e bandeiras são as de fazenda_barco_cores
@@ -2687,6 +2706,8 @@
         if (ce) ce.hidden = !(fe > 0 && fe < 6 * 3600e3);
         const hc = $('hudChat');   // fase 67: mensagem nova no chat
         if (hc) { hc.hidden = !chatNaoLido(); atualizarAlertaMenu(); }
+        const hcal = $('hudCalendario');   // fase 69: prêmio do dia esperando
+        if (hcal) { hcal.hidden = !calendarioPronto(); atualizarAlertaMenu(); }
         if (el.hudPerfil) {
             const prox = j.nivel < NIVEL_MAX ? liberaNoNivel(j.nivel + 1).slice(0, 3).map((x) => x.nome).join(', ') : '';
             el.hudPerfil.title = j.nivel < NIVEL_MAX
@@ -2942,6 +2963,7 @@
             else toast(`${ico('sino', 18)} ${textoMurcha(novasM[0].motivo, novasM[0].detalhe, novasM[0].qtd)} Toque numa murcha para ver o motivo.`, undefined, 'importante');
         }
         if (!visita) checarNovidades(estado);   // fase 67
+        if (!visita) checarCalendario(estado);   // fase 69: o prêmio de hoje (abre sozinho uma vez por dia)
         // fase 63: prêmio novo do evento da semana (o servidor manda uma vez só)
         const novosEv = (estado.evento && estado.evento.novos) || [];
         if (novosEv.length) {
@@ -2972,7 +2994,7 @@
     function atualizarAlertaMenu() {
         if (!el.menuCont) return;
         const n = [el.missoesCont, el.diarioCont].reduce((soma, b) => soma + (b && !b.hidden ? Number(b.textContent) || 0 : 0), 0)
-            + (chatNaoLido() ? 1 : 0);   // fase 67
+            + (chatNaoLido() ? 1 : 0) + (calendarioPronto() ? 1 : 0);   // fase 67 e 69
         el.menuCont.textContent = n;
         el.menuCont.hidden = !n;
     }
@@ -3689,6 +3711,9 @@
             if ($('chatTexto')) $('chatTexto').value = txt;
             desenharChat(true);
             if (!soAtualizar) { carregarChat(true); agendarChat(); }
+        } else if (nome === 'calendario') {   // fase 69: o calendário de resgate diário
+            el.painelTitulo.innerHTML = `${ico('calendario', 26)} Calendário`;
+            corpo.innerHTML = htmlCalendario();
         } else if (nome === 'novidades') {   // fase 67: o que mudou no jogo
             const lista = novidadesVer || NOVIDADES;
             novidadesVer = null;
@@ -3800,6 +3825,7 @@
                 <ul class="ajuda">
                     <li>Toque num canteiro e ele faz a ação certa: <b>arar</b>, <b>plantar</b>, <b>cuidar</b> ou <b>colher</b>.</li>
                     <li><b>XP das plantas:</b> colher dá o XP de cada planta (aparece na loja), em qualquer nível. O mesmo canteiro dá XP de colheita no máximo uma vez a cada 8 minutos: a alface, que cresce em 2, dá XP de 4 em 4 colheitas. Cuidar dá +1 XP. Arar dá XP só até o nível 5.</li>
+                    <li>No <b>Calendário</b> (no menu) tem um prêmio por dia, por 28 dias: moedas, XP, café dos ajudantes, XP em dobro e diamantes nos dias 7, 14, 21 e 28. Faltou um dia? Não perde nada: pega o seguinte. A <b>trilha dourada</b>, liberada com diamantes, dá um prêmio a mais todo dia e, no dia 28, o Fazendeiro de ouro.</li>
                     <li>No <b>Chat</b> (no menu) você conversa com todos os jogadores; as mensagens somem em 1 hora. Do nível 5 em diante dá para escrever e <b>pedir um item</b> (quantos e quanto paga cada): quem tiver toca em <b>Vender</b> e o lote vai para a barraca dele, separado para você por 2 horas (depois vira anúncio normal). Sem palavrão e sem link; dá para silenciar alguém.</li>
                     <li>Na <b>Feira</b> (no menu) os jogadores vendem uns para os outros: anuncie um lote do celeiro com o seu preço (entre metade e o triplo da venda normal) e compre de outros o que falta para as suas receitas. Quem vende recebe tudo; o anúncio dura 2 dias. Toda fazenda já tem uma <b>barraca na feira</b>, na clareira da mata à esquerda do celeiro: cada barraca dá 2 anúncios e mostra em cima o que você vende. Do nível 5 em diante dá para comprar mais 3 no painel da Feira.</li>
                     <li>Em <b>Metas</b> (no menu) está tudo o que o seu nível libera: construir cada oficina, máquina e cercado, ter cada bicho, contratar cada ajudante, comprar os terrenos e ocupar os canteiros. Com tudo em dia, <b>+50% de XP</b> até o próximo nível (do nível 20 em diante, a <b>fazenda completa</b>: <b>+75%</b>, e arar e plantar também dão XP); o que ficou dos níveis de trás também aparece lá.</li>
@@ -4244,6 +4270,79 @@
         const lim = limiteFeira();
         return abas + corpo + `<p class="aviso">Na feira você compra de outros jogadores o que falta para as suas receitas e vende o que sobra, recebendo tudo. Preço entre metade e o triplo da venda normal (os itens raros vão do mínimo deles, de 50 mil para cima, até o triplo; o peixe do Velho Chico, peça do píer, de 50 a 150 mil); o anúncio dura ${r.horas / 24} dias (vencido, volta para o celeiro). O que você compra aqui serve para receitas, entregas e missões; revendido ao jogo, dá as moedas mas não o XP. Você pode ter ${lim} anúncios: ${r.por_barraca || 2} por barraca (as suas ficam na mata, à esquerda do celeiro).</p>`;
     }
+    /* ---------- Calendário de resgate diário (fase 69) ----------
+       28 dias: um resgate por dia (de Brasília); faltou, não perde (pega o seguinte). A trilha dourada
+       (com diamantes) dá um prêmio a mais por dia e, no dia 28, o Fazendeiro de ouro. */
+    const calendarioPronto = () => !!(S && S.calendario && S.calendario.pode);
+    const hojeBrasilia = () => new Date(agora() - 3 * 3600e3).toISOString().slice(0, 10);
+    let calendarioChecado = false;
+    function checarCalendario(estado) {
+        if (calendarioChecado || !estado.calendario) return;
+        calendarioChecado = true;
+        if (!estado.calendario.pode || store.get(LS.calendarioVisto) === hojeBrasilia()) return;
+        store.set(LS.calendarioVisto, hojeBrasilia());   // abre sozinho uma vez por dia
+        if (!painelAtual) abrirPainel('calendario');
+        else paineisDepois.push('calendario');
+    }
+    const tempoCal = (m) => (m % 60 ? `${m} min` : `${m / 60} h`);
+    // um prêmio da tabela (moedas por nível): a figura, o texto curto (na casinha) e o longo
+    function premioCal(p) {
+        const n = (S && S.jogador.nivel) || 1;
+        if ((p.tipo === 'xp' || p.tipo === 'xp2') && n >= NIVEL_MAX) p = { tipo: 'moedas', qtd: 50 };   // igual ao servidor
+        const k = p.item ? culturas[p.item] || { id: p.item, nome: p.item } : null;
+        switch (p.tipo) {
+            case 'moedas': return { html: ico('moeda', 16), curto: numero(p.qtd * n), longo: `${numero(p.qtd * n)} moedas` };
+            case 'diamantes': return { html: ico('diamante', 16), curto: String(p.qtd), longo: `${p.qtd} diamantes` };
+            case 'xp': return { html: ico('xp', 16), curto: `${p.qtd}%`, longo: `${p.qtd}% do XP do nível` };
+            case 'xp2': return { html: ico('xp', 16), curto: `×2 ${tempoCal(p.qtd)}`, longo: `XP em dobro por ${tempoCal(p.qtd)}` };
+            case 'cafe': return { html: itemDe(culturas.cafe || { id: 'cafe' }, 16), curto: tempoCal(p.qtd), longo: `café dos ajudantes por ${tempoCal(p.qtd)}` };
+            case 'item': return { html: itemDe(k, 16), curto: String(p.qtd), longo: `${p.qtd} ${nomeQtd(k, p.qtd)}` };
+            case 'avatar': return { html: A.htmlAvatar({ tipo: p.avatar }, 18), curto: 'novo!', longo: `o ${(A.AVATAR_TIPOS[p.avatar] || {}).nome || 'personagem'} (exclusivo)` };
+            default: return { html: '', curto: '', longo: '' };
+        }
+    }
+    // o que o servidor entregou de fato (moedas já vezes o nível)
+    function textoGanho(g) {
+        if (!g) return '';
+        const k = g.item ? culturas[g.item] || { id: g.item, nome: g.item } : null;
+        return g.tipo === 'moedas' ? `${ico('moeda', 14)} ${numero(g.qtd)}`
+            : g.tipo === 'diamantes' ? `${ico('diamante', 14)} ${g.qtd}`
+            : g.tipo === 'xp' ? `+${numero(g.qtd)} ${ico('xp', 14)}`
+            : g.tipo === 'xp2' ? `XP em dobro por ${tempoCal(g.qtd)}`
+            : g.tipo === 'cafe' ? `café dos ajudantes por ${tempoCal(g.qtd)}`
+            : g.tipo === 'item' ? `${g.qtd} ${itemDe(k, 14)} ${esc(nomeQtd(k, g.qtd))}`
+            : g.tipo === 'avatar' ? `${A.htmlAvatar({ tipo: g.avatar }, 16)} ${esc((A.AVATAR_TIPOS[g.avatar] || {}).nome || 'personagem novo')}!` : '';
+    }
+    function htmlCalendario() {
+        const c = S.calendario;
+        if (!c) return '<p class="vazio-msg">O calendário chega com a próxima atualização do servidor.</p>';
+        const total = c.regras.dias, proximo = c.dia + 1;
+        const casa = (dia) => {
+            const p = c.premios[dia - 1], g = p.g.map(premioCal), d = p.d.map(premioCal);
+            const estado = dia <= c.dia ? 'feito' : dia === proximo && c.pode ? 'hoje' : 'futuro';
+            const titulo = `Dia ${dia}: ${g.map((x) => x.longo).join(' + ')}. Dourada: ${d.map((x) => x.longo).join(' + ')}`;
+            return `<div class="cal-dia ${estado}${dia % 7 === 0 ? ' grande' : ''}" title="${esc(titulo)}" data-cal-dia="${dia}">
+                <span class="cal-num">${dia}</span>
+                <span class="cal-g">${g.map((x) => x.html).join('')}<span class="cal-q">${g.map((x) => esc(x.curto)).join(' ')}</span></span>
+                <span class="cal-d${c.dourado ? '' : ' trancado'}">${d.map((x) => x.html).join('')}</span>
+            </div>`;
+        };
+        const meiaNoite = () => { const b = new Date(agora() - 3 * 3600e3); return Date.UTC(b.getUTCFullYear(), b.getUTCMonth(), b.getUTCDate() + 1) + 3 * 3600e3 - agora(); };
+        const acao = c.pode
+            ? `<button type="button" class="botao verde" data-cal-resgatar>Pegar o prêmio do dia ${proximo}</button>`
+            : `<p class="det">Prêmio de hoje já pego. O dia ${proximo > total ? 1 : proximo} libera em ${fmtTempo(meiaNoite())}.</p>`;
+        const preco = c.regras.dourado, tem = (S.jogador.diamantes || 0) >= preco;
+        const dourado = c.dourado
+            ? `<p class="cal-dourado-ok">${ico('brilho', 14)} Trilha dourada liberada neste ciclo: você ganha os dois prêmios todo dia.</p>`
+            : `<div class="cal-dourado"><span><b>Trilha dourada</b>: um prêmio a mais todo dia (XP em dobro, café dos ajudantes, pacotes de XP, raros e 50 ${ico('diamante', 12)} de volta) e, no dia 28, o <b>Fazendeiro de ouro</b>, que só sai aqui.${c.dia ? ` Liberando agora, já ganha os prêmios dourados dos ${c.dia} dias que você pegou.` : ''}</span>
+                <button type="button" class="botao ${tem ? 'verde' : 'creme'}" data-cal-dourado>${tem ? `Liberar por ${ico('diamante', 14)} ${preco}` : `Faltam ${ico('diamante', 14)} ${preco - (S.jogador.diamantes || 0)}: comprar diamantes`}</button></div>`;
+        return `<p class="det">Ciclo ${c.ciclo} · ${c.dia} de ${total} dias pegos. Um prêmio por dia; se faltar um dia, não perde: pega o seguinte.</p>
+            <div class="cal-grade">${Array.from({ length: total }, (_, k) => casa(k + 1)).join('')}</div>
+            <p class="det">Em cima, o grátis; embaixo, o da trilha dourada. Toque numa casinha para ver o prêmio.</p>
+            <div class="rodape-painel"><span></span>${acao}</div>
+            ${dourado}`;
+    }
+
     /* ---------- Chat (fase 67) ----------
        As mensagens da última hora (fazenda_chat). Com o painel aberto, busca só as novas de 5 em 5 s
        (direto no rpc, sem a fila das ações), e só redesenha a lista (o que você digita fica). */
@@ -4722,7 +4821,7 @@
         el.painel.classList.remove('aberto');
         painelAtual = null;
         if (ultimoFoco && ultimoFoco.focus) ultimoFoco.focus();
-        if (novidadesDepois) { novidadesDepois = false; setTimeout(() => { if (!painelAtual) abrirPainel('novidades'); }, 350); }   // fase 67
+        if (paineisDepois.length) { const prox = paineisDepois.shift(); setTimeout(() => { if (!painelAtual) abrirPainel(prox); else paineisDepois.unshift(prox); }, 350); }   // fase 67/69
     }
 
     el.painelCorpo.addEventListener('click', async (e) => {
@@ -5188,6 +5287,31 @@
         }
         const ir = e.target.closest('[data-painel-ir]');
         if (ir) { abrirPainel(ir.dataset.painelIr); return; }
+        // fase 69: o calendário
+        const cdia = e.target.closest('[data-cal-dia]');
+        if (cdia) { mostrarStatus(`${ico('calendario', 16)} ${esc(cdia.title)}`); return; }
+        if (e.target.closest('[data-cal-resgatar]')) {
+            e.target.closest('[data-cal-resgatar]').disabled = true;
+            enfileirar([], async () => {
+                const r = await rpc('fazenda_calendario_resgatar', { p_token: token });
+                aplicarEstado(r.estado);
+                som.tocar('festa');
+                toast(`${ico('calendario', 18)} Dia ${r.dia}: ${[...r.gratis, ...r.dourado].map(textoGanho).join(' + ')}`, 'festa');
+            }).finally(() => { if (painelAtual === 'calendario') abrirPainel('calendario', true); });
+            return;
+        }
+        if (e.target.closest('[data-cal-dourado]')) {
+            const preco = (S.calendario && S.calendario.regras.dourado) || 120;
+            if ((S.jogador.diamantes || 0) < preco) { abaLoja = 'diamantes'; abrirPainel('loja'); return; }
+            if (!confirm(`Liberar a trilha dourada deste ciclo por ${preco} diamantes?`)) return;
+            enfileirar([], async () => {
+                const r = await rpc('fazenda_calendario_dourado', { p_token: token });
+                aplicarEstado(r.estado);
+                som.tocar('festa');
+                toast(`${ico('calendario', 18)} Trilha dourada liberada!${r.dourado.length ? ` Dos dias que você já pegou: ${r.dourado.map(textoGanho).join(' + ')}` : ''}`, 'festa', 'importante');
+            }).finally(() => { if (painelAtual === 'calendario') abrirPainel('calendario', true); });
+            return;
+        }
         // fase 67: o chat
         if (e.target.closest('[data-chat-pedir]')) { chatPedindo = !chatPedindo; abrirPainel('chat', true); return; }
         const chf = e.target.closest('[data-chat-feira]');
