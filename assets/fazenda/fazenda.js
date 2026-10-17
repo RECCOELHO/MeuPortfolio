@@ -33,7 +33,8 @@
         token: 'fazenda_token', codigo: 'fazenda_codigo', semente: 'fazenda_semente',
         diarioVisto: 'fazenda_diario_visto', mudo: 'fazenda_mudo', tutorial: 'fazenda_tutorial', avisos: 'fazenda_avisos', convite: 'fazenda_convite',
         historico: 'fazenda_historico', historicoVisto: 'fazenda_historico_visto',
-        volMusica: 'fazenda_vol_musica', volEfeitos: 'fazenda_vol_efeitos', faixaMusica: 'fazenda_faixa_musica'
+        volMusica: 'fazenda_vol_musica', volEfeitos: 'fazenda_vol_efeitos', faixaMusica: 'fazenda_faixa_musica',
+        novidades: 'fazenda_novidades'
     };
     const store = {
         get(k) { try { return localStorage.getItem(k); } catch { return null; } },
@@ -1099,6 +1100,34 @@
             : '<p class="det">Nenhuma planta murchou sem ele colher. Bom trabalho, Juca!</p>');
     }
     let murchasNovas = [];
+    /* ---- fase 67: novidades. A cada atualização do jogo entra uma no começo da lista: quem abre o jogo
+       vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
+       Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
+    const NOVIDADES = [
+        { id: '2026-10-17-praia', data: '17/10', titulo: 'A praia, as luzes da noite e as novidades', itens: [
+            'A <b>praia</b> agora aparece no celular também: arraste até lá embaixo para ver a areia e o mar.',
+            'Na areia não tem mais mata: são <b>coqueiros, dunas, pedras e conchas</b>. Enquanto a praia não é sua, uma duna fecha a passagem; a placa mostra onde comprar.',
+            'As <b>luzes da noite</b> não fazem mais aquela sombra entre os lampiões, e os <b>canos</b> brilham redondinho.',
+            'Toda atualização agora aparece aqui, uma vez, com o resumo do que mudou.'] },
+        { id: '2026-10-17-perks', data: '17/10', titulo: 'O Perks, o relatório das murchas e os ajudantes', itens: [
+            'O <b>Perks</b> (homenagem ao 1º do ranking) aparece na porteira de vez em quando, pede muita planta fácil e paga com a <b>Luva do Perks</b>: cada luva passa por 1 canteiro com alarme quando você visita um vizinho.',
+            'Quando uma planta <b>murcha</b> sem ninguém colher, o jogo conta o porquê: sem colhedor, o Juca descansando, a fazenda fechada mais de 8 h ou canteiro demais para o nível dele.',
+            '<b>Mandar descansar</b> só com menos de 75% de energia. O ajudante vai até a casa e sai zzz do telhado; toque na casa para ver quem dorme.',
+            'A <b>fazendeira</b> e as <b>ajudantes</b> agora têm cabelo comprido.'] }
+    ];
+    let novidadesVer = null, novidadesDepois = false, novidadesChecadas = false;
+    function checarNovidades(estado) {
+        if (novidadesChecadas) return;
+        novidadesChecadas = true;
+        const visto = store.get(LS.novidades), nova = Date.now() - new Date(estado.criado_em || 0).getTime() < 86400e3;
+        if (visto === null && nova) { store.set(LS.novidades, NOVIDADES[0].id); return; }   // fazenda nova: as antigas não interessam
+        const ate = NOVIDADES.findIndex((n) => n.id === visto);
+        const lista = ate === -1 ? NOVIDADES.slice(0, visto === null ? 2 : 1) : NOVIDADES.slice(0, ate);
+        if (!lista.length) return;
+        novidadesVer = lista;
+        if (!painelAtual) abrirPainel('novidades');
+        else novidadesDepois = true;   // abre quando fechar o que está aberto (o relatório das murchas, o prêmio...)
+    }
     const retratoAjudante = (id, px) => {
         const a = A.AJUDANTE_ARTE[id] || { p: 'factory', i: 120 };
         return spr(a.i, px, a.p);
@@ -2861,6 +2890,7 @@
             if (!painelAtual) abrirPainel('murchas');
             else toast(`${ico('sino', 18)} ${textoMurcha(novasM[0].motivo, novasM[0].detalhe, novasM[0].qtd)} Toque numa murcha para ver o motivo.`, undefined, 'importante');
         }
+        if (!visita) checarNovidades(estado);   // fase 67
         // fase 63: prêmio novo do evento da semana (o servidor manda uma vez só)
         const novosEv = (estado.evento && estado.evento.novos) || [];
         if (novosEv.length) {
@@ -3600,6 +3630,14 @@
             el.painelTitulo.innerHTML = `${itemDe(culturas.trofeu_ouro || { id: 'trofeu_ouro' }, 30)} Evento da semana`;
             corpo.innerHTML = htmlEvento();
             if (!soAtualizar) carregarEvento();
+        } else if (nome === 'novidades') {   // fase 67: o que mudou no jogo
+            const lista = novidadesVer || NOVIDADES;
+            novidadesVer = null;
+            store.set(LS.novidades, NOVIDADES[0].id);
+            el.painelTitulo.innerHTML = `${ico('brilho', 26)} Novidades`;
+            corpo.innerHTML = lista.map((n) => `<h3 class="secao-titulo">${esc(n.titulo)} <small class="qtd">${esc(n.data)}</small></h3>
+                <ul class="ajuda">${n.itens.map((t) => `<li>${t}</li>`).join('')}</ul>`).join('')
+                + `<div class="rodape-painel">${lista === NOVIDADES ? '<span></span>' : '<button type="button" class="botao creme" data-painel-ir="novidades">Ver todas</button>'}<button type="button" class="botao verde" data-fechar>Entendi</button></div>`;
         } else if (nome === 'murchas') {   // fase 66: o relatório
             const total = murchasNovas.reduce((a, m) => a + m.qtd, 0);
             el.painelTitulo.innerHTML = `${ico('sino', 28)} Plantas murchas`;
@@ -3699,6 +3737,7 @@
         } else if (nome === 'ajuda') {
             el.painelTitulo.innerHTML = `${ico('ajuda', 26)} Como jogar`;
             corpo.innerHTML = `
+                <p><button type="button" class="botao pequeno creme" data-painel-ir="novidades">${ico('brilho', 14)} Novidades do jogo</button></p>
                 <ul class="ajuda">
                     <li>Toque num canteiro e ele faz a ação certa: <b>arar</b>, <b>plantar</b>, <b>cuidar</b> ou <b>colher</b>.</li>
                     <li><b>XP das plantas:</b> colher dá o XP de cada planta (aparece na loja), em qualquer nível. O mesmo canteiro dá XP de colheita no máximo uma vez a cada 8 minutos: a alface, que cresce em 2, dá XP de 4 em 4 colheitas. Cuidar dá +1 XP. Arar dá XP só até o nível 5.</li>
@@ -4465,6 +4504,7 @@
         el.painel.classList.remove('aberto');
         painelAtual = null;
         if (ultimoFoco && ultimoFoco.focus) ultimoFoco.focus();
+        if (novidadesDepois) { novidadesDepois = false; setTimeout(() => { if (!painelAtual) abrirPainel('novidades'); }, 350); }   // fase 67
     }
 
     el.painelCorpo.addEventListener('click', async (e) => {

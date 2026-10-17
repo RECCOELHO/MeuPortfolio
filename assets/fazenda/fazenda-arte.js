@@ -76,6 +76,9 @@
     // sem eles a reserva some (largura 0) e dá para construir ali
     MAPA.pastoAtivo = true;
     const MARGEM = 9;   // quadrados de mata em volta do terreno
+    // fase 67: a areia vai da linha 32 até o mar; nela não tem mata, tem peças de praia (PROPRIA 107 a 112)
+    const AREIA_Y = 32;
+    const PRAIA = { coqueiro: { i: 108, topo: 107 }, pedra: { i: 109 }, duna: { i: 110, fixo: true }, tronco: { i: 111 }, concha: { i: 112 } };
 
     /* ---------- Terrenos: começa com BASE e compra as ZONAS em ordem ----------
        (precisa bater com fazenda_zonas no SQL; placa = onde fica a placa de "à venda") */
@@ -217,7 +220,9 @@
         // máquinas elétricas
         E: '#3b5dc9', F: '#29366f', K: '#566c86', W: '#a7f070',
         // fase 62: o alto-mar (verde-água, o fundo do mar e a pérola negra)
-        T: '#3fb6c9', S: '#1f7f94', Y: '#cdeef4', I: '#25406e', J: '#1a1630'
+        T: '#3fb6c9', S: '#1f7f94', Y: '#cdeef4', I: '#25406e', J: '#1a1630',
+        // fase 67: a praia (areia da duna, madeira desbotada do tronco e do coqueiro)
+        o: '#ecd59a', p: '#d2b06c', q: '#b8955c', t: '#6e5a48', u: '#9c8466', z: '#cdb898'
     };
     const PROPRIA = [
         // 0 porco
@@ -450,7 +455,32 @@
         ['................', '.....aaaaaa.....', '....aHa..aHa....', '....aHa..aHa....', '..aaaaaaaaaaaa..', '..aGGGGGGGGgga..', '..aGdGGGGGGgga..', '..aGGGGGGGGgga..', '..aGGGaaaaGgga..', '..aGGaGGGgagga..', '..aGGaGgggagga..', '..aGGGaaaaGgga..', '..aGGGGGGGggHa..', '..agggggggggHa..', '..aaaaaaaaaaaa..', '................'],
         // fase 66: a luva do Perks (passa pelo alarme do vizinho)
         // 106 luva do Perks
-        ['................', '....aa.aa.aa....', '...aVaaVaaVaa...', '...aVUaVUaVUaa..', '...aVUaVUaVUaUa.', '...aVUaVUaVUaUa.', '.aaaVUUVUUVUaUa.', 'aUUaVUUUUUUUUUa.', 'aVUUVUUUUUUUUUa.', '.aVVUUUUUUUUUUa.', '..aVUUUUUUUUUa..', '...aVUUUUUUUa...', '...aGGGGGGGGa...', '...agggHgggHa...', '...aaaaaaaaaa...', '................']
+        ['................', '....aa.aa.aa....', '...aVaaVaaVaa...', '...aVUaVUaVUaa..', '...aVUaVUaVUaUa.', '...aVUaVUaVUaUa.', '.aaaVUUVUUVUaUa.', 'aUUaVUUUUUUUUUa.', 'aVUUVUUUUUUUUUa.', '.aVVUUUUUUUUUUa.', '..aVUUUUUUUUUa..', '...aVUUUUUUUa...', '...aGGGGGGGGa...', '...agggHgggHa...', '...aaaaaaaaaa...', '................'],
+        // fase 67: a praia (no lugar da mata na areia): coqueiro em 2 peças, pedras, duna, tronco e conchas
+        // 107 copa do coqueiro
+        ['................', '.....aa..aaaa...', '....aDDaahDDDa..', '....aLLDaDDLLa..', '....avaLhLLava..', '....aaaLDvaaa...',
+         '...ahhhvDhhhha..', '..ahDDDDLDDDDha.', '..aDDLDDwDLhDDa.', '.aDDLDDnnnDDLDa.', 'aDDLDDaayyLDvDDa', 'aDLaDLaatuaDDLDa',
+         'aDaDDvaanyaLDaDa', 'aLaDLa.anyavDDa.', 'avaDa..atuaaLDa.', '.aDa...anya.aDa.'],
+        // 108 tronco do coqueiro
+        ['.aDa...anya.aDa.', '.aLa...atua.aLa.', '.ava...anya..a..', '..a....anya.....', '.......atua.....', '.......anya.....',
+         '.......anya.....', '.......atua.....', '.......anya.....', '.......anya.....', '.......atua.....', '.......anya.....',
+         '......anya......', '......atua......', '......anya......', '......anya......'],
+        // 109 pedras da praia
+        ['................', '................', '................', '................', '................', '................',
+         '....aaaaa.......', '..aafffflaa.....', '.afffffflKKa....', '.alllllllKKaaa..', 'allllllllKfffla.', '.allllllllllllKa',
+         '.aKKKKKKKlllllKa', '..aaKKKKKaKKKKa.', '....aaaaa.aaaa..', '................'],
+        // 110 duna com capim
+        ['................', '................', '................', '................', '................', '......a.........',
+         '....aaMa..a.a...', '...aMDMa.aMaMa..', '..aDaDDaaDDaDa..', '..aDaDDooDDaDa..', '..aooDooooDooa..', '.appppppppppppa.',
+         'appppppppppppppa', 'aqqqqqqqqqqqqqqa', 'qqqqqqqqqqqqqqqq', 'aaaaaaaaaaaaaaaa'],
+        // 111 tronco trazido pelo mar
+        ['................', '................', '................', '................', '................', '................',
+         '.....a..........', '....aua....a....', '..aauaaaaaauaa..', '.azzzzzzzzzzzza.', '.azuuuuuuuuuuqa.', '.atttttttttttta.',
+         '..aaaaaaaaaaaa..', '................', '................', '................'],
+        // 112 concha e estrela-do-mar
+        ['................', '................', '................', '................', '................', '................',
+         '..........aaa...', '....a....adPPa..', '...aia..aPPmPPa.', '..aiiia..aPPPa..', '.aiigiia..aQa...', '..aiaia....a....',
+         '.aia.aia........', '..a...a.........', '................', '................']
     ];
     const atlasProprio = document.createElement('canvas');
     atlasProprio.width = 12 * 16;
@@ -1114,6 +1144,9 @@
             const cx = caixaTerreno();
             let minX = Math.min(wx(cx.x0) - borda, wx(MAPA.feira.x - 1)), maxX = wx(cx.x1) + borda - vw;   // (até a feira, na mata à esquerda)
             let minY = wy(cx.y0) - borda - topo, maxY = wy(cx.y1) + borda + base - vh;
+            // fase 67: terreno que chega no litoral deixa descer até a areia e um pouco do mar (no
+            // celular a tela é baixa e a praia sumia; no computador ela já aparecia)
+            if (cx.y1 >= AREIA_Y && cx.y1 < MAPA.mar.y + 3) maxY = Math.max(maxY, wy(MAPA.mar.y + 3) + base - vh);
             if (maxX < minX) minX = maxX = (minX + maxX) / 2;
             if (maxY < minY) minY = maxY = (minY + maxY) / 2;
             return { minX, maxX, minY, maxY };
@@ -1270,7 +1303,7 @@
             for (let ty = -MARGEM; ty < MAPA.h + MARGEM; ty++) {
                 for (let tx = -MARGEM; tx < MAPA.w + MARGEM; tx++) {
                     if (dentroTerreno(tx, ty)) continue;
-                    if (ty >= MAPA.mar.y) continue;   // fase 61: no mar não tem árvore
+                    if (ty >= AREIA_Y) continue;   // fase 61: no mar não tem árvore; fase 67: nem na areia
                     // perto da placa do terreno à venda fica uma clareira
                     if (zonaVenda && Math.abs(tx - zonaVenda.placa.x) <= 1 && ty >= zonaVenda.placa.y - 1 && ty <= zonaVenda.placa.y + 1) continue;
                     const longe = distTerreno(tx, ty);
@@ -1288,6 +1321,34 @@
                     const ax = wx(tx) + Math.floor((r() - 0.5) * 6), ay = wy(ty) + Math.floor((r() - 0.5) * 4);
                     if (tx >= FEIRA.x - 1 && ty >= FEIRA.y - 1 && tx < FEIRA.x + FEIRA.w && ty <= FEIRA.y + FEIRA.h + 1) continue;   // clareira da feira
                     arvores.push({ ...a, x: ax, y: ay });
+                }
+            }
+            // fase 67: na areia, peças de praia em vez de mata. Na praia que ainda não é sua, uma barreira de
+            // dunas e coqueiros na divisa com a fazenda e coisas espalhadas pela areia; na sua, só nas laterais
+            const rp = rng(6767), coqueiros = new Set();
+            for (let ty = AREIA_Y; ty < MAPA.mar.y; ty++) {
+                for (let tx = -MARGEM; tx < MAPA.w + MARGEM; tx++) {
+                    const v = rp(), w = rp(), jx = Math.floor((rp() - 0.5) * 6), jy = Math.floor((rp() - 0.5) * 3);
+                    if (dentroTerreno(tx, ty)) continue;
+                    if (zonaVenda && Math.abs(tx - zonaVenda.placa.x) <= 1 && ty >= zonaVenda.placa.y - 1 && ty <= zonaVenda.placa.y + 1) continue;
+                    const pecas = [];
+                    if (tx < 0 || tx >= MAPA.w) {
+                        const longe = tx < 0 ? -tx : tx - MAPA.w + 1;
+                        if (v < (longe >= 3 ? 0.75 : 0.5)) pecas.push(w < 0.5 ? 'coqueiro' : w < 0.78 ? 'pedra' : 'duna');
+                    } else if (ty === AREIA_Y) {   // a barreira: duna de ponta a ponta, com coqueiros atrás
+                        if (w < 0.45) pecas.push('coqueiro');
+                        pecas.push(v < 0.88 ? 'duna' : 'pedra');
+                    } else if (v < 0.12) pecas.push('coqueiro');
+                    else if (v < 0.2) pecas.push('pedra');
+                    else if (v < 0.235) pecas.push('tronco');
+                    else if (v < 0.27) pecas.push('concha');
+                    for (let peca of pecas) {
+                        if (peca === 'coqueiro' && (coqueiros.has(tx + ',' + (ty - 1)) || ty === MAPA.mar.y - 1)) peca = null;   // nem empilhado, nem na beira molhada
+                        if (!peca) continue;
+                        if (peca === 'coqueiro') coqueiros.add(tx + ',' + ty);
+                        const k = PRAIA[peca], atras = peca === 'coqueiro' && ty === AREIA_Y ? -5 : 0;
+                        arvores.push({ p: 'propria', i: k.i, topo: k.topo, x: wx(tx) + (k.fixo ? 0 : jx), y: wy(ty) + (k.fixo ? 0 : jy) + atras });
+                    }
                 }
             }
             // o chão de terra batida da feira
@@ -1349,11 +1410,11 @@
         function desenharLitoral() {
             const r = rng(6161);
             const ret = (x, y, w, h, cor) => { f.fillStyle = cor; f.fillRect(x, y, w, h); };
-            const AREIA = wy(32), BEIRA = wy(MAPA.mar.y), X0 = wx(-MARGEM), X1 = wx(MAPA.w + MARGEM), FUNDO = MH;
-            // areia só dentro do terreno (nas laterais continua a mata)
-            ret(wx(0), AREIA, MAPA.w * T, BEIRA - AREIA, '#ecd59a');
-            for (let k = 0; k < 900; k++) ret(wx(0) + Math.floor(r() * MAPA.w * T), AREIA + Math.floor(r() * (BEIRA - AREIA)), 1, 1, r() < 0.5 ? '#d9bd7c' : '#f6e6b8');
-            ret(wx(0), BEIRA - 4, MAPA.w * T, 4, '#d2b06c');   // areia molhada
+            const AREIA = wy(AREIA_Y), BEIRA = wy(MAPA.mar.y), X0 = wx(-MARGEM), X1 = wx(MAPA.w + MARGEM), FUNDO = MH;
+            // fase 67: a areia vai de ponta a ponta, como o mar (nas laterais, coqueiros e pedras em vez de mata)
+            ret(X0, AREIA, X1 - X0, BEIRA - AREIA, '#ecd59a');
+            for (let k = 0; k < 1250; k++) ret(X0 + Math.floor(r() * (X1 - X0)), AREIA + Math.floor(r() * (BEIRA - AREIA)), 1, 1, r() < 0.5 ? '#d9bd7c' : '#f6e6b8');
+            ret(X0, BEIRA - 4, X1 - X0, 4, '#d2b06c');   // areia molhada
             // o mar
             ret(X0, BEIRA, X1 - X0, FUNDO - BEIRA, '#3a7cc4');
             ret(X0, BEIRA + T * 2, X1 - X0, FUNDO - BEIRA - T * 2, '#336fb3');
@@ -2090,52 +2151,73 @@
         /* As duas camadas da noite, feitas a partir das luzes e guardadas até elas mudarem:
            - escuridão: azul, clareando até o branco onde tem luz (multiplica a cena: ali fica a cor do dia)
            - brilho: a cor quente das luzes (soma por cima)
-           Cada luz é desenhada com 'lighten' em cima de um fundo opaco: onde várias se encontram vale a
-           mais forte, não a soma — muita luz junta não estoura mais (fase 48). */
+           Fase 67: cada luz cai suave até zero na borda e as luzes se juntam por um "máximo suave" (a raiz
+           sexta da soma das sextas potências). Com o máximo puro (fase 48) ficava um vinco escuro entre
+           duas luzes perto uma da outra; somando, estourava. Assim, onde duas luzes iguais se encontram fica
+           só uns 12% mais claro, sem vinco. Os 0.9 e 0.7 deixam o claro igual ao de antes (medido perto e
+           entre os lampiões). Feito em 1/4 da resolução (as luzes são suaves; ~12 ms com 30 luzes, só quando
+           elas mudam) e esticado. */
+        const NOITE_ESC = 4;
         let noiteCache = { chave: null, escuridao: null, brilho: null };
         function camadasNoite(luzes) {
             const chave = luzes.map((l) => [l.x, l.y, l.r, l.f, l.ilumina, l.cor].join(',')).join('|');
             if (noiteCache.chave === chave) return noiteCache;
+            const W = Math.ceil(MW / NOITE_ESC), H = Math.ceil(MH / NOITE_ESC);
             const tela = (c) => {
-                if (c && c.width === MW && c.height === MH) return c;
+                if (c && c.width === W && c.height === H) return c;
                 c = document.createElement('canvas');
-                c.width = MW;
-                c.height = MH;
+                c.width = W;
+                c.height = H;
                 return c;
             };
             const escuridao = tela(noiteCache.escuridao), brilho = tela(noiteCache.brilho);
-            const e = escuridao.getContext('2d'), b = brilho.getContext('2d');
-            e.globalCompositeOperation = 'source-over';
-            e.fillStyle = '#3e4c8c';
-            e.fillRect(0, 0, MW, MH);
-            b.globalCompositeOperation = 'source-over';
-            b.fillStyle = '#000';
-            b.fillRect(0, 0, MW, MH);
-            e.globalCompositeOperation = 'lighten';
-            b.globalCompositeOperation = 'lighten';
-            const cinza = (v) => { const n = Math.round(255 * Math.max(0, Math.min(1, v))); return `rgb(${n}, ${n}, ${n})`; };
+            const ilu = new Float32Array(W * H), cor = new Float32Array(W * H * 3);
+            const p6 = (v) => { const v2 = v * v; return v2 * v2 * v2; };
             for (const l of luzes) {
-                if (l.ilumina) {
-                    const g = e.createRadialGradient(l.x, l.y, 0, l.x, l.y, l.r);
-                    g.addColorStop(0, cinza(l.ilumina));
-                    g.addColorStop(0.55, cinza(l.ilumina * 0.6));
-                    g.addColorStop(1, '#000');
-                    e.fillStyle = g;
-                    e.fillRect(l.x - l.r, l.y - l.r, l.r * 2, l.r * 2);
-                }
-                if (l.f) {
-                    const [r, gr, bl] = l.cor.split(',').map(Number);
-                    const cor = (k) => `rgb(${Math.round(r * k)}, ${Math.round(gr * k)}, ${Math.round(bl * k)})`;
-                    const g = b.createRadialGradient(l.x, l.y, 0, l.x, l.y, l.r);
-                    g.addColorStop(0, cor(Math.min(1, l.f)));
-                    g.addColorStop(0.45, cor(Math.min(1, l.f) * 0.35));
-                    g.addColorStop(1, '#000');
-                    b.fillStyle = g;
-                    b.fillRect(l.x - l.r, l.y - l.r, l.r * 2, l.r * 2);
+                const cx = l.x / NOITE_ESC, cy = l.y / NOITE_ESC, r = l.r / NOITE_ESC, r2 = r * r;
+                const [cr, cg, cb] = l.cor.split(',').map((n) => Number(n) / 255);
+                const il = (l.ilumina || 0) * 0.9, fq = (l.f || 0) * 0.7;
+                const x0 = Math.max(0, Math.floor(cx - r)), x1 = Math.min(W - 1, Math.ceil(cx + r));
+                const y0 = Math.max(0, Math.floor(cy - r)), y1 = Math.min(H - 1, Math.ceil(cy + r));
+                for (let y = y0; y <= y1; y++) {
+                    const dy = y + 0.5 - cy;
+                    for (let x = x0; x <= x1; x++) {
+                        const dx = x + 0.5 - cx, d2 = (dx * dx + dy * dy) / r2;
+                        if (d2 >= 1) continue;
+                        const u = 1 - d2, k = u * u, i = y * W + x;
+                        if (il) ilu[i] += p6(il * k);
+                        if (fq) {   // o brilho quente fica mais perto da luz
+                            const v = fq * k * k * u, j = i * 3;
+                            cor[j] += p6(v * cr); cor[j + 1] += p6(v * cg); cor[j + 2] += p6(v * cb);
+                        }
+                    }
                 }
             }
+            const e = escuridao.getContext('2d'), b = brilho.getContext('2d');
+            const de = e.createImageData(W, H), db = b.createImageData(W, H), pe = de.data, pb = db.data;
+            const raiz6 = (v) => (v > 0 ? Math.min(255, Math.round(255 * Math.cbrt(Math.sqrt(v)))) : 0);
+            for (let i = 0, j = 0; i < W * H; i++, j += 4) {
+                pe[j + 3] = pb[j + 3] = 255;
+                const g = raiz6(ilu[i]), c = i * 3;
+                pe[j] = Math.max(0x3e, g); pe[j + 1] = Math.max(0x4c, g); pe[j + 2] = Math.max(0x8c, g);
+                if (cor[c] || cor[c + 1] || cor[c + 2]) { pb[j] = raiz6(cor[c]); pb[j + 1] = raiz6(cor[c + 1]); pb[j + 2] = raiz6(cor[c + 2]); }
+            }
+            e.putImageData(de, 0, 0);
+            b.putImageData(db, 0, 0);
             noiteCache = { chave, escuridao, brilho };
             return noiteCache;
+        }
+        // fase 67: o brilho do anel dos canos é um halo redondo (antes eram quadrados somados)
+        const haloCano = {};
+        function halo(cor) {
+            if (haloCano[cor]) return haloCano[cor];
+            const c = document.createElement('canvas');
+            c.width = c.height = 24;
+            const g = c.getContext('2d'), gr = g.createRadialGradient(12, 12, 0, 12, 12, 12);
+            [[0, 1], [0.25, 0.88], [0.5, 0.56], [0.75, 0.19], [1, 0]].forEach(([t, a]) => gr.addColorStop(t, `rgba(${cor}, ${a})`));
+            g.fillStyle = gr;
+            g.fillRect(0, 0, 24, 24);
+            return (haloCano[cor] = c);
         }
         function desenharNoite(lista, tempo, escuro) {
             const luzes = luzesDaNoite(lista, tempo);
@@ -2143,9 +2225,10 @@
             q.save();
             q.globalCompositeOperation = 'multiply';   // tudo fica mais escuro e azulado, sem perder a cor
             q.globalAlpha = escuro;
-            q.drawImage(camadas.escuridao, 0, 0);
+            q.imageSmoothingEnabled = true;            // as camadas são pequenas: esticadas suaves
+            q.drawImage(camadas.escuridao, 0, 0, MW, MH);
             q.globalCompositeOperation = 'lighter';    // a cor quente das luzes por cima
-            q.drawImage(camadas.brilho, 0, 0);
+            q.drawImage(camadas.brilho, 0, 0, MW, MH);
             q.globalAlpha = 1;
             // canos da rede: a luz verde do anel brilha no escuro (vermelha piscando sem energia)
             for (const c of lista) {
@@ -2159,14 +2242,13 @@
                     if (!(Math.floor(tempo / 500) % 2)) continue;
                     cor = '232, 67, 74'; a = escuro * 0.8;
                 }
-                q.fillStyle = `rgba(${cor}, ${(a * 0.12).toFixed(3)})`;
-                q.fillRect(cx - 8, cy - 8, 16, 16);
-                q.fillStyle = `rgba(${cor}, ${(a * 0.3).toFixed(3)})`;
-                q.fillRect(cx - 6, cy - 2, 12, 4);
-                q.fillRect(cx - 2, cy - 6, 4, 12);
-                q.fillStyle = `rgba(${cor}, ${(a * 0.8).toFixed(3)})`;
-                q.fillRect(cx - 2, cy - 2, 4, 4);
+                q.globalCompositeOperation = 'screen';   // canos juntos não estouram
+                q.globalAlpha = Math.min(1, a * 1.1);
+                q.drawImage(halo(cor), cx - 12, cy - 12);
+                q.drawImage(halo(cor), cx - 6, cy - 6, 12, 12);   // o miolo, mais forte
             }
+            q.globalCompositeOperation = 'lighter';
+            q.globalAlpha = 1;
             // vaga-lumes: cada um passeia em volta de um ponto fixo e pisca no seu ritmo
             for (let k = 0; k < 32; k++) {
                 const bx = ((k * 197 + 31) % 101) / 101 * MW, by = ((k * 131 + 17) % 89) / 89 * MH;
@@ -2288,7 +2370,8 @@
             } else {
                 q.fillStyle = 'rgba(214,236,255,.85)';
             }
-            q.fillRect(x + 6, y + 6, 4, 4);
+            q.fillRect(x + 7, y + 6, 2, 4);   // fase 67: luzinha redonda (a cruz, sem os cantos)
+            q.fillRect(x + 6, y + 7, 4, 2);
         }
         // itens pequenos (8 px) andando dentro dos canos: ingrediente da fonte para a oficina, produto de volta
         function miniTile(i, x, y, tam = 8) {
