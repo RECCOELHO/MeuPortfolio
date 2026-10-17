@@ -509,7 +509,11 @@
         // 119 bússola (kit de expedição)
         ['.......aa.......', '......aHHa......', '....aaHHHHaa....', '...aHHHYYHHHa...', '..aHHYYYYYYHHa..', '.aHHYYYbXYYYHHa.',
          '.aHYYYYbXYYYYHa.', 'aHHYYYYbXYYYYHHa', 'aHYYYYYKKYYYYYHa', 'aHYYYYYfdYYYYYHa', 'aHHYYYYfdYYYYHHa', '.aHYYYYfdYYYYHa.',
-         '.aHHYYYfdYYYHHa.', '..aHHYYYYYYHHa..', '...aHHHYYHHHa...', '....aaHHHHaa....']
+         '.aHHYYYfdYYYHHa.', '..aHHYYYYYYHHa..', '...aHHHYYHHHa...', '....aaHHHHaa....'],
+        // 120 alicate do eletricista (cabos amarelos)
+        ['................', '................', '................', '................', '................', '................',
+         '.......aa.......', '......adla......', '......afla......', '.....afdfla.....', '.....aeaaea.....', '.....agaaga.....',
+         '....aga..aga....', '....aHa..aHa....', '.....a....a.....', '................']
     ];
     const atlasProprio = document.createElement('canvas');
     atlasProprio.width = 12 * 16;
@@ -666,7 +670,7 @@
         semeadora: { ...MOCA, ferramenta: 10, visual: { cabelo: 4, pele: 1, roupa: 3, extra: 'avental' } }, patinheiro: { ...MOCO, ferramenta: 1003 },
         pastora: { ...MOCA, ferramenta: 74, visual: { cabelo: 2, pele: 4, roupa: 6, extra: 'lenco_cabeca' } }, porqueiro: { ...MOCO, ferramenta: 79 },
         // fase 43: a operária leva uma caixa e o eletricista uma engrenagem (do pacote da fábrica)
-        operaria: { ...MOCA, ferramenta: 73, ferramentaP: 'factory', visual: { cabelo: 0, pele: 3, roupa: 2, extra: 'capacete' } }, eletricista: { ...MOCO, ferramenta: 114, ferramentaP: 'factory' }
+        operaria: { ...MOCA, ferramenta: 73, ferramentaP: 'factory', visual: { cabelo: 0, pele: 3, roupa: 2, extra: 'capacete' } }, eletricista: { ...MOCO, ferramenta: 1120 }   // o alicate
     };
     // fase 68: os acessórios das moças (16 x 16, por cima do desenho, com as letras da PAL_PROPRIA)
     const ACESSORIOS = {
@@ -1220,7 +1224,43 @@
             cacheCaminho = { chave, area };
             return area;
         }
+        // o Faísca anda no meio dos equipamentos de energia (painéis, turbinas, baterias, gerador, reator...):
+        // os quadrados em volta de cada um, fora dos canteiros e das construções. Ao chegar, olha para o
+        // equipamento e mexe nele (olhar = o meio dele). Às vezes atravessa para outro equipamento.
+        const EQUIP_ENERGIA = ['painel_solar', 'turbina', 'bateria', 'supercap', 'gerador_bio', 'reator', 'triturador', 'fabrica_auto'];
+        let cacheEnergia = { chave: null, area: null };
+        function areaEnergia() {
+            const cons = construcoesFn() || [], cant = listaCanteiros();
+            const equip = cons.filter((c) => EQUIP_ENERGIA.includes(c.tipo));
+            const chave = equip.map((c) => c.tipo + c.x + ',' + c.y).join('|') + ':' + cons.length + ':' + cant.length + ':' + zonasAtuais;
+            if (cacheEnergia.chave === chave) return cacheEnergia.area;
+            const ocupado = new Set(cant.map((c) => c.x + ',' + c.y));
+            for (const c of cons) {
+                if (c.tipo === 'caminho_pedra' || c.tipo === 'caminho_terra') continue;   // na estradinha pode
+                const t = arteItem(c.tipo, EST) || {};
+                for (let dy = 0; dy < (t.h || 1); dy++) for (let dx = 0; dx < (t.w || 1); dx++) ocupado.add((c.x + dx) + ',' + (c.y + dy));
+            }
+            const pontos = [], vistos = new Set();
+            for (const c of equip) {
+                const t = arteItem(c.tipo, EST) || {}, w = t.w || 1, h = t.h || 1, olhar = wx(c.x) + w * T / 2 - T / 2;
+                for (let ty = c.y - 1; ty <= c.y + h; ty++) {
+                    for (let tx = c.x - 1; tx <= c.x + w; tx++) {
+                        const k = tx + ',' + ty;
+                        if (ocupado.has(k) || vistos.has(k) || !livre(tx, ty)) continue;
+                        vistos.add(k);
+                        pontos.push({ x: wx(tx), y: wy(ty), olhar });
+                    }
+                }
+            }
+            const area = pontos.length ? {
+                x0: Math.min(...pontos.map((p) => p.x)), y0: Math.min(...pontos.map((p) => p.y)),
+                x1: Math.max(...pontos.map((p) => p.x)), y1: Math.max(...pontos.map((p) => p.y)), pontos, salto: 0.2
+            } : null;
+            cacheEnergia = { chave, area };
+            return area;
+        }
         function areaDe(tipo) {
+            if (tipo === 'energia') { const c = areaEnergia(); if (c) return c; tipo = 'caminho'; }   // sem equipamento: a estradinha
             if (tipo === 'caminho') { const c = areaCaminho(); if (c) return c; tipo = 'campo'; }
             const cercado = areaCercado(tipo);
             if (cercado) return cercado;
@@ -1659,7 +1699,7 @@
                 vistos.add(h.id);
                 // fase 66: descansando numa cama, ele vai até a porta da casa e entra (dormir = { x, y, casa });
                 // sem cama, fica parado na sombra (dormir = { sombra: true }) com os zzz em cima
-                if (atores.has(h.id) && h.area === 'caminho') atores.get(h.id).area = areaDe('caminho');   // fase 69
+                if (atores.has(h.id) && (h.area === 'caminho' || h.area === 'energia')) atores.get(h.id).area = areaDe(h.area);   // fase 69
                 if (atores.has(h.id)) { const b = atores.get(h.id); b.nivel = h.nivel || 1; if (JSON.stringify(b.dormir || null) !== JSON.stringify(h.dormir || null)) { b.dormir = h.dormir || null; if (!b.dormir) b.dentro = false; } continue; }
                 const arte = AJUDANTE_ARTE[h.tipo] || MOCO;
                 const area = areaDe(h.area);
@@ -1680,8 +1720,9 @@
         function lugarLivre(a) {
             if (a.area.pontos) {   // fase 69: o próximo pedaço da estradinha, perto (até uns 3 quadrados): segue o caminho
                 const perto = a.area.pontos.filter((p) => { const d = Math.hypot(p.x - a.x, p.y - a.y); return d > 2 && d < 3.5 * T; });
-                const lista = perto.length ? perto : a.area.pontos, p = lista[Math.floor(Math.random() * lista.length)];
-                return { x: p.x + (Math.random() - 0.5) * 6, y: p.y + (Math.random() - 0.5) * 4 };
+                const longe = !perto.length || Math.random() < (a.area.salto || 0);   // (o Faísca às vezes vai para outro equipamento)
+                const lista = longe ? a.area.pontos : perto, p = lista[Math.floor(Math.random() * lista.length)];
+                return { x: p.x + (Math.random() - 0.5) * 6, y: p.y + (Math.random() - 0.5) * 4, olhar: p.olhar };
             }
             let melhor = null, folga = -1;
             for (let k = 0; k < (a.ajudante ? 1 : 6); k++) {
@@ -1733,7 +1774,13 @@
                 }
                 if (d < 0.5) {
                     a.espera = 800 + Math.random() * 3500;
+                    if (a.olharProx != null) {   // o Faísca chegou num equipamento: vira para ele e mexe um pouco
+                        a.flip = a.x > a.olharProx;
+                        a.brilho = performance.now() + 900;
+                        a.espera += 1500;
+                    }
                     const p = lugarLivre(a);
+                    a.olharProx = p.olhar;
                     a.tx = p.x;
                     a.ty = p.y;
                     continue;

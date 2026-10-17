@@ -1127,7 +1127,8 @@
             'No menu tem o <b>Calendário</b>: um prêmio por dia, 28 dias. Faltou um dia? Não perde: pega o seguinte. Os dias 7, 14, 21 e 28 dão diamantes.',
             'A <b>trilha dourada</b> (com diamantes) dá um prêmio a mais todo dia e, no dia 28, o <b>Fazendeiro de ouro</b>, que só sai lá.',
             'Agora você ganha <b>+2 canteiros a cada nível até o 45</b> (antes parava no 25).',
-            'No caminho dos níveis, as melhorias do mar ganharam figuras de verdade: barco, vara, motor, sonar, caixa de gelo, rede e bússola.'] },
+            'No caminho dos níveis, as melhorias do mar ganharam figuras de verdade: barco, vara, motor, sonar, caixa de gelo, rede e bússola.',
+            'O <b>Faísca</b> saiu do meio da plantação: agora com um alicate na mão, ele fica no meio dos painéis solares, turbinas e baterias, mexendo neles. Sem nenhum deles, anda pela estradinha.'] },
         { id: '2026-10-17-luzes', data: '17/10', titulo: 'Luzes da noite', itens: [
             'Postes perto um do outro agora juntam a luz numa área só, sem encolher e sem ficar estourado.',
             'A luz dos canos ficou bem mais discreta: é só um sinal da rede.'] },
@@ -1172,7 +1173,7 @@
         return (A.htmlAjudante && A.htmlAjudante(id, px)) || spr(a.i, px, a.p);   // fase 68: as moças, cada uma de um jeito
     };
     function areaAjudante(t) {
-        if (t.funcao === 'energia') return 'caminho';   // fase 69: o Faísca não mexe na roça: anda pela estradinha
+        if (t.funcao === 'energia') return 'energia';   // fase 69: o Faísca não mexe na roça: anda no meio dos painéis e turbinas (sem eles, na estradinha)
         return t.funcao === 'animal' ? t.alvo : 'campo';
     }
     /* ---- fase 66: quem dorme onde ----
