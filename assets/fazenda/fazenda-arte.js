@@ -2187,14 +2187,19 @@
         /* As duas camadas da noite, feitas a partir das luzes e guardadas até elas mudarem:
            - escuridão: azul, clareando até o branco onde tem luz (multiplica a cena: ali fica a cor do dia)
            - brilho: a cor quente das luzes (soma por cima)
-           Fase 67: cada luz cai suave até zero na borda e as luzes se juntam por um "máximo suave" (a raiz
-           sexta da soma das sextas potências). Com o máximo puro (fase 48) ficava um vinco escuro entre
-           duas luzes perto uma da outra; somando, estourava. Assim, onde duas luzes iguais se encontram fica
-           só uns 12% mais claro, sem vinco. Os 0.9 e 0.7 deixam o claro igual ao de antes (medido perto e
-           entre os lampiões). Feito em 1/4 da resolução (as luzes são suaves; ~12 ms com 30 luzes, só quando
-           elas mudam) e esticado. */
+           Fase 69: as luzes se SOMAM (por isso duas luzes perto viram uma mancha só, sem a "cintura" que
+           fazia a luz de um poste parecer encolher perto do outro) e passam por um teto macio: até 3/4 do
+           claro de um poste vale a soma; dali para cima vai chegando devagar no claro do pé do poste, sem
+           nunca passar dele. Juntam, não encolhem e não estouram. (Na fase 48 era o máximo: vinco entre
+           elas; na 67, um máximo suave: ainda com a cintura.) Feito em 1/4 da resolução (as luzes são
+           suaves; poucos ms, só quando as luzes mudam) e esticado. */
         const NOITE_ESC = 4;
         let noiteCache = { chave: null, escuridao: null, brilho: null };
+        // a soma até 3/4 do teto passa igual; dali para cima, encosta no teto sem passar
+        const tetoMacio = (s, teto) => {
+            const joelho = teto * 0.75;
+            return s <= joelho ? s : joelho + (teto - joelho) * (1 - Math.exp(-(s - joelho) / (teto - joelho)));
+        };
         function camadasNoite(luzes) {
             const chave = luzes.map((l) => [l.x, l.y, l.r, l.f, l.ilumina, l.cor].join(',')).join('|');
             if (noiteCache.chave === chave) return noiteCache;
@@ -2208,11 +2213,14 @@
             };
             const escuridao = tela(noiteCache.escuridao), brilho = tela(noiteCache.brilho);
             const ilu = new Float32Array(W * H), cor = new Float32Array(W * H * 3);
-            const p6 = (v) => { const v2 = v * v; return v2 * v2 * v2; };
+            let tetoIlu = 0;
+            const tetoCor = [0, 0, 0];
             for (const l of luzes) {
                 const cx = l.x / NOITE_ESC, cy = l.y / NOITE_ESC, r = l.r / NOITE_ESC, r2 = r * r;
                 const [cr, cg, cb] = l.cor.split(',').map((n) => Number(n) / 255);
-                const il = (l.ilumina || 0) * 0.9, fq = (l.f || 0) * 0.7;
+                const il = (l.ilumina || 0) * 0.89, fq = (l.f || 0) * 0.7;   // 0.89 e 0.7: o pé do poste com o mesmo claro de antes
+                tetoIlu = Math.max(tetoIlu, il);
+                tetoCor[0] = Math.max(tetoCor[0], fq * cr); tetoCor[1] = Math.max(tetoCor[1], fq * cg); tetoCor[2] = Math.max(tetoCor[2], fq * cb);
                 const x0 = Math.max(0, Math.floor(cx - r)), x1 = Math.min(W - 1, Math.ceil(cx + r));
                 const y0 = Math.max(0, Math.floor(cy - r)), y1 = Math.min(H - 1, Math.ceil(cy + r));
                 for (let y = y0; y <= y1; y++) {
@@ -2221,22 +2229,24 @@
                         const dx = x + 0.5 - cx, d2 = (dx * dx + dy * dy) / r2;
                         if (d2 >= 1) continue;
                         const u = 1 - d2, k = u * u, i = y * W + x;
-                        if (il) ilu[i] += p6(il * k);
+                        if (il) ilu[i] += il * k;
                         if (fq) {   // o brilho quente fica mais perto da luz
                             const v = fq * k * k * u, j = i * 3;
-                            cor[j] += p6(v * cr); cor[j + 1] += p6(v * cg); cor[j + 2] += p6(v * cb);
+                            cor[j] += v * cr; cor[j + 1] += v * cg; cor[j + 2] += v * cb;
                         }
                     }
                 }
             }
             const e = escuridao.getContext('2d'), b = brilho.getContext('2d');
             const de = e.createImageData(W, H), db = b.createImageData(W, H), pe = de.data, pb = db.data;
-            const raiz6 = (v) => (v > 0 ? Math.min(255, Math.round(255 * Math.cbrt(Math.sqrt(v)))) : 0);
+            const byte = (v) => Math.min(255, Math.round(255 * v));
             for (let i = 0, j = 0; i < W * H; i++, j += 4) {
                 pe[j + 3] = pb[j + 3] = 255;
-                const g = raiz6(ilu[i]), c = i * 3;
+                const g = ilu[i] ? byte(tetoMacio(ilu[i], tetoIlu)) : 0, c = i * 3;
                 pe[j] = Math.max(0x3e, g); pe[j + 1] = Math.max(0x4c, g); pe[j + 2] = Math.max(0x8c, g);
-                if (cor[c] || cor[c + 1] || cor[c + 2]) { pb[j] = raiz6(cor[c]); pb[j + 1] = raiz6(cor[c + 1]); pb[j + 2] = raiz6(cor[c + 2]); }
+                if (cor[c] || cor[c + 1] || cor[c + 2]) {
+                    pb[j] = byte(tetoMacio(cor[c], tetoCor[0])); pb[j + 1] = byte(tetoMacio(cor[c + 1], tetoCor[1])); pb[j + 2] = byte(tetoMacio(cor[c + 2], tetoCor[2]));
+                }
             }
             e.putImageData(de, 0, 0);
             b.putImageData(db, 0, 0);
@@ -2271,19 +2281,19 @@
                 if (!c.cano || !c.rede) continue;
                 const cx = wx(c.x) + 8, cy = wy(c.y) + 8;
                 let cor, a;
+                // fase 69: bem mais fraco e pequeno (um halo de 16 px só no anel): a luz é um sinal, não um poste
                 if (c.rede === 'ok' && c.ativa) {
                     const onda = (Math.sin(tempo / 260 - (c.x + c.y) * 0.9) + 1) / 2;   // a mesma onda do anel
-                    cor = '110, 230, 140'; a = escuro * (0.2 + 0.6 * onda);
-                } else if (c.rede === 'ok') {   // parada: só um brilho fraquinho no anel
-                    cor = '110, 230, 140'; a = escuro * 0.18;
+                    cor = '110, 230, 140'; a = escuro * (0.12 + 0.33 * onda);
+                } else if (c.rede === 'ok') {   // parada: quase nada
+                    cor = '110, 230, 140'; a = escuro * 0.1;
                 } else {
                     if (!(Math.floor(tempo / 500) % 2)) continue;
-                    cor = '232, 67, 74'; a = escuro * 0.6;
+                    cor = '232, 67, 74'; a = escuro * 0.4;
                 }
                 q.globalCompositeOperation = 'screen';   // canos juntos não estouram
                 q.globalAlpha = Math.min(1, a);
-                if (c.ativa || c.rede !== 'ok') q.drawImage(halo(cor), cx - 12, cy - 12);
-                q.drawImage(halo(cor), cx - 6, cy - 6, 12, 12);   // o miolo
+                q.drawImage(halo(cor), cx - 8, cy - 8, 16, 16);
             }
             q.globalCompositeOperation = 'lighter';
             q.globalAlpha = 1;
@@ -2451,9 +2461,9 @@
             // sem energia, apagada quando o cano não liga nada
             if (c.rede === 'ok' && c.ativa) {   // oficina da rede trabalhando: a onda corre pelos canos
                 const onda = (Math.sin(tempo / 260 - (c.x + c.y) * 0.9) + 1) / 2;
-                q.fillStyle = `rgba(110, 230, 140, ${(0.45 + 0.55 * onda).toFixed(2)})`;
+                q.fillStyle = `rgba(110, 230, 140, ${(0.3 + 0.45 * onda).toFixed(2)})`;
             } else if (c.rede === 'ok') {   // ligada, mas parada: luzinha fraca e quieta
-                q.fillStyle = 'rgba(110, 230, 140, 0.4)';
+                q.fillStyle = 'rgba(110, 230, 140, 0.25)';
             } else if (c.rede === 'sem_energia') {
                 q.fillStyle = Math.floor(tempo / 500) % 2 ? '#e8434a' : '#7a2a30';
             } else {

@@ -1118,6 +1118,9 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-10-17-luzes', data: '17/10', titulo: 'Luzes da noite', itens: [
+            'Postes perto um do outro agora juntam a luz numa área só, sem encolher e sem ficar estourado.',
+            'A luz dos canos ficou bem mais discreta: é só um sinal da rede.'] },
         { id: '2026-10-17-ordem', data: '17/10', titulo: 'Construir em ordem e a luz dos canos', itens: [
             'No <b>Construir</b>, as oficinas (e o resto) agora aparecem por nível: o que você já pode construir vem primeiro, e o que ainda está travado fica no fim.',
             'A luz dos <b>canos</b> mostra o que a rede está fazendo: a onda verde corre quando uma oficina da rede está trabalhando; ligada mas parada, fica só uma luzinha fraca.'] },
