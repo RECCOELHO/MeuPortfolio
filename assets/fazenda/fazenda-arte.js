@@ -2271,17 +2271,19 @@
                 if (!c.cano || !c.rede) continue;
                 const cx = wx(c.x) + 8, cy = wy(c.y) + 8;
                 let cor, a;
-                if (c.rede === 'ok') {
+                if (c.rede === 'ok' && c.ativa) {
                     const onda = (Math.sin(tempo / 260 - (c.x + c.y) * 0.9) + 1) / 2;   // a mesma onda do anel
-                    cor = '110, 230, 140'; a = escuro * (0.45 + 0.55 * onda);
+                    cor = '110, 230, 140'; a = escuro * (0.2 + 0.6 * onda);
+                } else if (c.rede === 'ok') {   // parada: só um brilho fraquinho no anel
+                    cor = '110, 230, 140'; a = escuro * 0.18;
                 } else {
                     if (!(Math.floor(tempo / 500) % 2)) continue;
-                    cor = '232, 67, 74'; a = escuro * 0.8;
+                    cor = '232, 67, 74'; a = escuro * 0.6;
                 }
                 q.globalCompositeOperation = 'screen';   // canos juntos não estouram
-                q.globalAlpha = Math.min(1, a * 1.1);
-                q.drawImage(halo(cor), cx - 12, cy - 12);
-                q.drawImage(halo(cor), cx - 6, cy - 6, 12, 12);   // o miolo, mais forte
+                q.globalAlpha = Math.min(1, a);
+                if (c.ativa || c.rede !== 'ok') q.drawImage(halo(cor), cx - 12, cy - 12);
+                q.drawImage(halo(cor), cx - 6, cy - 6, 12, 12);   // o miolo
             }
             q.globalCompositeOperation = 'lighter';
             q.globalAlpha = 1;
@@ -2447,9 +2449,11 @@
             q.fillStyle = '#8b9bb4'; q.fillRect(x + 5, y + 5, 6, 6);
             // luzinha no anel: verde passando quando a rede está ligada e com energia, vermelha piscando
             // sem energia, apagada quando o cano não liga nada
-            if (c.rede === 'ok') {
+            if (c.rede === 'ok' && c.ativa) {   // oficina da rede trabalhando: a onda corre pelos canos
                 const onda = (Math.sin(tempo / 260 - (c.x + c.y) * 0.9) + 1) / 2;
                 q.fillStyle = `rgba(110, 230, 140, ${(0.45 + 0.55 * onda).toFixed(2)})`;
+            } else if (c.rede === 'ok') {   // ligada, mas parada: luzinha fraca e quieta
+                q.fillStyle = 'rgba(110, 230, 140, 0.4)';
             } else if (c.rede === 'sem_energia') {
                 q.fillStyle = Math.floor(tempo / 500) % 2 ? '#e8434a' : '#7a2a30';
             } else {

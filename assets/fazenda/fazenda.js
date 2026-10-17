@@ -1118,6 +1118,9 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-10-17-ordem', data: '17/10', titulo: 'Construir em ordem e a luz dos canos', itens: [
+            'No <b>Construir</b>, as oficinas (e o resto) agora aparecem por nível: o que você já pode construir vem primeiro, e o que ainda está travado fica no fim.',
+            'A luz dos <b>canos</b> mostra o que a rede está fazendo: a onda verde corre quando uma oficina da rede está trabalhando; ligada mas parada, fica só uma luzinha fraca.'] },
         { id: '2026-10-17-reator', data: '17/10', titulo: 'As ajudantes, o eletricista e o reator', itens: [
             'As <b>ajudantes</b> agora são cada uma de um jeito: a granjeira de chapéu de palha, a coelheira de lenço, a semeadora de avental, a pastora de lenço na cabeça e a operária de capacete.',
             'O <b>eletricista</b> solta faíscas: 1 raiozinho por nível.',
@@ -1922,16 +1925,24 @@
             }
             return cacheVisitaCons.lista;
         }
-        // sinal da rede: luz verde pulsando = ligada e com energia; vermelha piscando = sem energia
+        // sinal da rede: luz verde pulsando = ligada e com energia; vermelha piscando = sem energia.
+        // A onda verde só corre na rede com oficina trabalhando; ligada mas parada, a luzinha fica fraca
         const sinal = cargaAgora() >= 2 ? 'ok' : 'sem_energia';
-        return (S.construcoes || []).map((c) => {
+        const cons = S.construcoes || [], ativas = new Set();
+        const rc = cons.some((c) => c.tipo === 'cano') ? redeCanos() : null;
+        if (rc) for (const k of rc.coisas) {
+            if (k.papel !== 'oficina' || !k.redes.size) continue;
+            const o = infoOficina(cons.find((c) => c.x === k.x && c.y === k.y && c.tipo === k.tipo));
+            if (o && o.estado === 'trabalhando') k.redes.forEach((n) => ativas.add(n));
+        }
+        return cons.map((c) => {
             const o = infoOficina(c);
             if (o) {   // (os itens andando nos canos agora vêm das viagens: visualViagens)
                 return { ...c, oficina: { estado: o.prontos > 0 ? 'pronta' : o.estado, trabalhando: o.estado === 'trabalhando', progresso: o.progresso, produto: A.cultura(o.it.produz).item, rede: o.ligada ? sinal : null } };
             }
             if (c.tipo === 'cano') {
                 const r = redeCanos(), k = c.x + ',' + c.y;
-                return { ...c, cano: r.lados.get(k), rede: (r.membros.get(r.redeDoCano.get(k)) || 0) >= 2 ? sinal : null };
+                return { ...c, cano: r.lados.get(k), rede: (r.membros.get(r.redeDoCano.get(k)) || 0) >= 2 ? sinal : null, ativa: ativas.has(r.redeDoCano.get(k)) };
             }
             // fase 47: com energia elétrica, o alarme gasta 1 ⚡/h; bateria zerada = desligado (a luz para)
             if (c.tipo === 'alarme' && temEletrico() && cargaAgora() < 1) return { ...c, desligado: true };
@@ -2473,7 +2484,10 @@
         const abas = [['plantacao', 'Plantação'], ['pomar', 'Pomar'], ['bichos', 'Bichos'], ['oficina', 'Oficinas'], ['maquina', 'Máquinas'], ['energia', 'Energia'], ['caminho', 'Cercas e caminhos'], ['natureza', 'Natureza'], ['objeto', 'Objetos'], ['construcao', 'Casas']];
         el.constrAbas.innerHTML = abas.map(([id, txt]) =>
             `<button type="button" data-constr-aba="${id}" class="${constr.aba === id ? 'ativa' : ''}">${txt}</button>`).join('');
-        const lista = constr.aba === 'plantacao' ? [ITEM_CANTEIRO] : S.itens.filter((i) => i.categoria === constr.aba);
+        // por nível (o que já libera primeiro); no mesmo nível, a ordem do catálogo. A ordem do catálogo
+        // segue a fase em que cada item entrou, e deixava oficina liberada no fim da lista
+        const lista = constr.aba === 'plantacao' ? [ITEM_CANTEIRO]
+            : S.itens.filter((i) => i.categoria === constr.aba).sort((a, b) => a.nivel_min - b.nivel_min || a.ordem - b.ordem);
         el.constrItens.innerHTML = lista.map((i) => {
             const travado = i.nivel_min > S.jogador.nivel;
             const sel = constr.modo === 'colocar' && constr.tipo === i.id;
