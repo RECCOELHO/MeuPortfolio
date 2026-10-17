@@ -136,6 +136,8 @@
         sem_marinheiro: 'Contrate o marinheiro primeiro (Alto-mar → Melhorar, nível 33).',
         cesto_mar_vazio: 'O cesto do Seu Nonato ainda está vazio.',
         faltam_materiais: 'Faltam materiais no celeiro para essa peça (o que está guardado para o píer não conta).',   // fase 65: a tunagem
+        sem_luva: 'Acabaram as luvas do Perks.',   // fase 66
+        ajudante_disposto: 'Ele ainda está bem disposto: só dá para mandar descansar com menos de 75% de energia.',
         barco_pequeno: 'O kit de expedição só cabe no barco oceânico.',
         nada_mudou: 'Escolha uma cor ou bandeira diferente da que o barco já tem.',
         cor_invalida: 'Essa cor não existe.',
@@ -948,11 +950,15 @@
     function podePegar(c, i) {
         return i.fase === 'maduro' && !c.ja_peguei && c.roubado < limitePegar(i.k) && !protegidoAlarme(c);
     }
+    // fase 66: a luva do Perks passa pelo alarme (1 luva por canteiro protegido)
+    const luvas = () => (S ? livreFeira('luva_perks') : 0);
+    const podeLuva = (c, i) => i.fase === 'maduro' && !c.ja_peguei && c.roubado < limitePegar(i.k) && protegidoAlarme(c) && luvas() > 0;
     function acaoVisita(c) {
         const i = info(c);
         if (i.fase === 'murcho' && visita && visita.pode_salvar !== false && 'pode_salvar' in visita) return 'salvar';   // fase 48
         if ((i.fase === 'crescendo' || i.fase === 'maduro') && i.probs.length) return 'ajudar';
         if (podePegar(c, i)) return 'pegar';
+        if (podeLuva(c, i)) return 'pegar_luva';
         return null;
     }
 
@@ -1060,11 +1066,39 @@
             <div class="rodape-painel">
                 <span></span>
                 ${parado ? '<span class="preco">Descansando</span>'
+                    : e >= 75 ? `<span class="preco" title="Só dá para mandar descansar com menos de 75% de energia">Bem disposto (${Math.round(e)}%)</span>`
                     : livres ? `<button type="button" class="botao creme" data-ajudante-descansar="${esc(t.id)}">${ico('lua', 16)} Mandar descansar (1 h)</button>`
                     : '<span class="preco">Sem cama livre</span>'}
             </div>
-            <p class="aviso">Descansar recupera a energia toda. Descansando, ele não trabalha nem junta tarefas para depois. Mandar descansar precisa de uma cama livre: mais casinhas, mais ajudantes descansando ao mesmo tempo.</p>`;
+            ${t.funcao === 'colher' ? htmlMurchasJuca() : ''}
+            <p class="aviso">Descansar recupera a energia toda. Descansando, ele não trabalha nem junta tarefas para depois. Só dá para mandar descansar com <b>menos de 75%</b> de energia, e precisa de uma cama livre: mais casinhas, mais ajudantes descansando ao mesmo tempo. Ele dorme na casa (tocar nela mostra quem está lá).</p>`;
     }
+    /* ---- fase 66: por que a planta murchou (o servidor registra o motivo de cada uma) ---- */
+    const DICA_MURCHA = {
+        sem_colhedor: 'Contrate o Juca, o colhedor (Loja → Ajudantes, nível 10): ele colhe sozinho antes de murchar.',
+        descansando: 'Construa casinhas (Construir → Casas): com cama livre ele descansa só 2 h, em vez de 4 h na sombra.',
+        fechada: 'O Juca guarda no máximo 8 h de trabalho: volte antes disso ou plante o que demora mais para murchar.',
+        nao_deu_conta: 'Evolua o Juca (Loja → Ajudantes) ou sirva o café dos ajudantes (diamantes): ele colhe mais por hora.'
+    };
+    function textoMurcha(motivo, d, n) {
+        const plantas = n == null ? 'A planta murchou' : n > 1 ? `${n} plantas murcharam` : '1 planta murchou';
+        d = d || {};
+        if (motivo === 'sem_colhedor') return `${plantas} porque você ainda não tem colhedor.`;
+        if (motivo === 'descansando') return `${plantas} enquanto o Juca dormia ${d.como === 'sombra' ? `na sombra (${d.horas || 4} h: não tinha cama livre)` : d.como === 'mandado' ? '(você mandou descansar)' : `na cama (${d.horas || 2} h)`}.`;
+        if (motivo === 'fechada') return `${plantas} com a fazenda fechada há mais de 8 h: o Juca só cobre 8 horas.`;
+        return `${plantas} porque o Juca não deu conta: no nível ${d.nivel || 1} ele colhe ${d.ritmo || 12} por hora, e tinha mais canteiro maduro que isso.`;
+    }
+    function htmlMurchas(lista) {
+        return '<div class="lista">' + lista.map((m) => `<div class="item"><span class="ico">${ico(m.motivo === 'descansando' ? 'lua' : m.motivo === 'sem_colhedor' ? 'ajuda' : 'sino', 28)}</span>
+            <span><span class="nome">${textoMurcha(m.motivo, m.detalhe, m.qtd)}</span><span class="det"><span class="txt">${DICA_MURCHA[m.motivo] || ''}</span></span></span></div>`).join('') + '</div>';
+    }
+    function htmlMurchasJuca() {
+        const dia = (S.murchas && S.murchas.dia) || {}, total = Object.values(dia).reduce((a, b) => a + b, 0);
+        return `<h3 class="secao-titulo">Nas últimas 24 h</h3>` + (total
+            ? htmlMurchas(Object.entries(dia).map(([motivo, qtd]) => ({ motivo, qtd })))
+            : '<p class="det">Nenhuma planta murchou sem ele colher. Bom trabalho, Juca!</p>');
+    }
+    let murchasNovas = [];
     const retratoAjudante = (id, px) => {
         const a = A.AJUDANTE_ARTE[id] || { p: 'factory', i: 120 };
         return spr(a.i, px, a.p);
@@ -1072,12 +1106,54 @@
     function areaAjudante(t) {
         return t.funcao === 'animal' ? t.alvo : 'campo';
     }
+    /* ---- fase 66: quem dorme onde ----
+       As camas: 1 na casa da fazenda, 1 em cada casinha vermelha e 2 em cada azul (igual a fazenda_camas).
+       Quem descansa numa cama vai até a porta da casa e entra (da casa saem os zzz); quem descansa na
+       sombra fica parado onde está. Tocar na casa diz quem está dormindo nela. */
+    const DURACAO_DESCANSO = (h) => (h.descanso_motivo === 'mandado' ? 1 : h.descanso_casa === false ? 4 : 2) * 3600e3;
+    function camasDaFazenda() {
+        const casas = [{ chave: 'casa', nome: 'Casa da fazenda', x: A.MAPA.casa.x, y: A.MAPA.casa.y, camas: 1 }];
+        for (const c of S.construcoes || []) {
+            if (c.tipo === 'casa_vermelha' || c.tipo === 'casa_azul') {
+                casas.push({ chave: c.x + ',' + c.y, nome: c.tipo === 'casa_azul' ? 'Casinha azul' : 'Casinha vermelha', x: c.x, y: c.y, camas: c.tipo === 'casa_azul' ? 2 : 1 });
+            }
+        }
+        return casas;
+    }
+    function quemDormeOnde() {
+        const camas = [];
+        for (const c of camasDaFazenda()) for (let k = 0; k < c.camas; k++) camas.push(c);
+        const ordem = (S.ajudantes_tipos || []).map((t) => t.id);
+        const dormindo = (S.ajudantes || []).filter((h) => descansando(h) && h.descanso_casa !== false)
+            .sort((a, b) => ordem.indexOf(a.tipo) - ordem.indexOf(b.tipo));
+        const onde = new Map();
+        dormindo.forEach((h, k) => { if (camas[k]) onde.set(h.tipo, camas[k]); });
+        return onde;
+    }
     function visualAjudantes() {
         if (!S || visita) return [];
+        const onde = quemDormeOnde();
         return (S.ajudantes || []).map((h) => {
             const t = tipoAjudante(h.tipo);
-            return t ? { id: 'h:' + h.tipo, tipo: h.tipo, area: areaAjudante(t) } : null;
+            if (!t) return null;
+            let dormir = null;
+            if (descansando(h)) {
+                const casa = onde.get(h.tipo), comecou = Date.parse(h.descanso_ate) - DURACAO_DESCANSO(h);
+                dormir = casa ? { casa: casa.chave, x: casa.x + 1, y: casa.y + 2, telhadoX: casa.x + 1, telhadoY: casa.y, ja: comecou < agora() - 30000 }
+                    : { sombra: true };
+            }
+            return { id: 'h:' + h.tipo, tipo: h.tipo, area: areaAjudante(t), dormir };
         }).filter(Boolean);
+    }
+    function descreverCasa(chave) {
+        const casa = camasDaFazenda().find((c) => c.chave === chave);
+        if (!casa) return false;
+        const quem = [...quemDormeOnde().entries()].filter(([, c]) => c.chave === chave).map(([tipo]) => {
+            const t = tipoAjudante(tipo), h = meuAjudante(tipo);
+            return `${retratoAjudante(tipo, 18)} <b>${esc(t ? t.nome : tipo)}</b> dormindo até ${hora(h.descanso_ate)}`;
+        });
+        mostrarStatus(`${ico('lua', 16)} <b>${casa.nome}</b> (${casa.camas} cama${casa.camas > 1 ? 's' : ''}): ` + (quem.length ? quem.join(' · ') + '. Zzz…' : 'ninguém dormindo agora.'));
+        return true;
     }
     function descreverAjudante(id) {
         const t = tipoAjudante(id), h = meuAjudante(id);
@@ -1536,19 +1612,21 @@
         caminhoneiro: { nome: 'Zeca', papel: 'do caminhão', sprite: 112,
             fala: (q, item, paga) => `E aí! O caminhão tá vazio: levo <b>${q} ${item}</b> de uma vez só. Pago <b>${paga}</b> e ainda dou um bônus de XP.` },
         mascate: { nome: 'Dona Fia', papel: 'a mascate', sprite: 100 },
-        mercador: { nome: 'Seu Jacó', papel: 'o mercador', sprite: 111 }   // fase 60: 1 em cada 100 visitas
+        mercador: { nome: 'Seu Jacó', papel: 'o mercador', sprite: 111 },   // fase 60: 1 em cada 100 visitas
+        perks: { nome: 'Perks', papel: 'o 1º do ranking', sprite: 97 }   // fase 66: 1 em cada 30 visitas
     };
     const visitaAgora = () => (!visita && S && S.visitante) || null;
     const nomeQtd = (k, n) => { const nome = (k.nome || k.id).toLowerCase(); return n === 1 || /s$/.test(nome) ? nome : nome.replace(/(ão)$/, 'ões').replace(/([^s])$/, '$1s'); };
     let visitaVista = null;
     function atualizarVisitante() {
         const v = visitaAgora();
-        cena.definirVisitante(v ? { tipo: v.tipo, item: v.raro ? A.cultura(v.raro).item : v.item ? A.cultura(v.item).item : null } : null);
+        cena.definirVisitante(v ? { tipo: v.tipo, item: v.tipo === 'perks' ? A.cultura('luva_perks').item : v.raro ? A.cultura(v.raro).item : v.item ? A.cultura(v.item).item : null } : null);
         if (v && visitaVista !== null && visitaVista !== v.slot) {
             const p = VISITAS[v.tipo];
             toast(v.tipo === 'mercador'
                 ? `${spr(p.sprite, 22, 'dungeon')} Visita rara na porteira: <b>${p.nome}</b>, ${p.papel}, trouxe ${itemDe(culturas[v.raro] || { id: v.raro }, 16)} <b>${esc((culturas[v.raro] || {}).nome || 'um material raro')}</b>!`
-                : `${spr(p.sprite, 22, 'dungeon')} Chegou visita na porteira: <b>${p.nome}</b>, ${p.papel}! Toque nela para conversar.`, v.tipo === 'mercador' ? 'festa' : undefined);
+                : v.tipo === 'perks' ? `${spr(p.sprite, 22, 'dungeon')} Visita rara na porteira: o <b>Perks</b>, ${p.papel}, com ${itemDe(culturas.luva_perks || { id: 'luva_perks' }, 16)} luvas que passam pelo alarme!`
+                : `${spr(p.sprite, 22, 'dungeon')} Chegou visita na porteira: <b>${p.nome}</b>, ${p.papel}! Toque nela para conversar.`, v.tipo === 'mercador' || v.tipo === 'perks' ? 'festa' : undefined);
         }
         visitaVista = v ? v.slot : (visitaVista === null ? 0 : visitaVista);
     }
@@ -1560,6 +1638,7 @@
         mostrarStatus(`${spr(p.sprite, 22, 'dungeon')} <b>${p.nome}</b>, ${p.papel}: ` + (v.tipo === 'mascate'
             ? `vende adubo para ${v.canteiros} canteiros por ${moeda(v.preco)}.`
             : v.tipo === 'mercador' ? `troca 1 ${r ? itemDe(r, 16) + esc(r.nome.toLowerCase()) : 'material raro'} por ${v.qtd} ${k ? itemDe(k, 16) + esc(nomeQtd(k, v.qtd)) : ''} fora de época.`
+            : v.tipo === 'perks' ? `troca ${v.luvas} ${itemDe(culturas.luva_perks || { id: 'luva_perks' }, 16)} luvas (passam pelo alarme do vizinho) por ${v.qtd} ${k ? itemDe(k, 16) + esc(nomeQtd(k, v.qtd)) : ''}.`
             : `quer ${v.qtd} ${k ? itemDe(k, 16) + esc(nomeQtd(k, v.qtd)) : ''} e paga ${moeda(v.paga)}.`) + ' Toque para conversar.');
     }
     // canteiros que a mascate aduba agora (crescendo e ainda sem adubo)
@@ -1578,6 +1657,20 @@
                 </div>`;
         }
         const k = culturas[v.item] || { id: v.item, nome: v.item, venda: 0 }, tem = Math.max(0, naCeleiro(v.item) - reservaDe(v.item));
+        if (v.tipo === 'perks') {   // fase 66: o Perks troca luvas por uma planta fácil em número grande
+            const luva = culturas.luva_perks || { id: 'luva_perks', nome: 'Luva do Perks', venda: 50000 };
+            return `${cabeca}
+                <p class="fala">E aí! Sou o <b>Perks</b>, o 1º do ranking. Quer saber como passo pelo alarme dos vizinhos? Com estas luvas. Me traz <b>${v.qtd} ${itemDe(k, 18)} ${esc(nomeQtd(k, v.qtd))}</b> e eu te dou <b>${v.luvas} ${itemDe(luva, 18)} luvas</b>.</p>
+                <div class="oficina-conta">
+                    <span>Cada luva pega 1 canteiro com alarme</span>
+                    <span class="lucro">Na feira, de ${moeda(numero(luva.venda))} a ${moeda(numero(luva.venda * 3))}</span>
+                </div>
+                <p class="det"><span class="txt">Você tem ${numero(tem)} ${esc(nomeQtd(k, tem))}${tem < v.qtd ? `: faltam ${numero(v.qtd - tem)}` : ''}. Ele é raro: aparece mais ou menos 1 vez em cada 30 visitas.</span></p>
+                <div class="rodape-painel">
+                    <button type="button" class="botao creme" data-atender="0">Agora não</button>
+                    <button type="button" class="botao verde" data-atender="1"${tem >= v.qtd ? '' : ' disabled'}>Trocar ${numero(v.qtd)} ${itemDe(k, 18)}</button>
+                </div>`;
+        }
         if (v.tipo === 'mercador') {   // fase 60: troca 1 material raro por frutos fora de época
             const r = culturas[v.raro] || { id: v.raro, nome: v.raro, venda: 0 };
             return `${cabeca}
@@ -1620,6 +1713,7 @@
                 toast(v.tipo === 'mascate'
                     ? `${spr(1040, 20)} ${p.nome} adubou ${r.adubados} canteiro(s): +1 item na colheita de cada.`
                     : v.tipo === 'mercador' ? `${itemDe(raro || { id: v.raro }, 20)} ${p.nome} deixou 1 <b>${esc(raro ? raro.nome.toLowerCase() : 'material raro')}</b> no celeiro! Guarde para o píer (nível 31) ou venda na feira.`
+                    : v.tipo === 'perks' ? `${itemDe(culturas.luva_perks || { id: 'luva_perks' }, 20)} O Perks deixou <b>${v.luvas} luvas</b> no celeiro! Visitando um vizinho, toque num canteiro com alarme para usar.`
                     : `${spr(p.sprite, 20, 'dungeon')} ${p.nome} levou o pedido: +${v.paga} ${ico('moeda', 14)} +${v.xp} ${ico('xp', 14)}`, 'festa');
             } else {
                 toast(`${spr(p.sprite, 20, 'dungeon')} ${p.nome} foi embora. Daqui a pouco chega outra visita.`);
@@ -2130,6 +2224,7 @@
         const c = ((visita ? visita.construcoes : S.construcoes) || []).find((k) => k.x === x && k.y === y);
         const it = c && tipoItem(c.tipo);
         if (!it) return;
+        if (!visita && (c.tipo === 'casa_vermelha' || c.tipo === 'casa_azul') && descreverCasa(c.x + ',' + c.y)) return;   // fase 66
         const o = !visita && infoOficina(c);
         if (o) {
             const partes = [];
@@ -2159,6 +2254,7 @@
         aoAnimal: (id) => clicarAnimal(id),
         aoTile: (x, y) => tocarTile(x, y),
         aoCeleiro: () => { if (S && !painelAtual) abrirPainel('celeiro'); },
+        aoCasa: () => { if (S && !painelAtual && !visita) descreverCasa('casa'); },   // fase 66: quem dorme na casa da fazenda
         aoVenda: () => { if (S && !painelAtual) { abaLoja = 'terrenos'; abrirPainel('loja'); } },
         aoFeira: () => {   // fase 51: a pracinha da feira, na mata
             if (!S || painelAtual) return;
@@ -2569,7 +2665,7 @@
         let txt;
         if (i.fase === 'maduro') {
             if (c.ja_peguei) txt = `${item} Você já pegou desse ${esc(i.k.nome.toLowerCase())}.`;
-            else if (protegidoAlarme(c)) txt = `${item} ${esc(i.k.nome)} protegido pelo alarme antiladrão do vizinho.`;
+            else if (protegidoAlarme(c)) txt = `${item} ${esc(i.k.nome)} protegido pelo alarme antiladrão do vizinho.${luvas() ? ` Você tem ${luvas()} ${itemDe(culturas.luva_perks || { id: 'luva_perks' }, 16)} luva(s) do Perks: toque para passar (gasta 1).` : ''}`;
             else if (c.roubado >= limitePegar(i.k)) txt = `${item} Já pegaram bastante desse ${esc(i.k.nome.toLowerCase())}.`;
             else txt = `${item} ${esc(i.k.nome)} maduro! Toque para pegar até 3 ${ico('mao', 16)}`;
         } else {
@@ -2758,6 +2854,13 @@
         atualizarTerreno();
         desenharHud();
         if (constr.ativo) desenharPaleta();
+        // fase 66: o que murchou sem ninguém colher desde a última vez (o servidor manda uma vez só)
+        const novasM = (estado.murchas && estado.murchas.novas) || [];
+        if (novasM.length) {
+            murchasNovas = novasM;
+            if (!painelAtual) abrirPainel('murchas');
+            else toast(`${ico('sino', 18)} ${textoMurcha(novasM[0].motivo, novasM[0].detalhe, novasM[0].qtd)} Toque numa murcha para ver o motivo.`, undefined, 'importante');
+        }
         // fase 63: prêmio novo do evento da semana (o servidor manda uma vez só)
         const novosEv = (estado.evento && estado.evento.novos) || [];
         if (novosEv.length) {
@@ -2780,7 +2883,7 @@
         if (d.tipo === 'salvar') return `<b>${esc(d.apelido)}</b> salvou o seu ${item} que tinha murchado!`;
         if (d.tipo === 'bicho') return `<b>${esc(d.apelido)}</b> deu ração (${item}) para um bicho seu.`;
         return d.tipo === 'roubo'
-            ? `<b>${esc(d.apelido)}</b> pegou ${d.qtd} ${item} da sua fazenda!`
+            ? `<b>${esc(d.apelido)}</b> pegou ${d.qtd} ${item} da sua fazenda!${d.luva ? ' Passou pelo alarme com a luva do Perks.' : ''}`
             : `<b>${esc(d.apelido)}</b> cuidou do seu ${item} (${d.qtd} problema${d.qtd > 1 ? 's' : ''}).`;
     }
 
@@ -2962,6 +3065,7 @@
         descrever(p);
         if (visita) {
             const av = acaoVisita(canteiro(p));
+            if (av === 'pegar_luva' && !confirm(`Esse canteiro tem alarme. Usar 1 luva do Perks para passar? (você tem ${luvas()})`)) return;
             if (av) { cena.irAte(p); executarVisita(av, [p]); }
             return;
         }
@@ -3234,11 +3338,13 @@
             const r = await rpc('fazenda_acao_vizinho', {
                 p_token: token, p_vizinho: dono, p_acao: acao, p_posicoes: posicoes
             });
-            if (r.feitos) som.tocar(acao === 'pegar' ? 'colher' : 'cuidar');
+            const pegando = acao === 'pegar' || acao === 'pegar_luva';   // fase 66: com a luva é pegar também
+            if (r.feitos) som.tocar(pegando ? 'colher' : 'cuidar');
+            if (acao === 'pegar_luva' && r.feitos) toast(`${itemDe(culturas.luva_perks || { id: 'luva_perks' }, 18)} Passou pelo alarme com ${r.feitos === 1 ? '1 luva' : `${r.feitos} luvas`} do Perks!`);
             Object.entries(r.resultado).forEach(([pos, qtd], n) => {
                 const c = canteiro(Number(pos));
                 const k = c && culturas[c.cultura];
-                flutuar(Number(pos), acao === 'pegar'
+                flutuar(Number(pos), pegando
                     ? `+${qtd} ${k ? itemDe(k, 20) : ''}`
                     : acao === 'salvar' ? `Salvou! ${qtd ? `+${qtd} ${ico('xp', 16)}` : ''}`
                     : qtd ? `+${qtd} ${ico('xp', 16)}` : `${ico('coracao', 16)}`, n * 70);   // (fase 48: o XP de ajudar vem do servidor)
@@ -3247,7 +3353,7 @@
             if (visita && visita.id === dono) mostrarVisita(r.vizinho);
             if (posicoes.length > 1 && r.feitos) {
                 const total = Object.values(r.resultado).reduce((a, b) => a + b, 0);
-                toast(acao === 'pegar'
+                toast(pegando
                     ? `${ico('mao', 18)} Pegou ${total} itens de ${r.feitos} canteiro(s)!`
                     : acao === 'salvar'
                     ? `${ico('coracao', 16)} Salvou ${r.feitos} planta(s) murcha(s) do vizinho: +${total} ${ico('xp', 14)}`
@@ -3292,8 +3398,13 @@
             if (famintos.length) alimentarBichosVizinho(famintos);
             return;
         }
-        if (!ps.length) return toast('Nada pra pegar aqui agora.', undefined, 'leve');
-        executarVisita(tipo, ps);
+        // fase 66: os canteiros com alarme, se tiver luva do Perks (pergunta antes de gastar)
+        const comAlarme = tipo === 'pegar' ? visita.canteiros.filter((c) => podeLuva(c, info(c))).map((c) => c.posicao) : [];
+        const usar = comAlarme.length && confirm(`${comAlarme.length} canteiro(s) com alarme. Usar ${Math.min(comAlarme.length, luvas())} luva(s) do Perks para pegar deles também? (você tem ${luvas()})`)
+            ? comAlarme.slice(0, luvas()) : [];
+        if (!ps.length && !usar.length) return toast('Nada pra pegar aqui agora.', undefined, 'leve');
+        if (ps.length) executarVisita(tipo, ps);
+        if (usar.length) executarVisita('pegar_luva', usar);
     }
 
     // Uma busca de cada vez (com o servidor lento elas se acumulavam) e, com ele falhando, cada vez
@@ -3430,7 +3541,9 @@
                     </div>`;
             } else if (i.fase === 'murcho') {
                 const n = S.canteiros.filter((x) => info(x).fase === 'murcho').length;
-                corpo.innerHTML = `<p>${esc(i.k.nome)} murchou${n > 1 ? ` (e mais ${n - 1} murcha${n > 2 ? 's' : ''})` : ''}. Com 1 ${ico('diamante', 14)} ${n > 1 ? `as ${n} voltam` : 'ela volta'} madura${n > 1 ? 's' : ''}, sem erva, praga ou seca, pronta${n > 1 ? 's' : ''} para colher.</p>
+                const pq = S.murchas && S.murchas.canteiros && S.murchas.canteiros[String(c.posicao)];   // fase 66: o motivo
+                corpo.innerHTML = `${pq ? `<p class="aviso"><b>Por que murchou:</b> ${textoMurcha(pq.motivo, pq.detalhe)} ${DICA_MURCHA[pq.motivo] || ''}</p>` : ''}
+                    <p>${esc(i.k.nome)} murchou${n > 1 ? ` (e mais ${n - 1} murcha${n > 2 ? 's' : ''})` : ''}. Com 1 ${ico('diamante', 14)} ${n > 1 ? `as ${n} voltam` : 'ela volta'} madura${n > 1 ? 's' : ''}, sem erva, praga ou seca, pronta${n > 1 ? 's' : ''} para colher.</p>
                     <div class="menu-canteiro">
                         ${botaoDiamante('murchas', 1, n > 1 ? `Salvar as ${n} murchas` : 'Salvar a murcha')}
                         <button type="button" class="botao creme" data-canteiro="arar">Arar (a planta se perde)</button>
@@ -3487,6 +3600,12 @@
             el.painelTitulo.innerHTML = `${itemDe(culturas.trofeu_ouro || { id: 'trofeu_ouro' }, 30)} Evento da semana`;
             corpo.innerHTML = htmlEvento();
             if (!soAtualizar) carregarEvento();
+        } else if (nome === 'murchas') {   // fase 66: o relatório
+            const total = murchasNovas.reduce((a, m) => a + m.qtd, 0);
+            el.painelTitulo.innerHTML = `${ico('sino', 28)} Plantas murchas`;
+            corpo.innerHTML = `<p class="fala">Enquanto você estava fora, ${total === 1 ? '1 planta murchou' : `${total} plantas murcharam`} sem ninguém colher. O porquê:</p>
+                ${htmlMurchas(murchasNovas)}
+                <div class="rodape-painel"><span></span><button type="button" class="botao verde" data-fechar>Entendi</button></div>`;
         } else if (nome === 'eventoPremio') {
             el.painelTitulo.innerHTML = `${itemDe(culturas.trofeu_ouro || { id: 'trofeu_ouro' }, 30)} Você ganhou!`;
             corpo.innerHTML = htmlEventoPremio();
@@ -3612,6 +3731,7 @@
                     <li>A cada 3 horas chega uma <b>visita na porteira</b>, do lado da casa (do nível 3 em diante): o feirante, a doceira e o caminhoneiro compram algo da fazenda pagando bem mais que o celeiro, e a mascate vende adubo. Toque nela para conversar. Bem de vez em quando (1 em cada 100 visitas) vem o <b>mercador</b>, que troca um material raro do píer por frutos fora de época.</li>
                     <li>No nível 31 chega o <b>Litoral</b> (Loja → Terrenos): areia para construir e plantar e o mar. Na areia fica o lugar do <b>píer</b>: toque nele para ver a receita (9 peças difíceis e 100 mil moedas). Peça que falta dá para comprar com diamantes. Guarde o peixe do Velho Chico para o píer, no celeiro, para ele não ir no "Vender tudo".</li>
                     <li>Com o píer pronto, toque no <b>barco</b> para ir para o <b>alto-mar</b>: toque na água para lançar a linha, espere a boia <b>afundar de verdade</b> (às vezes o peixe só belisca) e toque de novo na hora para fisgar. Cada lançada usa 1 peixe do <b>cardume</b>, que enche sozinho com o tempo. Em <b>Melhorar</b>: barco maior (cardume maior e peixes novos), vara melhor (mais tempo para fisgar e peixes maiores) e o marinheiro <b>Seu Nonato</b>, que pesca sozinho por até 8 horas (toque no barquinho dele para recolher). 1 em cada 200 peixes vem com uma <b>pérola negra</b>.</li>
+                    <li>Bem de vez em quando (1 em cada 30 visitas) aparece o <b>Perks</b>, o 1º do ranking: ele pede muita planta fácil (tipo 1000 milhos) e paga com 4 <b>luvas do Perks</b>. Visitando um vizinho, cada luva pega 1 canteiro mesmo com alarme (só gasta no canteiro protegido). E quando uma planta murcha sem ninguém colher, o jogo diz por quê: sem colhedor, o Juca dormindo, a fazenda fechada mais de 8 h ou canteiro demais para o nível dele.</li>
                     <li>Em <b>Melhorar</b>, no alto-mar, também dá para <b>tunar o barco</b> com peças que pedem moedas e materiais raros (os do mercador, a pérola negra e o marlim-azul): <b>motor</b> (o cardume enche mais rápido), <b>sonar</b> (mais peixe grande e mais pérola), <b>porão</b> (às vezes 2 peixes numa fisgada), <b>rede de arrasto</b> (o marinheiro pesca mais rápido) e o <b>kit de expedição</b>, que deixa o barco oceânico pronto para as ilhas do nível 46. A <b>pintura</b> muda a cor do casco, da faixa e a bandeira.</li>
                     <li>Toda semana tem o <b>evento</b> (no menu): de sexta às 22h até a sexta seguinte às 22h, os 3 primeiros de cada categoria ganham diamantes (30, 18 e 10) e cada um tem 50% de chance de levar um item raro: o 1º, o item que só sai do evento; o 2º e o 3º, um material do píer (no ranking, os troféus de prata e bronze). As categorias: XP ganho na semana (troféus de ouro, prata e bronze), níveis subidos, moedas ganhas, vendas e compras na barraca da feira e amigos convidados que chegaram ao nível 5 (o 1º pode levar o <b>leme dourado</b>, a peça do píer). Os troféus e as conquistas do evento ficam no perfil.</li>
                     <li>Cumpra as <b>missões do dia</b> para ganhar moedas e XP extras.</li>

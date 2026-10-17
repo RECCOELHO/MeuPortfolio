@@ -1518,10 +1518,10 @@ begin
     'diario', coalesce((
       select jsonb_agg(jsonb_build_object(
                'tipo', d.tipo, 'id', d.ator_id, 'apelido', d.apelido,
-               'cultura', d.cultura, 'qtd', d.qtd, 'em', d.criado_em)
+               'cultura', d.cultura, 'qtd', d.qtd, 'em', d.criado_em, 'luva', d.luva)   -- fase 66: passou pelo alarme
              order by d.criado_em desc)
         from (
-          select v.tipo, v.ator_id, a.apelido, v.cultura, v.qtd, v.criado_em
+          select v.tipo, v.ator_id, a.apelido, v.cultura, v.qtd, v.criado_em, v.luva
             from fazenda_visitas v
             join fazenda_jogadores a on a.id = v.ator_id
            where v.dono_id = p_jogador
@@ -1558,6 +1558,20 @@ begin
     'camas', jsonb_build_object('total', fazenda_camas(p_jogador), 'ocupadas', fazenda_camas_ocupadas(p_jogador)),   -- fase 59
     'pier', jsonb_build_object('pronto', j.pier_em is not null, 'receita', fazenda_pier_receita()),   -- fase 61
     'mar', fazenda_mar_estado(p_jogador),   -- fase 62: o alto-mar (null sem o píer)
+    -- fase 66: por que murchou (cada canteiro murcho de agora), o resumo das novas e as das últimas 24 h
+    'murchas', jsonb_build_object(
+      'canteiros', coalesce((
+        select jsonb_object_agg(m.posicao::text, jsonb_build_object('motivo', m.motivo, 'detalhe', m.detalhe, 'em', m.murchou_em))
+          from fazenda_murchas m join fazenda_canteiros c on c.jogador_id = m.jogador_id and c.posicao = m.posicao and c.plantado_em = m.plantado_em
+         where m.jogador_id = p_jogador and c.estado = 'plantado'), '{}'::jsonb),
+      'novas', coalesce((
+        select jsonb_agg(jsonb_build_object('motivo', x.motivo, 'qtd', x.n, 'detalhe', x.d) order by x.n desc)
+          from (select motivo, count(*) as n, (array_agg(detalhe order by murchou_em desc))[1] as d
+                  from fazenda_murchas where jogador_id = p_jogador and not visto group by motivo) x), '[]'::jsonb),
+      'dia', coalesce((
+        select jsonb_object_agg(x.motivo, x.n)
+          from (select motivo, count(*) as n from fazenda_murchas
+                 where jogador_id = p_jogador and murchou_em > now() - interval '24 hours' group by motivo) x), '{}'::jsonb)),
     -- fase 63: o evento da semana (até quando vai, os prêmios ainda não vistos e os troféus)
     'evento', jsonb_build_object(
       'fim', fazenda_semana_inicio(now()) + interval '7 days',
@@ -1596,6 +1610,7 @@ begin
   update fazenda_convites set visto = true where dono_id = p_jogador and not visto;   -- idem os amigos novos
   update fazenda_feira set visto = true where vendedor_id = p_jogador and vendido_em is not null and not visto;   -- e as vendas da feira
   update fazenda_semana_premios set visto = true where jogador_id = p_jogador and not visto;   -- e os prêmios do evento (fase 63)
+  update fazenda_murchas set visto = true where jogador_id = p_jogador and not visto;   -- e o relatório das murchas (fase 66)
   return v_json;
 end;
 $$;
@@ -2642,6 +2657,7 @@ declare
   v_energia real;
   v_cama  boolean;           -- fase 59: cansou e tem cama livre numa casinha
   v_log   jsonb;             -- fase 59: o que ele fez nesta rodada ({"colheu": 3, ...})
+  v_reg   boolean := false;  -- fase 66: as murchas já foram registradas nesta rodada?
 begin
   select cafe_de, cafe_ate into v_cafe_de, v_cafe_ate from fazenda_jogadores where id = p_jogador;
   for a in
@@ -2651,6 +2667,8 @@ begin
      order by (t.funcao = 'colher') desc, t.ordem   -- fase 48: quem colhe vem antes de quem ara as murchas
        for update of h
   loop
+    -- fase 66: o colhedor já passou; antes de o lavrador arar as murchas, cada uma ganha o seu motivo
+    if not v_reg and a.funcao <> 'colher' then perform fazenda_murchas_registrar(p_jogador); v_reg := true; end if;
     -- o eletricista não faz tarefas: ele baixa o gasto de energia (fazenda_energia_preco)
     continue when a.funcao = 'energia';
     -- fase 59: descansando não trabalha (nem junta crédito); acabou o descanso, volta com a energia cheia
@@ -2849,11 +2867,16 @@ begin
              energia = v_energia,
              descanso_ate = case when v_energia < v_custo then now() + case when v_cama then interval '2 hours' else interval '4 hours' end end,
              descanso_motivo = case when v_energia < v_custo then 'cansou' end,
-             descanso_casa = case when v_energia < v_custo then v_cama end
+             descanso_casa = case when v_energia < v_custo then v_cama end,
+             -- fase 66: a janela do último descanso fica guardada (para o relatório da planta murcha)
+             ultimo_descanso_de = case when v_energia < v_custo then now() else ultimo_descanso_de end,
+             ultimo_descanso_ate = case when v_energia < v_custo then now() + case when v_cama then interval '2 hours' else interval '4 hours' end else ultimo_descanso_ate end,
+             ultimo_descanso_motivo = case when v_energia < v_custo then case when v_cama then 'cama' else 'sombra' end else ultimo_descanso_motivo end
        where jogador_id = p_jogador and tipo = a.tipo;
       perform fazenda_ajudante_registrar(p_jogador, a.tipo, v_log);
     end if;
   end loop;
+  if not v_reg then perform fazenda_murchas_registrar(p_jogador); end if;   -- fase 66
 end;
 $$;
 
@@ -2891,7 +2914,7 @@ begin
   -- carregado_antes = o carregar anterior: se foi há menos de 2 minutos, a fazenda está aberta (a Dona Rosa descansa)
   update fazenda_jogadores set carregado_antes = carregado_em, carregado_em = now() where id = v_id;
   perform fazenda_tick(v_id);
-  perform fazenda_trabalhar(v_id);
+  perform fazenda_trabalhar(v_id);   -- (fase 66: e registra o que murchou sem ninguém colher, e por quê)
   perform fazenda_industria(v_id);
   perform fazenda_feira_vencidos(v_id);   -- fase 50: anúncio vencido volta para o celeiro
   return fazenda_estado(v_id);
@@ -3134,7 +3157,9 @@ end;
 $$;
 
 -- Pega colheita de um canteiro do vizinho. Retorna a quantidade pega.
-create or replace function public.fazenda_pegar_um(p_ator uuid, p_dono uuid, p_posicao int)
+-- fase 66: p_luva = pode gastar 1 luva do Perks para passar pelo alarme (só gasta no canteiro protegido)
+drop function if exists public.fazenda_pegar_um(uuid, uuid, int);
+create or replace function public.fazenda_pegar_um(p_ator uuid, p_dono uuid, p_posicao int, p_luva boolean default false)
 returns int
 language plpgsql security definer
 set search_path = public, extensions
@@ -3144,6 +3169,7 @@ declare
   k        record;
   v_maduro timestamptz;
   v_qtd    int;
+  v_luva   boolean := false;
 begin
   select * into c from fazenda_canteiros
    where jogador_id = p_dono and posicao = p_posicao
@@ -3160,7 +3186,8 @@ begin
     raise exception 'murchou';
   end if;
   if fazenda_protegido(p_dono, 'alarme', c.x, c.y) and fazenda_alarme_ligado(p_dono) then
-    raise exception 'alarme';
+    if not coalesce(p_luva, false) then raise exception 'alarme'; end if;
+    v_luva := true;   -- fase 66: passa com a luva do Perks (gasta lá embaixo, se der para pegar)
   end if;
   if exists (select 1 from fazenda_visitas
               where tipo = 'roubo' and ator_id = p_ator and dono_id = p_dono
@@ -3175,6 +3202,13 @@ begin
     raise exception 'limite_pegadas';
   end if;
 
+  if v_luva then
+    update fazenda_celeiro set quantidade = quantidade - 1
+     where jogador_id = p_ator and item = 'luva_perks'
+       and quantidade - coalesce((select quantidade from fazenda_reservas where jogador_id = p_ator and item = 'luva_perks'), 0) >= 1;
+    if not found then raise exception 'sem_luva'; end if;
+  end if;
+
   v_qtd := least(2 + (random() < 0.4)::int, fazenda_limite_roubo(k.rendimento) - c.roubado);
   if fazenda_protegido(p_dono, 'cerca', c.x, c.y) then
     v_qtd := least(v_qtd, 1);   -- cerca ou placa por perto
@@ -3186,8 +3220,8 @@ begin
   values (p_ator, k.id, v_qtd)
   on conflict (jogador_id, item)
   do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
-  insert into fazenda_visitas (ator_id, dono_id, tipo, posicao, plantado_em, cultura, qtd)
-  values (p_ator, p_dono, 'roubo', p_posicao, c.plantado_em, k.id, v_qtd);
+  insert into fazenda_visitas (ator_id, dono_id, tipo, posicao, plantado_em, cultura, qtd, luva)
+  values (p_ator, p_dono, 'roubo', p_posicao, c.plantado_em, k.id, v_qtd, v_luva);
   perform fazenda_missao(p_ator, 'pegar', v_qtd);
 
   return v_qtd;
@@ -3383,7 +3417,7 @@ begin
   if not exists (select 1 from fazenda_jogadores where id = p_vizinho and banido_em is null) then
     raise exception 'vizinho_invalido';
   end if;
-  if p_acao not in ('pegar', 'ajudar', 'salvar') then
+  if p_acao not in ('pegar', 'pegar_luva', 'ajudar', 'salvar') then   -- fase 66: pegar_luva (a luva do Perks)
     raise exception 'acao_invalida';
   end if;
   if p_posicoes is null or array_length(p_posicoes, 1) is null then
@@ -3397,8 +3431,8 @@ begin
 
   foreach v_pos in array p_posicoes loop
     begin
-      if p_acao = 'pegar' then
-        v_qtd := fazenda_pegar_um(v_id, p_vizinho, v_pos);
+      if p_acao in ('pegar', 'pegar_luva') then
+        v_qtd := fazenda_pegar_um(v_id, p_vizinho, v_pos, p_acao = 'pegar_luva');
       elsif p_acao = 'salvar' then
         v_qtd := fazenda_salvar_um(v_id, p_vizinho, v_pos);
       else
@@ -4243,6 +4277,18 @@ declare
   v_raro  text;
 begin
   if exists (select 1 from fazenda_visitas_npc where jogador_id = p_jogador and slot = v_slot) then return null; end if;
+  -- fase 66: o Perks (1 em cada 30 visitas, do nível 3 em diante; o mercador vem antes) pede uma planta
+  -- fácil em número grande e paga com luvas que passam pelo alarme do vizinho
+  if ('x' || substr(v_h, 9, 4))::bit(16)::int % 100 <> 0
+     and ('x' || substr(v_h, 17, 4))::bit(16)::int % (fazenda_perks()->>'chance')::int = 0
+     and (select fazenda_nivel(xp) from fazenda_jogadores where id = p_jogador) >= (fazenda_perks()->>'nivel')::int then
+    select x.p->>'id', (x.p->>'qtd')::int into v_raro, v_qtd
+      from jsonb_array_elements(fazenda_perks()->'pedidos') x(p) join fazenda_culturas c on c.id = x.p->>'id'
+     where c.nivel_min <= (select fazenda_nivel(xp) from fazenda_jogadores where id = p_jogador)
+     order by md5(v_h || c.id) limit 1;
+    return jsonb_build_object('slot', v_slot, 'tipo', 'perks', 'ate', to_timestamp((v_slot + 1) * 10800),
+                              'item', v_raro, 'qtd', v_qtd, 'luvas', (fazenda_perks()->>'luvas')::int, 'paga', 0, 'xp', 0);
+  end if;
   -- fase 60: o mercador (1 em cada 100 visitas, desde o nível 1) troca 1 material raro do píer por
   -- frutos fora de época (só tem quem guardou da estação dele ou plantou na estufa)
   if ('x' || substr(v_h, 9, 4))::bit(16)::int % 100 = 0 then
@@ -4339,6 +4385,9 @@ begin
     if v->>'tipo' = 'mercador' then   -- fase 60: em troca, 1 material raro
       insert into fazenda_celeiro (jogador_id, item, quantidade) values (v_id, v->>'raro', 1)
       on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + 1;
+    elsif v->>'tipo' = 'perks' then   -- fase 66: em troca, as luvas do Perks
+      insert into fazenda_celeiro (jogador_id, item, quantidade) values (v_id, 'luva_perks', (v->>'luvas')::int)
+      on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
     else
       update fazenda_jogadores set moedas = moedas + (v->>'paga')::int, xp = xp + (v->>'xp')::int where id = v_id;
       perform fazenda_missao(v_id, 'vender', (v->>'paga')::int);
@@ -5591,6 +5640,7 @@ end;
 $$;
 
 -- mandar descansar: para na hora e volta em 1 h com a energia cheia
+-- fase 66: só com menos de 75% de energia (mandavam dormir toda hora para render mais)
 create or replace function public.fazenda_ajudante_descansar(p_token text, p_tipo text)
 returns jsonb
 language plpgsql security definer
@@ -5600,12 +5650,17 @@ declare
   v_id uuid := fazenda_auth(p_token);
 begin
   perform fazenda_trabalhar(v_id);   -- fecha o trabalho de até agora antes
+  if exists (select 1 from fazenda_ajudantes where jogador_id = v_id and tipo = p_tipo and (descanso_ate is null or descanso_ate <= now())
+               and energia >= 75) then
+    raise exception 'ajudante_disposto';
+  end if;
   if exists (select 1 from fazenda_ajudantes where jogador_id = v_id and tipo = p_tipo and (descanso_ate is null or descanso_ate <= now()))
      and fazenda_camas_ocupadas(v_id) >= fazenda_camas(v_id) then
     raise exception 'sem_cama';   -- todas as camas das casinhas ocupadas
   end if;
   update fazenda_ajudantes h
-     set descanso_ate = now() + interval '1 hour', descanso_motivo = 'mandado', descanso_casa = true, credito = 0, atualizado_em = now()
+     set descanso_ate = now() + interval '1 hour', descanso_motivo = 'mandado', descanso_casa = true, credito = 0, atualizado_em = now(),
+         ultimo_descanso_de = now(), ultimo_descanso_ate = now() + interval '1 hour', ultimo_descanso_motivo = 'mandado'
    where h.jogador_id = v_id and h.tipo = p_tipo and (h.descanso_ate is null or h.descanso_ate <= now())
      and exists (select 1 from fazenda_ajudantes_tipos t where t.id = h.tipo and t.funcao <> 'energia');
   if not found then raise exception 'ajudante_descansando'; end if;
@@ -6345,6 +6400,88 @@ end;
 $$;
 
 -- ------------------------------------------------------------
+-- Fase 66: o Perks e a luva, o relatório da planta murcha e o limite do descanso.
+-- • O Perks (homenagem ao 1º do ranking): 1 em cada 30 visitas da porteira, do nível 3 em diante, pede
+--   uma planta fácil em número grande (fazenda_perks) e paga com 4 luvas. A luva do Perks (rara: só na
+--   feira) deixa pegar 1 canteiro do vizinho mesmo com alarme (fazenda_acao_vizinho 'pegar_luva'); o
+--   canteiro sem alarme não gasta luva. O diário do dono mostra quem passou com a luva.
+-- • Por que murchou: antes de o lavrador arar as murchas, fazenda_trabalhar registra cada planta que
+--   murchou sem ninguém colher (fazenda_murchas), com o motivo: sem colhedor, ele estava descansando
+--   (a janela do último descanso fica em fazenda_ajudantes), a fazenda ficou fechada mais de 8 h, ou ele
+--   não deu conta (canteiro demais para o ritmo ou a energia). O jogo mostra o relatório ao abrir.
+-- • Mandar descansar só com menos de 75% de energia (fazenda_ajudante_descansar: ajudante_disposto).
+-- ------------------------------------------------------------
+alter table public.fazenda_visitas add column if not exists luva boolean not null default false;   -- pegou com a luva do Perks
+alter table public.fazenda_ajudantes add column if not exists ultimo_descanso_de timestamptz;
+alter table public.fazenda_ajudantes add column if not exists ultimo_descanso_ate timestamptz;
+alter table public.fazenda_ajudantes add column if not exists ultimo_descanso_motivo text;   -- cama, sombra ou mandado
+
+insert into public.fazenda_culturas (id, nome, emoji, tempo_seg, custo, venda, rendimento, xp, nivel_min, ordem, tipo) values
+  ('luva_perks', 'Luva do Perks', '🧤', 1, 0, 50000, 1, 0, 1, 104, 'raro')
+on conflict (id) do update set
+  nome = excluded.nome, emoji = excluded.emoji, venda = excluded.venda, xp = excluded.xp,
+  nivel_min = excluded.nivel_min, ordem = excluded.ordem, tipo = excluded.tipo;
+
+-- o que o Perks pede (planta fácil, do ano todo, em número grande) e quantas luvas paga
+create or replace function public.fazenda_perks()
+returns jsonb language sql immutable as $$
+  select '{"luvas": 4, "nivel": 3, "chance": 30,
+           "pedidos": [{"id": "alface", "qtd": 1500}, {"id": "cenoura", "qtd": 1200}, {"id": "batata", "qtd": 1000},
+                       {"id": "milho", "qtd": 1000}, {"id": "tomate", "qtd": 800}, {"id": "abobora", "qtd": 600}]}'::jsonb;
+$$;
+
+-- as plantas que murcharam sem ninguém colher, com o motivo (os últimos 7 dias)
+create table if not exists public.fazenda_murchas (
+  jogador_id  uuid not null references public.fazenda_jogadores(id) on delete cascade,
+  posicao     smallint not null,
+  plantado_em timestamptz not null,
+  cultura     text not null references public.fazenda_culturas(id),
+  murchou_em  timestamptz not null,
+  motivo      text not null check (motivo in ('sem_colhedor', 'descansando', 'fechada', 'nao_deu_conta')),
+  detalhe     jsonb,
+  visto       boolean not null default false,
+  primary key (jogador_id, posicao, plantado_em)
+);
+alter table public.fazenda_murchas enable row level security;
+revoke all on public.fazenda_murchas from anon, authenticated;
+
+-- Registra o que está murcho e ainda não tem motivo. Roda dentro de fazenda_trabalhar, depois do
+-- colhedor e antes do lavrador (que ara as murchas).
+create or replace function public.fazenda_murchas_registrar(p_jogador uuid)
+returns void
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  h      record;
+  v_tem  boolean;
+begin
+  select a.nivel, a.ultimo_descanso_de, a.ultimo_descanso_ate, a.ultimo_descanso_motivo into h
+    from fazenda_ajudantes a join fazenda_ajudantes_tipos t on t.id = a.tipo
+   where a.jogador_id = p_jogador and t.funcao = 'colher' limit 1;
+  v_tem := found;
+  insert into fazenda_murchas (jogador_id, posicao, plantado_em, cultura, murchou_em, motivo, detalhe)
+  select p_jogador, c.posicao, c.plantado_em, c.cultura, m.em, x.motivo,
+         case x.motivo
+           when 'descansando' then jsonb_build_object('como', h.ultimo_descanso_motivo,
+                                                      'horas', round(extract(epoch from h.ultimo_descanso_ate - h.ultimo_descanso_de) / 3600))
+           when 'nao_deu_conta' then jsonb_build_object('nivel', h.nivel, 'ritmo', fazenda_ritmo(h.nivel))
+         end
+    from fazenda_canteiros c
+    join fazenda_culturas k on k.id = c.cultura
+    cross join lateral (select c.plantado_em + make_interval(secs => k.tempo_seg + greatest(k.tempo_seg * 2, 3600)) as em) m
+    cross join lateral (select case
+             when not v_tem then 'sem_colhedor'
+             when h.ultimo_descanso_de is not null and m.em >= h.ultimo_descanso_de and m.em < h.ultimo_descanso_ate then 'descansando'
+             when m.em < now() - interval '8 hours' then 'fechada'
+             else 'nao_deu_conta' end as motivo) x
+   where c.jogador_id = p_jogador and c.estado = 'plantado' and now() >= m.em and m.em > now() - interval '7 days'
+  on conflict (jogador_id, posicao, plantado_em) do nothing;
+  delete from fazenda_murchas where jogador_id = p_jogador and murchou_em < now() - interval '7 days';
+end;
+$$;
+
+-- ------------------------------------------------------------
 -- Permissões: só a API pública fica executável pela chave anon
 -- ------------------------------------------------------------
 revoke execute on function
@@ -6394,7 +6531,7 @@ revoke execute on function
   public.fazenda_vender(text, text, int),
   public.fazenda_limite_roubo(int),
   public.fazenda_vizinho(uuid, uuid),
-  public.fazenda_pegar_um(uuid, uuid, int),
+  public.fazenda_pegar_um(uuid, uuid, int, boolean),
   public.fazenda_ajudar_um(uuid, uuid, int),
   public.fazenda_ranking(text),
   public.fazenda_visitar(text, uuid),
@@ -6498,7 +6635,9 @@ revoke execute on function
   public.fazenda_semana_fechar(),
   public.fazenda_trofeus(uuid),
   public.fazenda_mar_perola(uuid),
-  public.fazenda_barco_cores()
+  public.fazenda_barco_cores(),
+  public.fazenda_perks(),
+  public.fazenda_murchas_registrar(uuid)
 from public, anon, authenticated;
 
 grant execute on function

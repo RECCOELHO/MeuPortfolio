@@ -181,6 +181,7 @@
         // fase 63: os prêmios do evento da semana
         trofeu_ouro: { item: 1099 }, trofeu_prata: { item: 1100 }, trofeu_bronze: { item: 1101 }, ampulheta_dourada: { item: 1102 },
         cofrinho_ouro: { item: 1103 }, balanca_ouro: { item: 1104 }, sacola_ouro: { item: 1105 },
+        luva_perks: { item: 1106 },   // fase 66
         // sementes da estação (broto e meio do pacote; madura e fruta próprias)
         moranguinho: { fases: [52, 53, 1013], murcho: 55, item: 1014, semente: 1014 },
         melancia: { fases: [52, 53, 1015], murcho: 55, item: 1016, semente: 1016 },
@@ -446,7 +447,10 @@
         // 104 balança de ouro
         ['................', '.......aa.......', '......aGga......', 'aaaaaaagHaaaaaaa', 'aGGGGGGgHgggggHa', 'aaaaaaagHaaaaaaa', '.a..a..gH..a..a.', '.a..a..gH..a..a.', '.a..a..gH..a..a.', 'aaaaaa.gH.aaaaaa', 'aGggHa.gH.aGggHa', '.aHHa..gH..aHHa.', '..aa...gH...aa..', '....aaagHaaa....', '...aGGggggHHa...', '...aaaaaaaaaa...'],
         // 105 sacola de ouro
-        ['................', '.....aaaaaa.....', '....aHa..aHa....', '....aHa..aHa....', '..aaaaaaaaaaaa..', '..aGGGGGGGGgga..', '..aGdGGGGGGgga..', '..aGGGGGGGGgga..', '..aGGGaaaaGgga..', '..aGGaGGGgagga..', '..aGGaGgggagga..', '..aGGGaaaaGgga..', '..aGGGGGGGggHa..', '..agggggggggHa..', '..aaaaaaaaaaaa..', '................']
+        ['................', '.....aaaaaa.....', '....aHa..aHa....', '....aHa..aHa....', '..aaaaaaaaaaaa..', '..aGGGGGGGGgga..', '..aGdGGGGGGgga..', '..aGGGGGGGGgga..', '..aGGGaaaaGgga..', '..aGGaGGGgagga..', '..aGGaGgggagga..', '..aGGGaaaaGgga..', '..aGGGGGGGggHa..', '..agggggggggHa..', '..aaaaaaaaaaaa..', '................'],
+        // fase 66: a luva do Perks (passa pelo alarme do vizinho)
+        // 106 luva do Perks
+        ['................', '....aa.aa.aa....', '...aVaaVaaVaa...', '...aVUaVUaVUaa..', '...aVUaVUaVUaUa.', '...aVUaVUaVUaUa.', '.aaaVUUVUUVUaUa.', 'aUUaVUUUUUUUUUa.', 'aVUUVUUUUUUUUUa.', '.aVVUUUUUUUUUUa.', '..aVUUUUUUUUUa..', '...aVUUUUUUUa...', '...aGGGGGGGGa...', '...agggHgggHa...', '...aaaaaaaaaa...', '................']
     ];
     const atlasProprio = document.createElement('canvas');
     atlasProprio.width = 12 * 16;
@@ -1037,7 +1041,7 @@
         // visita na porteira: { tipo, item (tile do balão), x, y, tx, ty, saindo }
         let visitante = null;
         let avatarAtual = null;   // avatar do fazendeiro na tela (o seu, ou o do vizinho visitado)
-        const VISITANTE_ARTE = { feirante: 86, doceira: 99, caminhoneiro: 112, mascate: 100, mercador: 111 };   // Tiny Dungeon (fase 60: o mercador)
+        const VISITANTE_ARTE = { feirante: 86, doceira: 99, caminhoneiro: 112, mascate: 100, mercador: 111, perks: 97 };   // Tiny Dungeon (fase 60: o mercador; fase 66: o Perks)
         const PORTEIRA = { x: 8, y: 2 };   // onde a visita para (do lado da casa)
         let hover = null;                                  // canteiro, 'celeiro', 'a:<id>' ou {tx, ty}
         let alcance = null;                                // alcance de um item tocado: { x, y, raio, ate }
@@ -1487,12 +1491,15 @@
             }
             for (const h of ajudantesFn() || []) {
                 vistos.add(h.id);
-                if (atores.has(h.id)) continue;
+                // fase 66: descansando numa cama, ele vai até a porta da casa e entra (dormir = { x, y, casa });
+                // sem cama, fica parado na sombra (dormir = { sombra: true }) com os zzz em cima
+                if (atores.has(h.id)) { const b = atores.get(h.id); if (JSON.stringify(b.dormir || null) !== JSON.stringify(h.dormir || null)) { b.dormir = h.dormir || null; if (!b.dormir) b.dentro = false; } continue; }
                 const arte = AJUDANTE_ARTE[h.tipo] || MOCO;
                 const area = areaDe(h.area);
                 const r = rng(hash(h.id));
                 const x = area.x0 + r() * (area.x1 - area.x0), y = area.y0 + r() * (area.y1 - area.y0);
                 atores.set(h.id, {
+                    dormir: h.dormir || null, dentro: !!(h.dormir && !h.dormir.sombra && h.dormir.ja),   // (já estava lá dentro quando a tela abriu)
                     id: h.id, tipo: h.tipo, i: arte.i, p: arte.p, ferramenta: arte.ferramenta, ferramentaP: arte.ferramentaP, area, x, y, tx: x, ty: y,
                     flip: r() < 0.5, espera: r() * 2000, vel: 12, ajudante: true
                 });
@@ -1518,6 +1525,16 @@
         function mover(dt) {
             for (const a of atores.values()) {
                 if (a.v && a.v.estado !== 'produzindo') continue;   // esperando o toque
+                // fase 66: indo dormir: anda até a porta da casa e entra; na sombra, fica parado
+                if (a.ajudante && a.dormir) {
+                    if (a.dormir.sombra || a.dentro) continue;
+                    const px = wx(a.dormir.x), py = wy(a.dormir.y) + 2, ddx = px - a.x, ddy = py - a.y, dd = Math.hypot(ddx, ddy);
+                    if (dd < 1) { a.dentro = true; a.x = px; a.y = py; a.tx = px; a.ty = py; precisaDesenhar = true; continue; }
+                    const passo = Math.min(dd, 30 * dt / 1000);
+                    a.x += ddx / dd * passo; a.y += ddy / dd * passo; a.tx = px; a.ty = py;
+                    if (Math.abs(ddx) > 0.2) a.flip = ddx < 0;
+                    continue;
+                }
                 if (a.espera > 0) { a.espera -= dt; continue; }
                 // ajudante com trabalho na fila: vai até o canteiro (ou bicho), ao lado dele
                 if (a.ajudante && a.fila && a.fila.length && !a.indo) {
@@ -1573,6 +1590,37 @@
             } else {
                 fazendeiro.passo = 0;
             }
+        }
+
+        /* ---- fase 66: os zzz de quem está dormindo ----
+           Saem do telhado da casa (um por casa, mesmo com mais gente dentro) e sobem sumindo; quem
+           dorme na sombra ganha os zzz em cima da cabeça. */
+        const LETRA_Z = ['####', '..#.', '.#..', '####'];
+        function zzz(x, y, tempo, semente) {
+            for (let k = 0; k < 3; k++) {
+                const f = ((tempo / 1600 + k / 3 + semente) % 1);
+                const px = Math.round(x + k * 4 + Math.sin(f * 6 + k) * 2), py = Math.round(y - f * 20);
+                const tam = k === 0 ? 1 : 2;
+                q.globalAlpha = f < 0.15 ? f / 0.15 : Math.min(1, 1.4 - f * 1.4);
+                LETRA_Z.forEach((linha, yy) => [...linha].forEach((ch, xx) => {
+                    if (ch !== '#') return;
+                    q.fillStyle = '#3f2631'; q.fillRect(px + xx * tam - 1, py + yy * tam - 1, tam + 2, tam + 2);   // contorno escuro
+                }));
+                LETRA_Z.forEach((linha, yy) => [...linha].forEach((ch, xx) => {
+                    if (ch !== '#') return;
+                    q.fillStyle = '#ffffff'; q.fillRect(px + xx * tam, py + yy * tam, tam, tam);
+                }));
+            }
+            q.globalAlpha = 1;
+        }
+        function desenharSono(tempo) {
+            const casas = new Map();
+            for (const a of atores.values()) {
+                if (!a.ajudante || !a.dormir) continue;
+                if (a.dormir.sombra) { zzz(a.x + 8, a.y - 4, tempo, hash(a.id) % 7 / 7); continue; }
+                if (a.dentro) casas.set(a.dormir.casa, a.dormir);
+            }
+            for (const [casa, d] of casas) zzz(wx(d.telhadoX) , wy(d.telhadoY) - 2, tempo, (hash(casa) % 5) / 5);
         }
 
         /* ---- desenhos auxiliares ---- */
@@ -1865,6 +1913,7 @@
             });
 
             for (const a of atores.values()) {
+                if (a.dentro) continue;   // fase 66: dormindo dentro da casa
                 const parado = a.v && a.v.estado !== 'produzindo';
                 const andando = a.ajudante && Math.hypot(a.tx - a.x, a.ty - a.y) > 0.5;
                 const bob = (parado && Math.floor(tempo / 600) % 2) || (andando && Math.floor(tempo / 140) % 2) ? -1 : 0;
@@ -1893,6 +1942,7 @@
             });
 
             desenharMaquinas(lista, tempo);
+            desenharSono(tempo);   // fase 66: os zzz das casas (e de quem dorme na sombra)
             const escuro = faseDoDia(relogio()).n;
             if (escuro > 0) desenharNoite(lista, tempo, escuro);   // balões e sinais vêm depois: ficam claros
             if (visitante && !visitante.andando && !visitante.saindo) {   // balão com o pedido, pulando
@@ -2439,6 +2489,7 @@
             });
             if (cons) return 'c:' + cons.x + ',' + cons.y;
             if (lagoNaTela() && dentroRet(LAGO, tx, ty)) return 'lago';
+            if (tx >= MAPA.casa.x && tx < MAPA.casa.x + 3 && ty >= MAPA.casa.y && ty < MAPA.casa.y + 3) return 'casa';   // fase 66: quem dorme nela
             const c = retCeleiro();
             if (px >= c.x && py >= c.y && px < c.x + c.w && py < c.y + c.h) return 'celeiro';
             // terreno à venda: a placa ou qualquer pedaço de mata dele
@@ -2558,6 +2609,7 @@
             else if (alvo === 'lago') { if (cb.aoLago) cb.aoLago(); }
             else if (alvo === 'visitante') { if (cb.aoVisitante) cb.aoVisitante(); }
             else if (alvo === 'pier') { if (cb.aoPier) cb.aoPier(); }
+            else if (alvo === 'casa') { if (cb.aoCasa) cb.aoCasa(); }   // fase 66: quem está dormindo na casa da fazenda
             else if (alvo === 'barco') { if (cb.aoBarco) cb.aoBarco(); else if (cb.aoPier) cb.aoPier(); }   // fase 62
             else if (typeof alvo === 'object' && alvo.construcao) { if (cb.aoConstrucao) cb.aoConstrucao(alvo.construcao.x, alvo.construcao.y); }
             else if (typeof alvo === 'object') { if (cb.aoAnimal) cb.aoAnimal(alvo.animal); }
