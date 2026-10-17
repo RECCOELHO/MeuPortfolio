@@ -2180,7 +2180,7 @@
                 const w = a.w || 1, h = a.h || 1;
                 let pode;
                 if (construcao.modo === 'colocar' || sel) {
-                    const ocup = sel ? mapaConstrucoes(construcoesFn() || [], sel).ocupado : m.ocupado;
+                    const ocup = sel ? ocupadoSem(construcoesFn() || [], sel) : m.ocupado;
                     pode = cabe(tx, ty, w, h, ocup);
                 } else {
                     pode = m.ocupado.has(tx + ',' + ty);
@@ -2235,6 +2235,14 @@
             requestAnimationFrame(quadroAnim);
         }
 
+        // fase 73b: o mapa de ocupação sem o item que está na mão, guardado (era refeito a cada quadro)
+        let memoSem = { lista: null, sel: null, n: -1, ocupado: null };
+        function ocupadoSem(lista, sel) {
+            if (memoSem.lista !== lista || memoSem.sel !== sel || memoSem.n !== lista.length) {
+                memoSem = { lista, sel, n: lista.length, ocupado: mapaConstrucoes(lista, sel).ocupado };
+            }
+            return memoSem.ocupado;
+        }
         function desenhar(tempo) {
             sincronizarAnimais();
             quadroHelice = Math.floor(tempo / (clima === 'vento' ? 90 : 200)) % 2;   // venta mais, gira mais
