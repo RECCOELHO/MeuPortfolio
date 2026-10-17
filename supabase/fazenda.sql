@@ -301,6 +301,11 @@ alter table public.fazenda_jogadores add column if not exists cafe_ate timestamp
 alter table public.fazenda_jogadores add column if not exists bonus_nivel int;
 -- última semente que o jogador plantou (a semeadora usa a mesma)
 alter table public.fazenda_jogadores add column if not exists semente text references public.fazenda_culturas(id);
+-- Fase 70: o XP que veio de diamante (pacote de XP, calendário dourado, a metade do XP em dobro) não conta
+-- no evento; e os anúncios do dia (quando voltarem: 6 por dia, diamante só nos 3 primeiros)
+alter table public.fazenda_jogadores add column if not exists xp_pago bigint not null default 0;
+alter table public.fazenda_jogadores add column if not exists anuncio_dia date;
+alter table public.fazenda_jogadores add column if not exists anuncio_n smallint not null default 0;
 
 -- Fase 11: energia (⚡) guardada nas baterias e quando foi a última conta.
 -- O gerador a biomassa usa construcoes.iniciado_em: null = desligado.
@@ -960,7 +965,7 @@ begin
   n := 10 + floor(ln(1 + (p_xp - 2025) * 0.22 / 700) / ln(1.22))::int;
   while fazenda_xp_nivel(n + 1) <= p_xp loop n := n + 1; end loop;    -- acerta o arredondamento
   while n > 10 and fazenda_xp_nivel(n) > p_xp loop n := n - 1; end loop;
-  return n;
+  return least(n, 45);   -- fase 70: o 45 é o último (passava para 46, 47... e o presente continuava)
 end;
 $$;
 
@@ -1226,13 +1231,17 @@ begin
   if exists (select 1 from fazenda_jogadores where id = v_id and banido_em is not null) then
     raise exception 'conta_banida';
   end if;
-  -- visto_em só serve para "jogou nos últimos 30 dias": grava no máximo 1 vez por hora
-  -- (cada chamada gravando pesava no orçamento de disco do Supabase)
-  update fazenda_jogadores set visto_em = now() where id = v_id and visto_em < now() - interval '1 hour';
+  -- fase 70: uma chamada de cada vez por jogador (a próxima espera esta terminar). Chamadas juntas
+  -- duplicavam o baú, pagavam a conquista e o presente do nível duas vezes e furavam os limites do dia.
+  perform pg_advisory_xact_lock(7070, hashtext(v_id::text));
   -- fase 63: a semana do evento virou (sexta 22h)? a primeira chamada fecha, premia e abre a nova
+  -- (fase 70: antes de gravar o visto_em, para não segurar a linha do jogador enquanto espera o fechamento)
   if not exists (select 1 from fazenda_semanas where inicio = fazenda_semana_inicio(now())) then
     perform fazenda_semana_fechar();
   end if;
+  -- visto_em só serve para "jogou nos últimos 30 dias": grava no máximo 1 vez por hora
+  -- (cada chamada gravando pesava no orçamento de disco do Supabase)
+  update fazenda_jogadores set visto_em = now() where id = v_id and visto_em < now() - interval '1 hour';
   return v_id;
 end;
 $$;
@@ -1391,7 +1400,7 @@ begin
        set moedas = moedas + (select sum(fazenda_presente_nivel(n)) from generate_series(coalesce(j.nivel_premiado, 1) + 1, v_nivel) n),
            diamantes = diamantes + 5 * (v_nivel - coalesce(j.nivel_premiado, 1)),
            nivel_premiado = v_nivel
-     where id = p_jogador;
+     where id = p_jogador and nivel_premiado is not distinct from j.nivel_premiado;   -- fase 70: paga uma vez só
     select * into j from fazenda_jogadores where id = p_jogador;
   end if;
   -- canteiros não aparecem mais sozinhos: o jogador coloca no modo construir até este limite
@@ -1712,8 +1721,9 @@ begin
            erva = false, praga = false, seco = false, roubado = 0, prox_evento = null, adubado = false
      where jogador_id = p_jogador and posicao = p_posicao;
     -- arar só dá XP para quem está começando (até o nível 5): senão alface de 2 min vira fábrica de XP
-    -- fase 57: e para quem tem a fazenda completa (do 20 em diante, com as metas do nível em dia)
-    if not p_bot and (fazenda_nivel(j.xp) <= 5 or fazenda_completa(p_jogador)) then update fazenda_jogadores set xp = xp + 1 where id = p_jogador; end if;
+    -- (fase 70: o XP de arar e plantar da fazenda completa vem na colheita: arar, desmanchar e fazer o
+    -- canteiro de novo virava XP sem fim)
+    if not p_bot and fazenda_nivel(j.xp) <= 5 then update fazenda_jogadores set xp = xp + 1 where id = p_jogador; end if;
 
   elsif p_acao = 'arrancar' then   -- o jogador tira o que está plantado (perde a planta) para plantar outra coisa
     if p_bot then raise exception 'acao_invalida'; end if;
@@ -1768,8 +1778,9 @@ begin
      where jogador_id = p_jogador and posicao = p_posicao;
     if not p_bot then
       perform fazenda_missao(p_jogador, 'plantar', 1);
-      -- fase 57: fazenda completa: plantar também dá XP
-      update fazenda_jogadores set semente = k.id, xp = xp + fazenda_completa(p_jogador)::int where id = p_jogador;
+      -- fase 57: fazenda completa: plantar também dá XP (fase 70: ele vem na colheita; plantar e arrancar
+      -- em seguida virava XP sem fim)
+      update fazenda_jogadores set semente = k.id where id = p_jogador;
     end if;
 
   elsif p_acao in ('erva', 'praga', 'seco') then
@@ -1812,7 +1823,9 @@ begin
     -- XP cheio da planta, mas o mesmo canteiro dá XP no máximo 1 vez a cada 8 min (fase 41)
     v_xp_colheita := not p_bot and (c.xp_em is null or c.xp_em <= now() - interval '8 minutes');
     if v_xp_colheita then
-      update fazenda_jogadores set xp = xp + k.xp + fazenda_protegido(p_jogador, 'xp', c.x, c.y)::int where id = p_jogador;
+      -- fase 70: fazenda completa: + 2 (o XP de arar e plantar, que antes vinha na hora)
+      update fazenda_jogadores set xp = xp + k.xp + fazenda_protegido(p_jogador, 'xp', c.x, c.y)::int + 2 * fazenda_completa(p_jogador)::int
+       where id = p_jogador;
     end if;
     update fazenda_canteiros   -- com trator, o canteiro já fica arado
        set estado = case when fazenda_tem_efeito(p_jogador, 'arar') then 'arado' else 'vazio' end,
@@ -1852,6 +1865,7 @@ declare
   v_dono   record;
   v_premio jsonb := fazenda_premio_convite();
   v_conv   jsonb;
+  v_ip     text;   -- fase 70
 begin
   p_apelido := btrim(p_apelido);
   if p_apelido is null or char_length(p_apelido) not between 2 and 20 then
@@ -1862,6 +1876,15 @@ begin
   if (select count(*) from fazenda_jogadores where criado_em > now() - interval '1 hour') >= 300 then
     raise exception 'muitas_fazendas';
   end if;
+  -- fase 70: e 5 por hora (20 por dia) do mesmo endereço
+  v_ip := fazenda_ip();
+  if v_ip is not null and (
+       (select count(*) from fazenda_tentativas where tipo = 'criar' and ip = v_ip and em > now() - interval '1 hour') >= 5
+    or (select count(*) from fazenda_tentativas where tipo = 'criar' and ip = v_ip and em > now() - interval '1 day') >= 20) then
+    raise exception 'muitas_fazendas_ip';
+  end if;
+  delete from fazenda_tentativas where em < now() - interval '2 days';
+  if v_ip is not null then insert into fazenda_tentativas (ip, tipo) values (v_ip, 'criar'); end if;
 
   -- Código de recuperação: PALAVRA-XXXX-XXXX (~10^13 combinações)
   v_codigo := v_palavras[1 + get_byte(v_bytes, 0) % array_length(v_palavras, 1)] || '-';
@@ -1926,12 +1949,24 @@ set search_path = public, extensions
 as $$
 declare
   v_id uuid;
+  v_ip text := fazenda_ip();   -- fase 70
 begin
+  -- fase 70: código errado tem limite: 10 por hora do mesmo endereço e 2000 por hora no total (sem isso
+  -- dava para ir chutando códigos até achar a fazenda de alguém)
+  if (select count(*) from fazenda_tentativas where tipo = 'recuperar' and em > now() - interval '1 hour') >= 2000
+     or (v_ip is not null
+         and (select count(*) from fazenda_tentativas where tipo = 'recuperar' and ip = v_ip and em > now() - interval '1 hour') >= 10) then
+    raise exception 'muitas_tentativas';
+  end if;
   p_codigo := upper(regexp_replace(coalesce(p_codigo, ''), '\s', '', 'g'));
   select id into v_id from fazenda_jogadores
    where codigo_hash = encode(digest(p_codigo, 'sha256'), 'hex');
   if v_id is null then
-    raise exception 'codigo_invalido';
+    -- o erro volta sem "raise" (que desfaria a anotação da tentativa): status 400 e a mensagem
+    delete from fazenda_tentativas where em < now() - interval '2 days';
+    insert into fazenda_tentativas (ip, tipo) values (coalesce(v_ip, '?'), 'recuperar');
+    perform set_config('response.status', '400', true);
+    return jsonb_build_object('code', 'P0001', 'message', 'codigo_invalido');
   end if;
   if exists (select 1 from fazenda_jogadores where id = v_id and banido_em is not null) then raise exception 'conta_banida'; end if;
   perform fazenda_tick(v_id);
@@ -2364,6 +2399,7 @@ declare
   b       record;
   it      record;
   v_redes int[];
+  v_q     int;   -- fase 70
 begin
   for b in select distinct (m->>'x')::int as x, (m->>'y')::int as y from jsonb_array_elements(p_membros) m where m->>'papel' = 'bau' loop
     v_redes := fazenda_redes_de(p_membros, 'bau', b.x, b.y);
@@ -2378,10 +2414,13 @@ begin
             where m->>'papel' = 'oficina' and (m->>'rede')::int = any(v_redes) and i.entradas ? bi.item)
     loop
       exit when not fazenda_gastar_energia(p_jogador, 2);
-      update fazenda_bau_itens set quantidade = 0 where jogador_id = p_jogador and x = b.x and y = b.y and item = it.item;
-      insert into fazenda_celeiro (jogador_id, item, quantidade) values (p_jogador, it.item, it.quantidade)
+      -- fase 70: tira e entrega o que estava lá de fato (o cursor podia estar velho)
+      delete from fazenda_bau_itens where jogador_id = p_jogador and x = b.x and y = b.y and item = it.item
+      returning quantidade into v_q;
+      continue when coalesce(v_q, 0) <= 0;
+      insert into fazenda_celeiro (jogador_id, item, quantidade) values (p_jogador, it.item, v_q)
       on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
-      perform fazenda_viagem(p_jogador, it.item, it.quantidade, b.x, b.y, null, null, false, now());
+      perform fazenda_viagem(p_jogador, it.item, v_q, b.x, b.y, null, null, false, now());
     end loop;
   end loop;
 end;
@@ -3659,7 +3698,9 @@ begin
     end;
     if v_valor >= r.meta then
       insert into fazenda_conquistas (jogador_id, conquista) values (p_jogador, r.id) on conflict do nothing;
-      update fazenda_jogadores set moedas = moedas + r.recompensa where id = p_jogador;
+      if found then   -- fase 70: só paga quem gravou agora (duas chamadas juntas pagavam duas vezes)
+        update fazenda_jogadores set moedas = moedas + r.recompensa where id = p_jogador;
+      end if;
     end if;
   end loop;
 end;
@@ -3970,7 +4011,8 @@ begin
     select min(g) into v_pos from generate_series(0, 299) g   -- fase 56: eram 0..99
      where not exists (select 1 from fazenda_canteiros where jogador_id = v_id and posicao = g);
     if v_pos is null then raise exception 'limite_canteiros'; end if;
-    insert into fazenda_canteiros (jogador_id, posicao, estado, x, y) values (v_id, v_pos, 'vazio', p_x, p_y);
+    -- fase 70: canteiro novo espera os 8 min para dar XP de colheita (desmanchar e fazer de novo zerava)
+    insert into fazenda_canteiros (jogador_id, posicao, estado, x, y, xp_em) values (v_id, v_pos, 'vazio', p_x, p_y, now());
     return jsonb_build_object('estado', fazenda_estado(v_id), 'posicao', v_pos);
   end if;
 
@@ -4324,11 +4366,15 @@ begin
               from jsonb_array_elements(fazenda_raros()) with ordinality as x(r, ord)) y
      where y.acum > ('x' || substr(v_h, 13, 4))::bit(16)::int % 100
      order by y.acum limit 1;
+    -- (fase 70: só o que o seu nível já planta; no nível 1 e 2, nada fora de época: ele não vem)
     select c.* into k from fazenda_culturas c
      where c.tipo = 'cultura' and c.estacao is not null and c.estacao <> fazenda_estacao_em(now())
+       and c.nivel_min <= (select fazenda_nivel(xp) from fazenda_jogadores where id = p_jogador)
      order by md5(v_h || c.id) limit 1;
-    return jsonb_build_object('slot', v_slot, 'tipo', 'mercador', 'ate', to_timestamp((v_slot + 1) * 10800),
-                              'item', k.id, 'qtd', v_qtd, 'raro', v_raro, 'paga', 0, 'xp', 0);
+    if found then
+      return jsonb_build_object('slot', v_slot, 'tipo', 'mercador', 'ate', to_timestamp((v_slot + 1) * 10800),
+                                'item', k.id, 'qtd', v_qtd, 'raro', v_raro, 'paga', 0, 'xp', 0);
+    end if;
   end if;
   select fazenda_nivel(xp) into v_nivel from fazenda_jogadores where id = p_jogador;
   if v_nivel < 3 then return null; end if;
@@ -4341,7 +4387,7 @@ begin
   -- a doceira quer o que seus bichos ou suas oficinas fazem; os outros, o que você planta
   if v_tipo = 'doceira' then
     select c.* into k from fazenda_culturas c
-     where c.tipo = 'produto' and c.ordem < 40 and (
+     where c.tipo = 'produto' and (   -- (fase 70: sem o "ordem < 40", que deixava de fora tudo o que veio depois da fase 21)
            c.id in (select t.produto from fazenda_animais a join fazenda_animais_tipos t on t.id = a.tipo where a.jogador_id = p_jogador)
         or c.id in (select i.produz from fazenda_construcoes x join fazenda_itens i on i.id = x.tipo
                      where x.jogador_id = p_jogador and i.entradas is not null))
@@ -4519,11 +4565,13 @@ begin
   if not exists (select 1 from fazenda_construcoes where jogador_id = v_id and x = p_x and y = p_y and tipo = 'bau') then
     raise exception 'item_invalido';
   end if;
-  select coalesce(sum(quantidade), 0)::int into v_qtd from fazenda_bau_itens where jogador_id = v_id and x = p_x and y = p_y;
-  insert into fazenda_celeiro (jogador_id, item, quantidade)
-  select v_id, item, quantidade from fazenda_bau_itens where jogador_id = v_id and x = p_x and y = p_y and quantidade > 0
-  on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
-  delete from fazenda_bau_itens where jogador_id = v_id and x = p_x and y = p_y;
+  -- fase 70: tira e entrega numa coisa só (somar, entregar e depois apagar deixava duas chamadas juntas
+  -- entregarem tudo duas vezes)
+  with tirado as (delete from fazenda_bau_itens where jogador_id = v_id and x = p_x and y = p_y returning item, quantidade),
+       soma as (select item, sum(quantidade)::int as q from tirado where quantidade > 0 group by item),
+       entregue as (insert into fazenda_celeiro (jogador_id, item, quantidade) select v_id, item, q from soma
+                    on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade)
+  select coalesce(sum(q), 0)::int into v_qtd from soma;
   return jsonb_build_object('qtd', v_qtd, 'estado', fazenda_estado(v_id));
 end;
 $$;
@@ -4570,8 +4618,9 @@ $$;
 
 -- Anúncio premiado: o jogador assistiu até o fim e tudo o que está em andamento anda
 -- 30 minutos — plantas, animais, oficinas, amoreira, ajudantes e geradores. Nada passa do
--- ponto (o que amadurece fica maduro, não murcha). Sem limite por dia: só um intervalo
--- mínimo entre dois anúncios, menor que a duração de um, contra clique repetido.
+-- ponto (o que amadurece fica maduro, não murcha).
+-- Fase 70: fechada para o jogo (os anúncios estão desligados e chamar pelo console dava 1 diamante a
+-- cada 10 s). Quando voltarem: 1 a cada 5 min, 6 por dia, e o diamante só nos 3 primeiros do dia.
 create or replace function public.fazenda_anuncio(p_token text)
 returns jsonb
 language plpgsql security definer
@@ -4585,11 +4634,14 @@ declare
   v_a   int;
   v_o   int;
   v_p   int;
+  v_n   int;   -- fase 70: os anúncios de hoje
 begin
-  select anuncio_em into j from fazenda_jogadores where id = v_id for update;
-  if j.anuncio_em is not null and j.anuncio_em > now() - interval '10 seconds' then
+  select anuncio_em, anuncio_dia, anuncio_n into j from fazenda_jogadores where id = v_id for update;
+  if j.anuncio_em is not null and j.anuncio_em > now() - interval '5 minutes' then
     raise exception 'anuncio_cedo';
   end if;
+  v_n := case when j.anuncio_dia = fazenda_hoje() then j.anuncio_n else 0 end;   -- fase 70
+  if v_n >= 6 then raise exception 'anuncio_limite'; end if;
   perform fazenda_energia_atualizar(v_id);   -- fecha a conta da energia antes de somar os 30 min
 
   -- plantas crescendo (os problemas que cairiam nesse tempo também chegam)
@@ -4631,8 +4683,8 @@ begin
    where jogador_id = v_id;
   update fazenda_jogadores
      set energia = least(energia + fazenda_energia_taxa(v_id, now()) * 0.5, fazenda_capacidade(v_id)),
-         diamantes = diamantes + 1,   -- fase 31: cada anúncio também dá 1 diamante
-         anuncio_em = now()
+         diamantes = diamantes + (v_n < 3)::int,   -- fase 31: cada anúncio também dá 1 diamante (fase 70: os 3 primeiros do dia)
+         anuncio_em = now(), anuncio_dia = fazenda_hoje(), anuncio_n = v_n + 1
    where id = v_id;
   insert into fazenda_estatisticas (jogador_id) values (v_id) on conflict do nothing;
   update fazenda_estatisticas set anuncios = anuncios + 1 where jogador_id = v_id;
@@ -4880,7 +4932,13 @@ begin
     if new.bonus_nivel is not null and new.bonus_nivel = fazenda_nivel(old.xp) then v_mult := v_mult + 0.5; end if;
     -- fase 57: fazenda completa (do 20 em diante, metas em dia): mais 25%
     if new.bonus_nivel is not null and new.bonus_nivel = fazenda_nivel(old.xp) and fazenda_nivel(old.xp) >= 20 then v_mult := v_mult + 0.25; end if;
+    -- fase 70: a metade a mais do XP em dobro é XP comprado (não conta no evento)
+    if new.xp2_ate is not null and new.xp2_ate > now() then new.xp_pago := new.xp_pago + (new.xp - old.xp); end if;
     if v_mult > 1 then new.xp := old.xp + round((new.xp - old.xp) * v_mult)::int; end if;
+  end if;
+  -- fase 70: pacote de XP e XP do calendário dourado: tudo comprado
+  if new.xp > old.xp and coalesce(current_setting('fazenda.xp_pago', true), '') = '1' then
+    new.xp_pago := old.xp_pago + (new.xp - old.xp);
   end if;
   return new;
 end;
@@ -4926,8 +4984,10 @@ begin
     if v_nivel >= 45 then raise exception 'xp_maximo'; end if;   -- fase 62: o último nível agora é o 45
     v_xp := ceil((fazenda_xp_nivel(v_nivel + 1) - fazenda_xp_nivel(v_nivel)) * (v_loja->>'pct')::int / 100.0)::int;
     perform set_config('fazenda.xp_puro', '1', true);
+    perform set_config('fazenda.xp_pago', '1', true);   -- fase 70: não conta no evento
     update fazenda_jogadores set diamantes = diamantes - v_preco, xp = xp + v_xp where id = v_id;
     perform set_config('fazenda.xp_puro', '', true);
+    perform set_config('fazenda.xp_pago', '', true);
 
   elsif p_item = 'cafe' then
     v_preco := (v_loja->>'preco')::int;
@@ -5152,9 +5212,13 @@ begin
   end if;
   v_total := a.qtd * a.preco;
   v_taxa := ceil(v_total * (v_r->>'taxa')::int / 100.0)::int;
-  if (select moedas from fazenda_jogadores where id = v_id for update) < v_total then raise exception 'moedas_insuficientes'; end if;
+  -- fase 70: segura os dois sempre na mesma ordem (dois comprando um do outro ao mesmo tempo travavam)
+  perform 1 from fazenda_jogadores where id in (v_id, a.vendedor_id) order by id for update;
+  if (select moedas from fazenda_jogadores where id = v_id) < v_total then raise exception 'moedas_insuficientes'; end if;
   update fazenda_jogadores set moedas = moedas - v_total where id = v_id;
-  update fazenda_jogadores set moedas = moedas + v_total - v_taxa where id = a.vendedor_id;
+  -- fase 70: o que entra pela barraca não conta em "mais moedas" do evento (já conta em "vendeu")
+  update fazenda_jogadores set moedas = moedas + v_total - v_taxa, moedas_ganhas = moedas_ganhas - (v_total - v_taxa)
+   where id = a.vendedor_id;
   insert into fazenda_celeiro (jogador_id, item, quantidade, da_feira) values (v_id, a.item, a.qtd, a.qtd)   -- fase 56: da_feira
   on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade,
                                                da_feira = fazenda_celeiro.da_feira + excluded.da_feira;
@@ -5816,6 +5880,11 @@ begin
   if j.pier_em is not null then raise exception 'pier_pronto'; end if;
   if j.zonas < (v_r->>'zona')::int then raise exception 'sem_litoral'; end if;
   if fazenda_pier_falta(v_id, p_item) <= 0 then raise exception 'peca_nao_falta'; end if;
+  -- fase 70: com diamante, no máximo o que a receita pede (anunciar na feira e comprar de novo virava raro sem fim)
+  if (select count(*) from fazenda_diamantes_usos where jogador_id = v_id and item = 'pier:' || p_item)
+     >= coalesce((v_r->'itens'->>p_item)::int, 0) then
+    raise exception 'peca_comprada';
+  end if;
   if j.diamantes < v_preco then raise exception 'diamantes_insuficientes'; end if;
   update fazenda_jogadores set diamantes = diamantes - v_preco where id = v_id;
   insert into fazenda_diamantes_usos (jogador_id, item, diamantes) values (v_id, 'pier:' || p_item, v_preco);
@@ -6130,7 +6199,8 @@ alter table public.fazenda_jogadores add column if not exists moedas_ganhas bigi
 create or replace function public.fazenda_moedas_ganhas()
 returns trigger language plpgsql set search_path = public as $$
 begin
-  if new.moedas > old.moedas then new.moedas_ganhas := old.moedas_ganhas + (new.moedas - old.moedas); end if;
+  -- (fase 70: soma no que veio na gravação: a venda na barraca já desconta o que não conta)
+  if new.moedas > old.moedas then new.moedas_ganhas := new.moedas_ganhas + (new.moedas - old.moedas); end if;
   return new;
 end;
 $$;
@@ -6176,6 +6246,7 @@ create table if not exists public.fazenda_semana_base (
   xp            int not null,
   moedas_ganhas bigint not null
 );
+alter table public.fazenda_semana_base add column if not exists xp_pago bigint not null default 0;   -- fase 70
 create table if not exists public.fazenda_semana_premios (
   semana     timestamptz not null,
   categoria  text not null,
@@ -6205,14 +6276,14 @@ $$;
 -- cada lugar do pódio; o 2º e o 3º fora do ranking, se sair, levam um material do píer (fazenda_raros)
 create or replace function public.fazenda_evento_regras()
 returns jsonb language sql immutable as $$
-  select '{"fecha": "sexta às 22h", "diamantes": [30, 18, 10], "chance_item": 50, "convite_nivel": 5,
+  select '{"fecha": "sexta às 22h", "diamantes": [30, 18, 10], "chance_item": 50, "convite_nivel": 10,
            "categorias": [
              {"id": "ranking",  "nome": "Ranking da semana",  "conta": "XP ganho na semana",            "itens": ["trofeu_ouro", "trofeu_prata", "trofeu_bronze"]},
              {"id": "niveis",   "nome": "Mais níveis",        "conta": "níveis subidos na semana",      "itens": ["ampulheta_dourada"]},
              {"id": "moedas",   "nome": "Mais moedas",        "conta": "moedas ganhas na semana",       "itens": ["cofrinho_ouro"]},
              {"id": "vendeu",   "nome": "Vendeu na barraca",  "conta": "moedas em vendas na feira",     "itens": ["balanca_ouro"]},
              {"id": "comprou",  "nome": "Comprou na barraca", "conta": "moedas em compras na feira",    "itens": ["sacola_ouro"]},
-             {"id": "convites", "nome": "Mais convites",      "conta": "amigos convidados que chegaram ao nível 5", "itens": ["leme_dourado"]}]}'::jsonb;
+             {"id": "convites", "nome": "Mais convites",      "conta": "amigos convidados que chegaram ao nível 10", "itens": ["leme_dourado"]}]}'::jsonb;
 $$;
 
 -- os números de cada jogador numa semana (p_semana = o início dela; conta de p_desde a p_ate).
@@ -6221,14 +6292,18 @@ create or replace function public.fazenda_semana_placar(p_semana timestamptz, p_
 returns table (jogador_id uuid, apelido text, avatar jsonb, criado_em timestamptz, ranking bigint, niveis bigint,
                moedas bigint, vendeu bigint, comprou bigint, convites bigint)
 language sql stable security definer set search_path = public as $$
+  -- fase 70: o XP comprado com diamante não conta (ranking e níveis); na barraca, uma mesma pessoa do
+  -- outro lado conta no máximo 25% do total (duas contas vendendo uma para a outra não ganham sozinhas)
   select j.id, j.apelido, j.avatar, j.criado_em,
-         (j.xp - coalesce(b.xp, 0))::bigint,
-         (fazenda_nivel(j.xp) - fazenda_nivel(coalesce(b.xp, 0)))::bigint,
+         (j.xp - coalesce(b.xp, 0) - (j.xp_pago - coalesce(b.xp_pago, 0)))::bigint,
+         (fazenda_nivel((j.xp - (j.xp_pago - coalesce(b.xp_pago, 0)))::int) - fazenda_nivel(coalesce(b.xp, 0)))::bigint,
          (j.moedas_ganhas - coalesce(b.moedas_ganhas, 0))::bigint,
-         coalesce((select sum(f.qtd::bigint * f.preco) from fazenda_feira f
-                    where f.vendedor_id = j.id and f.vendido_em >= p_desde and f.vendido_em < p_ate), 0)::bigint,
-         coalesce((select sum(f.qtd::bigint * f.preco) from fazenda_feira f
-                    where f.comprador_id = j.id and f.vendido_em >= p_desde and f.vendido_em < p_ate), 0)::bigint,
+         coalesce((select sum(least(t.v, ceil(t.total * 0.25))) from (
+                    select sum(f.qtd::bigint * f.preco) as v, sum(sum(f.qtd::bigint * f.preco)) over () as total from fazenda_feira f
+                     where f.vendedor_id = j.id and f.vendido_em >= p_desde and f.vendido_em < p_ate group by f.comprador_id) t), 0)::bigint,
+         coalesce((select sum(least(t.v, ceil(t.total * 0.25))) from (
+                    select sum(f.qtd::bigint * f.preco) as v, sum(sum(f.qtd::bigint * f.preco)) over () as total from fazenda_feira f
+                     where f.comprador_id = j.id and f.vendido_em >= p_desde and f.vendido_em < p_ate group by f.vendedor_id) t), 0)::bigint,
          (select count(*) from fazenda_convites c join fazenda_jogadores a on a.id = c.convidado_id
            where c.dono_id = j.id and c.criado_em >= p_desde and c.criado_em < p_ate and a.banido_em is null
              and fazenda_nivel(a.xp) >= (fazenda_evento_regras()->>'convite_nivel')::int)::bigint
@@ -6301,9 +6376,10 @@ begin
     update fazenda_semanas set fechada_em = now() where fechada_em is null;
   end if;
   -- a foto do começo da semana nova
-  insert into fazenda_semana_base (jogador_id, semana, xp, moedas_ganhas)
-  select id, v_ini, xp, moedas_ganhas from fazenda_jogadores
-  on conflict (jogador_id) do update set semana = excluded.semana, xp = excluded.xp, moedas_ganhas = excluded.moedas_ganhas;
+  insert into fazenda_semana_base (jogador_id, semana, xp, moedas_ganhas, xp_pago)
+  select id, v_ini, xp, moedas_ganhas, xp_pago from fazenda_jogadores
+  on conflict (jogador_id) do update set semana = excluded.semana, xp = excluded.xp, moedas_ganhas = excluded.moedas_ganhas,
+                                          xp_pago = excluded.xp_pago;   -- (fase 70)
   insert into fazenda_semanas (inicio) values (v_ini);
 end;
 $$;
@@ -6909,7 +6985,7 @@ returns jsonb language sql immutable as $$
     {"g": [{"tipo": "cafe", "qtd": 30}],      "d": [{"tipo": "xp", "qtd": 10}]},
     {"g": [{"tipo": "moedas", "qtd": 25}],    "d": [{"tipo": "moedas", "qtd": 60}]},
     {"g": [{"tipo": "xp2", "qtd": 30}],       "d": [{"tipo": "xp2", "qtd": 60}]},
-    {"g": [{"tipo": "diamantes", "qtd": 3}],  "d": [{"tipo": "diamantes", "qtd": 10}, {"tipo": "item", "item": "luva_perks", "qtd": 1}]},
+    {"g": [{"tipo": "diamantes", "qtd": 3}],  "d": [{"tipo": "diamantes", "qtd": 10}, {"tipo": "item", "item": "madeira_nobre", "qtd": 1}]},
     {"g": [{"tipo": "moedas", "qtd": 20}],    "d": [{"tipo": "cafe", "qtd": 120}]},
     {"g": [{"tipo": "xp", "qtd": 4}],         "d": [{"tipo": "moedas", "qtd": 70}]},
     {"g": [{"tipo": "moedas", "qtd": 25}],    "d": [{"tipo": "xp", "qtd": 10}]},
@@ -6923,7 +6999,7 @@ returns jsonb language sql immutable as $$
     {"g": [{"tipo": "cafe", "qtd": 45}],      "d": [{"tipo": "moedas", "qtd": 90}]},
     {"g": [{"tipo": "moedas", "qtd": 35}],    "d": [{"tipo": "xp2", "qtd": 60}]},
     {"g": [{"tipo": "xp2", "qtd": 45}],       "d": [{"tipo": "cafe", "qtd": 120}]},
-    {"g": [{"tipo": "diamantes", "qtd": 5}],  "d": [{"tipo": "diamantes", "qtd": 10}, {"tipo": "item", "item": "luva_perks", "qtd": 2}]},
+    {"g": [{"tipo": "diamantes", "qtd": 5}],  "d": [{"tipo": "diamantes", "qtd": 10}, {"tipo": "item", "item": "corda_naval", "qtd": 1}, {"tipo": "item", "item": "pedra_cantaria", "qtd": 1}]},
     {"g": [{"tipo": "moedas", "qtd": 30}],    "d": [{"tipo": "xp", "qtd": 10}]},
     {"g": [{"tipo": "xp", "qtd": 5}],         "d": [{"tipo": "moedas", "qtd": 100}]},
     {"g": [{"tipo": "moedas", "qtd": 40}],    "d": [{"tipo": "xp2", "qtd": 60}]},
@@ -6941,6 +7017,8 @@ returns jsonb language sql immutable as $$
 $$;
 
 -- Entrega um prêmio e devolve o que foi dado de fato (com as moedas já vezes o nível)
+-- Fase 70: cada moeda da tabela vale um décimo do presente do nível (no 30: 300; antes era só o nível,
+-- 30, e o prêmio não fazia diferença); o XP da trilha dourada ({"pago": true}) não conta no evento.
 create or replace function public.fazenda_calendario_dar(p_jogador uuid, p jsonb)
 returns jsonb
 language plpgsql security definer
@@ -6956,16 +7034,19 @@ begin
   if v_tipo in ('xp', 'xp2') and v_nivel >= 45 then v_tipo := 'moedas'; v_qtd := 50; end if;   -- no último nível, XP não serve
   if v_tipo = 'cafe' and not exists (select 1 from fazenda_ajudantes where jogador_id = p_jogador) then v_tipo := 'moedas'; v_qtd := 20; end if;
   if v_tipo = 'moedas' then
-    update fazenda_jogadores set moedas = moedas + v_qtd * v_nivel where id = p_jogador;
-    return jsonb_build_object('tipo', 'moedas', 'qtd', v_qtd * v_nivel);
+    v_qtd := v_qtd * greatest(fazenda_presente_nivel(v_nivel) / 10, 1);
+    update fazenda_jogadores set moedas = moedas + v_qtd where id = p_jogador;
+    return jsonb_build_object('tipo', 'moedas', 'qtd', v_qtd);
   elsif v_tipo = 'diamantes' then
     update fazenda_jogadores set diamantes = diamantes + v_qtd where id = p_jogador;
     return jsonb_build_object('tipo', 'diamantes', 'qtd', v_qtd);
   elsif v_tipo = 'xp' then
     v_xp := ceil((fazenda_xp_nivel(v_nivel + 1) - fazenda_xp_nivel(v_nivel)) * v_qtd / 100.0)::int;
     perform set_config('fazenda.xp_puro', '1', true);
+    if (p->>'pago')::boolean then perform set_config('fazenda.xp_pago', '1', true); end if;
     update fazenda_jogadores set xp = xp + v_xp where id = p_jogador;
     perform set_config('fazenda.xp_puro', '', true);
+    perform set_config('fazenda.xp_pago', '', true);
     return jsonb_build_object('tipo', 'xp', 'qtd', v_xp, 'pct', v_qtd);
   elsif v_tipo = 'xp2' then
     update fazenda_jogadores set xp2_ate = greatest(coalesce(xp2_ate, now()), now()) + make_interval(mins => v_qtd) where id = p_jogador;
@@ -7037,7 +7118,7 @@ begin
   v_p := fazenda_calendario_premios() -> (r.dia - 1);
   for x in select * from jsonb_array_elements(v_p->'g') loop v_g := v_g || jsonb_build_array(fazenda_calendario_dar(v_id, x)); end loop;
   if r.dourado_ciclo = r.ciclo then
-    for x in select * from jsonb_array_elements(v_p->'d') loop v_d := v_d || jsonb_build_array(fazenda_calendario_dar(v_id, x)); end loop;
+    for x in select * from jsonb_array_elements(v_p->'d') loop v_d := v_d || jsonb_build_array(fazenda_calendario_dar(v_id, x || '{"pago": true}')); end loop;
   end if;
   update fazenda_calendario set ciclo = r.ciclo, dia = r.dia, ultimo = fazenda_hoje() where jogador_id = v_id;
   return jsonb_build_object('dia', r.dia, 'gratis', v_g, 'dourado', v_d, 'estado', fazenda_estado(v_id));
@@ -7070,11 +7151,69 @@ begin
   update fazenda_calendario set ciclo = r.ciclo, dia = r.dia, dourado_ciclo = r.ciclo where jogador_id = v_id;
   for k in 1..r.dia loop
     for x in select * from jsonb_array_elements(fazenda_calendario_premios() -> (k - 1) -> 'd') loop
-      v_d := v_d || jsonb_build_array(fazenda_calendario_dar(v_id, x));
+      v_d := v_d || jsonb_build_array(fazenda_calendario_dar(v_id, x || '{"pago": true}'));   -- (fase 70)
     end loop;
   end loop;
   return jsonb_build_object('dourado', v_d, 'estado', fazenda_estado(v_id));
 end;
+$$;
+
+-- ------------------------------------------------------------
+-- Fase 70: segurança e jogo limpo (a revisão de 17/10).
+-- • Anúncio premiado fechado: fazenda_anuncio sai da API (os anúncios estão desligados no jogo e chamar
+--   pelo console dava 1 diamante a cada 10 s). Quando voltarem: 1 a cada 5 min, 6 por dia, diamante só
+--   nos 3 primeiros do dia.
+-- • Uma chamada de cada vez por jogador (fazenda_auth): chamadas juntas duplicavam o que saía do baú,
+--   pagavam conquista e presente do nível duas vezes e furavam os limites do dia. O baú e a rede de
+--   canos também tiram e entregam numa coisa só; conquista e presente do nível pagam uma vez só.
+-- • Evento da semana: o XP comprado com diamante (pacote de XP, XP da trilha dourada e a metade a mais do
+--   XP em dobro: fazenda_jogadores.xp_pago) não conta no ranking nem em níveis; o que entra pela barraca
+--   não conta em "mais moedas"; em vendeu e comprou, uma mesma pessoa do outro lado vale no máximo 25%
+--   do total; convite conta quando o amigo chega ao nível 10 (era 5).
+-- • Fazendas novas: no máximo 5 por hora e 20 por dia do mesmo endereço (IP). Código de recuperação
+--   errado: 10 por hora do mesmo endereço e 2000 por hora no total (fazenda_tentativas, 2 dias).
+-- • Peça do píer com diamante: no máximo o que a receita pede (anunciar na feira e comprar de novo
+--   virava material raro sem fim).
+-- • XP sem fim: plantar e arrancar, arar e desmanchar o canteiro. O XP de arar e plantar da fazenda
+--   completa vem na colheita (+2) e canteiro novo espera os 8 min para dar XP de colheita.
+-- • Calendário dourado sem a luva do Perks (vantagem contra os outros jogadores): no lugar, peças do
+--   píer. As moedas do calendário passam a valer pelo presente do nível (um décimo dele por moeda da
+--   tabela), não só pelo nível.
+-- • Regras que tinham ficado para trás: a doceira volta a pedir os produtos novos (o filtro "ordem < 40"
+--   da fase 21 deixava de fora tudo o que veio depois); o mercador só pede fruto que o nível já planta;
+--   o 45 é mesmo o último nível (fazenda_nivel passava dele); conquistas dos níveis 15, 30, 35 e 40.
+-- ------------------------------------------------------------
+alter table public.fazenda_jogadores add column if not exists xp_pago bigint not null default 0;
+alter table public.fazenda_jogadores add column if not exists anuncio_dia date;
+alter table public.fazenda_jogadores add column if not exists anuncio_n smallint not null default 0;
+alter table public.fazenda_semana_base add column if not exists xp_pago bigint not null default 0;
+
+create table if not exists public.fazenda_tentativas (
+  id   bigint generated always as identity primary key,
+  ip   text not null,
+  tipo text not null check (tipo in ('criar', 'recuperar')),
+  em   timestamptz not null default now()
+);
+create index if not exists fazenda_tentativas_ip on public.fazenda_tentativas (tipo, ip, em);
+create index if not exists fazenda_tentativas_em on public.fazenda_tentativas (em);
+alter table public.fazenda_tentativas enable row level security;
+revoke all on public.fazenda_tentativas from anon, authenticated;
+
+-- as conquistas dos níveis que faltavam (havia 5, 10, 20, 25 e 45): quem já passou ganha na hora
+insert into public.fazenda_conquistas_tipos (id, nome, descricao, medida, meta, recompensa, ordem) values
+  ('nivel_15', 'Fazendeiro nível 15', 'Chegue ao nível 15', 'nivel', 15,   800, 33),
+  ('nivel_30', 'Fazendeiro nível 30', 'Chegue ao nível 30', 'nivel', 30, 15000, 34),
+  ('nivel_35', 'Fazendeiro nível 35', 'Chegue ao nível 35', 'nivel', 35, 30000, 35),
+  ('nivel_40', 'Fazendeiro nível 40', 'Chegue ao nível 40', 'nivel', 40, 60000, 36)
+on conflict (id) do update set
+  nome = excluded.nome, descricao = excluded.descricao, medida = excluded.medida,
+  meta = excluded.meta, recompensa = excluded.recompensa, ordem = excluded.ordem;
+
+-- o endereço de quem chamou (o Cloudflare do Supabase manda no cf-connecting-ip; fora dele, null)
+create or replace function public.fazenda_ip()
+returns text language sql stable as $$
+  select nullif(btrim(coalesce(h->>'cf-connecting-ip', h->>'x-real-ip', split_part(h->>'x-forwarded-for', ',', 1))), '')
+    from (select nullif(current_setting('request.headers', true), '')::json as h) x;
 $$;
 
 -- ------------------------------------------------------------
@@ -7247,7 +7386,9 @@ revoke execute on function
   public.fazenda_calendario_premios(),
   public.fazenda_avatar_exclusivos(),
   public.fazenda_calendario_dar(uuid, jsonb),
-  public.fazenda_calendario_estado(uuid)
+  public.fazenda_calendario_estado(uuid),
+  public.fazenda_ip(),
+  public.fazenda_anuncio(text)
 from public, anon, authenticated;
 
 grant execute on function
@@ -7273,7 +7414,6 @@ grant execute on function
   public.fazenda_atender(text, boolean),
   public.fazenda_avatar(text, jsonb),
   public.fazenda_gerador(text, int, int),
-  public.fazenda_anuncio(text),
   public.fazenda_convite_info(text),
   public.fazenda_pescar(text),
   public.fazenda_compra_status(text, uuid),
