@@ -4437,6 +4437,9 @@ end;
 $$;
 
 -- Liga ou desliga o gerador a biomassa (toque nele). Ao ligar já queima o primeiro milho.
+-- Fase 64: só uma vez a cada 30 min (colhido_em = a última queima na hora; o gerador não usa essa
+-- coluna para mais nada). Ligar e desligar seguido virava 25 ⚡ a cada toque. O milho queimado na hora
+-- paga a primeira meia hora: iniciado_em fica 30 min para a frente (o ritmo é 1 milho a cada 30 min).
 create or replace function public.fazenda_gerador(p_token text, p_x int, p_y int)
 returns jsonb
 language plpgsql security definer
@@ -4446,7 +4449,7 @@ declare
   v_id uuid := fazenda_auth(p_token);
   r    record;
 begin
-  select c.iniciado_em, i.efeito into r
+  select c.iniciado_em, c.colhido_em, i.efeito into r
     from fazenda_construcoes c join fazenda_itens i on i.id = c.tipo
    where c.jogador_id = v_id and c.x = p_x and c.y = p_y
      for update of c;
@@ -4460,9 +4463,15 @@ begin
      - coalesce((select quantidade from fazenda_reservas where jogador_id = v_id and item = 'milho'), 0) < 1 then
     raise exception 'sem_milho';
   end if;
-  update fazenda_celeiro set quantidade = quantidade - 1 where jogador_id = v_id and item = 'milho';
-  update fazenda_jogadores set energia = least(energia + 25, fazenda_capacidade(v_id)) where id = v_id;
-  update fazenda_construcoes set iniciado_em = now() where jogador_id = v_id and x = p_x and y = p_y;
+  if r.colhido_em is null or r.colhido_em <= now() - interval '30 minutes' then
+    update fazenda_celeiro set quantidade = quantidade - 1 where jogador_id = v_id and item = 'milho';
+    update fazenda_jogadores set energia = least(energia + 25, fazenda_capacidade(v_id)) where id = v_id;
+    update fazenda_construcoes set iniciado_em = now() + interval '30 minutes', colhido_em = now()
+     where jogador_id = v_id and x = p_x and y = p_y;
+  else
+    -- (queimou na hora há menos de 30 min: liga sem queimar; o primeiro milho sai daqui a 30 min)
+    update fazenda_construcoes set iniciado_em = now() where jogador_id = v_id and x = p_x and y = p_y;
+  end if;
   return jsonb_build_object('ligado', true, 'estado', fazenda_estado(v_id));
 end;
 $$;
@@ -6064,9 +6073,11 @@ returns timestamptz language sql immutable as $$
 $$;
 
 -- as categorias, os diamantes do 1º, 2º e 3º e os itens (o 1º leva o primeiro; no ranking, um por lugar)
+-- Fase 64: diamantes pela metade (eram 60, 35 e 20) e o item vem com 50% de chance (chance_item), para
+-- cada lugar do pódio; o 2º e o 3º fora do ranking, se sair, levam um material do píer (fazenda_raros)
 create or replace function public.fazenda_evento_regras()
 returns jsonb language sql immutable as $$
-  select '{"fecha": "sexta às 22h", "diamantes": [60, 35, 20], "convite_nivel": 5,
+  select '{"fecha": "sexta às 22h", "diamantes": [30, 18, 10], "chance_item": 50, "convite_nivel": 5,
            "categorias": [
              {"id": "ranking",  "nome": "Ranking da semana",  "conta": "XP ganho na semana",            "itens": ["trofeu_ouro", "trofeu_prata", "trofeu_bronze"]},
              {"id": "niveis",   "nome": "Mais níveis",        "conta": "níveis subidos na semana",      "itens": ["ampulheta_dourada"]},
@@ -6129,6 +6140,7 @@ declare
   r      record;
   v_dia  int;
   v_item text;
+  v_sorte int;   -- fase 64
 begin
   if exists (select 1 from fazenda_semanas where inicio = v_ini) then return; end if;
   perform pg_advisory_xact_lock(hashtext('fazenda_semana'));
@@ -6139,6 +6151,17 @@ begin
     for r in select * from fazenda_semana_posicoes(s.inicio, s.aberta_em, now()) p where p.posicao <= 3 loop
       v_dia := (v_reg->'diamantes'->>(r.posicao::int - 1))::int;
       select c->'itens'->>(r.posicao::int - 1) into v_item from jsonb_array_elements(v_reg->'categorias') c where c->>'id' = r.categoria;
+      -- fase 64: o item vem com 50% de chance; sem item próprio do lugar, um material do píer (pesos do mercador)
+      if random() * 100 >= coalesce((v_reg->>'chance_item')::int, 100) then
+        v_item := null;
+      elsif v_item is null then
+        v_sorte := floor(random() * 100)::int;   -- (um sorteio só: random() no where sorteava de novo a cada linha)
+        select y.r->>'id' into v_item
+          from (select x.r, sum((x.r->>'peso')::int) over (order by x.ord) as acum
+                  from jsonb_array_elements(fazenda_raros()) with ordinality as x(r, ord)) y
+         where y.acum > v_sorte
+         order by y.acum limit 1;
+      end if;
       insert into fazenda_semana_premios (semana, categoria, posicao, jogador_id, valor, diamantes, item)
       values (s.inicio, r.categoria, r.posicao, r.jogador_id, r.valor, v_dia, v_item);
       update fazenda_jogadores set diamantes = diamantes + v_dia where id = r.jogador_id;
