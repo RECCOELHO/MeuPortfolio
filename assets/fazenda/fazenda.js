@@ -1046,7 +1046,7 @@
     const efeitoAjudante = (t, nivel) => t.funcao === 'energia' ? DESCONTO_ELETRICISTA[nivel] + ' de energia'
         : t.funcao === 'animal' ? ADIANTA_CUIDADOR[nivel] + ' no tempo dos bichos'
         : RITMO[nivel] + ' por hora';
-    const custoAjudante = (t, nivel) => t.custo * [1, 2, 4][nivel || 0];   // contratar, nível 2, nível 3
+    const custoAjudante = (t, nivel) => t.custo * [1, 4, 8][nivel || 0];   // contratar, nível 2, nível 3 (fase 72: eram 2x e 4x)
 
     /* ---------- Fase 59: a tela do ajudante ----------
        O que ele fez hoje e ontem (estado.ajudantes[].hoje/ontem), a barra de energia (a cheia dura 8 h de
@@ -1131,6 +1131,14 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-10-17-numeros', data: '17/10', titulo: 'Preços novos e diamantes rendendo mais', itens: [
+            'Do <b>nível 20 em diante</b> as moedas estavam sobrando: o que libera do 20 para cima (construções, oficinas, árvores do pomar e os terrenos 6 e 7) ficou <b>2,5 vezes mais caro</b>, e as <b>melhorias</b> e <b>evoluir ajudante</b>, 2 vezes. As sementes continuam com o mesmo preço.',
+            'Guardar uma construção devolve a metade do que <b>você pagou</b> por ela.',
+            '<b>Triturador</b>: agora custa 40 mil e gasta 15 ⚡ por receita, e dá +50% (uma receita sim, outra não, sai 1 produto a mais) em vez do dobro.',
+            'O que os <b>ajudantes, robôs e baús colhem dá metade do XP</b> (antes não dava nada). <b>Missões</b> e <b>visitas</b> dão bem mais XP no fim do jogo, e a mascate aduba mais canteiros.',
+            '<b>Alface</b> cresce em 5 min. Adega e vinícola ficaram em 2 h, geleia em 1 h e queijo em 1 h 30.',
+            '<b>Diamantes</b>: 1 enche 150 ⚡, o café dos ajudantes dura 4 h, salvar murchas custa 1 a cada 25 plantas e colher agora custa 1 a cada 4 h que faltam.',
+            '<b>Conquistas dão diamantes</b>: os níveis 10, 15, 20, 25, 30, 35 e 40 dão o número do nível; o 45, 100; o Velho Chico, 20; o marlim, 50. Quem já tinha ganhou agora.'] },
         { id: '2026-10-17-leve', data: '17/10', titulo: 'Servidor mais leve', itens: [
             'O aviso de <b>servidor sobrecarregado</b> deve aparecer bem menos: o trabalho dos ajudantes, dos robôs e dos baús ficou de 2 a 5 vezes mais rápido no servidor, principalmente quando você volta depois de horas fora.',
             'Nada muda no que eles fazem: colhem, plantam e cuidam igual a antes.',
@@ -2481,7 +2489,7 @@
         const c = construcaoEm(x, y);
         const it = c && tipoItem(c.tipo);
         if (constr.modo === 'guardar') {
-            return mostrarStatus(it ? `${A.htmlItem(c.tipo, 22)} Toque para guardar ${esc(it.nome.toLowerCase())} (volta ${moeda(Math.floor(it.custo / 2))}).` : 'Nada para guardar aqui.');
+            return mostrarStatus(it ? `${A.htmlItem(c.tipo, 22)} Toque para guardar ${esc(it.nome.toLowerCase())} (volta ${moeda(Math.floor((c.pago != null ? c.pago : it.custo) / 2))}, metade do que pagou).` : 'Nada para guardar aqui.');
         }
         if (constr.modo === 'mover') {
             if (constr.movendo) return mostrarStatus(c ? 'Esse lugar está ocupado.' : 'Toque para levar o item para cá.');
@@ -2802,7 +2810,7 @@
                 txt = k ? `${itemDe(k)} Toque para plantar ${esc(k.nome.toLowerCase())} (${moeda(k.custo)}).` : 'Pronto para plantar.';
                 break;
             }
-            case 'murcho': txt = `${spr(A.cultura(i.k.id).murcho, 22)} ${esc(i.k.nome)} murchou. ${(S.jogador.diamantes || 0) >= 1 ? `Toque para salvar (1 ${ico('diamante', 12)} salva todas as murchas) ou arar.` : 'Toque para limpar.'}`; break;
+            case 'murcho': txt = `${spr(A.cultura(i.k.id).murcho, 22)} ${esc(i.k.nome)} murchou. ${(S.jogador.diamantes || 0) >= precoMurchas() ? `Toque para salvar (${precoMurchas()} ${ico('diamante', 12)} salva${precoMurchas() === 1 ? '' : 'm'} todas as murchas) ou arar.` : 'Toque para limpar.'}`; break;
             case 'maduro': txt = `${itemDe(i.k)} ${esc(i.k.nome)} pronto! Toque para colher. Murcha em ${fmtTempo(i.resta)}.`; break;
             default: txt = `${itemDe(i.k)} ${esc(i.k.nome)} · ${Math.floor(i.prog * 100)}% · pronto em ${fmtTempo(i.resta)}.`;
         }
@@ -2943,7 +2951,7 @@
             estado.conquistas.filter((c) => !velhas.has(c.id)).forEach((c) => {
                 const t = (estado.conquistas_tipos || []).find((x) => x.id === c.id);
                 if (!t) return;
-                toast(`${ico('medalha', 22)} Conquista: <b>${esc(t.nome)}</b>! +${moeda(t.recompensa)}`, 'festa');
+                toast(`${ico('medalha', 22)} Conquista: <b>${esc(t.nome)}</b>! +${moeda(t.recompensa)}${t.diamantes ? ` +${t.diamantes} ${ico('diamante', 16)}` : ''}`, 'festa');
                 som.tocar('festa');
             });
         }
@@ -3195,7 +3203,7 @@
         const acao = acaoPara(canteiro(p));
         if (!acao) return abrirMenuCanteiro(p);
         // fase 48: murcha e com diamante: pergunta se salva (todas por 1 💎) antes de arar
-        if (info(canteiro(p)).fase === 'murcho' && (S.jogador.diamantes || 0) >= 1 && lojaD() && lojaD().murchas) return abrirMenuCanteiro(p);
+        if (info(canteiro(p)).fase === 'murcho' && lojaD() && lojaD().murchas && (S.jogador.diamantes || 0) >= precoMurchas()) return abrirMenuCanteiro(p);
         let k = null;
         if (acao === 'plantar') {
             k = validarPlantio();
@@ -3253,7 +3261,8 @@
                 Object.entries(r.colhido).forEach(([pos, qtd], n) => {
                     const c = canteiro(Number(pos));
                     const kc = c && culturas[c.cultura];
-                    const diam = acao === 'agora' && info(c).fase === 'crescendo' ? ` −1 ${ico('diamante', 14)}` : '';
+                    const ia = antes[pos] && info(antes[pos]);
+                    const diam = acao === 'agora' && ia && ia.fase === 'crescendo' ? ` −${precoAgora(ia)} ${ico('diamante', 14)}` : '';
                     const xp = kc ? xpDaColheita(c, kc) : 0;
                     if (kc) flutuar(Number(pos), `+${qtd} ${itemDe(kc, 20)}${sol ? ` (+1 ${ico('sol', 14)})` : ''}${xp ? ` +${xp} ${ico('xp', 16)}` : ''}${diam}`, n * 80);
                 });
@@ -3314,21 +3323,28 @@
         return S.canteiros.filter((c) => filtro(c, info(c))).map((c) => c.posicao);
     }
 
-    // Colher tudo com diamantes: 1 por planta crescendo (fica pronta na hora e já colhe); as
-    // maduras vão junto, de graça. Se os diamantes não dão para todas, vão as que mais demoram.
+    // Colher tudo com diamantes: cada planta crescendo pelo preço dela (fase 72: 1 a cada 4 h que
+    // faltam) fica pronta na hora e já colhe; as maduras vão junto, de graça. Se os diamantes não dão
+    // para todas, vão as que mais demoram (as que não cabem ficam, e as mais baratas ainda entram).
     function planoColherTudo() {
         const lista = S.canteiros.map((c) => ({ c, i: info(c) }));
         const maduros = lista.filter((x) => x.i.fase === 'maduro').map((x) => x.c.posicao);
-        const crescendo = lista.filter((x) => x.i.fase === 'crescendo').sort((a, b) => b.i.resta - a.i.resta).map((x) => x.c.posicao);
-        const da = Math.min(crescendo.length, S.jogador.diamantes || 0);
-        return { maduros, crescendo, da, escolhidos: crescendo.slice(0, da) };
+        const cresc = lista.filter((x) => x.i.fase === 'crescendo').sort((a, b) => b.i.resta - a.i.resta);
+        let sobra = S.jogador.diamantes || 0, da = 0, custoTodas = 0;
+        const escolhidos = [];
+        cresc.forEach((x) => {
+            const p = precoAgora(x.i);
+            custoTodas += p;
+            if (p <= sobra) { sobra -= p; da += p; escolhidos.push(x.c.posicao); }
+        });
+        return { maduros, crescendo: cresc.map((x) => x.c.posicao), da, custoTodas, escolhidos };
     }
     function htmlColherTudo() {
         const p = planoColherTudo(), d = S.jogador.diamantes || 0, n = p.crescendo.length;
         if (!n) return `<p>Nenhuma planta crescendo agora.</p>
             <div class="rodape-painel"><span></span><button type="button" class="botao creme" data-fechar>Fechar</button></div>`;
-        return `<p><b>${n}</b> planta${n === 1 ? '' : 's'} ainda crescendo. Com diamante, cada uma fica pronta na hora (sem erva, praga ou seca) e já vai para o celeiro: 1 ${ico('diamante', 14)} por planta${p.maduros.length ? `; as ${p.maduros.length} maduras vão junto, de graça` : ''}.</p>
-            <p>Você tem <b>${d}</b> ${ico('diamante', 14)}.${p.da && p.da < n ? ` Dá para <b>${p.da}</b>: vão as que mais demoram, e as outras continuam crescendo.` : ''}</p>
+        return `<p><b>${n}</b> planta${n === 1 ? '' : 's'} ainda crescendo. Com diamante, cada uma fica pronta na hora (sem erva, praga ou seca) e já vai para o celeiro: ${horasAgora() ? `1 ${ico('diamante', 14)} a cada ${horasAgora()} h que faltam (pelo menos 1 por planta); todas custam <b>${p.custoTodas}</b>` : `1 ${ico('diamante', 14)} por planta`}${p.maduros.length ? `; as ${p.maduros.length} maduras vão junto, de graça` : ''}.</p>
+            <p>Você tem <b>${d}</b> ${ico('diamante', 14)}.${p.escolhidos.length && p.escolhidos.length < n ? ` Dá para <b>${p.escolhidos.length}</b>: vão as que mais demoram, e as outras continuam crescendo.` : ''}</p>
             ${p.da ? `<p class="aviso">Quer mesmo colher tudo agora? Vai gastar <b>${p.da} diamante${p.da === 1 ? '' : 's'}</b>.</p>` : `<p class="aviso">Sem diamantes para isso agora.</p>`}
             <div class="rodape-painel">
                 <button type="button" class="botao creme" data-fechar>Não, deixa crescer</button>
@@ -3651,13 +3667,13 @@
             const diam = S.jogador.diamantes || 0;
             el.painelTitulo.innerHTML = i.k ? `${itemDe(i.k, 32)} ${esc(i.k.nome)}` : 'Canteiro';
             if (i.fase === 'crescendo') {
-                const troca = sementeParaTrocar(c);
+                const troca = sementeParaTrocar(c), pa = precoAgora(i);
                 corpo.innerHTML = `
                     <div data-canteiro-agora>${htmlCanteiroAgora(i)}</div>
                     <div class="menu-canteiro">
-                        <button type="button" class="botao verde" data-canteiro="agora"${diam < 1 ? ' disabled' : ''}>${ico('diamante', 18)} Colher agora · 1 diamante</button>
+                        <button type="button" class="botao verde" data-canteiro="agora"${diam < pa ? ' disabled' : ''}>${ico('diamante', 18)} Colher agora · ${pa} diamante${pa === 1 ? '' : 's'}</button>
                         ${planoColherTudo().crescendo.length > 1 ? `<button type="button" class="botao creme" data-colher-tudo${diam < 1 ? ' disabled' : ''}>${ico('diamante', 18)} Colher todas as ${planoColherTudo().crescendo.length} crescendo</button>` : ''}
-                        <p class="aviso">Fica pronta na hora, sem erva, praga ou seca, e já vai para o celeiro. Você tem <b>${diam}</b> ${ico('diamante', 14)} e ganha 5 a cada nível.</p>
+                        <p class="aviso">Fica pronta na hora, sem erva, praga ou seca, e já vai para o celeiro${horasAgora() ? `: 1 ${ico('diamante', 14)} a cada ${horasAgora()} h que faltam` : ''}. Você tem <b>${diam}</b> ${ico('diamante', 14)} e ganha 5 a cada nível.</p>
                         ${diam < 1 && (S.pacotes_diamantes || []).length ? `<button type="button" class="botao creme" data-ir-diamantes>${ico('diamante', 18)} Comprar diamantes</button>` : ''}
                         ${troca ? `<button type="button" class="botao creme" data-canteiro="trocar">Arrancar e plantar ${itemDe(troca, 18)} ${esc(troca.nome.toLowerCase())} (${moeda(troca.custo)})</button>` : ''}
                         <button type="button" class="botao creme" data-canteiro="arrancar">Arrancar (a planta se perde)</button>
@@ -3666,9 +3682,9 @@
                 const n = S.canteiros.filter((x) => info(x).fase === 'murcho').length;
                 const pq = S.murchas && S.murchas.canteiros && S.murchas.canteiros[String(c.posicao)];   // fase 66: o motivo
                 corpo.innerHTML = `${pq ? `<p class="aviso"><b>Por que murchou:</b> ${textoMurcha(pq.motivo, pq.detalhe)} ${DICA_MURCHA[pq.motivo] || ''}</p>` : ''}
-                    <p>${esc(i.k.nome)} murchou${n > 1 ? ` (e mais ${n - 1} murcha${n > 2 ? 's' : ''})` : ''}. Com 1 ${ico('diamante', 14)} ${n > 1 ? `as ${n} voltam` : 'ela volta'} madura${n > 1 ? 's' : ''}, sem erva, praga ou seca, pronta${n > 1 ? 's' : ''} para colher.</p>
+                    <p>${esc(i.k.nome)} murchou${n > 1 ? ` (e mais ${n - 1} murcha${n > 2 ? 's' : ''})` : ''}. Com ${precoMurchas(n)} ${ico('diamante', 14)} ${n > 1 ? `as ${n} voltam` : 'ela volta'} madura${n > 1 ? 's' : ''}, sem erva, praga ou seca, pronta${n > 1 ? 's' : ''} para colher${lojaD() && lojaD().murchas && lojaD().murchas.por ? ` (1 ${ico('diamante', 14)} a cada ${lojaD().murchas.por} plantas)` : ''}.</p>
                     <div class="menu-canteiro">
-                        ${botaoDiamante('murchas', 1, n > 1 ? `Salvar as ${n} murchas` : 'Salvar a murcha')}
+                        ${botaoDiamante('murchas', precoMurchas(n), n > 1 ? `Salvar as ${n} murchas` : 'Salvar a murcha')}
                         <button type="button" class="botao creme" data-canteiro="arar">Arar (a planta se perde)</button>
                     </div>`;
             } else if (i.fase === 'maduro') {
@@ -3843,13 +3859,13 @@
                 <p><button type="button" class="botao pequeno creme" data-painel-ir="novidades">${ico('brilho', 14)} Novidades do jogo</button></p>
                 <ul class="ajuda">
                     <li>Toque num canteiro e ele faz a ação certa: <b>arar</b>, <b>plantar</b>, <b>cuidar</b> ou <b>colher</b>.</li>
-                    <li><b>XP das plantas:</b> colher dá o XP de cada planta (aparece na loja), em qualquer nível. O mesmo canteiro dá XP de colheita no máximo uma vez a cada 8 minutos: a alface, que cresce em 2, dá XP de 4 em 4 colheitas. Cuidar dá +1 XP. Arar dá XP só até o nível 5.</li>
+                    <li><b>XP das plantas:</b> colher dá o XP de cada planta (aparece na loja), em qualquer nível. O mesmo canteiro dá XP de colheita no máximo uma vez a cada 8 minutos: a alface, que cresce em 5, dá XP de 2 em 2 colheitas. O que os ajudantes, robôs e baús colhem dá metade do XP. Cuidar dá +1 XP. Arar dá XP só até o nível 5.</li>
                     <li>No <b>Calendário</b> (no menu) tem um prêmio por dia, por 28 dias: moedas, XP, café dos ajudantes, XP em dobro e diamantes nos dias 7, 14, 21 e 28. Faltou um dia? Não perde nada: pega o seguinte. A <b>trilha dourada</b>, liberada com diamantes, dá um prêmio a mais todo dia e, no dia 28, o Fazendeiro de ouro.</li>
                     <li>No <b>Chat</b> (no menu) você conversa com todos os jogadores; as mensagens somem em 1 hora. Do nível 5 em diante dá para escrever e <b>pedir um item</b> (quantos e quanto paga cada): quem tiver toca em <b>Vender</b> e o lote vai para a barraca dele, separado para você por 2 horas (depois vira anúncio normal). Sem palavrão e sem link; dá para silenciar alguém.</li>
                     <li>Na <b>Feira</b> (no menu) os jogadores vendem uns para os outros: anuncie um lote do celeiro com o seu preço (entre metade e o triplo da venda normal) e compre de outros o que falta para as suas receitas. Quem vende recebe tudo; o anúncio dura 2 dias. Toda fazenda já tem uma <b>barraca na feira</b>, na clareira da mata à esquerda do celeiro: cada barraca dá 2 anúncios e mostra em cima o que você vende. Do nível 5 em diante dá para comprar mais 3 no painel da Feira.</li>
                     <li>Em <b>Metas</b> (no menu) está tudo o que o seu nível libera: construir cada oficina, máquina e cercado, ter cada bicho, contratar cada ajudante, comprar os terrenos e ocupar os canteiros. Com tudo em dia, <b>+50% de XP</b> até o próximo nível (do nível 20 em diante, a <b>fazenda completa</b>: <b>+75%</b>, e cada colheita sua dá +2 XP, o de arar e plantar); o que ficou dos níveis de trás também aparece lá.</li>
                     <li>Na loja, aba <b>Melhorias</b> (do nível 23 em diante): compras caras que valem para sempre. Adubo premium (plantas mais rápidas), pomar fértil (árvores mais rápidas) e mais pés de fruta.</li>
-                    <li>Toque numa planta crescendo para abrir o menu dela: quanto falta, <b>colher agora</b> por 1 ${ico('diamante', 14)} diamante (fica pronta na hora e vai para o celeiro), <b>arrancar</b>, ou arrancar e plantar a semente escolhida. Você começa com 10 diamantes e ganha 5 a cada nível. Em <b>Loja → Diamantes</b> eles também compram <b>XP em dobro</b> por 1 hora, um <b>pacote de XP</b> (até 3 por dia), o <b>café dos ajudantes</b> (em dobro por 2 horas), <b>energia</b> cheia na hora, uma <b>oficina terminando agora</b> e <b>personagens especiais</b> para o avatar.</li>
+                    <li>Toque numa planta crescendo para abrir o menu dela: quanto falta, <b>colher agora</b> com diamante (1 ${ico('diamante', 14)} a cada 4 h que faltam, pelo menos 1; fica pronta na hora e vai para o celeiro), <b>arrancar</b>, ou arrancar e plantar a semente escolhida. Você começa com 10 diamantes e ganha 5 a cada nível. Em <b>Loja → Diamantes</b> eles também compram <b>XP em dobro</b> por 1 hora, um <b>pacote de XP</b> (até 3 por dia), o <b>café dos ajudantes</b> (em dobro por 2 horas), <b>energia</b> cheia na hora, uma <b>oficina terminando agora</b> e <b>personagens especiais</b> para o avatar.</li>
                     <li>As plantas crescem em tempo real, mesmo com a página fechada.</li>
                     <li>Aparecem ${ico('erva', 14)} ervas, ${ico('praga', 14)} pragas e ${ico('seco', 12)} seca: cada problema deixado custa 1 item na colheita.</li>
                     <li>Depois de madura, a planta <b>murcha</b> se ficar tempo demais sem colher.</li>
@@ -3988,7 +4004,7 @@
             const ok = obtidas.includes(t.id);
             return `<div class="medalha${ok ? '' : ' trancada'}">
                 ${ico(ok ? 'medalha' : 'medalha_off', 24)}
-                <span><b>${esc(t.nome)}</b><small>${esc(t.descricao)}${ok ? '' : ` · prêmio ${moeda(t.recompensa)}`}</small></span>
+                <span><b>${esc(t.nome)}</b><small>${esc(t.descricao)}${ok ? '' : ` · prêmio ${moeda(t.recompensa)}${t.diamantes ? ` e ${t.diamantes} ${ico('diamante', 12)}` : ''}`}</small></span>
             </div>`;
         }).join('') + '</div>';
     }
@@ -4096,8 +4112,8 @@
                 </span>
                 ${acao}
             </div>`;
-        }).join('') + '</div><p class="aviso">Ajudantes trabalham sozinhos, até com a fazenda fechada (guardam até 8 h de trabalho), e não gastam energia elétrica: são a mão de obra de graça ao lado das máquinas. Eles têm a própria energia: a barra cheia dura 8 h de trabalho; acabou, descansam 2 h numa cama (cada casinha dá camas) ou 4 h na sombra. Toque num ajudante (ou em Ver) para ver o que ele fez e mandar descansar. Não dão XP: o XP é seu. Quem cuida de animais precisa de ração no celeiro.</p>'
-            + (lojaD() && (S.ajudantes || []).length ? `<p class="det">${ativoAte(S.jogador.cafe_ate) ? `<b>Café servido:</b> trabalhando em dobro até ${hora(S.jogador.cafe_ate)}. ` : 'Café dos ajudantes: todos em dobro por 2 horas. '}${botaoDiamante('cafe', lojaD().cafe.preco, ativoAte(S.jogador.cafe_ate) ? '+2 horas' : 'Servir café')}</p>` : '');
+        }).join('') + '</div><p class="aviso">Ajudantes trabalham sozinhos, até com a fazenda fechada (guardam até 8 h de trabalho), e não gastam energia elétrica: são a mão de obra de graça ao lado das máquinas. Eles têm a própria energia: a barra cheia dura 8 h de trabalho; acabou, descansam 2 h numa cama (cada casinha dá camas) ou 4 h na sombra. Toque num ajudante (ou em Ver) para ver o que ele fez e mandar descansar. O que eles colhem dá metade do XP. Quem cuida de animais precisa de ração no celeiro.</p>'
+            + (lojaD() && (S.ajudantes || []).length ? `<p class="det">${ativoAte(S.jogador.cafe_ate) ? `<b>Café servido:</b> trabalhando em dobro até ${hora(S.jogador.cafe_ate)}. ` : `Café dos ajudantes: todos em dobro por ${lojaD().cafe.horas} horas. `}${botaoDiamante('cafe', lojaD().cafe.preco, ativoAte(S.jogador.cafe_ate) ? `+${lojaD().cafe.horas} horas` : 'Servir café')}</p>` : '');
     }
 
     function htmlLojaTerrenos() {
@@ -4155,7 +4171,7 @@
     /* ---------- O que fazer com os diamantes (fase 43; preços vêm de estado.loja_diamantes) ---------- */
     const lojaD = () => (S && S.loja_diamantes) || null;
     const ativoAte = (iso) => (iso && Date.parse(iso) > agora() ? iso : null);
-    // encher a energia: 1 diamante a cada 50 ⚡ que faltam (null = sem nada de energia; 0 = cheia)
+    // encher a energia: 1 diamante a cada 150 ⚡ que faltam (null = sem nada de energia; 0 = cheia)
     function precoEnergiaDiamantes() {
         const l = lojaD();
         if (!l || !temEletrico()) return null;
@@ -4163,6 +4179,14 @@
         return falta < 1 ? 0 : Math.max(1, Math.ceil(falta / l.energia.por));
     }
     const precoOficinaDiamantes = (o) => Math.max(1, Math.ceil(o.falta / 3600000) * (lojaD() ? lojaD().oficina.por_hora : 1));
+    // fase 72: colher agora, 1 diamante a cada 4 h que faltam; salvar murchas, 1 a cada 25 plantas
+    const horasAgora = () => (lojaD() && lojaD().agora && lojaD().agora.horas) || 0;
+    const precoAgora = (i) => (horasAgora() ? Math.max(1, Math.ceil(i.resta / (horasAgora() * 3600000))) : 1);
+    const nMurchas = () => S.canteiros.filter((x) => info(x).fase === 'murcho').length;
+    const precoMurchas = (n = nMurchas()) => {
+        const m = lojaD() && lojaD().murchas;
+        return !m ? 1 : m.por ? m.preco * Math.ceil(n / m.por) : m.preco;
+    };
     // botão de gastar diamantes (o primeiro toque pede para confirmar)
     const botaoDiamante = (item, preco, texto, xy = '') => `<button type="button" class="botao pequeno verde" data-usar-diamante="${item}" data-preco="${preco}"${xy}${(S.jogador.diamantes || 0) >= preco ? '' : ' disabled'}>${texto}<br>${ico('diamante', 14)} ${preco}</button>`;
     function htmlUsarDiamantes() {
@@ -4186,10 +4210,10 @@
             ${linha(ico('raio', 36), 'Encher a energia', `Baterias cheias na hora: 1 ${ico('diamante', 12)} a cada ${l.energia.por} ⚡ que faltam.`,
                 pe == null ? info('Sem energia ainda') : pe === 0 ? info('Já está cheia') : botaoDiamante('energia', pe, 'Encher'))}
             ${linha(A.htmlItem('prensa_oleo', 36), 'Oficina na hora', `Na oficina trabalhando, toque em <b>Terminar agora</b>: ${l.oficina.por_hora} ${ico('diamante', 12)} por hora que falta.`)}
-            ${l.murchas ? linha(ico('diamante', 36), 'Salvar as plantas murchas', `Todas as murchas voltam maduras, sem erva, praga ou seca: ${l.murchas.preco} ${ico('diamante', 12)} por todas.`,
-                S.canteiros.some((x) => info(x).fase === 'murcho') ? botaoDiamante('murchas', l.murchas.preco, 'Salvar') : info('Nada murcho')) : ''}
-            ${linha(itemDe(culturas.tomate || { id: 'tomate' }, 36), 'Colher agora', `Toque numa planta crescendo: 1 ${ico('diamante', 12)} e ela fica pronta na hora. Ou colha todas de uma vez (1 ${ico('diamante', 12)} por planta).`,
-                planoColherTudo().crescendo.length ? `<button type="button" class="botao pequeno verde" data-colher-tudo${j.diamantes > 0 ? '' : ' disabled'}>Colher todas<br>${ico('diamante', 14)} ${planoColherTudo().crescendo.length}</button>` : info('Nada crescendo'))}
+            ${l.murchas ? linha(ico('diamante', 36), 'Salvar as plantas murchas', `Todas as murchas voltam maduras, sem erva, praga ou seca: ${l.murchas.por ? `${l.murchas.preco} ${ico('diamante', 12)} a cada ${l.murchas.por} plantas` : `${l.murchas.preco} ${ico('diamante', 12)} por todas`}.`,
+                nMurchas() ? botaoDiamante('murchas', precoMurchas(), 'Salvar') : info('Nada murcho')) : ''}
+            ${linha(itemDe(culturas.tomate || { id: 'tomate' }, 36), 'Colher agora', `Toque numa planta crescendo e ela fica pronta na hora: ${horasAgora() ? `1 ${ico('diamante', 12)} a cada ${horasAgora()} h que faltam (pelo menos 1)` : `1 ${ico('diamante', 12)} por planta`}. Ou colha todas de uma vez.`,
+                planoColherTudo().crescendo.length ? `<button type="button" class="botao pequeno verde" data-colher-tudo${j.diamantes > 0 ? '' : ' disabled'}>Colher todas<br>${ico('diamante', 14)} ${planoColherTudo().custoTodas}</button>` : info('Nada crescendo'))}
             ${linha(A.htmlAvatar({ tipo: 'fantasma' }, 36), 'Personagens especiais', 'Soldado, bárbaro, guarda, feiticeiro, fantasma, ciclope, diabinho e morcego: só com diamantes.',
                 '<button type="button" class="botao pequeno creme" data-avatar-editar>Ver</button>')}
         </div>`;
@@ -4604,7 +4628,7 @@
             ${usar}${pacotes.length ? `<h3 class="secao-titulo">Comprar diamantes</h3>` : ''}
             <div class="lista">` + pacotes.map((p) => `<div class="item">
                 <span class="ico">${ico('diamante', 36)}</span>
-                <span><span class="nome">${p.diamantes} diamantes</span><span class="det">${p.bonus ? `<span class="bonus-txt">+${p.bonus} de bônus</span>` : ''}<span>colhe ${p.diamantes} plantas na hora</span></span></span>
+                <span><span class="nome">${p.diamantes} diamantes</span><span class="det">${p.bonus ? `<span class="bonus-txt">+${p.bonus} de bônus</span>` : ''}<span>${lojaD() ? `dá para ${Math.floor(p.diamantes / lojaD().cafe.preco)} cafés dos ajudantes (${lojaD().cafe.horas} h cada)` : ''}</span></span></span>
                 <button type="button" class="botao pequeno verde" data-diamantes="${esc(p.id)}">${reais(p.valor)}</button>
             </div>`).join('') + `</div>
             <p class="aviso">O pagamento é no Mercado Pago (Pix, cartão ou saldo): a fazenda não vê os dados do seu cartão. Os diamantes caem assim que o pagamento é aprovado. Também dá para ganhar: 5 a cada nível${ANUNCIO.ligado ? ' e 1 por anúncio' : ''}. <a href="privacidade.html" target="_blank" rel="noopener">Como funciona a compra</a></p>`;
@@ -5555,7 +5579,7 @@
     /* ---------- tutorial (primeira vez na fazenda) ---------- */
     const TUTORIAL = [
         { texto: 'Bem-vindo(a)! Toque num canteiro de <b>terra escura</b> (já arado) para plantar alface.', ate: ['plantar'] },
-        { texto: 'Plantou! A alface fica pronta em 2 minutos, mesmo com a página fechada. Enquanto isso, espie a <b>Loja</b> lá em cima.', ate: ['loja', 'colher'] },
+        { texto: 'Plantou! A alface fica pronta em 5 minutos, mesmo com a página fechada. Enquanto isso, espie a <b>Loja</b> lá em cima.', ate: ['loja', 'colher'] },
         { texto: 'Quando a planta brilhar, toque nela para <b>colher</b>. Apareceu erva, praga ou seca? Toque para resolver antes.', ate: ['colher'] },
         { texto: 'Colheu! Agora toque no <b>celeiro</b> (o prédio vermelho) e venda a colheita para ganhar moedas.', ate: ['vender'] },
         { texto: 'Mandou bem! Cumpra as <b>Missões</b> do dia, compre animais na Loja e use <b>Construir</b> para deixar a fazenda do seu jeito.', ate: [] }
