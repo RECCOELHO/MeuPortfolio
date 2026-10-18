@@ -3087,3 +3087,12 @@ body.construindo .status {
 .hud-clima.extremo {
     background: #fde3d6;
 }
+
+/* tela do clima: as regras da tempestade em tópicos curtos */
+.clima-regras {
+    margin: 8px 0 12px;
+    padding-left: 18px;
+    font-size: 13px;
+    color: var(--texto-suave);
+}
+.clima-regras li { margin: 4px 0; }

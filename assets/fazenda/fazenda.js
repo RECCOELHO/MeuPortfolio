@@ -580,11 +580,14 @@
             ${faixa}
             <h3 class="secao-titulo">Tempestade e furacão</h3>
             <div class="oficina-conta">
-                <span>${ico('tempestade', 16)} <b>Tempestade</b>: 1 em cada ${r.tempestade} pedaços de chuva (de 36 min). No inverno, nevasca.</span>
-                <span>${ico('furacao', 16)} <b>Furacão</b>: 1 em cada ${r.furacao} pedaços de ventania.</span>
+                <span>${ico('tempestade', 16)} <b>Tempestade</b>: 1 a cada ${r.tempestade} chuvas vira tempestade (no inverno, nevasca).</span>
+                <span>${ico('furacao', 16)} <b>Furacão</b>: 1 a cada ${r.furacao} ventanias vira furacão.</span>
             </div>
-            <p class="det"><span class="txt">Em cada um, cada <b>painel solar</b> e cada <b>turbina</b> tem <b>1 chance em ${r.chance}</b> de levar um raio ou cair com o vento: fica em <b>sobrecarga</b> e para de gerar até ser consertado. No furacão, cada <b>canteiro plantado</b> também tem 1 chance em ${r.chance} de ser arrancado; a <b>estufa elétrica</b> protege os canteiros em volta dela. Até o nível ${r.nivel - 1}, nada estraga.</span></p>
-            <p class="det"><span class="txt">Para consertar: toque no gerador (custa ${r.conserto_pct}% do preço dele) ou tenha o <b>eletricista</b>, que conserta sozinho: em ${r.eletricista_min.map((m, i) => `${m} min no nível ${i + 1}`).join(', ').replace(/, ([^,]*)$/, ' e $1')}.${eletr ? ` O seu está no nível ${eletr.nivel}: ${minE(eletr.nivel)} min.` : ''}</span></p>
+            <ul class="clima-regras">
+                <li><b>O que pode acontecer:</b> um painel solar ou uma turbina para de gerar (é raro: 1 em ${r.chance}). No furacão, um canteiro pode ser arrancado; a estufa elétrica protege os de perto.</li>
+                <li><b>Como arrumar:</b> toque no gerador parado (custa ${r.conserto_pct}% do preço) ou deixe com o <b>eletricista</b>, que arruma sozinho${eletr ? ` (o seu leva ${minE(eletr.nivel)} min)` : ''}.</li>
+                ${S.jogador.nivel < r.nivel ? `<li>Até o nível ${r.nivel - 1}, nada estraga.</li>` : ''}
+            </ul>
             ${parados ? `<p class="aviso">${ico('raio', 14)} Agora: ${parados === 1 ? '1 gerador em sobrecarga' : `${parados} geradores em sobrecarga`}. Toque nele na fazenda para consertar.</p>` : ''}
             <h3 class="secao-titulo">O que cada clima faz</h3>
             <div class="lista">${['sol', 'nublado', 'chuva', 'calor', 'vento', 'tempestade', 'furacao'].map(cartao).join('')}</div>
@@ -1314,6 +1317,8 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-10-18-clima2', data: '18/10', titulo: 'Tela do clima mais fácil', itens: [
+            'A parte de <b>tempestade e furacão</b>, na tela do clima, ficou mais curta: o que pode estragar e como arrumar, em duas linhas.'] },
         { id: '2026-10-18-usina', data: '18/10', titulo: 'A usina vai em qualquer lugar', itens: [
             'A <b>Pequena central hidrelétrica</b> vem com o <b>próprio tanque d\'água</b>: dá para pôr em qualquer lugar da fazenda, sem rio nem lago. Agora o desenho mostra o tanque embaixo da roda.'] },
         { id: '2026-10-18-abas', data: '18/10', titulo: 'Abas fixas na loja', itens: [
