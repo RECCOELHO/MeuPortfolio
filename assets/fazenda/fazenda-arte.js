@@ -1838,6 +1838,111 @@
             ret(mx, my, 9, 4, '#3f2631'); ret(mx + 1, my + 1, 6, 2, '#c0cbdc'); ret(mx + 7, my, 2, 4, '#fdbe53');
         }
 
+        /* ---- fase 74b: ninguém anda na água ----
+           A água do lago (dentro das pedras), o laguinho de cada lago dos patos e o mar. Quem anda mira o
+           pé (x + 8, y + 14); se a linha reta corta uma água, vai antes até o canto dela, por fora. Destino
+           na água vai para a beira. Só os patos nadam (no laguinho deles). */
+        const laguinhoPato = (c) => {   // igual ao desenho em desenharCercado
+            const k = CERCADOS[c.tipo], x = wx(c.x), y = wy(c.y), w = k.w * T, h = k.h * T;
+            return { x0: x + 18, y0: y + 15, x1: x + w - 18, y1: y + 16 + h - 30 + 1 };
+        };
+        let cacheAguas = { chave: null, lista: [] };
+        function aguas() {
+            const cons = construcoesFn() || [];
+            const patos = cons.filter((c) => CERCADOS[c.tipo] && CERCADOS[c.tipo].chao === 'lago');
+            const chave = zonasAtuais + '|' + patos.map((c) => c.x + ',' + c.y).join(';');
+            if (cacheAguas.chave === chave) return cacheAguas.lista;
+            const lista = patos.map(laguinhoPato);
+            if (lagoNaTela()) lista.push({ x0: TANQUE.x0 + TANQUE.borda, y0: TANQUE.y0 + TANQUE.borda, x1: TANQUE.x1 - TANQUE.borda, y1: TANQUE.y1 - TANQUE.borda, lago: true });
+            lista.push({ x0: -1e6, y0: wy(MAPA.mar.y), x1: 1e6, y1: 1e6 });   // o mar
+            cacheAguas = { chave, lista };
+            return lista;
+        }
+        const MARGEM_AGUA = 5;
+        const dentroDe = (r, x, y, m) => x > r.x0 - m && x < r.x1 + m && y > r.y0 - m && y < r.y1 + m;
+        const aguaEm = (x, y, m = MARGEM_AGUA) => aguas().find((r) => dentroDe(r, x + 8, y + 14, m)) || null;
+        // um destino que caiu na água vai para a beira mais perto, por fora
+        function foraDaAgua(x, y) {
+            const r = aguaEm(x, y);
+            if (!r) return null;
+            const px = x + 8, py = y + 14, m = MARGEM_AGUA + 2;
+            const op = [[r.x0 - m, py], [r.x1 + m, py], [px, r.y0 - m], [px, r.y1 + m]].filter(([, yy]) => yy < wy(MAPA.mar.y) - m || r.y1 < 1e5);
+            let melhor = op[0], dmin = Infinity;
+            for (const o of op) { const d = Math.hypot(o[0] - px, o[1] - py); if (d < dmin && !aguaEm(o[0] - 8, o[1] - 14, 0)) { dmin = d; melhor = o; } }
+            return { x: melhor[0] - 8, y: melhor[1] - 14 };
+        }
+        // a linha de (ax, ay) a (bx, by) passa por dentro do retângulo?
+        function cortaRet(ax, ay, bx, by, r) {
+            let t0 = 0, t1 = 1;
+            const dx = bx - ax, dy = by - ay;
+            for (const [pp, qq] of [[-dx, ax - r.x0], [dx, r.x1 - ax], [-dy, ay - r.y0], [dy, r.y1 - ay]]) {
+                if (pp === 0) { if (qq < 0) return false; continue; }
+                const t = qq / pp;
+                if (pp < 0) { if (t > t1) return false; if (t > t0) t0 = t; } else { if (t < t0) return false; if (t < t1) t1 = t; }
+            }
+            return t1 - t0 > 1e-6;
+        }
+        // para onde andar agora: o destino, ou o canto da água que está no caminho
+        function desviar(a, tx, ty) {
+            const px = a.x + 8, py = a.y + 14, qx = tx + 8, qy = ty + 14, m = MARGEM_AGUA;
+            for (const r of aguas()) {
+                const e = { x0: r.x0 - m + 1, y0: r.y0 - m + 1, x1: r.x1 + m - 1, y1: r.y1 + m - 1 };
+                if (!cortaRet(px, py, qx, qy, e)) continue;
+                const c = m + 1, cantos = [[r.x0 - c, r.y0 - c], [r.x1 + c, r.y0 - c], [r.x0 - c, r.y1 + c], [r.x1 + c, r.y1 + c]];
+                let melhor = null, dmin = Infinity;
+                for (const [cx, cy] of cantos) {
+                    if (cortaRet(px, py, cx, cy, e) || Math.hypot(cx - px, cy - py) < 0.5) continue;
+                    const d = Math.hypot(cx - px, cy - py) + Math.hypot(qx - cx, qy - cy);
+                    if (d < dmin) { dmin = d; melhor = [cx, cy]; }
+                }
+                if (melhor) return { x: melhor[0] - 8, y: melhor[1] - 14 };
+            }
+            return { x: tx, y: ty };
+        }
+        // um passo de quem anda (ajudante, fazendeiro, visita) sem entrar na água; devolve dx do passo
+        function passoSeco(a, vel, dt) {
+            const f = foraDaAgua(a.tx, a.ty);
+            if (f) { a.tx = f.x; a.ty = f.y; }
+            const e = desviar(a, a.tx, a.ty), ex = e.x - a.x, ey = e.y - a.y, ed = Math.hypot(ex, ey);
+            if (ed < 0.01) { a.x = a.tx; a.y = a.ty; return 0; }   // (o desvio não acha saída: chega direto)
+            const passo = Math.min(ed, vel * dt / 1000);
+            a.x += ex / ed * passo; a.y += ey / ed * passo;
+            return ex;
+        }
+
+        /* ---- a água mexendo (por cima do fundo, a cada quadro): ondinhas que andam, brilhos e, de vez
+           em quando, a roda de um peixe pulando ---- */
+        function desenharAguaViva(tempo, so) {   // so = um laguinho só (o dos patos, desenhado no cercado)
+            for (const r of so ? [so] : aguas().filter((k) => k.lago)) {
+                const w = r.x1 - r.x0, h = r.y1 - r.y0, sem = Math.round(r.x0 * 7 + r.y0 * 13);
+                q.save(); q.beginPath(); q.rect(r.x0, r.y0, w, h); q.clip();
+                const linhas = Math.max(2, Math.floor(h / 9));
+                for (let n = 0; n < linhas; n++) {
+                    const y = Math.round(r.y0 + 4 + n * (h - 6) / linhas + ((n % 2) ? 2 : 0));
+                    const vel = 9 + (n % 3) * 4, x = r.x0 - 8 + ((tempo / 1000 * vel + n * 23 + sem) % (w + 16));
+                    q.fillStyle = '#7fb6ec'; q.fillRect(Math.round(x), y, 5, 1);
+                    q.fillStyle = '#a9d0f5'; q.fillRect(Math.round(x) + 1, y - 1, 3, 1);
+                }
+                // brilhos que acendem e apagam
+                for (let n = 0; n < Math.max(1, Math.floor(w * h / 900)); n++) {
+                    const fase = Math.floor((tempo + n * 911 + sem) / 1300);
+                    const rr = rng(fase * 31 + n * 7 + sem);
+                    if (rr() < 0.55) { q.fillStyle = '#e8f4ff'; q.fillRect(Math.round(r.x0 + 2 + rr() * (w - 4)), Math.round(r.y0 + 2 + rr() * (h - 4)), 1, 1); }
+                }
+                // a roda de um peixe pulando: uma a cada ~5 s, crescendo e sumindo em 1 s
+                const ciclo = 5200 + (sem % 7) * 300, t = (tempo + sem * 13) % ciclo;
+                if (t < 1000 && w > 30) {
+                    const rr = rng(Math.floor((tempo + sem * 13) / ciclo) + sem);
+                    const cx = r.x0 + 8 + rr() * (w - 16), cy = r.y0 + 6 + rr() * (h - 12), raio = 1 + t / 1000 * 6;
+                    q.globalAlpha = 1 - t / 1000;
+                    q.strokeStyle = '#d6ebff'; q.lineWidth = 1;
+                    q.beginPath(); q.ellipse(Math.round(cx) + 0.5, Math.round(cy) + 0.5, raio, raio * 0.55, 0, 0, Math.PI * 2); q.stroke();
+                    q.globalAlpha = 1;
+                }
+                q.restore();
+            }
+        }
+
         /* ---- animais ---- */
         let assinaturaCercados = '';
         function sincronizarAnimais() {
@@ -1897,8 +2002,11 @@
                 return { x: p.x + (Math.random() - 0.5) * 6, y: p.y + (Math.random() - 0.5) * 4, olhar: p.olhar };
             }
             let melhor = null, folga = -1;
-            for (let k = 0; k < (a.ajudante ? 1 : 6); k++) {
+            const nada = a.tipo === 'pato' && !a.ajudante;   // fase 74b: só o pato vai para a água
+            for (let k = 0, validos = 0; k < 12 && validos < (a.ajudante ? 1 : 6); k++) {
                 const x = a.area.x0 + Math.random() * (a.area.x1 - a.area.x0), y = a.area.y0 + Math.random() * (a.area.y1 - a.area.y0);
+                if (!nada && aguaEm(x, y) && k < 11) continue;
+                validos++;
                 let perto = Infinity;
                 for (const b of atores.values()) {
                     if (b === a || b.ajudante || !b.v) continue;
@@ -1917,9 +2025,9 @@
                     if (a.dormir.sombra || a.dentro) continue;
                     const px = wx(a.dormir.x), py = wy(a.dormir.y) + 2, ddx = px - a.x, ddy = py - a.y, dd = Math.hypot(ddx, ddy);
                     if (dd < 1) { a.dentro = true; a.x = px; a.y = py; a.tx = px; a.ty = py; precisaDesenhar = true; continue; }
-                    const passo = Math.min(dd, 30 * dt / 1000);
-                    a.x += ddx / dd * passo; a.y += ddy / dd * passo; a.tx = px; a.ty = py;
-                    if (Math.abs(ddx) > 0.2) a.flip = ddx < 0;
+                    a.tx = px; a.ty = py;
+                    const ex = passoSeco(a, 30, dt);   // fase 74b: até a casa sem entrar na água
+                    if (Math.abs(ex) > 0.2) a.flip = ex < 0;
                     continue;
                 }
                 if (a.espera > 0) { a.espera -= dt; continue; }
@@ -1957,17 +2065,17 @@
                     a.ty = p.y;
                     continue;
                 }
-                const passo = Math.min(d, a.vel * dt / 1000);
-                a.x += dx / d * passo; a.y += dy / d * passo;
+                // fase 74b: ninguém anda na água (só o pato nada, no laguinho dele)
+                const ex = a.tipo === 'pato' && !a.ajudante ? (() => { const p = Math.min(d, a.vel * dt / 1000); a.x += dx / d * p; a.y += dy / d * p; return dx; })()
+                    : passoSeco(a, a.vel, dt);
                 // os sprites do pacote olham para a direita: espelha quando anda para a esquerda
-                if (Math.abs(dx) > 0.2) a.flip = dx < 0;
+                if (Math.abs(ex) > 0.2) a.flip = ex < 0;
             }
             if (visitante) {
                 const vx = visitante.tx - visitante.x, vy = visitante.ty - visitante.y, vd = Math.hypot(vx, vy);
                 if (vd > 0.5) {
-                    const passo = Math.min(vd, 24 * dt / 1000);
-                    visitante.x += vx / vd * passo; visitante.y += vy / vd * passo;
-                    if (Math.abs(vx) > 0.2) visitante.flip = vx < 0;
+                    const ex = passoSeco(visitante, 24, dt);   // fase 74b
+                    if (Math.abs(ex) > 0.2) visitante.flip = ex < 0;
                     visitante.andando = true;
                 } else {
                     visitante.andando = false;
@@ -1976,9 +2084,8 @@
             }
             const dx = fazendeiro.tx - fazendeiro.x, dy = fazendeiro.ty - fazendeiro.y, d = Math.hypot(dx, dy);
             if (d > 0.5) {
-                const passo = Math.min(d, 56 * dt / 1000);
-                fazendeiro.x += dx / d * passo; fazendeiro.y += dy / d * passo;
-                if (Math.abs(dx) > 0.2) fazendeiro.flip = dx < 0;
+                const ex = passoSeco(fazendeiro, 56, dt);   // fase 74b: contorna o lago
+                if (Math.abs(ex) > 0.2) fazendeiro.flip = ex < 0;
                 fazendeiro.passo += dt;
             } else {
                 fazendeiro.passo = 0;
@@ -2291,6 +2398,7 @@
             sincronizarAnimais();
             quadroHelice = Math.floor(tempo / (clima === 'vento' ? 90 : 200)) % 2;   // venta mais, gira mais
             q.drawImage(fundo, 0, 0);
+            desenharAguaViva(tempo);   // fase 74b: o lago (o laguinho dos patos é desenhado no cercado, com as dele)
 
             const lista = construcoesFn() || [];
             const m = mapaConstrucoes(lista);
@@ -2829,8 +2937,7 @@
                 ret(lx + 2, ly - 1, lw - 4, lh + 2, '#4f8fbf');
                 ret(lx, ly + 1, lw, lh - 2, '#4f8fbf');
                 ret(lx + 2, ly + 1, lw - 4, lh - 2, '#79a7e8');
-                if (Math.floor(tempo / 700) % 2) ret(lx + 5, ly + 2, 4, 1, '#ffffff');
-                else ret(lx + lw - 10, ly + lh - 3, 4, 1, '#ffffff');
+                desenharAguaViva(tempo, laguinhoPato(c));   // fase 74b: as ondinhas e o brilho
             }
             s.grade.forEach((linha, dy) => linha.forEach((i, dx) => { if (i != null) tile(q, i, x + dx * T, y + dy * T, false, s.p); }));
             if (k.chao === 'cocho') tile(q, 110, x + T + 2, y + T - 3);   // cocho de água no canto, por cima da cerca (inteiro)

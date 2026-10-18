@@ -3161,7 +3161,10 @@ end;
 $$;
 
 -- p_quantidade null = vende tudo daquele item. p_item null = vende o celeiro todo.
-create or replace function public.fazenda_vender(p_token text, p_item text default null, p_quantidade int default null)
+-- fase 74b: p_itens vende vários de uma vez (o "vender produtos" chamava uma vez por produto, cada uma
+-- com a fazenda inteira de volta: 15 produtos travavam o jogo uns 5 s)
+create or replace function public.fazenda_vender(p_token text, p_item text default null, p_quantidade int default null,
+                                                 p_itens text[] default null)
 returns jsonb
 language plpgsql security definer
 set search_path = public, extensions
@@ -3189,6 +3192,7 @@ begin
      where ce.jogador_id = v_id
        and ce.quantidade > coalesce(rs.quantidade, 0)
        and (p_item is null or ce.item = p_item)
+       and (p_itens is null or ce.item = any(p_itens))   -- fase 74b
        and k.tipo <> 'raro'   -- fase 60: material raro só vende na feira
        for update of ce
   loop
@@ -7847,14 +7851,15 @@ on conflict (id) do update set
 -- os baús da sorte: preço, nível e as chances (raro, o prêmio grande, diamantes, itens; o resto é moeda)
 create or replace function public.fazenda_baus_sorte()
 returns jsonb language sql immutable as $$
-  select '{"madeira": {"nome": "Baú de madeira", "preco": 50000,   "nivel": 20, "raro": 0.004, "grande": 0.02, "diamantes": [5, 10],  "chance_diamantes": 0.08, "chance_itens": 0.35},
-           "prata":   {"nome": "Baú de prata",   "preco": 250000,  "nivel": 25, "raro": 0.015, "grande": 0.02, "diamantes": [15, 30], "chance_diamantes": 0.08, "chance_itens": 0.35},
-           "ouro":    {"nome": "Baú de ouro",    "preco": 1000000, "nivel": 30, "raro": 0.05,  "grande": 0.02, "diamantes": [40, 80], "chance_diamantes": 0.08, "chance_itens": 0.35}}'::jsonb;
+  -- fase 74b: o baú nunca devolve moedas (sem o prêmio de moedas e o grande): só itens, diamantes e raro
+  select '{"madeira": {"nome": "Baú de madeira", "preco": 50000,   "nivel": 20, "raro": 0.004, "diamantes": [5, 10],  "chance_diamantes": 0.08},
+           "prata":   {"nome": "Baú de prata",   "preco": 250000,  "nivel": 25, "raro": 0.015, "diamantes": [15, 30], "chance_diamantes": 0.08},
+           "ouro":    {"nome": "Baú de ouro",    "preco": 1000000, "nivel": 30, "raro": 0.05,  "diamantes": [40, 80], "chance_diamantes": 0.08}}'::jsonb;
 $$;
 
--- abre um baú da sorte: paga, sorteia e entrega. Os prêmios:
---   raro (o mais caro, mais difícil: peso 1 / preço) · o prêmio grande (2x o preço em moedas) · diamantes
---   · itens que o seu nível já tem (de 30% a 90% do preço, pelo preço do celeiro) · moedas (15% a 45%)
+-- abre um baú da sorte: paga, sorteia e entrega. Os prêmios (fase 74b: nunca moedas):
+--   raro (o mais caro, mais difícil: peso 1 / preço) · diamantes · e o resto, itens que o seu nível já tem
+--   (de 15% a 75% do preço, pelo preço do celeiro)
 create or replace function public.fazenda_abrir_bau_sorte(p_token text, p_tipo text)
 returns jsonb
 language plpgsql security definer
@@ -7888,22 +7893,16 @@ begin
      where c.tipo = 'raro' and c.venda > 0
      order by -ln(greatest(random(), 1e-12)) * c.venda limit 1;   -- sorteio com peso 1 / preço
     v_qtd := 1;
-  elsif v_r < v_lim + (v_b->>'grande')::float8 then
-    v_tipo := 'grande';
-    v_moeda := v_preco * 2;
-  elsif v_r < v_lim + (v_b->>'grande')::float8 + (v_b->>'chance_diamantes')::float8 then
+  elsif v_r < v_lim + (v_b->>'chance_diamantes')::float8 then
     v_tipo := 'diamantes';
     v_diam := (v_b->'diamantes'->>0)::int + floor(random() * ((v_b->'diamantes'->>1)::int - (v_b->'diamantes'->>0)::int + 1))::int;
-  elsif v_r < v_lim + (v_b->>'grande')::float8 + (v_b->>'chance_diamantes')::float8 + (v_b->>'chance_itens')::float8 then
+  else
     v_tipo := 'itens';
     select c.* into k from fazenda_culturas c
      where c.tipo in ('cultura', 'produto') and c.venda > 0 and c.nivel_min <= fazenda_nivel(j.xp)
      order by random() limit 1;
     v_item := k.id;
-    v_qtd := greatest(1, round(v_preco * (0.3 + random() * 0.6) / k.venda))::int;
-  else
-    v_tipo := 'moedas';
-    v_moeda := round(v_preco * (0.15 + random() * 0.3))::int;
+    v_qtd := greatest(1, round(v_preco * (0.15 + random() * 0.6) / k.venda))::int;
   end if;
 
   -- o que veio do baú não conta como moeda ganha no evento (o gatilho soma o que entra)
@@ -8014,6 +8013,11 @@ update public.fazenda_ajudantes_tipos
 select public.fazenda_cache_montar();
 
 -- ------------------------------------------------------------
+-- Fase 74b: vender produtos numa chamada só (fazenda_vender ganhou p_itens; a assinatura antiga sai).
+-- ------------------------------------------------------------
+drop function if exists public.fazenda_vender(text, text, int);
+
+-- ------------------------------------------------------------
 -- Permissões: só a API pública fica executável pela chave anon
 -- ------------------------------------------------------------
 revoke execute on function
@@ -8060,7 +8064,7 @@ revoke execute on function
   public.fazenda_recuperar(text),
   public.fazenda_carregar(text),
   public.fazenda_acao(text, text, int[], text),
-  public.fazenda_vender(text, text, int),
+  public.fazenda_vender(text, text, int, text[]),
   public.fazenda_limite_roubo(int),
   public.fazenda_vizinho(uuid, uuid),
   public.fazenda_pegar_um(uuid, uuid, int, boolean),
@@ -8209,7 +8213,7 @@ grant execute on function
   public.fazenda_recuperar(text),
   public.fazenda_carregar(text),
   public.fazenda_acao(text, text, int[], text),
-  public.fazenda_vender(text, text, int),
+  public.fazenda_vender(text, text, int, text[]),
   public.fazenda_ranking(text),
   public.fazenda_visitar(text, uuid),
   public.fazenda_acao_vizinho(text, uuid, text, int[]),
