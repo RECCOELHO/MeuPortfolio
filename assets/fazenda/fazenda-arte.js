@@ -2927,6 +2927,11 @@
                         q.globalAlpha = 0.35; px(x + 5, y - 1, '#ff6b5a', 6, 4); q.globalAlpha = 1;
                         px(x + 7, y, '#ff3b2f', 2, 2);
                     }
+                    if (c.desligado && Math.floor(t / 600) % 2) {   // fase 83: sem energia, um raio vermelho piscando em cima
+                        const rx = x + 5, ry = y - 9;
+                        px(rx + 2, ry, '#3f2631', 4, 1); px(rx + 1, ry + 1, '#ff3b2f', 3, 2); px(rx, ry + 3, '#ff3b2f', 5, 1);
+                        px(rx + 2, ry + 4, '#ff3b2f', 2, 2); px(rx + 1, ry + 6, '#ff3b2f', 2, 1);
+                    }
                 } else if (tipo === 'robo') {
                     if (Math.floor(t / 700) % 3 === 0) px(x + 8, y + 1, '#7dff6a', 1, 1);   // luzinha da antena piscando
                 } else if (tipo === 'fumaca' || tipo === 'fabrica') {

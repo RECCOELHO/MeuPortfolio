@@ -3122,3 +3122,9 @@ body.construindo .status {
     justify-content: center;
 }
 .pergunta-botoes .botao { flex: 1; }
+
+/* fase 83: na faixa da visita, a fazenda abandonada e a sequência de vizinhos */
+.faixa-extra { display: inline-flex; gap: 4px; flex-wrap: wrap; margin-left: 4px; }
+.chip-abandonada, .chip-sequencia { font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 3px; white-space: nowrap; }
+.chip-abandonada { background: #f3d36b; color: #5a3a14; }
+.chip-sequencia { background: #6ee68c; color: #1f4d2b; }
