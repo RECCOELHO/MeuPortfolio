@@ -5173,7 +5173,8 @@ returns jsonb language sql immutable as $$
            "energia": {"por": 150},
            "oficina": {"por_hora": 1},
            "murchas": {"preco": 1, "por": 25},
-           "agora": {"horas": 4}}'::jsonb;
+           "agora": {"horas": 4},
+           "moedas": {"preco": 10, "por_nivel": 2000}}'::jsonb;   -- fase 79: 10 diamantes = 2.000 moedas por nível
 $$;
 
 -- o dia da loja (o pacote de XP tem limite por dia) é o de Brasília (UTC-3)
@@ -5309,6 +5310,16 @@ begin
     update fazenda_construcoes set iniciado_em = now() - make_interval(secs => o.produz_seg)
      where jogador_id = v_id and x = p_x and y = p_y;
     perform fazenda_oficinas_andar(v_id);   -- termina agora: o produto sai e a próxima começa
+
+  elsif p_item = 'moedas' then   -- fase 79: diamantes viram moedas (o pacote cresce com o nível)
+    v_preco := (v_loja->>'preco')::int;
+    if j.diamantes < v_preco then raise exception 'diamantes_insuficientes'; end if;
+    v_nivel := fazenda_nivel(j.xp);
+    -- moeda comprada não conta no evento (o gatilho soma o que entra; aqui já desconta)
+    update fazenda_jogadores
+       set diamantes = diamantes - v_preco, moedas = moedas + v_nivel * (v_loja->>'por_nivel')::int,
+           moedas_ganhas = moedas_ganhas - v_nivel * (v_loja->>'por_nivel')::int
+     where id = v_id;
   end if;
 
   insert into fazenda_diamantes_usos (jogador_id, item, diamantes) values (v_id, p_item, v_preco);
@@ -8002,9 +8013,10 @@ on conflict (id) do update set
 create or replace function public.fazenda_baus_sorte()
 returns jsonb language sql immutable as $$
   -- fase 74b: o baú nunca devolve moedas (sem o prêmio de moedas e o grande): só itens, diamantes e raro
-  select '{"madeira": {"nome": "Baú de madeira", "preco": 50000,   "nivel": 20, "raro": 0.004, "diamantes": [5, 10],  "chance_diamantes": 0.08},
-           "prata":   {"nome": "Baú de prata",   "preco": 250000,  "nivel": 25, "raro": 0.015, "diamantes": [15, 30], "chance_diamantes": 0.08},
-           "ouro":    {"nome": "Baú de ouro",    "preco": 1000000, "nivel": 30, "raro": 0.05,  "diamantes": [40, 80], "chance_diamantes": 0.08}}'::jsonb;
+  -- fase 79: pela metade do preço (os itens diminuem junto; a chance de diamante e de raro fica)
+  select '{"madeira": {"nome": "Baú de madeira", "preco": 25000,   "nivel": 20, "raro": 0.004, "diamantes": [5, 10],  "chance_diamantes": 0.08},
+           "prata":   {"nome": "Baú de prata",   "preco": 125000,  "nivel": 25, "raro": 0.015, "diamantes": [15, 30], "chance_diamantes": 0.08},
+           "ouro":    {"nome": "Baú de ouro",    "preco": 500000,  "nivel": 30, "raro": 0.05,  "diamantes": [40, 80], "chance_diamantes": 0.08}}'::jsonb;
 $$;
 
 -- abre um baú da sorte: paga, sorteia e entrega. Os prêmios (fase 74b: nunca moedas):
@@ -8535,6 +8547,13 @@ insert into public.fazenda_conquistas_tipos (id, nome, descricao, medida, meta, 
 on conflict (id) do update set nome = excluded.nome, descricao = excluded.descricao, medida = excluded.medida,
   meta = excluded.meta, recompensa = excluded.recompensa;
 update public.fazenda_conquistas_tipos set diamantes = 20 where id = 'milhao';
+
+-- ------------------------------------------------------------
+-- Fase 79: diamantes viram moedas e baús pela metade.
+-- • fazenda_loja_diamantes ganha "moedas": 10 diamantes = 2.000 moedas x nível (fazenda_usar_diamantes,
+--   p_item = 'moedas'); essa moeda não conta no evento.
+-- • fazenda_baus_sorte: madeira 25 mil, prata 125 mil, ouro 500 mil.
+-- ------------------------------------------------------------
 
 -- ------------------------------------------------------------
 -- Permissões: só a API pública fica executável pela chave anon

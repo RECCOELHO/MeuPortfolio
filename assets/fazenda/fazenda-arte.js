@@ -302,14 +302,14 @@
         ['................', '................', '.aa..........aa.', 'addaa......aadda', 'adddda....adddda', '.aadddaaaadddaa.', '...adddKKddaa...', '....aadKKaa.....', '......adda......', '......adda......', '......adda......', '......adda......', '......adfa......', '......adfa......', '......adfa......', '......adfa......'],
         // 25 estufa elétrica
         ['................', '................', '................', '.....aaaaaa.....', '....adBGGBfa....', '...adfBBBBfBa...', '..aBdfBBBBfBBa..', '..adfffffffffa..', '.aBBBfBBBBfBBBa.', '.aBBvfBBvBfBvBa.', '.aBvhvBvhvfvhBa.', '.aBBBfhBBBhBBBa.', 'alllllllllllllla', 'aKKKKKKKKKKKKKKa', 'aKKKKKKKKKKKKKKa', '.aaaaaaaaaaaaaa.'],
-        // 26 reator (cima, esq.)
-        ['........dddddd..', '.......dffffddd.', '......ddddddddd.', '.....dddddfffff.', '......ffff.fff..', '..aaaaaffaaaaaaa', '.allllllllllllll', '..adddffffffflll', '..adddffffffflll', '...addffffffflll', '...allllllllllll', '...adddfffffllll', '....addfffffllla', '....addfffffllla', '.....adffffflla.', '.....adffffflla.'],
+        // 26 reator (cima, esq.) (fase 79: torre de resfriamento e a cúpula)
+        ['................', '................', '...aaaaaaaaaaaaa', '...aKeeeeeeeeeeK', '...addffffffllKK', '....addfffffllKa', '....arrrrrrrbbba', '....arrrrrrrbbba', '....addfffffllKa', '....addfffffllKa', '.....addfffflKa.', '.....addfffflKa.', '.....addfffflKa.', '.....adllllllKa.', '.....addfffflKa.', '.....addfffflKa.'],
         // 27 reator (cima, dir.)
-        ['................', '................', '................', '................', '................', 'aa..............', 'lla.............', 'la..............', 'la..............', 'a...............', 'a...............', 'a...............', '................', '.........a......', '......aaafaaa...', '.....adfffffla..'],
+        ['................', '................', 'a...............', 'a...............', 'a...............', '................', '................', '................', '................', '................', '................', '................', '................', '........aa......', '.....aaflllaa...', '....affflllKKa..'],
         // 28 reator (baixo, esq.)
-        ['.....addfffflla.', '.....addfffflla.', '.....addfffflla.', '.....addfffflla.', '.....addfffflla.', '.....addfffflla.', '.....addfffflla.', '.....addfffflla.', '.....addfffflla.', '.....adffffflla.', '....addfffffllla', '...adddfffffflll', '...addffffffflll', '..adddffffffflll', '.adddfffffffffll', '..aaaaaaaaaaaaaa'],
+        ['.....addfffflKa.', '.....addfffflKa.', '.....addfffflKa.', '.....addfffflKa.', '....adllllllllKa', '....addfffffllKa', '....addfffffllKa', '...addffffffllKK', '...addffffffllKK', '...adllllllllllK', '..adddfffffffllK', '.adddfffffffflll', '.adddfffffffflll', 'addddfffffffffll', 'ddddffffffffflll', 'aaaaaaaaaaaaaaaa'],
         // 29 reator (baixo, dir.)
-        ['....addffffflla.', '....affffffflla.', '...affffffffllla', '...affffffffllla', '...allllllllKKKa', '...allllllllKKKa', '...alWllggglKWKa', '...alWlgegegKWKa', '...alllggeggKKKa', '...alllgggggKKKa', '...allllgeglKKKa', 'a..allllllllKKKa', 'a..allllllllKKKa', 'la.aKKKKKKKKKKKa', 'llaaKKKKKKKKKKKa', 'aa..aaaaaaaaaaa.'],
+        ['...afffflllKKKa.', '...afffflllKKKa.', '...afffddllKKKa.', '..alllllllllllla', '..aKKaaaaaaaKKKa', '..adfavWWWvallla', '..adfavdWWvallla', 'a.adfavWWWvallla', 'a.adfavvvvvallla', 'Kaadfaaaaaaallla', 'Kaaaaaaaaaaaaala', 'KKadeeefagHggala', 'KKadeeefagaagala', 'lKadeeefaggHgala', 'lKadeeefaaaaaala', 'aaaaaaaaaaaaaaaa'],
         // 30 lambari
         ['................', '................', '................', '......aa..aa....', '.....aggaalla...', '....agggllefa...', '.....agllffda...', '.....alfffdda...', '.aaaalffddda....', 'aggggfdddgga....', '.agggaaaaaa.....', '.aggga..........', '..agga..........', '...aga..........', '....a...........', '................'],
         // 31 tilápia
@@ -1881,6 +1881,7 @@
             return lista;
         }
         const dentroDe = (r, x, y, m) => x > r.x0 - m && x < r.x1 + m && y > r.y0 - m && y < r.y1 + m;
+        const naAgua = (x, y) => aguas().some((r) => dentroDe(r, x + 8, y + 12, -1));   // o pé (quase no fim do boneco) está na água
         const aguaEm = (x, y, m = 0) => aguas().find((r) => dentroDe(r.e, x + 8, y + 14, m)) || null;
         // um destino que caiu na água vai para a beira mais perto, por fora (e não noutra água)
         function foraDaAgua(x, y) {
@@ -1896,58 +1897,12 @@
             if (!melhor) melhor = [px, E.y0 - 2];   // (sem saída livre: para cima)
             return { x: melhor[0] - 8, y: melhor[1] - 14 };
         }
-        // a linha de (ax, ay) a (bx, by) passa por dentro do retângulo?
-        function cortaRet(ax, ay, bx, by, r) {
-            let t0 = 0, t1 = 1;
-            const dx = bx - ax, dy = by - ay;
-            for (const [pp, qq] of [[-dx, ax - r.x0], [dx, r.x1 - ax], [-dy, ay - r.y0], [dy, r.y1 - ay]]) {
-                if (pp === 0) { if (qq < 0) return false; continue; }
-                const t = qq / pp;
-                if (pp < 0) { if (t > t1) return false; if (t > t0) t0 = t; } else { if (t < t0) return false; if (t < t1) t1 = t; }
-            }
-            return t1 - t0 > 1e-6;
-        }
-        // fase 77b: um canto serve se não cai noutra água, não fica longe demais (os do mar) e, no cercado,
-        // não passa da cerca
-        function cantoServe(a, cx, cy, r) {
-            if (Math.abs(cx) > 1e5 || Math.abs(cy) > 1e5) return false;
-            if (aguas().some((k) => k !== r && dentroDe(k.e, cx, cy, 0))) return false;
-            const ar = a.area;
-            return !(ar && ar.cercado && (cx - 8 < ar.x0 - 3 || cx - 8 > ar.x1 + 3 || cy - 14 < ar.y0 - 3 || cy - 14 > ar.y1 + 3));
-        }
-        // para onde andar agora: o destino, ou o canto da água que está no caminho
-        function desviar(a, tx, ty) {
-            const px = a.x + 8, py = a.y + 14, qx = tx + 8, qy = ty + 14;
-            for (const r of aguas()) {
-                const E = r.e, e = { x0: E.x0 + 1, y0: E.y0 + 1, x1: E.x1 - 1, y1: E.y1 - 1 };
-                if (!cortaRet(px, py, qx, qy, e)) continue;
-                const cantos = [[E.x0 - 1, E.y0 - 1], [E.x1 + 1, E.y0 - 1], [E.x0 - 1, E.y1 + 1], [E.x1 + 1, E.y1 + 1]];
-                let melhor = null, dmin = Infinity;
-                for (const [cx, cy] of cantos) {
-                    if (Math.hypot(cx - px, cy - py) < 0.5 || cortaRet(px, py, cx, cy, e) || !cantoServe(a, cx, cy, r)) continue;
-                    const d = Math.hypot(cx - px, cy - py) + Math.hypot(qx - cx, qy - cy);
-                    if (d < dmin) { dmin = d; melhor = [cx, cy]; }
-                }
-                if (melhor) return { x: melhor[0] - 8, y: melhor[1] - 14 };
-            }
-            return { x: tx, y: ty };
-        }
-        // um passo de quem anda (ajudante, fazendeiro, visita) sem entrar na água; devolve dx do passo.
-        // fase 77b: o canto escolhido fica guardado (a.desvio) até chegar nele ou o destino mudar, senão ele
-        // ficava indo e voltando entre dois cantos; e quem já está dentro da folga sai pelo lado mais perto.
+        // um passo de quem anda (ajudante, bicho, fazendeiro, visita); devolve dx do passo.
+        // fase 79: anda reto, entrando na água se ela estiver no caminho (fica pela metade, como o pato).
+        // Antes desviava pelos cantos e, perto da cerca do cercado, ficava preso tremendo na beira.
         function passoSeco(a, vel, dt) {
-            const f = foraDaAgua(a.tx, a.ty);
-            if (f) { a.tx = f.x; a.ty = f.y; }
-            let e;
-            const preso = aguaEm(a.x, a.y);
-            if (preso) { e = foraDaAgua(a.x, a.y); a.desvio = null; }
-            else if (a.desvio && a.desvio.tx === a.tx && a.desvio.ty === a.ty && Math.hypot(a.desvio.x - a.x, a.desvio.y - a.y) > 0.5) e = a.desvio;
-            else {
-                e = desviar(a, a.tx, a.ty);
-                a.desvio = e.x !== a.tx || e.y !== a.ty ? { x: e.x, y: e.y, tx: a.tx, ty: a.ty } : null;
-            }
-            const ex = e.x - a.x, ey = e.y - a.y, ed = Math.hypot(ex, ey);
-            if (ed < 0.01) { a.desvio = null; if (!preso) { a.x = a.tx; a.y = a.ty; } return 0; }   // (o desvio não acha saída: chega direto)
+            const ex = a.tx - a.x, ey = a.ty - a.y, ed = Math.hypot(ex, ey);
+            if (ed < 0.01) { a.x = a.tx; a.y = a.ty; return 0; }
             const passo = Math.min(ed, vel * dt / 1000);
             a.x += ex / ed * passo; a.y += ey / ed * passo;
             return ex;
@@ -2179,9 +2134,7 @@
                     a.ty = p.y;
                     continue;
                 }
-                // fase 74b: ninguém anda na água (só o pato nada, no laguinho dele)
-                const ex = a.tipo === 'pato' && !a.ajudante ? (() => { const p = Math.min(d, a.vel * dt / 1000); a.x += dx / d * p; a.y += dy / d * p; return dx; })()
-                    : passoSeco(a, a.vel, dt);
+                const ex = passoSeco(a, a.vel, dt);   // (fase 79: todo mundo pode entrar na água)
                 // os sprites do pacote olham para a direita: espelha quando anda para a esquerda
                 if (Math.abs(ex) > 0.2) a.flip = ex < 0;
             }
@@ -2554,40 +2507,45 @@
                 const parado = a.v && a.v.estado !== 'produzindo';
                 const andando = a.ajudante && Math.hypot(a.tx - a.x, a.ty - a.y) > 0.5;
                 const bob = (parado && Math.floor(tempo / 600) % 2) || (andando && Math.floor(tempo / 140) % 2) ? -1 : 0;
-                // fase 76: o pato nadando fica com metade do corpo dentro da água
-                const nadando = a.tipo === 'pato' && !a.ajudante && aguas().some((r) => dentroDe(r, a.x + 8, a.y + 12, -1));
-                pe.push(a.visual ? { img: ajudanteCanvas(a.tipo), x: a.x, y: a.y, flip: a.flip, bob }
+                // fase 76: o pato nadando fica com metade do corpo dentro da água (fase 79: e todo mundo que entra nela)
+                const nadando = naAgua(a.x, a.y);
+                pe.push(a.visual ? { img: ajudanteCanvas(a.tipo), x: a.x, y: a.y, flip: a.flip, bob: nadando ? 0 : bob, nadando }
                     : { p: a.p || 'farm', i: a.i, x: a.x, y: a.y, flip: a.flip, bob: nadando ? 0 : bob, nadando });
-                // ferramenta na mão do ajudante (do lado para onde ele olha)
-                if (a.ferramenta != null) pe.push({ p: a.ferramentaP || 'farm', i: a.ferramenta, x: a.x + (a.flip ? -7 : 7), y: a.y + 0.5, flip: a.flip, bob });
+                // ferramenta na mão do ajudante (do lado para onde ele olha; na água, a parte de baixo some junto)
+                if (a.ferramenta != null) pe.push({ p: a.ferramentaP || 'farm', i: a.ferramenta, x: a.x + (a.flip ? -7 : 7), y: a.y + 0.5, flip: a.flip, bob: nadando ? 0 : bob, corte: nadando ? Math.round(a.y) : null });
             }
-            const andando = fazendeiro.passo > 0;
-            pe.push({ img: avatarCanvas(avatarAtual), x: fazendeiro.x, y: fazendeiro.y, flip: fazendeiro.flip, bob: andando && Math.floor(tempo / 120) % 2 ? -1 : 0 });
+            const andando = fazendeiro.passo > 0, fazNada = naAgua(fazendeiro.x, fazendeiro.y);
+            pe.push({ img: avatarCanvas(avatarAtual), x: fazendeiro.x, y: fazendeiro.y, flip: fazendeiro.flip, bob: !fazNada && andando && Math.floor(tempo / 120) % 2 ? -1 : 0, nadando: fazNada });
             if (lago && lagoNaTela()) pe.push({ p: 'factory', i: 120, x: wx(LAGO.x) + 1, y: wy(LAGO.y + 2), flip: false, bob: Math.floor(tempo / 700) % 2 ? -1 : 0 });
-            if (visitante) pe.push({ p: 'dungeon', i: VISITANTE_ARTE[visitante.tipo] || 86, x: visitante.x, y: visitante.y, flip: visitante.flip, bob: visitante.andando && Math.floor(tempo / 140) % 2 ? -1 : 0 });
+            if (visitante) { const vn = naAgua(visitante.x, visitante.y); pe.push({ p: 'dungeon', i: VISITANTE_ARTE[visitante.tipo] || 86, x: visitante.x, y: visitante.y, flip: visitante.flip, bob: !vn && visitante.andando && Math.floor(tempo / 140) % 2 ? -1 : 0, nadando: vn }); }
             pe.sort((a, b) => a.y - b.y).forEach((a) => {
                 const x = Math.round(a.x), y = Math.round(a.y) + a.bob;
                 if (a.grade) {
                     a.grade.forEach((linha, dy) => linha.forEach((i, dx) => tile(q, i, x + dx * T, a.gy + dy * T, false, a.p)));
                     return;
                 }
+                // fase 76/79: na água, só a parte de cima, e a linha da água balançando em volta
+                const base = a.corte != null ? a.corte : y;
+                const linha = (a.nadando || a.corte != null) ? base + 10 + (Math.floor(tempo / 500 + Math.round(a.x)) % 2) : null;
+                if (linha != null) { q.save(); q.beginPath(); q.rect(x - 10, y - 2 * T, 2 * T + 4, linha - (y - 2 * T)); q.clip(); }
+                const dy = linha != null ? 2 : 0;
+                const fim = () => {
+                    if (linha == null) return;
+                    q.restore();
+                    if (!a.nadando) return;
+                    q.fillStyle = '#cfe6fb'; q.fillRect(x + 2, linha, 12, 1);
+                    q.fillStyle = '#8fc1ef'; q.fillRect(x, linha + 1, 3, 1); q.fillRect(x + 13, linha + 1, 3, 1);
+                };
                 if (a.img) {   // avatar (desenhado na hora, fora dos pacotes)
-                    if (a.flip) { q.save(); q.translate(x + T, y); q.scale(-1, 1); q.drawImage(a.img, 0, 0); q.restore(); }
-                    else q.drawImage(a.img, x, y);
+                    if (a.flip) { q.save(); q.translate(x + T, y + dy); q.scale(-1, 1); q.drawImage(a.img, 0, 0); q.restore(); }
+                    else q.drawImage(a.img, x, y + dy);
+                    fim();
                     return;
                 }
                 if (a.topo != null) tile(q, a.topo, x, y - T, a.flip, a.p);
                 if (a.topo2 != null) tile(q, a.topo2, x, y - 2 * T, a.flip, a.p);
-                if (a.nadando) {   // fase 76: só a parte de cima, e a linha da água balançando em volta
-                    const linha = y + 10 + (Math.floor(tempo / 500 + x) % 2);
-                    q.save(); q.beginPath(); q.rect(x - 2, y - 2, T + 4, linha - y + 2); q.clip();
-                    tile(q, a.i, x, y + 2, a.flip, a.p);
-                    q.restore();
-                    q.fillStyle = '#cfe6fb'; q.fillRect(x + 2, linha, 12, 1);
-                    q.fillStyle = '#8fc1ef'; q.fillRect(x, linha + 1, 3, 1); q.fillRect(x + 13, linha + 1, 3, 1);
-                    return;
-                }
-                tile(q, a.i, x, y, a.flip, a.p);
+                tile(q, a.i, x, y + dy, a.flip, a.p);
+                fim();
             });
 
             desenharMaquinas(lista, tempo);
@@ -2735,7 +2693,7 @@
                 } else if (c.tipo === 'fabrica_auto') {
                     L.push({ x: x + T, y: y + T, r: 4 * T, cor: LUZ_QUENTE, f: 0.28, ilumina: 0.7 });
                 } else if (c.tipo === 'reator') {
-                    L.push({ x: x + T, y: y + T, r: 4 * T, cor: '120, 255, 150', f: 0.5, ilumina: 0.7 });
+                    L.push({ x: x + 24, y: y + 22, r: 4 * T, cor: '120, 255, 150', f: 0.5, ilumina: 0.7 });   // (fase 79: na janela do núcleo)
                 } else if (c.tipo === 'estufa') {
                     L.push({ x: x + T, y: y + T, r: 3 * T, cor: '205, 165, 255', f: 0.4, ilumina: 0.55 });
                 }
@@ -3017,11 +2975,19 @@
                     q.globalAlpha = 0.12 + 0.1 * Math.sin(t / 600);
                     px(x + 2, y + 4, '#fff3a0', 12, 9);
                     q.globalAlpha = 1;
-                } else if (tipo === 'reator') {
-                    q.globalAlpha = 0.18 + 0.14 * Math.sin(t / 450);
-                    px(x + 8, y + 8, '#7dff6a', 16, 16);
+                } else if (tipo === 'reator') {   // fase 79: brilho redondo na janela do núcleo e vapor saindo da torre
+                    q.save();
+                    q.globalCompositeOperation = 'screen';
+                    q.globalAlpha = 0.45 + 0.3 * Math.sin(t / 450);
+                    q.drawImage(halo('125, 255, 106'), x + 24 - 9, y + 22 - 9, 18, 18);
+                    q.restore();
+                    for (let k = 0; k < 4; k++) {
+                        const f = (t / 2600 + k / 4) % 1, tam = 3 + Math.round(f * 5);
+                        q.globalAlpha = 0.75 * (1 - f);
+                        px(x + 10 + Math.sin(f * 5 + k) * 2 + f * 4 - tam / 2, y + 1 - f * 16 - tam / 2, k % 2 ? '#e4ebf3' : '#ffffff', tam, tam);
+                    }
                     q.globalAlpha = 1;
-                    if (Math.floor(t / 250) % 6 === 0) icone(q, 'brilho', x + 20, y + 2);
+                    if (Math.floor(t / 250) % 6 === 0) icone(q, 'brilho', x + 26, y + 17);
                 }
             }
         }
@@ -3118,7 +3084,10 @@
                 desenharAguaViva(tempo, L);
             }
             s.grade.forEach((linha, dy) => linha.forEach((i, dx) => { if (i != null) tile(q, i, x + dx * T, y + dy * T, false, s.p); }));
-            if (k.chao === 'cocho') tile(q, 110, x + T + 2, y + T - 3);   // cocho de água no canto, por cima da cerca (inteiro)
+            if (k.chao === 'cocho') {   // cocho de água no canto, por cima da cerca (fase 79: as duas metades, como no pasto)
+                tile(q, 110, x + T + 2, y + T - 3);
+                tile(q, 111, x + 2 * T + 2, y + T - 3);
+            }
         }
 
         // o alcance de um item colocado (irrigador, alarme, estufa...): some sozinho em 5 s
