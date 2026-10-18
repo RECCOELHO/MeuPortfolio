@@ -121,6 +121,9 @@
         anuncio_seu: 'Esse anúncio é seu.',
         limite_compras: 'Hoje você já comprou 40 lotes na feira. Amanhã tem mais!',
         limite_bichos: 'Você já deu ração a 10 bichos nessa fazenda hoje.',
+        sem_racao_sua: 'Você não tem essa ração no seu celeiro (a que você guardou para os seus bichos fica).',
+        ja_limpou: 'Você já limpou 2 plantas murchas nessa fazenda hoje.',
+        nao_abandonada: 'Só dá para plantar na fazenda de quem sumiu há mais de 3 dias.',
         ja_alimentado: 'Esse bicho já comeu.',
         nao_pronto: 'Ainda não tem nada pra coletar.',
         animal_invalido: 'Esse animal não está mais aqui.',
@@ -1167,12 +1170,24 @@
     // fase 66: a luva do Perks passa pelo alarme (1 luva por canteiro protegido)
     const luvas = () => (S ? livreFeira('luva_perks') : 0);
     const podeLuva = (c, i) => i.fase === 'maduro' && !c.ja_peguei && c.roubado < limitePegar(i.k) && protegidoAlarme(c) && luvas() > 0;
+    // fase 83: a semente que você planta na fazenda abandonada (a sua de sempre, se der; senão a mais barata que dá)
+    function sementeVizinho() {
+        const ok = (k) => k && k.tipo === 'cultura' && k.nivel_min <= S.jogador.nivel && daEstacao(k) && k.custo <= S.jogador.moedas;
+        if (ok(culturas[semente])) return culturas[semente];
+        return (S.culturas || []).filter(ok).sort((a, b) => a.custo - b.custo)[0] || null;
+    }
+    const podeLimpar = () => !!visita && 'limpos_hoje' in visita && visita.limpos_hoje < 2;   // fase 83: 2 por dia em cada fazenda
     function acaoVisita(c) {
         const i = info(c);
         if (i.fase === 'murcho' && visita && visita.pode_salvar !== false && 'pode_salvar' in visita) return 'salvar';   // fase 48
+        if (i.fase === 'murcho' && podeLimpar()) return 'limpar';   // fase 83
         if ((i.fase === 'crescendo' || i.fase === 'maduro') && i.probs.length) return 'ajudar';
         if (podePegar(c, i)) return 'pegar';
         if (podeLuva(c, i)) return 'pegar_luva';
+        if (visita && 'abandonada' in visita) {   // fase 83: a roça do vizinho
+            if (i.fase === 'vazio') return 'arar';
+            if (i.fase === 'arado' && visita.abandonada && sementeVizinho()) return 'plantar:' + sementeVizinho().id;
+        }
         return null;
     }
 
@@ -1319,6 +1334,13 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-10-19-vizinhos', data: '19/10', titulo: 'Ajudar os vizinhos sem limite', itens: [
+            'Ajudar os vizinhos agora dá XP <b>sem limite</b>: cada ajuda vale 0,30% do seu nível, e o XP em dobro soma por cima.',
+            '<b>Sequência:</b> cada vizinho diferente que você ajuda em até 10 minutos dá +10% de XP, até +100%. A faixa da visita mostra a sua sequência.',
+            'Dá para <b>coletar o produto pronto dos bichos</b> do vizinho (vai para o celeiro dele), e a <b>ração sai do seu celeiro</b>.',
+            'Na roça do vizinho: <b>limpar</b> 2 murchas por dia, <b>colher para o dono</b> e <b>arar</b> os vazios. Na fazenda <b>abandonada</b> (dono sumido há mais de 3 dias), tudo vale <b>+50% de XP</b> e dá para <b>plantar com o seu dinheiro</b> (5 ajudas por canteiro). Quando o dono volta, ele vê o que você fez.',
+            'O <b>alarme sem energia</b> avisa: um raio vermelho pisca em cima dele, o jogo avisa quando a bateria zera e, ao voltar, conta quanto tempo ele ficou desligado.',
+            'O <b>Perks</b> agora aparece bem mais vezes.'] },
         { id: '2026-10-19-melhorias', data: '19/10', titulo: 'Oficina nível 2 e 3 e melhorias de diamante', itens: [
             'Toque numa <b>oficina</b>: dá para subir ela para o <b>nível 2</b> (100 mil) e o <b>nível 3</b> (400 mil). A receita fica 15% e 30% mais rápida, em todas as oficinas daquele tipo.',
             'Na Loja → Melhorias, as novas <b>de diamante</b>: turno de 12 h dos ajudantes (150), cesto do Bira com 24 peixes (80), cesto do Seu Nonato +50% (80), fila de 15 receitas nas oficinas (100) e a 5ª e a 6ª barraca da feira (100 e 150).'] },
@@ -2288,7 +2310,7 @@
     const NOME_EFEITO = {
         seco: 'sem seca', praga: 'sem pragas', erva: 'sem ervas', crescer: 'cresce 10% mais rápido',
         adubo: '+1 item', xp: '+1 XP', sorte: 'sorte (colheita em dobro às vezes)', cerca: 'vizinho pega no máximo 1',
-        alarme: 'protegido do vizinho', estufa: 'estufa: qualquer estação e +25% rápido (4 ⚡)',
+        alarme: 'protegido do vizinho (sem energia, desliga)', estufa: 'estufa: qualquer estação e +25% rápido (4 ⚡)',
         robo: 'o robô colhe e replanta', aspersor: 'sem nenhum problema (aspersor, 1,6 ⚡)'
     };
     function bonusDoCanteiro(c, fonte) {
@@ -2649,6 +2671,9 @@
                     ? `${A.htmlItem(c.tipo, 22)} ${esc(it.nome)}: ${esc(p.produto.nome.toLowerCase())}s prontas! Toque para colher.`
                     : `${A.htmlItem(c.tipo, 22)} ${esc(it.nome)}: próximas ${esc(p.produto.nome.toLowerCase())}s em ${fmtTempo(p.falta)}.`);
             }
+        }
+        if (!visita && c.tipo === 'alarme' && temEletrico() && cargaAgora() < 1) {   // fase 83
+            return mostrarStatus(`${A.htmlItem(c.tipo, 22)} <b>${esc(it.nome)}: desligado por falta de energia.</b> A bateria zerou (o alarme gasta 5 ⚡/h e as luzes, de noite, 1 cada): os vizinhos podem pegar dos canteiros em volta. Gere mais energia para ele voltar.`);
         }
         if (!visita && it.categoria === 'energia') {
             if (c.sobrecarga_em) return mostrarStatus(`${A.htmlItem(c.tipo, 22)} <b>${esc(it.nome)}</b>: <b>em sobrecarga</b> desde ${hora(c.sobrecarga_em)}, não está gerando. Toque para consertar.`);   // fase 77
@@ -3171,10 +3196,13 @@
             return mostrarStatus(`${spr(A.ANIMAL[a.tipo], 22)} ${nome}${visita ? ' do vizinho' : ''} <b>radioativ${FEMEA.has(a.tipo) ? 'a' : 'o'}</b> (o reator!): dá 1 ${produto ? esc(produto.nome.toLowerCase()) : 'produto'} a cada 2 minutos, direto no celeiro, até ${hora(a.radioativo_ate)} (já deu ${dados} de 15). No fim, 1 em 200 de não resistir.`);
         }
         if (visita) {
-            if (i.estado === 'fome' && 'bichos_hoje' in visita) {
-                return mostrarStatus(visita.bichos_hoje < 10
-                    ? `${spr(A.ANIMAL[a.tipo], 22)} ${nome} do vizinho com fome: toque para dar ração (do celeiro dele) e ganhe +${visita.premio_ajuda || 1} ${ico('xp', 14)}.`
-                    : `${spr(A.ANIMAL[a.tipo], 22)} ${nome} do vizinho com fome. Você já deu ração a 10 bichos aqui hoje.`);
+            if (i.estado === 'fome' && 'bichos_hoje' in visita) {   // fase 83: a ração sai do seu celeiro
+                return mostrarStatus(livreFeira(i.t.racao) >= i.t.racao_qtd
+                    ? `${spr(A.ANIMAL[a.tipo], 22)} ${nome} do vizinho com fome: toque para dar ${i.t.racao_qtd} ${racao ? itemDe(racao, 16) + esc(racao.nome.toLowerCase()) : ''} do <b>seu</b> celeiro e ganhe +${visita.premio_ajuda || 1} ${ico('xp', 14)}.`
+                    : `${spr(A.ANIMAL[a.tipo], 22)} ${nome} do vizinho com fome. Para dar ração, você precisa de ${i.t.racao_qtd} ${racao ? itemDe(racao, 16) + esc(racao.nome.toLowerCase()) : ''} no seu celeiro.`);
+            }
+            if (i.estado === 'pronto' && 'abandonada' in visita) {
+                return mostrarStatus(`${spr(A.ANIMAL[a.tipo], 22)} ${nome} do vizinho com ${produto ? itemDe(produto, 16) + esc(produto.nome.toLowerCase()) : 'o produto'} pronto: toque para coletar para ele e ganhe +${visita.premio_ajuda || 1} ${ico('xp', 14)}.`);
             }
             return mostrarStatus(`${spr(A.ANIMAL[a.tipo], 22)} ${nome} do vizinho.`);
         }
@@ -3196,7 +3224,9 @@
             if (typeof id === 'string') return;
             descreverAnimal(id);
             const a = (visita.animais || []).find((x) => x.id === id);
-            if (a && infoAnimal(a).estado === 'fome' && 'bichos_hoje' in visita && visita.bichos_hoje < 10) alimentarBichosVizinho([id]);
+            const ia = a && infoAnimal(a);
+            if (ia && ia.estado === 'fome' && 'bichos_hoje' in visita && ia.t && livreFeira(ia.t.racao) >= ia.t.racao_qtd) alimentarBichosVizinho([id]);
+            else if (ia && ia.estado === 'pronto' && 'abandonada' in visita) coletarBichosVizinho([id]);   // fase 83
             return;
         }
         if (typeof id === 'string' && id.startsWith('h:')) { ajudanteAberto = id.slice(2); return abrirPainel('ajudante'); }   // fase 59
@@ -3299,6 +3329,7 @@
             else toast(`${ico('xp', 20)} Nível ${estado.jogador.nivel}! Toque no seu perfil (lá em cima) para ver o que liberou.`, 'festa');
         }
         avisarDiario();
+        avisarSocial();   // fase 83: o resumo do que os vizinhos fizeram, o alarme sem energia e a sequência
         if (longe) avisarAjudantes(estado);
         else trabalhoDosAjudantes(antes, estado);
         avisarConvites(estado);
@@ -3349,6 +3380,12 @@
         const item = k ? `${itemDe(k, 18)}${esc(k.nome.toLowerCase())}` : esc(d.cultura);
         if (d.tipo === 'salvar') return `<b>${esc(d.apelido)}</b> salvou o seu ${item} que tinha murchado!`;
         if (d.tipo === 'bicho') return `<b>${esc(d.apelido)}</b> deu ração (${item}) para um bicho seu.`;
+        // fase 83: a roça cuidada pelo vizinho
+        if (d.tipo === 'coleta') return `<b>${esc(d.apelido)}</b> coletou ${item} dos seus bichos para você (está no celeiro).`;
+        if (d.tipo === 'limpar') return `<b>${esc(d.apelido)}</b> limpou o seu ${item} que tinha murchado.`;
+        if (d.tipo === 'arar') return `<b>${esc(d.apelido)}</b> arou um canteiro vazio seu.`;
+        if (d.tipo === 'colher') return `<b>${esc(d.apelido)}</b> colheu ${item} para você (está no celeiro).`;
+        if (d.tipo === 'plantar') return `<b>${esc(d.apelido)}</b> plantou ${item} na sua fazenda com o dinheiro dele!`;
         return d.tipo === 'roubo'
             ? `<b>${esc(d.apelido)}</b> pegou ${d.qtd} ${item} da sua fazenda!${d.luva ? ' Passou pelo alarme com a luva do Perks.' : ''}`
             : `<b>${esc(d.apelido)}</b> cuidou do seu ${item} (${d.qtd} problema${d.qtd > 1 ? 's' : ''}).`;
@@ -3377,6 +3414,46 @@
         // cada visita fica no histórico (Importantes); na tela aparece só a mais nova
         for (const x of ineditos.slice(1).reverse()) guardarAviso(linha(x), undefined, true);
         toast(linha(d) + (ineditos.length > 1 ? ` (+${ineditos.length - 1} no diário)` : ''), undefined, 'importante');
+    }
+
+    /* ---------- Fase 83: o resumo dos vizinhos, o alarme sem energia e a sequência ---------- */
+    const NOME_FEITO = { ajuda: 'cuidou de', salvar: 'salvou', bicho: 'deu ração a', coleta: 'coletou dos bichos', limpar: 'limpou', arar: 'arou', colher: 'colheu', plantar: 'plantou', roubo: 'pegou' };
+    const UNID_FEITO = { ajuda: 'problema(s)', salvar: 'planta(s) murcha(s)', bicho: 'bicho(s)', coleta: 'produto(s)', limpar: 'murcha(s)', arar: 'canteiro(s)', colher: 'canteiro(s)', plantar: 'canteiro(s)', roubo: 'item(ns)' };
+    let alarmeAvisado = false, ultimaSeq = 0;
+    function avisarSocial() {
+        if (!S || visita) { atualizarFaixaVisita(); avisarSequencia(); return; }
+        const so = S.social || {};
+        // o que os vizinhos fizeram desde a última vez (uma vez só)
+        const visto = Number(store.get('fazenda_resumo_visto')) || 0;
+        const novos = (so.vizinhos_resumo || []).filter((r) => Date.parse(r.em) > visto && r.tipo !== 'roubo');
+        if (novos.length >= 2 || (novos.length && novos[0].qtd >= 3)) {
+            const linhas = novos.slice(0, 5).map((r) => `<b>${esc(r.apelido)}</b> ${NOME_FEITO[r.tipo] || r.tipo} ${r.qtd} ${UNID_FEITO[r.tipo] || ''}`);
+            toast(`${ico('coracao', 16)} Enquanto você estava fora: ${linhas.join('; ')}${novos.length > 5 ? ` e mais ${novos.length - 5}` : ''}.`, 'festa', 'importante');
+        }
+        if ((so.vizinhos_resumo || []).length) store.set('fazenda_resumo_visto', String(Math.max(...so.vizinhos_resumo.map((r) => Date.parse(r.em)))));
+        // o tempo que o alarme ficou desligado desde a última vez (o "relatório da noite")
+        const off = so.alarme_off || {}, antes = Number(store.get('fazenda_alarme_off'));
+        if (off.seg != null) {
+            const dif = Number.isFinite(antes) ? off.seg - antes : 0;
+            if (dif >= 300) {
+                const pegaram = (S.diario || []).filter((d) => d.tipo === 'roubo' && Date.parse(d.em) > agora() - dif * 1000 - 3600000).reduce((a, d) => a + (d.qtd || 0), 0);
+                toast(`${A.htmlItem('alarme', 20)} Seus alarmes ficaram <b>${fmtTempo(dif * 1000)}</b> desligados por falta de energia${pegaram ? `: nesse tempo os vizinhos pegaram ${pegaram} item(ns) dos seus canteiros` : ''}. Gere mais energia (Energia → a conta) para ele não parar.`, 'erro', 'importante');
+            }
+            store.set('fazenda_alarme_off', String(off.seg));
+        }
+        // agora: a bateria zerou e tem alarme
+        const temAlarme = (S.construcoes || []).some((c) => c.tipo === 'alarme');
+        if (temAlarme && temEletrico() && cargaAgora() < 1) {
+            if (!alarmeAvisado) toast(`${A.htmlItem('alarme', 20)} <b>Seus alarmes desligaram por falta de energia</b>: os vizinhos podem pegar dos seus canteiros. Gere mais energia ou encha a bateria.`, 'erro', 'importante');
+            alarmeAvisado = true;
+        } else alarmeAvisado = false;
+    }
+    // a sequência subiu: avisa (só quando cresce)
+    function avisarSequencia() {
+        const sq = S && S.social && S.social.sequencia && Date.parse(S.social.sequencia.ate) > agora() ? S.social.sequencia : null;
+        const n = sq ? sq.n : 0;
+        if (n > ultimaSeq && n > 1) toast(`${ico('xp', 16)} <b>Sequência x${n}</b>: +${Math.round(sq.bonus * 100)}% de XP nas ajudas. Ajude outro vizinho em até 10 minutos para subir mais (até +100%).`, 'festa');
+        ultimaSeq = n;
     }
 
     function marcarDiarioVisto() {
@@ -3787,18 +3864,29 @@
         el.faixaVisita.hidden = false;
         el.visitaApelido.textContent = v.apelido;
         el.visitaNivel.textContent = v.nivel;
+        atualizarFaixaVisita();
         el.acoesVisita.hidden = false;
         el.acoesCasa.hidden = true;
         el.btnSemente.hidden = true;
     }
 
+    // fase 83: na faixa da visita, a fazenda abandonada (+50%) e a sua sequência de vizinhos
+    function atualizarFaixaVisita() {
+        const ex = document.getElementById('visitaExtra');
+        if (!ex || !visita) return;
+        const sq = S && S.social && S.social.sequencia && Date.parse(S.social.sequencia.ate) > agora() ? S.social.sequencia : null;
+        ex.innerHTML = (visita.abandonada ? ' <span class="chip-abandonada">Abandonada: +50% XP</span>' : '')
+            + (sq && sq.n > 1 ? ` <span class="chip-sequencia">Sequência x${sq.n}: +${Math.round(sq.bonus * 100)}%</span>` : '');
+    }
     function visitar(id) {
         fecharPainel();
         return enfileirar([], async () => {
             const v = await rpc('fazenda_visitar', { p_token: token, p_vizinho: id || null });
             const trocou = !visita || visita.id !== v.id;
             mostrarVisita(v);
-            if (trocou) {
+            if (trocou && v.abandonada) {   // fase 83
+                mostrarStatus(`<b>${esc(v.apelido)}</b> sumiu há mais de 3 dias e a roça está largada: aqui toda ajuda vale <b>+50% de XP</b>. Dá para limpar as murchas, colher para o dono, arar e até <b>plantar com o seu dinheiro</b> (Ajudar tudo faz tudo).`);
+            } else if (trocou) {
                 const prontos = v.canteiros.filter((c) => podePegar(c, info(c))).length;
                 mostrarStatus(prontos
                     ? `<b>${esc(v.apelido)}</b> tem ${prontos} canteiro(s) maduro(s). Pegue um pouquinho… ou ajude!`
@@ -3838,6 +3926,8 @@
                 flutuar(Number(pos), pegando
                     ? `+${qtd} ${k ? itemDe(k, 20) : ''}`
                     : acao === 'salvar' ? `Salvou! ${qtd ? `+${qtd} ${ico('xp', 16)}` : ''}`
+                    : acao === 'colher' ? `Pro dono! +${qtd} ${ico('xp', 16)}`
+                    : acao.startsWith('plantar') ? `Plantou! +${qtd} ${ico('xp', 16)}`
                     : qtd ? `+${qtd} ${ico('xp', 16)}` : `${ico('coracao', 16)}`, n * 70);   // (fase 48: o XP de ajudar vem do servidor)
             });
             aplicarEstado(r.estado);
@@ -3848,6 +3938,10 @@
                     ? `${ico('mao', 18)} Pegou ${total} itens de ${r.feitos} canteiro(s)!`
                     : acao === 'salvar'
                     ? `${ico('coracao', 16)} Salvou ${r.feitos} planta(s) murcha(s) do vizinho: +${total} ${ico('xp', 14)}`
+                    : acao === 'limpar' ? `${ico('coracao', 16)} Limpou ${r.feitos} planta(s) murcha(s): +${total} ${ico('xp', 14)}`
+                    : acao === 'arar' ? `${ico('coracao', 16)} Arou ${r.feitos} canteiro(s) do vizinho: +${total} ${ico('xp', 14)}`
+                    : acao === 'colher' ? `${ico('coracao', 16)} Colheu ${r.feitos} canteiro(s) para o dono: +${total} ${ico('xp', 14)}`
+                    : acao.startsWith('plantar') ? `${ico('coracao', 16)} Plantou ${r.feitos} canteiro(s) na fazenda abandonada: +${total} ${ico('xp', 14)}`
                     : `${ico('coracao', 16)} Ajudou em ${r.feitos} canteiro(s) do vizinho: +${total} ${ico('xp', 14)}`);
             } else if (posicoes.length === 1) {
                 descrever(posicoes[0]);
@@ -3856,7 +3950,20 @@
         });
     }
 
-    // fase 48: o visitante dá ração aos bichos com fome (sai do celeiro do dono; até 10 por dia em cada fazenda)
+    // fase 83: coleta o produto pronto dos bichos do vizinho (vai para o celeiro dele; você ganha o XP da ajuda)
+    function coletarBichosVizinho(ids) {
+        const dono = visita.id;
+        return enfileirar([], async () => {
+            const r = await rpc('fazenda_vizinho_coletar', { p_token: token, p_vizinho: dono, p_animais: ids });
+            if (r.feitos) {
+                som.tocar('colher');
+                toast(`${ico('coracao', 16)} Coletou o produto de ${r.feitos} bicho(s) para o vizinho: +${r.xp} ${ico('xp', 14)}`);
+            }
+            aplicarEstado(r.estado);
+            if (visita && visita.id === dono) mostrarVisita(r.vizinho);
+        });
+    }
+    // fase 48: o visitante dá ração aos bichos com fome (fase 83: a ração sai do SEU celeiro, sem limite)
     function alimentarBichosVizinho(ids) {
         const dono = visita.id;
         return enfileirar([], async () => {
@@ -3882,11 +3989,37 @@
             const salvos = visita.salvos_hoje != null ? visita.salvos_hoje : (visita.pode_salvar ? 0 : 2);
             const vagasSalvar = Math.max(0, 2 - salvos);
             const murchas = vagasSalvar > 0 && visita.pode_salvar !== false ? visita.canteiros.filter((c) => info(c).fase === 'murcho').slice(0, vagasSalvar) : [];
-            const famintos = 'bichos_hoje' in visita && visita.bichos_hoje < 10 ? (visita.animais || []).filter((a) => infoAnimal(a).estado === 'fome').map((a) => a.id) : [];
-            if (!ps.length && !murchas.length && !famintos.length) return toast('A fazenda do vizinho está em ordem.', undefined, 'leve');
+            // fase 83: a ração sai do seu celeiro (só os que você tem ração para dar) e os prontos você coleta para o dono
+            const sobra = {};
+            const famintos = (visita.animais || []).filter((a) => {
+                const t = infoAnimal(a).t;
+                if (infoAnimal(a).estado !== 'fome' || !t) return false;
+                const livre = (sobra[t.racao] != null ? sobra[t.racao] : livreFeira(t.racao));
+                if (livre < t.racao_qtd) return false;
+                sobra[t.racao] = livre - t.racao_qtd;
+                return true;
+            }).map((a) => a.id);
+            const prontos = (visita.animais || []).filter((a) => infoAnimal(a).estado === 'pronto').map((a) => a.id);
+            const nova = 'abandonada' in visita;   // (o servidor já tem a fase 83)
+            const outras = new Set(murchas.map((c) => c.posicao));
+            const limpar = nova ? visita.canteiros.filter((c) => info(c).fase === 'murcho' && !outras.has(c.posicao)).slice(0, Math.max(0, 2 - (visita.limpos_hoje || 0))) : [];
+            const colher = nova ? visita.canteiros.filter((c) => info(c).fase === 'maduro').map((c) => c.posicao) : [];
+            const arar = nova ? visita.canteiros.filter((c) => info(c).fase === 'vazio').map((c) => c.posicao) : [];
+            const k = nova && visita.abandonada ? sementeVizinho() : null;
+            let plantar = k ? visita.canteiros.filter((c) => info(c).fase === 'arado').map((c) => c.posicao) : [];
+            if (k) plantar = plantar.slice(0, Math.floor(S.jogador.moedas / Math.max(1, k.custo)));
+            if (!ps.length && !murchas.length && !famintos.length && !prontos.length && !limpar.length && !colher.length && !arar.length && !plantar.length) {
+                return toast('A fazenda do vizinho está em ordem.', undefined, 'leve');
+            }
+            if (plantar.length && !await perguntar(`Plantar ${plantar.length} canteiro(s) de ${k.nome.toLowerCase()} com o seu dinheiro (${moeda(plantar.length * k.custo).replace(/<[^>]+>/g, '')} moedas)? Cada um vale 5 ajudas de XP.`, 'Plantar', 'Não plantar')) plantar = [];
             if (ps.length) executarVisita('ajudar', ps);
+            if (colher.length) executarVisita('colher', colher);
             if (murchas.length) executarVisita('salvar', murchas.map((c) => c.posicao));
+            if (limpar.length) executarVisita('limpar', limpar.map((c) => c.posicao));
+            if (arar.length) executarVisita('arar', arar);
+            if (plantar.length) executarVisita('plantar:' + k.id, plantar);
             if (famintos.length) alimentarBichosVizinho(famintos);
+            if (prontos.length) coletarBichosVizinho(prontos);
             return;
         }
         // fase 66: os canteiros com alarme, se tiver luva do Perks (pergunta antes de gastar)
@@ -4256,7 +4389,7 @@
                     <li>A cada 10 minutos chega uma <b>visita na porteira</b>, do lado da casa (do nível 3 em diante): o feirante, a doceira e o caminhoneiro compram algo da fazenda pagando bem mais que o celeiro, e a mascate vende adubo. Toque nela para conversar. Os pedidos crescem com o seu nível, e do nível 5 em diante às vezes pedem algo que você ainda não faz: compre na feira ou peça no chat, que eles pagam o dobro. Bem de vez em quando (mais ou menos a cada 12 dias) vem o <b>mercador</b>, que troca um material raro do píer por frutos fora de época.</li>
                     <li>No nível 31 chega o <b>Litoral</b> (Loja → Terrenos): areia para construir e plantar e o mar. Na areia fica o lugar do <b>píer</b>: toque nele para ver a receita (9 peças difíceis e 100 mil moedas). Peça que falta dá para comprar com diamantes. Guarde o peixe do Velho Chico para o píer, no celeiro, para ele não ir no "Vender tudo".</li>
                     <li>Com o píer pronto, toque no <b>barco</b> para ir para o <b>alto-mar</b>: toque na água para lançar a linha, espere a boia <b>afundar de verdade</b> (às vezes o peixe só belisca) e toque de novo na hora para fisgar. Cada lançada usa 1 peixe do <b>cardume</b>, que enche sozinho com o tempo. Em <b>Melhorar</b>: barco maior (cardume maior e peixes novos), vara melhor (mais tempo para fisgar e peixes maiores) e o marinheiro <b>Seu Nonato</b>, que pesca sozinho por até 8 horas (toque no barquinho dele para recolher). 1 em cada 200 peixes vem com uma <b>pérola negra</b>.</li>
-                    <li>Bem de vez em quando (1 em cada 30 visitas) aparece o <b>Perks</b>, o 1º do ranking: ele pede muita planta fácil (tipo 1000 milhos) e paga com 4 <b>luvas do Perks</b>. Visitando um vizinho, cada luva pega 1 canteiro mesmo com alarme (só gasta no canteiro protegido). E quando uma planta murcha sem ninguém colher, o jogo diz por quê: sem colhedor, o Juca dormindo, a fazenda fechada mais de 8 h ou canteiro demais para o nível dele.</li>
+                    <li>De vez em quando (mais ou menos uma vez a cada 18 horas) aparece o <b>Perks</b>, o 1º do ranking: ele pede muita planta fácil (tipo 1000 milhos) e paga com 4 <b>luvas do Perks</b>. Visitando um vizinho, cada luva pega 1 canteiro mesmo com alarme (só gasta no canteiro protegido). E quando uma planta murcha sem ninguém colher, o jogo diz por quê: sem colhedor, o Juca dormindo, a fazenda fechada mais de 8 h ou canteiro demais para o nível dele.</li>
                     <li>Em <b>Melhorar</b>, no alto-mar, também dá para <b>tunar o barco</b> com peças que pedem moedas e materiais raros (os do mercador, a pérola negra e o marlim-azul): <b>motor</b> (o cardume enche mais rápido), <b>sonar</b> (mais peixe grande e mais pérola), <b>porão</b> (às vezes 2 peixes numa fisgada), <b>rede de arrasto</b> (o marinheiro pesca mais rápido) e o <b>kit de expedição</b>, que deixa o barco oceânico pronto para as ilhas do nível 46. A <b>pintura</b> muda a cor do casco, da faixa e a bandeira.</li>
                     <li>Toda semana tem o <b>evento</b> (no menu): de sexta às 22h até a sexta seguinte às 22h, os 3 primeiros de cada categoria ganham diamantes (30, 18 e 10) e cada um tem 50% de chance de levar um item raro: o 1º, o item que só sai do evento; o 2º e o 3º, um material do píer (no ranking, os troféus de prata e bronze). As categorias: XP ganho na semana (troféus de ouro, prata e bronze), níveis subidos, moedas ganhas, vendas e compras na barraca da feira e amigos convidados que chegaram ao nível 10 (o 1º pode levar o <b>leme dourado</b>, a peça do píer). O XP comprado com diamantes não conta no ranking nem em níveis, e na barraca uma mesma pessoa do outro lado vale no máximo 25% do total. Os troféus e as conquistas do evento ficam no perfil.</li>
                     <li>Cumpra as <b>missões do dia</b> para ganhar moedas e XP extras.</li>
