@@ -1318,6 +1318,12 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-10-18-moedas', data: '18/10', titulo: 'Diamante vira moeda e baús mais baratos', itens: [
+            'Na Loja → Diamantes, dá para <b>trocar 10 diamantes por moedas</b>: são 2.000 moedas por nível seu (no nível 30, 60 mil). Quanto mais alto, maior o pacote.',
+            'Os <b>baús da sorte</b> ficaram pela <b>metade do preço</b>: madeira 25 mil, prata 125 mil e ouro 500 mil. A chance de diamante e de item raro é a mesma de antes.',
+            'O <b>reator nuclear</b> ganhou desenho novo: torre de resfriamento soltando vapor e a cúpula com a janela verde brilhando (sem aquele quadrado).',
+            'Ninguém mais fica preso tremendo na beira da água: ajudantes, bichos, o fazendeiro e as visitas <b>entram na água</b> e ficam pela metade, como os patos (no lago, nos laguinhos e no mar).',
+            'O <b>bebedouro</b> dos cercados de vaca e ovelha aparece inteiro.'] },
         { id: '2026-10-18-leve', data: '18/10', titulo: 'Arrastar o mapa sem travar', itens: [
             'O jogo agora desenha <b>só o pedaço da fazenda que aparece na tela</b>, e não a fazenda inteira a cada quadro. Nas fazendas grandes, arrastar o mapa ficou até <b>2 a 3 vezes mais leve</b>, principalmente no celular.'] },
         { id: '2026-10-18-pergunta', data: '18/10', titulo: 'Sem janelinha do navegador', itens: [
@@ -4565,7 +4571,10 @@
         const info = (txt) => `<span class="preco">${txt}</span>`;
         const linha = (icone, nome, det, acao) => `<div class="item"><span class="ico">${icone}</span>
             <span><span class="nome">${nome}</span><span class="det"><span class="txt">${det}</span></span></span>${acao || '<span></span>'}</div>`;
+        const pacoteMoedas = l.moedas ? l.moedas.por_nivel * (j.nivel || 1) : 0;   // fase 79: cresce com o nível
         return `<h3 class="secao-titulo">Usar diamantes</h3><div class="lista">
+            ${l.moedas ? linha(ico('moeda', 36), `Trocar por moedas: +${pacoteMoedas.toLocaleString('pt-BR')}`, `${l.moedas.preco} ${ico('diamante', 12)} viram ${l.moedas.por_nivel.toLocaleString('pt-BR')} moedas por nível seu: quanto mais alto o nível, maior o pacote.`,
+                botaoDiamante('moedas', l.moedas.preco, 'Trocar')) : ''}
             ${linha(ico('xp', 36), 'XP em dobro', xp2 ? `<b>Ligado até ${hora(xp2)}</b>: todo XP vem dobrado. Comprar de novo soma mais ${l.xp2.horas} hora.`
                 : `Por ${l.xp2.horas} hora, todo XP que você ganha (colher, bichos, vender, missões) vem dobrado.`, botaoDiamante('xp2', l.xp2.preco, xp2 ? '+1 hora' : 'Ligar'))}
             ${linha(ico('xp', 36), `Pacote de XP: +${pacoteXp}`, `${l.xp.pct}% do seu nível, na hora. Até ${l.xp.por_dia} por dia (hoje: ${hoje}).`,
@@ -4978,6 +4987,7 @@
             const msg = {
                 xp2: `XP em dobro até ${hora(j.xp2_ate)}!`, xp: `+${r.xp} ${ico('xp', 14)}!`,
                 cafe: `Café servido: os ajudantes trabalham em dobro até ${hora(j.cafe_ate)}!`,
+                moedas: `+${moeda((((lojaD() || {}).moedas || {}).por_nivel * (j.nivel || 1) || 0).toLocaleString('pt-BR'))} na conta!`,
                 energia: 'Baterias cheias!', oficina: 'Receita pronta na hora!', murchas: 'As plantas murchas voltaram, prontas para colher!'
             }[item];
             toast(`${ico('diamante', 16)} −${r.diamantes} · ${msg}`, 'festa');
