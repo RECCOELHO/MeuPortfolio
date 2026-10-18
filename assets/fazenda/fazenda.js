@@ -132,6 +132,7 @@
         sem_ingredientes: 'Faltam ingredientes no celeiro (a ração reservada não entra na receita).',
         estoque_cheio: 'O estoque dessa oficina está cheio (10 receitas).',
         sem_visita: 'A visita já foi embora. Outra chega daqui a pouco.',
+        visita_mudou: 'Essa visita já foi embora e chegou outra: toque nela para ver o pedido.',
         avatar_invalido: 'Não deu para salvar esse avatar.',
         falta_pedido: 'Ainda não tem o bastante no celeiro para esse pedido.',
         sem_canteiros_crescendo: 'Não tem canteiro crescendo para adubar: plante primeiro.',
@@ -1157,6 +1158,11 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-10-18-visitas', data: '18/10', titulo: 'Visita a cada 10 minutos', itens: [
+            'Chega uma <b>visita na porteira</b> a cada <b>10 minutos</b> (antes era a cada 3 horas). Cada pedido é menor que o de antes, mas no dia rende mais.',
+            'Os pedidos <b>crescem com o seu nível</b>: mais quantidade e, do nível 15 em diante, também produtos das oficinas, dos bichos e do pomar.',
+            'Do nível 5 em diante, às vezes a visita pede algo que <b>o seu nível ainda não faz</b>: compre na feira ou toque em <b>Pedir no chat</b> para alguém te ajudar. Esse pedido paga o <b>dobro do celeiro e 3x o XP</b>.',
+            'O mercador e o Perks continuam como antes: raros (o Perks mais ou menos a cada 4 dias, o mercador a cada 12) e esperando até 3 horas na porteira.'] },
         { id: '2026-10-18-agua2', data: '18/10', titulo: 'A água refeita', itens: [
             'A água do lago, do laguinho dos patos e do <b>mar</b> foi refeita: brilhinhos que acendem e apagam, <b>peixes nadando</b> de um lado para o outro, a espuma da onda indo e voltando na areia e, de vez em quando, um peixe pulando.',
             'Os <b>patos</b> nadando ficam com metade do corpo dentro da água; fora dela, aparecem inteiros.',
@@ -1761,7 +1767,7 @@
         return linhas.length ? `<div class="chips">${linhas.join('')}</div>` : '<p class="det">Ainda sem pódio no evento da semana. Ele fecha toda sexta às 22h.</p>';
     }
 
-    /* ---------- Visitas na porteira: a cada 3 horas chega alguém (fazenda_visitante) ---------- */
+    /* ---------- Visitas na porteira: a cada 10 minutos chega alguém (fazenda_visitante; fase 76) ---------- */
     const VISITAS = {
         feirante: { nome: 'Seu Tonico', papel: 'o feirante', sprite: 86,
             fala: (q, item, paga) => `Bom dia! Tô precisando de <b>${q} ${item}</b> pra banca da feira. Pago <b>${paga}</b>, bem mais que no celeiro!` },
@@ -1770,8 +1776,8 @@
         caminhoneiro: { nome: 'Zeca', papel: 'do caminhão', sprite: 112,
             fala: (q, item, paga) => `E aí! O caminhão tá vazio: levo <b>${q} ${item}</b> de uma vez só. Pago <b>${paga}</b> e ainda dou um bônus de XP.` },
         mascate: { nome: 'Dona Fia', papel: 'a mascate', sprite: 100 },
-        mercador: { nome: 'Seu Jacó', papel: 'o mercador', sprite: 111 },   // fase 60: 1 em cada 100 visitas
-        perks: { nome: 'Perks', papel: 'o 1º do ranking', sprite: 97 }   // fase 66: 1 em cada 30 visitas
+        mercador: { nome: 'Seu Jacó', papel: 'o mercador', sprite: 111 },   // fase 60: 1 em cada 100 blocos de 3 h
+        perks: { nome: 'Perks', papel: 'o 1º do ranking', sprite: 97 }   // fase 66: 1 em cada 30 blocos de 3 h
     };
     const visitaAgora = () => (!visita && S && S.visitante) || null;
     const nomeQtd = (k, n) => { const nome = (k.nome || k.id).toLowerCase(); return n === 1 || /s$/.test(nome) ? nome : nome.replace(/(ão)$/, 'ões').replace(/([^s])$/, '$1s'); };
@@ -1797,7 +1803,7 @@
             ? `vende adubo para ${v.canteiros} canteiros por ${moeda(v.preco)}.`
             : v.tipo === 'mercador' ? `troca 1 ${r ? itemDe(r, 16) + esc(r.nome.toLowerCase()) : 'material raro'} por ${v.qtd} ${k ? itemDe(k, 16) + esc(nomeQtd(k, v.qtd)) : ''} fora de época.`
             : v.tipo === 'perks' ? `troca ${v.luvas} ${itemDe(culturas.luva_perks || { id: 'luva_perks' }, 16)} luvas (passam pelo alarme do vizinho) por ${v.qtd} ${k ? itemDe(k, 16) + esc(nomeQtd(k, v.qtd)) : ''}.`
-            : `quer ${v.qtd} ${k ? itemDe(k, 16) + esc(nomeQtd(k, v.qtd)) : ''} e paga ${moeda(v.paga)}.`) + ' Toque para conversar.');
+            : `quer ${v.qtd} ${k ? itemDe(k, 16) + esc(nomeQtd(k, v.qtd)) : ''} e paga ${moeda(v.paga)}.${v.fora_nivel ? ` É do nível ${v.nivel_item}: feira ou chat.` : ''}`) + ' Toque para conversar.');
     }
     // canteiros que a mascate aduba agora (crescendo e ainda sem adubo)
     const canteirosParaAdubo = () => (S.canteiros || []).filter((c) => !c.adubado && info(c).fase === 'crescendo').length;
@@ -1823,7 +1829,7 @@
                     <span>Cada luva pega 1 canteiro com alarme</span>
                     <span class="lucro">Na feira, de ${moeda(numero(luva.venda))} a ${moeda(numero(luva.venda * 3))}</span>
                 </div>
-                <p class="det"><span class="txt">Você tem ${numero(tem)} ${esc(nomeQtd(k, tem))}${tem < v.qtd ? `: faltam ${numero(v.qtd - tem)}` : ''}. Ele é raro: aparece mais ou menos 1 vez em cada 30 visitas.</span></p>
+                <p class="det"><span class="txt">Você tem ${numero(tem)} ${esc(nomeQtd(k, tem))}${tem < v.qtd ? `: faltam ${numero(v.qtd - tem)}` : ''}. Ele é raro: aparece mais ou menos 1 vez a cada 4 dias.</span></p>
                 <div class="rodape-painel">
                     <button type="button" class="botao creme" data-atender="0">Agora não</button>
                     <button type="button" class="botao verde" data-atender="1"${tem >= v.qtd ? '' : ' disabled'}>Trocar ${numero(v.qtd)} ${itemDe(k, 18)}</button>
@@ -1837,19 +1843,24 @@
                     <span>Na feira, ${esc(r.nome.toLowerCase())} vai de ${moeda(r.venda)} a ${moeda(r.venda * 3)}</span>
                     <span class="lucro">Serve no píer (nível 31)</span>
                 </div>
-                <p class="det"><span class="txt">Você tem ${tem} ${esc(nomeQtd(k, tem))}${tem < v.qtd ? `: faltam ${v.qtd - tem}. Fruta fora de época só tem quem guardou da estação dela ou plantou na estufa` : ''}. Ele é raro: aparece mais ou menos 1 vez em cada 100 visitas.</span></p>
+                <p class="det"><span class="txt">Você tem ${tem} ${esc(nomeQtd(k, tem))}${tem < v.qtd ? `: faltam ${v.qtd - tem}. Fruta fora de época só tem quem guardou da estação dela ou plantou na estufa` : ''}. Ele é raro: aparece mais ou menos 1 vez a cada 12 dias.</span></p>
                 <div class="rodape-painel">
                     <button type="button" class="botao creme" data-atender="0">Agora não</button>
                     <button type="button" class="botao verde" data-atender="1"${tem >= v.qtd ? '' : ' disabled'}>Trocar ${v.qtd} ${itemDe(k, 18)}</button>
                 </div>`;
         }
         const valeCeleiro = v.qtd * (k.venda || 0), mais = valeCeleiro ? Math.round((v.paga / valeCeleiro - 1) * 100) : 0;
+        // fase 76: às vezes pede o que o seu nível ainda não faz: só comprando na feira ou pedindo no chat
+        const fora = v.fora_nivel ? `<p class="aviso">${ico('cadeado', 14)} ${esc(k.nome)} é do <b>nível ${v.nivel_item}</b>: você ainda não faz. Compre na <b>feira</b> ou peça no <b>chat</b> para quem já faz. Por isso ele paga o dobro do celeiro e 3x o XP.</p>
+            ${tem < v.qtd ? `<p class="det"><button type="button" class="botao pequeno creme" data-chat-feira="${esc(v.item)}">${ico('moeda', 14)} Ver na feira</button>
+                <button type="button" class="botao pequeno verde" data-visita-chat>${ico('chat', 14)} Pedir no chat</button></p>` : ''}` : '';
         return `${cabeca}
             <p class="fala">${p.fala(v.qtd, `${itemDe(k, 18)} ${esc(nomeQtd(k, v.qtd))}`, `${v.paga} ${ico('moeda', 14)}`)}</p>
             <div class="oficina-conta">
                 <span>No celeiro valeria ${moeda(valeCeleiro)}</span>
                 <span class="lucro">Paga ${moeda(v.paga)} (+${mais}%) e ${v.xp} ${ico('xp', 12)}</span>
             </div>
+            ${fora}
             <p class="det">Você tem ${tem} ${itemDe(k, 16)}${reservaDe(v.item) ? ' (fora o reservado para os bichos)' : ''}${tem < v.qtd ? `: faltam ${v.qtd - tem}.` : '.'}</p>
             <div class="rodape-painel">
                 <button type="button" class="botao creme" data-atender="0">Agora não</button>
@@ -1863,7 +1874,7 @@
         S.visitante = null;        // ela já vai embora andando; o servidor confirma
         atualizarVisitante();
         enfileirar([], async () => {
-            const r = await rpc('fazenda_atender', { p_token: token, p_entregar: entregar });
+            const r = await rpc('fazenda_atender', { p_token: token, p_entregar: entregar, p_slot: v.slot });
             const p = VISITAS[v.tipo];
             if (r.resposta === 'entregou') {
                 som.tocar(v.tipo === 'mascate' ? 'cuidar' : 'moeda');
@@ -3983,7 +3994,7 @@
                     ${ANUNCIO.ligado || ehLocal ? `<li>Quando aparecer o botão <b>+30 min</b>, assista a um anúncio até o fim e tudo o que está em andamento (plantas, animais, oficinas, ajudantes e energia) adianta 30 minutos. Cada anúncio também dá 1 ${ico('diamante', 14)} diamante.</li>` : ''}
                     <li>No Perfil (ou em Vizinhos) tem o seu <b>link de convite</b>: quem criar uma fazenda por ele ganha moedas, e você também.</li>
                     <li>No <b>Vale do sudeste</b> (terreno 3) tem um lago: o pescador <b>Bira</b> tira um peixe a cada 30 minutos, até 16 no cesto. Toque no lago para pegar. Quanto mais raro, mais vale, e o lendário <b>Peixe do Velho Chico</b> sai em 1% das vezes (2% com a estátua do nível 30).</li>
-                    <li>A cada 3 horas chega uma <b>visita na porteira</b>, do lado da casa (do nível 3 em diante): o feirante, a doceira e o caminhoneiro compram algo da fazenda pagando bem mais que o celeiro, e a mascate vende adubo. Toque nela para conversar. Bem de vez em quando (1 em cada 100 visitas) vem o <b>mercador</b>, que troca um material raro do píer por frutos fora de época.</li>
+                    <li>A cada 10 minutos chega uma <b>visita na porteira</b>, do lado da casa (do nível 3 em diante): o feirante, a doceira e o caminhoneiro compram algo da fazenda pagando bem mais que o celeiro, e a mascate vende adubo. Toque nela para conversar. Os pedidos crescem com o seu nível, e do nível 5 em diante às vezes pedem algo que você ainda não faz: compre na feira ou peça no chat, que eles pagam o dobro. Bem de vez em quando (mais ou menos a cada 12 dias) vem o <b>mercador</b>, que troca um material raro do píer por frutos fora de época.</li>
                     <li>No nível 31 chega o <b>Litoral</b> (Loja → Terrenos): areia para construir e plantar e o mar. Na areia fica o lugar do <b>píer</b>: toque nele para ver a receita (9 peças difíceis e 100 mil moedas). Peça que falta dá para comprar com diamantes. Guarde o peixe do Velho Chico para o píer, no celeiro, para ele não ir no "Vender tudo".</li>
                     <li>Com o píer pronto, toque no <b>barco</b> para ir para o <b>alto-mar</b>: toque na água para lançar a linha, espere a boia <b>afundar de verdade</b> (às vezes o peixe só belisca) e toque de novo na hora para fisgar. Cada lançada usa 1 peixe do <b>cardume</b>, que enche sozinho com o tempo. Em <b>Melhorar</b>: barco maior (cardume maior e peixes novos), vara melhor (mais tempo para fisgar e peixes maiores) e o marinheiro <b>Seu Nonato</b>, que pesca sozinho por até 8 horas (toque no barquinho dele para recolher). 1 em cada 200 peixes vem com uma <b>pérola negra</b>.</li>
                     <li>Bem de vez em quando (1 em cada 30 visitas) aparece o <b>Perks</b>, o 1º do ranking: ele pede muita planta fácil (tipo 1000 milhos) e paga com 4 <b>luvas do Perks</b>. Visitando um vizinho, cada luva pega 1 canteiro mesmo com alarme (só gasta no canteiro protegido). E quando uma planta murcha sem ninguém colher, o jogo diz por quê: sem colhedor, o Juca dormindo, a fazenda fechada mais de 8 h ou canteiro demais para o nível dele.</li>
@@ -4515,7 +4526,7 @@
        As mensagens da última hora (fazenda_chat). Com o painel aberto, busca só as novas de 5 em 5 s
        (direto no rpc, sem a fila das ações), e só redesenha a lista (o que você digita fica). */
     const chat = { msgs: [], ultimo: 0, regras: null, pode: false, admin: false, atendidos: {} };
-    let chatTimer = null, chatBuscando = false, chatEnviando = false, chatPedindo = false, chatPedidoItem = null, chatAssinatura = '';
+    let chatTimer = null, chatBuscando = false, chatEnviando = false, chatPedindo = false, chatPedidoItem = null, chatPedidoQtd = 10, chatPedidoPreco = null, chatAssinatura = '';
     const silenciados = () => { try { return JSON.parse(store.get(LS.chatSilencio) || '[]'); } catch { return []; } };
     function chatNaoLido() { return painelAtual !== 'chat' && !!(S && S.chat && S.chat.ultimo) && S.chat.ultimo > (Number(store.get(LS.chatVisto)) || 0); }
     function marcarChatLido() {
@@ -4605,8 +4616,8 @@
         const k = culturas[chatPedidoItem], [min, max] = faixaFeira(k);
         return `<div class="chat-pedir">
             <label>O que você procura <select data-chat-item>${itens.map((id) => `<option value="${esc(id)}"${id === chatPedidoItem ? ' selected' : ''}>${nomePedido(id)}</option>`).join('')}</select></label>
-            <label>Quantos <input type="number" id="chatQtd" min="1" max="99" value="10"></label>
-            <label>Pago cada <input type="number" id="chatPreco" min="${min}" max="${max}" value="${Math.min(max, Math.max(min, k.venda))}"></label>
+            <label>Quantos <input type="number" id="chatQtd" min="1" max="99" value="${chatPedidoQtd}"></label>
+            <label>Pago cada <input type="number" id="chatPreco" min="${min}" max="${max}" value="${Math.min(max, Math.max(min, chatPedidoPreco || k.venda))}"></label>
             <p class="det">${itemDe(k, 16)} Na venda normal, ${moeda(k.venda)}. Pode oferecer de ${numero(min)} a ${numero(max)} cada.</p>
         </div>`;
     }
@@ -4639,7 +4650,7 @@
         try {
             await rpc('fazenda_chat_enviar', args);
             if (inp) inp.value = '';
-            if (chatPedindo) { chatPedindo = false; abrirPainel('chat', true); }
+            if (chatPedindo) { chatPedindo = false; chatPedidoQtd = 10; chatPedidoPreco = null; abrirPainel('chat', true); }
             await carregarChat(false);
             const l = $('chatLista');
             if (l) l.scrollTop = l.scrollHeight;
@@ -5041,6 +5052,16 @@
         }
         const at = e.target.closest('[data-atender]');
         if (at) { atender(at.dataset.atender === '1'); return; }
+        if (e.target.closest('[data-visita-chat]')) {   // fase 76: o pedido fora do nível vira um pedido no chat
+            const v = visitaAgora(), k = v && culturas[v.item];
+            if (v && k) {
+                chatPedindo = true; chatPedidoItem = v.item;
+                chatPedidoQtd = Math.min(99, Math.max(1, v.qtd - Math.max(0, naCeleiro(v.item) - reservaDe(v.item))));
+                chatPedidoPreco = Math.round(k.venda * 1.5);   // a visita paga o dobro: ainda sobra
+            }
+            abrirPainel('chat');
+            return;
+        }
         const est = e.target.closest('[data-estoque]');
         if (est && oficinaAberta) {
             const n = Number(est.dataset.estoque);
@@ -5639,7 +5660,7 @@
         const sel = e.target.closest('[data-feira-item]');
         if (sel) { feiraItem = sel.value; abrirPainel('feira', true); }
         const ci = e.target.closest('[data-chat-item]');   // fase 67: o item do pedido no chat
-        if (ci) { chatPedidoItem = ci.value; abrirPainel('chat', true); }
+        if (ci) { chatPedidoItem = ci.value; chatPedidoPreco = null; abrirPainel('chat', true); }
     });
     el.painelCorpo.addEventListener('submit', (e) => {   // fase 67: enviar no chat
         if (!e.target.closest('[data-chat-form]')) return;
@@ -5904,6 +5925,16 @@
         desenharEnergia();
         atualizarBotaoAnuncio();
         atualizarLago();
+        if (S.visitante && Date.parse(S.visitante.ate) <= agora()) {   // fase 76: acabaram os 10 min dela
+            const p = VISITAS[S.visitante.tipo];
+            S.visitante = null;
+            atualizarVisitante();
+            if (painelAtual === 'visitante') { fecharPainel(); if (p) toast(`${spr(p.sprite, 20, 'dungeon')} ${p.nome} foi embora. Daqui a pouco chega outra visita.`); }
+            if (document.visibilityState === 'visible' && Date.now() - mexeuEm < 5 * 60000 && Date.now() - ultimoPoll > 10000) {
+                ultimoPoll = Date.now();   // alguém jogando: já busca a próxima
+                recarregar();
+            }
+        }
         if (S.clima && A.faseDoDia(agora()).noite !== noiteMostrada) desenharClima();   // virou o dia ou a noite
         if (painelAtual === 'oficina') {
             const c = oficinaDoPainel(), o = c && infoOficina(c), alvo = el.painelCorpo.querySelector('[data-oficina-agora]');

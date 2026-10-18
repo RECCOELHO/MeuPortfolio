@@ -361,7 +361,7 @@ alter table public.fazenda_jogadores add column if not exists avatares text[] no
 -- adubo. Cada visita fica até o fim das 3 horas ou até você atender (entregar ou dispensar).
 create table if not exists public.fazenda_visitas_npc (
   jogador_id uuid not null references public.fazenda_jogadores(id) on delete cascade,
-  slot       bigint not null,                 -- floor(epoch / 10800): o bloco de 3 horas
+  slot       bigint not null,                 -- floor(epoch / 10800): o bloco de 3 horas (fase 76: de 10 min, floor(epoch / 600))
   resposta   text not null check (resposta in ('entregou', 'dispensou')),
   em         timestamptz not null default now(),
   primary key (jogador_id, slot)
@@ -4445,94 +4445,144 @@ end;
 $$;
 
 -- A visita de agora (null = já atendida, ou nível menor que 3). Tudo sai do md5 do jogador e
--- do bloco de 3 horas: a mesma visita a cada carga, e outra no bloco seguinte.
+-- do bloco de tempo (fase 76: de 10 min; os raros, de 3 h): a mesma visita a cada carga, e outra no
+-- bloco seguinte.
 create or replace function public.fazenda_visitante(p_jogador uuid)
 returns jsonb
 language plpgsql security definer
 set search_path = public, extensions
 as $$
+-- fase 76: uma visita a cada 10 min (era a cada 3 h), e cada pedido é menor, para o dia não render
+-- 18x mais. Os raros (mercador e Perks) continuam no bloco de 3 h, com a mesma chance de antes: ficam
+-- até o fim das 3 h ou até você atender, e depois as visitas de 10 min voltam. Os pedidos crescem com o
+-- nível e às vezes pedem o que o seu nível ainda não faz (feira ou chat, pagando o dobro do celeiro).
 declare
-  v_slot  bigint := floor(extract(epoch from now()) / 10800);
-  v_h     text := md5(p_jogador::text || ':' || floor(extract(epoch from now()) / 10800)::bigint);
+  v_bloco bigint := floor(extract(epoch from now()) / 10800);   -- os raros: de 3 em 3 h
+  v_hb    text := md5(p_jogador::text || ':' || floor(extract(epoch from now()) / 10800)::bigint);
+  v_slot  bigint := floor(extract(epoch from now()) / 600);     -- as outras: de 10 em 10 min
+  v_h     text := md5(p_jogador::text || ':' || floor(extract(epoch from now()) / 600)::bigint);
   v_tipo  text;
   v_nivel int;
   k       record;
   v_qtd   int;
-  v_alvo  int;
+  v_alvo  numeric;
+  v_alvo_xp numeric;
   v_raro  text;
+  v_fora  boolean := false;
+  v_achou boolean := false;
+  v_span  bigint;
+  v_xp    int;
+  v_ate   timestamptz := to_timestamp((floor(extract(epoch from now()) / 600) + 1) * 600);
 begin
-  if exists (select 1 from fazenda_visitas_npc where jogador_id = p_jogador and slot = v_slot) then return null; end if;
-  -- fase 66: o Perks (1 em cada 30 visitas, do nível 3 em diante; o mercador vem antes) pede uma planta
-  -- fácil em número grande e paga com luvas que passam pelo alarme do vizinho
-  if ('x' || substr(v_h, 9, 4))::bit(16)::int % 100 <> 0
-     and ('x' || substr(v_h, 17, 4))::bit(16)::int % (fazenda_perks()->>'chance')::int = 0
-     and (select fazenda_nivel(xp) from fazenda_jogadores where id = p_jogador) >= (fazenda_perks()->>'nivel')::int then
-    select x.p->>'id', (x.p->>'qtd')::int into v_raro, v_qtd
-      from jsonb_array_elements(fazenda_perks()->'pedidos') x(p) join fazenda_culturas c on c.id = x.p->>'id'
-     where c.nivel_min <= (select fazenda_nivel(xp) from fazenda_jogadores where id = p_jogador)
-     order by md5(v_h || c.id) limit 1;
-    return jsonb_build_object('slot', v_slot, 'tipo', 'perks', 'ate', to_timestamp((v_slot + 1) * 10800),
-                              'item', v_raro, 'qtd', v_qtd, 'luvas', (fazenda_perks()->>'luvas')::int, 'paga', 0, 'xp', 0);
-  end if;
-  -- fase 60: o mercador (1 em cada 100 visitas, desde o nível 1) troca 1 material raro do píer por
-  -- frutos fora de época (só tem quem guardou da estação dele ou plantou na estufa)
-  if ('x' || substr(v_h, 9, 4))::bit(16)::int % 100 = 0 then
-    select y.r->>'id', (y.r->>'frutas')::int into v_raro, v_qtd
-      from (select x.r, sum((x.r->>'peso')::int) over (order by x.ord) as acum
-              from jsonb_array_elements(fazenda_raros()) with ordinality as x(r, ord)) y
-     where y.acum > ('x' || substr(v_h, 13, 4))::bit(16)::int % 100
-     order by y.acum limit 1;
-    -- (fase 70: só o que o seu nível já planta; no nível 1 e 2, nada fora de época: ele não vem)
-    select c.* into k from fazenda_culturas c
-     where c.tipo = 'cultura' and c.estacao is not null and c.estacao <> fazenda_estacao_em(now())
-       and c.nivel_min <= (select fazenda_nivel(xp) from fazenda_jogadores where id = p_jogador)
-     order by md5(v_h || c.id) limit 1;
-    if found then
-      return jsonb_build_object('slot', v_slot, 'tipo', 'mercador', 'ate', to_timestamp((v_slot + 1) * 10800),
-                                'item', k.id, 'qtd', v_qtd, 'raro', v_raro, 'paga', 0, 'xp', 0);
+  select fazenda_nivel(xp) into v_nivel from fazenda_jogadores where id = p_jogador;
+  if not exists (select 1 from fazenda_visitas_npc where jogador_id = p_jogador and slot = v_bloco) then
+    -- fase 66: o Perks (1 em cada 30 blocos de 3 h, do nível 3 em diante; o mercador vem antes) pede uma
+    -- planta fácil em número grande e paga com luvas que passam pelo alarme do vizinho
+    if ('x' || substr(v_hb, 9, 4))::bit(16)::int % 100 <> 0
+       and ('x' || substr(v_hb, 17, 4))::bit(16)::int % (fazenda_perks()->>'chance')::int = 0
+       and v_nivel >= (fazenda_perks()->>'nivel')::int then
+      select x.p->>'id', (x.p->>'qtd')::int into v_raro, v_qtd
+        from jsonb_array_elements(fazenda_perks()->'pedidos') x(p) join fazenda_culturas c on c.id = x.p->>'id'
+       where c.nivel_min <= v_nivel
+       order by md5(v_hb || c.id) limit 1;
+      return jsonb_build_object('slot', v_bloco, 'tipo', 'perks', 'ate', to_timestamp((v_bloco + 1) * 10800),
+                                'item', v_raro, 'qtd', v_qtd, 'luvas', (fazenda_perks()->>'luvas')::int, 'paga', 0, 'xp', 0);
+    end if;
+    -- fase 60: o mercador (1 em cada 100 blocos de 3 h, desde o nível 1) troca 1 material raro do píer
+    -- por frutos fora de época (só tem quem guardou da estação dele ou plantou na estufa)
+    if ('x' || substr(v_hb, 9, 4))::bit(16)::int % 100 = 0 then
+      select y.r->>'id', (y.r->>'frutas')::int into v_raro, v_qtd
+        from (select x.r, sum((x.r->>'peso')::int) over (order by x.ord) as acum
+                from jsonb_array_elements(fazenda_raros()) with ordinality as x(r, ord)) y
+       where y.acum > ('x' || substr(v_hb, 13, 4))::bit(16)::int % 100
+       order by y.acum limit 1;
+      -- (fase 70: só o que o seu nível já planta; no nível 1 e 2, nada fora de época: ele não vem)
+      select c.* into k from fazenda_culturas c
+       where c.tipo = 'cultura' and c.estacao is not null and c.estacao <> fazenda_estacao_em(now())
+         and c.nivel_min <= v_nivel
+       order by md5(v_hb || c.id) limit 1;
+      if found then
+        return jsonb_build_object('slot', v_bloco, 'tipo', 'mercador', 'ate', to_timestamp((v_bloco + 1) * 10800),
+                                  'item', k.id, 'qtd', v_qtd, 'raro', v_raro, 'paga', 0, 'xp', 0);
+      end if;
     end if;
   end if;
-  select fazenda_nivel(xp) into v_nivel from fazenda_jogadores where id = p_jogador;
+  if exists (select 1 from fazenda_visitas_npc where jogador_id = p_jogador and slot = v_slot) then return null; end if;
   if v_nivel < 3 then return null; end if;
   v_tipo := (array['feirante', 'doceira', 'caminhoneiro', 'mascate'])[1 + (('x' || substr(v_h, 1, 4))::bit(16)::int % 4)];
   if v_tipo = 'caminhoneiro' and v_nivel < 8 then v_tipo := 'feirante'; end if;
   if v_tipo = 'mascate' then   -- fase 72: o adubo cobre mais canteiros com o nível (8 + 1 a cada 3 níveis)
-    return jsonb_build_object('slot', v_slot, 'tipo', v_tipo, 'ate', to_timestamp((v_slot + 1) * 10800),
+    return jsonb_build_object('slot', v_slot, 'tipo', v_tipo, 'ate', v_ate,
                               'canteiros', 8 + v_nivel / 3, 'preco', 40 + 10 * v_nivel);
   end if;
-  -- a doceira quer o que seus bichos ou suas oficinas fazem; os outros, o que você planta
-  if v_tipo = 'doceira' then
+  -- fase 76: o tamanho do pedido sai do esforço: uns 0,25% do nível em XP de colheita (o caminhoneiro, 3x),
+  -- e no mínimo o de moedas de antes, dividido pelas 18 visitas. Sempre item que dê pelo menos 2 no pedido
+  -- (nada de 2 marlins no lugar de 40 sardinhas) e nada dos peixes raros da pescaria.
+  v_span := fazenda_xp_nivel(least(v_nivel, 44) + 1) - fazenda_xp_nivel(least(v_nivel, 44));
+  v_alvo_xp := 0.0025 * v_span * case when v_tipo = 'caminhoneiro' then 3 else 1 end;
+  v_alvo := (60 + 20 * v_nivel) / 3.0 * case when v_tipo = 'caminhoneiro' then 3 else 1 end;
+  -- do nível 5 em diante, de 15% a 30% das visitas (sobe com o nível) pedem o que o seu nível ainda não
+  -- faz (até 8 níveis acima): só comprando na feira ou pedindo no chat
+  if v_nivel >= 5 and ('x' || substr(v_h, 21, 4))::bit(16)::int % 100 < 15 + v_nivel / 3 then
     select c.* into k from fazenda_culturas c
-     where c.tipo = 'produto' and (   -- (fase 70: sem o "ordem < 40", que deixava de fora tudo o que veio depois da fase 21)
-           c.id in (select t.produto from fazenda_animais a join fazenda_animais_tipos t on t.id = a.tipo where a.jogador_id = p_jogador)
-        or c.id in (select i.produz from fazenda_construcoes x join fazenda_itens i on i.id = x.tipo
-                     where x.jogador_id = p_jogador and i.entradas is not null))
+     where c.tipo in ('cultura', 'produto') and c.venda > 0 and c.nivel_min between v_nivel + 1 and v_nivel + 8
+       and (c.xp::numeric / greatest(c.rendimento, 1) <= v_alvo_xp / 2 or c.venda <= v_alvo / 2)
+       and c.id not in (select f.peixe from fazenda_peixes() f where f.chance < 10)
+       and c.id not in (select m->>'id' from jsonb_array_elements(fazenda_mar_tabela()) m where (m->>'peso')::int < 15)
      order by md5(v_h || c.id) limit 1;
-    if not found then v_tipo := 'feirante'; end if;
+    v_fora := found;
   end if;
-  if v_tipo <> 'doceira' then   -- uma das 5 melhores sementes que você já tem (nada de 70 alfaces no nível 20)
-    select x.* into k from (
-      select c.* from fazenda_culturas c
-       where c.tipo = 'cultura' and c.nivel_min <= v_nivel and (c.estacao is null or c.estacao = fazenda_estacao_em(now()))
-       order by c.nivel_min desc limit 5) x
-     order by md5(v_h || x.id) limit 1;
+  if not v_fora then
+    -- a doceira quer o que seus bichos ou suas oficinas fazem; os outros, o que você planta
+    if v_tipo = 'doceira' then
+      select c.* into k from fazenda_culturas c
+       where c.tipo = 'produto' and (   -- (fase 70: sem o "ordem < 40", que deixava de fora tudo o que veio depois da fase 21)
+             c.id in (select t.produto from fazenda_animais a join fazenda_animais_tipos t on t.id = a.tipo where a.jogador_id = p_jogador)
+          or c.id in (select i.produz from fazenda_construcoes x join fazenda_itens i on i.id = x.tipo
+                       where x.jogador_id = p_jogador and i.entradas is not null))
+         and (c.xp::numeric / greatest(c.rendimento, 1) <= v_alvo_xp / 2 or c.venda <= v_alvo / 2)
+       order by md5(v_h || c.id) limit 1;
+      if not found then v_tipo := 'feirante'; end if;
+    end if;
+    if v_tipo <> 'doceira' then
+      -- do nível 15 em diante, metade das vezes pede um produto (de oficina, bicho, pomar...) do seu
+      -- nível, não só semente
+      if v_nivel >= 15 and ('x' || substr(v_h, 25, 4))::bit(16)::int % 2 = 0 then
+        select c.* into k from fazenda_culturas c
+         where c.tipo = 'produto' and c.venda > 0 and c.nivel_min between greatest(1, v_nivel - 12) and v_nivel
+           and (c.xp::numeric / greatest(c.rendimento, 1) <= v_alvo_xp / 2 or c.venda <= v_alvo / 2)
+           and c.id not in (select f.peixe from fazenda_peixes() f where f.chance < 10)
+           and c.id not in (select m->>'id' from jsonb_array_elements(fazenda_mar_tabela()) m where (m->>'peso')::int < 15)
+         order by md5(v_h || c.id) limit 1;
+        v_achou := found;
+      end if;
+      if not v_achou then   -- uma das 5 melhores sementes que você já tem (nada de 70 alfaces no nível 20)
+        select x.* into k from (
+          select c.* from fazenda_culturas c
+           where c.tipo = 'cultura' and c.nivel_min <= v_nivel and (c.estacao is null or c.estacao = fazenda_estacao_em(now()))
+           order by c.nivel_min desc limit 5) x
+         order by md5(v_h || x.id) limit 1;
+      end if;
+    end if;
   end if;
-  v_alvo := (60 + 20 * v_nivel) * case when v_tipo = 'caminhoneiro' then 3 else 1 end;
-  v_qtd := greatest(2, least(80, round(v_alvo::numeric / k.venda)::int));
-  return jsonb_build_object('slot', v_slot, 'tipo', v_tipo, 'ate', to_timestamp((v_slot + 1) * 10800),
+  v_qtd := greatest(2, least(200, round(greatest(v_alvo_xp / greatest(k.xp::numeric / greatest(k.rendimento, 1), 0.1),
+                                                 v_alvo / k.venda))::int));
+  -- XP de quanto você ganharia colhendo isso (o fora do nível, o triplo; o caminhoneiro já leva 3x mais),
+  -- de 0,1% a 1% do nível (fase 76: são 18 visitas no lugar de cada uma de antes)
+  v_xp := least(ceil(0.01 * v_span)::int,
+                greatest(1, v_qtd * k.xp / greatest(k.rendimento, 1), ceil(0.001 * v_span)::int)
+                * case when v_fora then 3 else 1 end);
+  return jsonb_build_object('slot', v_slot, 'tipo', v_tipo, 'ate', v_ate,
     'item', k.id, 'qtd', v_qtd,
-    'paga', round(v_qtd * k.venda * case v_tipo when 'feirante' then 1.5 when 'doceira' then 1.6 else 1.4 end)::int,
-    -- XP de quanto você ganharia colhendo isso (o caminhoneiro dá o dobro); fase 72: pelo menos 1% do nível
-    -- (o caminhoneiro, 2%), que cresce com ele: no fim, o de colher era quase nada
-    'xp', greatest(1, v_qtd * k.xp / greatest(k.rendimento, 1),
-                   ceil(0.01 * (fazenda_xp_nivel(least(v_nivel, 44) + 1) - fazenda_xp_nivel(least(v_nivel, 44))))::int)
-          * case when v_tipo = 'caminhoneiro' then 2 else 1 end);
+    'paga', round(v_qtd * k.venda * case when v_fora then 2.0 when v_tipo = 'feirante' then 1.5 when v_tipo = 'doceira' then 1.6 else 1.4 end)::int,
+    'xp', v_xp,
+    'fora_nivel', v_fora, 'nivel_item', k.nivel_min);
 end;
 $$;
 
 -- Atende a visita: entregar (vende o pedido pelo preço dela, ou compra o adubo da mascate) ou
 -- dispensar (ela vai embora e volta outra pessoa no próximo bloco de 3 horas)
-create or replace function public.fazenda_atender(p_token text, p_entregar boolean)
+create or replace function public.fazenda_atender(p_token text, p_entregar boolean, p_slot bigint default null)
 returns jsonb
 language plpgsql security definer
 set search_path = public, extensions
@@ -4545,9 +4595,12 @@ declare
   v_preco int := 0;
 begin
   if v is null then raise exception 'sem_visita'; end if;
+  -- fase 76: a visita muda a cada 10 min; o jogo diz qual mostrou, para não entregar à que chegou depois
+  if p_slot is not null and p_slot <> (v->>'slot')::bigint then raise exception 'visita_mudou'; end if;
   perform 1 from fazenda_jogadores where id = v_id for update;
   if not coalesce(p_entregar, false) then
     insert into fazenda_visitas_npc (jogador_id, slot, resposta) values (v_id, (v->>'slot')::bigint, 'dispensou');
+    delete from fazenda_visitas_npc where jogador_id = v_id and em < now() - interval '1 day';   -- fase 76
     return jsonb_build_object('resposta', 'dispensou', 'estado', fazenda_estado(v_id));
   end if;
 
@@ -4586,6 +4639,8 @@ begin
     end if;
   end if;
   insert into fazenda_visitas_npc (jogador_id, slot, resposta) values (v_id, (v->>'slot')::bigint, 'entregou');
+  -- fase 76: com uma visita a cada 10 min, as respondidas de mais de 1 dia saem (só a do slot atual importa)
+  delete from fazenda_visitas_npc where jogador_id = v_id and em < now() - interval '1 day';
   insert into fazenda_estatisticas (jogador_id) values (v_id) on conflict do nothing;
   update fazenda_estatisticas set pedidos = pedidos + 1 where jogador_id = v_id;
   return jsonb_build_object('resposta', 'entregou', 'visita', v, 'adubados', v_n, 'pagou', v_preco, 'estado', fazenda_estado(v_id));
@@ -8153,6 +8208,18 @@ $$;
 select public.fazenda_cache_montar();
 
 -- ------------------------------------------------------------
+-- Fase 76: visita na porteira a cada 10 min (era 3 h). O mercador e o Perks continuam no bloco de 3 h,
+-- com a mesma chance de antes (1 em 100 e 1 em 30 blocos), e ficam até o fim dele. O tamanho do pedido
+-- sai do esforço: uns 0,25% do nível em XP de colheita (o caminhoneiro, 3x), com pelo menos 2 itens e
+-- sem os peixes raros da pescaria; assim cresce com o nível. Do 15 em diante, metade pede produto em vez
+-- de semente, e de 15% a 30% pedem algo de até 8 níveis acima (feira ou chat), pagando o dobro do celeiro
+-- e 3x o XP. O XP fica entre 0,1% e 1% do nível por visita.
+-- fazenda_atender apaga as visitas respondidas de mais de 1 dia (a tabela não cresce 18x) e ganhou p_slot:
+-- o jogo diz qual visita mostrou, para não entregar à que chegou depois (a assinatura antiga sai).
+-- ------------------------------------------------------------
+drop function if exists public.fazenda_atender(text, boolean);
+
+-- ------------------------------------------------------------
 -- Permissões: só a API pública fica executável pela chave anon
 -- ------------------------------------------------------------
 revoke execute on function
@@ -8255,7 +8322,7 @@ revoke execute on function
   public.fazenda_ajudantes_fechar(uuid, text),
   public.fazenda_galinheiro_linhas(uuid),
   public.fazenda_visitante(uuid),
-  public.fazenda_atender(text, boolean),
+  public.fazenda_atender(text, boolean, bigint),
   public.fazenda_avatar(text, jsonb),
   public.fazenda_avatar_precos(),
   public.fazenda_checar_conquistas(uuid),
@@ -8365,7 +8432,7 @@ grant execute on function
   public.fazenda_contratar(text, text),
   public.fazenda_oficina(text, int, int),
   public.fazenda_estoque(text, int, int, int),
-  public.fazenda_atender(text, boolean),
+  public.fazenda_atender(text, boolean, bigint),
   public.fazenda_avatar(text, jsonb),
   public.fazenda_gerador(text, int, int),
   public.fazenda_convite_info(text),
