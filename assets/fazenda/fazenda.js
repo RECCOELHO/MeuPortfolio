@@ -1157,6 +1157,10 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-10-18-agua2', data: '18/10', titulo: 'A água refeita', itens: [
+            'A água do lago, do laguinho dos patos e do <b>mar</b> foi refeita: brilhinhos que acendem e apagam, <b>peixes nadando</b> de um lado para o outro, a espuma da onda indo e voltando na areia e, de vez em quando, um peixe pulando.',
+            'Os <b>patos</b> nadando ficam com metade do corpo dentro da água; fora dela, aparecem inteiros.',
+            'O laguinho dos patos ficou menor, com chão em volta: o cuidador anda à direita e embaixo dele.'] },
         { id: '2026-10-18-energia', data: '18/10', titulo: 'A conta da energia e o reator forte', itens: [
             'No painel da <b>energia</b> (toque no ⚡ lá em cima) aparece a conta, como no Cities: Skylines: quanto a fazenda <b>gera</b> em média por hora e quanto <b>gasta no máximo</b>, com tudo trabalhando. Ao lado do ⚡, um ▲ verde quando sobra e um ▼ vermelho quando falta.',
             'O <b>reator</b> agora dá <b>700 ⚡/h</b> (500 na onda de calor; eram 120), e no <b>nível 40</b> libera o 2º reator. Com tudo no máximo, a fazenda fica no positivo até sem o eletricista.',

@@ -1738,12 +1738,7 @@
                 const x = X0 + Math.floor(r() * (X1 - X0)), y = BEIRA + 6 + Math.floor(r() * (FUNDO - BEIRA - 8));
                 ret(x, y, 3 + Math.floor(r() * 4), 1, r() < 0.65 ? '#5d9fe0' : '#2f6aac');
             }
-            // espuma na beira (onde a onda quebra)
-            for (let x = X0; x < X1; x += 2) {
-                const o = Math.round(Math.sin(x / 9) * 1.5);
-                ret(x, BEIRA + o, 2, 2, '#e8f2fb');
-                if (r() < 0.4) ret(x, BEIRA + 3 + o, 2, 1, '#bcd8f2');
-            }
+            // (fase 76: a espuma da beira vai e volta, desenhada a cada quadro em desenharMarVivo)
         }
         // o lugar do píer: estacas e uma plaquinha até ser construído; depois, o píer de tábuas e o barco
         function desenharPier() {
@@ -1813,11 +1808,7 @@
                 const x = ax0 + 3 + Math.floor(r() * (ax1 - ax0 - 8)), y = ay0 + 5 + Math.floor(r() * (ay1 - ay0 - 8));
                 ret(x, y, 2 + Math.floor(r() * 3), 1, r() < 0.6 ? '#5d9fe0' : '#2f6aac');
             }
-            [[ax0 + 10, ay0 + 12], [ax0 + 38, ay0 + 22], [ax0 + 20, ay0 + 34]].forEach(([x, y], n) => {
-                const d = n % 2 ? -1 : 1;
-                ret(x, y, 7, 3, '#2d64a6'); ret(x + 1, y - 1, 5, 1, '#2d64a6'); ret(x + 1, y + 3, 5, 1, '#2d64a6');
-                ret(d > 0 ? x - 2 : x + 7, y - 1, 2, 5, '#2d64a6');
-            });
+            // (fase 76: as sombras de peixe nadam, desenhadas a cada quadro em desenharAguaViva)
             // balde de madeira no canto de baixo, à direita
             const bx = x1 - 15, by = y1 - 16;
             ret(bx, by, 12, 13, '#3f2631');
@@ -1842,9 +1833,10 @@
            A água do lago (dentro das pedras), o laguinho de cada lago dos patos e o mar. Quem anda mira o
            pé (x + 8, y + 14); se a linha reta corta uma água, vai antes até o canto dela, por fora. Destino
            na água vai para a beira. Só os patos nadam (no laguinho deles). */
-        const laguinhoPato = (c) => {   // igual ao desenho em desenharCercado
-            const k = CERCADOS[c.tipo], x = wx(c.x), y = wy(c.y), w = k.w * T, h = k.h * T;
-            return { x0: x + 18, y0: y + 15, x1: x + w - 18, y1: y + 16 + h - 30 + 1 };
+        // fase 76: o laguinho fica à esquerda e em cima; à direita e embaixo sobra chão para o cuidador andar
+        const laguinhoPato = (c) => {   // (o desenho em desenharCercado usa este mesmo retângulo)
+            const x = wx(c.x), y = wy(c.y);
+            return { x0: x + 17, y0: y + 17, x1: x + 57, y1: y + 37 };
         };
         let cacheAguas = { chave: null, lista: [] };
         function aguas() {
@@ -1910,37 +1902,92 @@
             return ex;
         }
 
-        /* ---- a água mexendo (por cima do fundo, a cada quadro): ondinhas que andam, brilhos e, de vez
-           em quando, a roda de um peixe pulando ---- */
+        /* ---- fase 76: a água viva (por cima do fundo, a cada quadro) ----
+           Brilhinhos que acendem e apagam no mesmo lugar, sombras de peixe nadando devagar de um lado
+           para o outro (o rabo mexe) e, de vez em quando, a rodinha de um peixe que pulou. No mar, a
+           espuma vai e volta na areia, as cristas brilham e passam cardumes. */
+        function sombraPeixe(x, y, dir, cor, rabo, tam = 1) {
+            const R = (a, b, w, h) => { q.fillStyle = cor; q.fillRect(Math.round(a), Math.round(b), w, h); };
+            const c = 5 * tam + 2, h = tam > 1 ? 4 : 3;
+            R(x, y, c, h); R(x + 1, y - 1, c - 2, 1); R(x + 1, y + h, c - 2, 1);
+            const tx = dir > 0 ? x - 2 : x + c;   // o rabo atrás, abrindo e fechando
+            if (rabo) R(tx, y - 1, 2, h + 2); else R(tx, y, 2, h);
+        }
+        function pontosOval(cx, cy, rx, ry) {
+            const pts = new Set();
+            for (let k = 0; k < 24; k++) {
+                const ang = k / 24 * Math.PI * 2;
+                pts.add(Math.round(cx + Math.cos(ang) * rx) + ',' + Math.round(cy + Math.sin(ang) * ry));
+            }
+            return [...pts].map((p) => p.split(',').map(Number));
+        }
         function desenharAguaViva(tempo, so) {   // so = um laguinho só (o dos patos, desenhado no cercado)
             for (const r of so ? [so] : aguas().filter((k) => k.lago)) {
-                const w = r.x1 - r.x0, h = r.y1 - r.y0, sem = Math.round(r.x0 * 7 + r.y0 * 13);
+                const w = r.x1 - r.x0, h = r.y1 - r.y0, sem = Math.abs(Math.round(r.x0 * 7 + r.y0 * 13));
                 q.save(); q.beginPath(); q.rect(r.x0, r.y0, w, h); q.clip();
-                const linhas = Math.max(2, Math.floor(h / 9));
-                for (let n = 0; n < linhas; n++) {
-                    const y = Math.round(r.y0 + 4 + n * (h - 6) / linhas + ((n % 2) ? 2 : 0));
-                    const vel = 9 + (n % 3) * 4, x = r.x0 - 8 + ((tempo / 1000 * vel + n * 23 + sem) % (w + 16));
-                    q.fillStyle = '#7fb6ec'; q.fillRect(Math.round(x), y, 5, 1);
-                    q.fillStyle = '#a9d0f5'; q.fillRect(Math.round(x) + 1, y - 1, 3, 1);
+                // peixes: cada um numa faixa, ida e volta suave (vira na ponta)
+                const nPeixes = so ? 1 : 3;
+                for (let n = 0; n < nPeixes; n++) {
+                    const per = 14000 + n * 5300, f = ((tempo + n * 4100 + sem) % (2 * per)) / per;   // 0..2
+                    const u = f < 1 ? f : 2 - f, ida = f < 1, ease = (1 - Math.cos(Math.PI * u)) / 2;
+                    const fx = r.x0 + 4 + ease * (w - 14), fy = r.y0 + 6 + ((n * 11 + 3) % Math.max(4, h - 12)) + Math.sin(tempo / 1700 + n) * 1.5;
+                    sombraPeixe(fx, fy, ida ? 1 : -1, so ? '#4a86c8' : '#2d64a6', Math.floor(tempo / 260 + n) % 2);
                 }
-                // brilhos que acendem e apagam
-                for (let n = 0; n < Math.max(1, Math.floor(w * h / 900)); n++) {
-                    const fase = Math.floor((tempo + n * 911 + sem) / 1300);
-                    const rr = rng(fase * 31 + n * 7 + sem);
-                    if (rr() < 0.55) { q.fillStyle = '#e8f4ff'; q.fillRect(Math.round(r.x0 + 2 + rr() * (w - 4)), Math.round(r.y0 + 2 + rr() * (h - 4)), 1, 1); }
+                // brilhinhos: acendem e apagam no lugar, cada um no seu ritmo
+                const nBrilhos = Math.max(2, Math.floor(w * h / 500));
+                for (let n = 0; n < nBrilhos; n++) {
+                    const per = 2600 + (n % 5) * 370, ciclo = Math.floor((tempo + n * 733) / per), t = ((tempo + n * 733) % per) / per;
+                    if (t > 0.45) continue;
+                    const rr = rng(ciclo * 97 + n * 13 + sem);
+                    const bx = Math.round(r.x0 + 3 + rr() * (w - 8)), by = Math.round(r.y0 + 3 + rr() * (h - 6));
+                    q.fillStyle = '#8fc1ef'; q.fillRect(bx, by, 3, 1);
+                    if (t > 0.12 && t < 0.32) { q.fillStyle = '#e8f4ff'; q.fillRect(bx + 1, by, 1, 1); }
                 }
-                // a roda de um peixe pulando: uma a cada ~5 s, crescendo e sumindo em 1 s
-                const ciclo = 5200 + (sem % 7) * 300, t = (tempo + sem * 13) % ciclo;
-                if (t < 1000 && w > 30) {
-                    const rr = rng(Math.floor((tempo + sem * 13) / ciclo) + sem);
-                    const cx = r.x0 + 8 + rr() * (w - 16), cy = r.y0 + 6 + rr() * (h - 12), raio = 1 + t / 1000 * 6;
-                    q.globalAlpha = 1 - t / 1000;
-                    q.strokeStyle = '#d6ebff'; q.lineWidth = 1;
-                    q.beginPath(); q.ellipse(Math.round(cx) + 0.5, Math.round(cy) + 0.5, raio, raio * 0.55, 0, 0, Math.PI * 2); q.stroke();
-                    q.globalAlpha = 1;
+                // a rodinha do peixe que pulou: uma a cada ~6 s, abrindo e sumindo
+                if (!so) {
+                    const per = 6100, t = (tempo + sem * 3) % per;
+                    if (t < 900) {
+                        const rr = rng(Math.floor((tempo + sem * 3) / per) + sem);
+                        const cx = r.x0 + 10 + rr() * (w - 20), cy = r.y0 + 8 + rr() * (h - 16), raio = 1.5 + t / 900 * 5;
+                        q.globalAlpha = 1 - t / 900;
+                        q.fillStyle = '#cfe6fb';
+                        for (const [px, py] of pontosOval(cx, cy, raio, raio * 0.5)) q.fillRect(px, py, 1, 1);
+                        q.globalAlpha = 1;
+                    }
                 }
                 q.restore();
             }
+        }
+        // o mar da praia (sem o lugar do píer e do barco, que estão no fundo)
+        function desenharMarVivo(tempo) {
+            const BEIRA = wy(MAPA.mar.y), X0 = wx(-MARGEM), X1 = wx(MAPA.w + MARGEM), FUNDO = MH;
+            q.save(); q.beginPath(); q.rect(X0, BEIRA - 3, X1 - X0, FUNDO - BEIRA + 3);
+            if (zonasAtuais >= 7 && pierPronto) q.rect(wx(MAPA.pier.x) - 2, wy(MAPA.pier.y), (MAPA.pier.w + 3) * T + 4, FUNDO - wy(MAPA.pier.y));   // (o píer e o barco)
+            q.clip('evenodd');
+            // cardumes: sombras passando bem devagar lá no fundo
+            for (let n = 0; n < 5; n++) {
+                const per = 52000 + n * 9700, f = ((tempo + n * 17000) % (2 * per)) / per, u = f < 1 ? f : 2 - f;
+                const fx = X0 + 20 + (1 - Math.cos(Math.PI * u)) / 2 * (X1 - X0 - 60), fy = BEIRA + T * 2 + ((n * 13) % (T * 2)) + Math.sin(tempo / 2100 + n) * 2;
+                for (let m = 0; m < 3; m++) sombraPeixe(fx + m * 11 * (f < 1 ? -1 : 1), fy + (m % 2) * 5, f < 1 ? 1 : -1, '#285a99', Math.floor(tempo / 300 + n + m) % 2, 1);
+            }
+            // cristas que brilham e somem, cada uma no seu ritmo
+            for (let n = 0; n < 70; n++) {
+                const per = 3100 + (n % 7) * 410, ciclo = Math.floor((tempo + n * 521) / per), t = ((tempo + n * 521) % per) / per;
+                if (t > 0.55) continue;
+                const rr = rng(ciclo * 71 + n * 29);
+                const cx = Math.round(X0 + rr() * (X1 - X0)), cy = Math.round(BEIRA + 8 + rr() * (FUNDO - BEIRA - 12));
+                q.fillStyle = cy > BEIRA + T * 4 ? '#4c88cc' : '#6fa8e6';
+                q.fillRect(cx, cy, 2, 1); q.fillRect(cx + 2, cy - 1, 2, 1); q.fillRect(cx + 4, cy, 1, 1);
+                if (t > 0.15 && t < 0.35) { q.fillStyle = '#d6ebff'; q.fillRect(cx + 2, cy - 1, 1, 1); }
+            }
+            // a espuma da beira: a onda chega e volta
+            const vai = Math.sin(tempo / 1300) * 1.6;
+            for (let x = X0; x < X1; x += 2) {
+                const o = Math.round(Math.sin(x / 9 + tempo / 900) * 1.2 + vai);
+                q.fillStyle = '#e8f2fb'; q.fillRect(x, BEIRA + o, 2, 2);
+                if ((x / 2 + Math.floor(tempo / 400)) % 5 < 2) { q.fillStyle = '#bcd8f2'; q.fillRect(x, BEIRA + 3 + o, 2, 1); }
+            }
+            q.restore();
         }
 
         /* ---- animais ---- */
@@ -2399,6 +2446,7 @@
             quadroHelice = Math.floor(tempo / (clima === 'vento' ? 90 : 200)) % 2;   // venta mais, gira mais
             q.drawImage(fundo, 0, 0);
             desenharAguaViva(tempo);   // fase 74b: o lago (o laguinho dos patos é desenhado no cercado, com as dele)
+            desenharMarVivo(tempo);    // fase 76: o mar da praia
 
             const lista = construcoesFn() || [];
             const m = mapaConstrucoes(lista);
@@ -2426,7 +2474,10 @@
                 const parado = a.v && a.v.estado !== 'produzindo';
                 const andando = a.ajudante && Math.hypot(a.tx - a.x, a.ty - a.y) > 0.5;
                 const bob = (parado && Math.floor(tempo / 600) % 2) || (andando && Math.floor(tempo / 140) % 2) ? -1 : 0;
-                pe.push(a.visual ? { img: ajudanteCanvas(a.tipo), x: a.x, y: a.y, flip: a.flip, bob } : { p: a.p || 'farm', i: a.i, x: a.x, y: a.y, flip: a.flip, bob });
+                // fase 76: o pato nadando fica com metade do corpo dentro da água
+                const nadando = a.tipo === 'pato' && !a.ajudante && aguas().some((r) => dentroDe(r, a.x + 8, a.y + 12, -1));
+                pe.push(a.visual ? { img: ajudanteCanvas(a.tipo), x: a.x, y: a.y, flip: a.flip, bob }
+                    : { p: a.p || 'farm', i: a.i, x: a.x, y: a.y, flip: a.flip, bob: nadando ? 0 : bob, nadando });
                 // ferramenta na mão do ajudante (do lado para onde ele olha)
                 if (a.ferramenta != null) pe.push({ p: a.ferramentaP || 'farm', i: a.ferramenta, x: a.x + (a.flip ? -7 : 7), y: a.y + 0.5, flip: a.flip, bob });
             }
@@ -2447,6 +2498,15 @@
                 }
                 if (a.topo != null) tile(q, a.topo, x, y - T, a.flip, a.p);
                 if (a.topo2 != null) tile(q, a.topo2, x, y - 2 * T, a.flip, a.p);
+                if (a.nadando) {   // fase 76: só a parte de cima, e a linha da água balançando em volta
+                    const linha = y + 10 + (Math.floor(tempo / 500 + x) % 2);
+                    q.save(); q.beginPath(); q.rect(x - 2, y - 2, T + 4, linha - y + 2); q.clip();
+                    tile(q, a.i, x, y + 2, a.flip, a.p);
+                    q.restore();
+                    q.fillStyle = '#cfe6fb'; q.fillRect(x + 2, linha, 12, 1);
+                    q.fillStyle = '#8fc1ef'; q.fillRect(x, linha + 1, 3, 1); q.fillRect(x + 13, linha + 1, 3, 1);
+                    return;
+                }
                 tile(q, a.i, x, y, a.flip, a.p);
             });
 
@@ -2932,12 +2992,15 @@
                 }
             } else if (k.chao === 'feno') {   // coelhos: palha espalhada
                 for (let n = 0; n < w * h / 22; n++) ret(x + 6 + r() * (w - 14), y + 7 + r() * (h - 14), 3, 1, r() < 0.5 ? '#e9c46a' : '#d4a743');
-            } else if (k.chao === 'lago') {   // patos: laguinho no meio, com borda clara e brilho
-                const lx = x + 18, ly = y + 16, lw = w - 36, lh = h - 30;
-                ret(lx + 2, ly - 1, lw - 4, lh + 2, '#4f8fbf');
-                ret(lx, ly + 1, lw, lh - 2, '#4f8fbf');
-                ret(lx + 2, ly + 1, lw - 4, lh - 2, '#79a7e8');
-                desenharAguaViva(tempo, laguinhoPato(c));   // fase 74b: as ondinhas e o brilho
+            } else if (k.chao === 'lago') {   // patos: laguinho com borda de grama clara (fase 76: menor, com chão em volta)
+                const L = laguinhoPato(c), lx = L.x0, ly = L.y0, lw = L.x1 - L.x0, lh = L.y1 - L.y0;
+                ret(lx + 1, ly - 2, lw - 2, lh + 4, '#7fae5a');                 // a margem
+                ret(lx - 1, ly, lw + 2, lh, '#7fae5a');
+                ret(lx + 2, ly - 1, lw - 4, lh + 2, '#3f78b0');                  // a água, com a borda funda
+                ret(lx, ly + 1, lw, lh - 2, '#3f78b0');
+                ret(lx + 2, ly + 1, lw - 4, lh - 2, '#5f98d8');
+                ret(lx + 2, ly + 1, lw - 4, 2, '#4a86c8');                        // sombra da margem em cima
+                desenharAguaViva(tempo, L);
             }
             s.grade.forEach((linha, dy) => linha.forEach((i, dx) => { if (i != null) tile(q, i, x + dx * T, y + dy * T, false, s.p); }));
             if (k.chao === 'cocho') tile(q, 110, x + T + 2, y + T - 3);   // cocho de água no canto, por cima da cerca (inteiro)
