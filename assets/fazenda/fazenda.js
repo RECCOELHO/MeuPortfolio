@@ -128,6 +128,7 @@
         sem_cercado: 'Esse bicho precisa do cercado dele primeiro (Construir → Bichos).',
         cercado_com_bichos: 'Esse cercado tem bichos morando: dá para mudar ele de lugar, mas não desmanchar.',
         terreno_max: 'Você já comprou todos os terrenos.',
+        terreno_fora_de_ordem: 'Compre os terrenos em ordem: primeiro o anterior.',
         nivel_maximo: 'Esse ajudante já está no nível máximo.',
         sem_ingredientes: 'Faltam ingredientes no celeiro (a ração reservada não entra na receita).',
         estoque_cheio: 'O estoque dessa oficina está cheio (10 receitas).',
@@ -427,12 +428,21 @@
 
     /* ---------- Terrenos: áreas da mata compradas para a fazenda crescer ---------- */
     const zonasDaTela = () => (visita ? visita.zonas : S && S.jogador.zonas) || 0;
+    const direitaDaTela = () => (visita ? visita.direita : S && S.jogador.direita) || 0;   // fase 78: os terrenos da direita
     const zonasVenda = () => (S && S.zonas_venda) || [];
-    // próximo terreno à venda (só na sua fazenda; null quando acabou ou o banco ainda não tem o SQL)
-    const proximaZona = () => (S && !visita ? zonasVenda().find((z) => z.n === (S.jogador.zonas || 0) + 1) || null : null);
+    const ehDireita = (z) => z.lado === 'direita';
+    const zonaComprada = (z) => (ehDireita(z) ? z.n - 7 <= ((S && S.jogador.direita) || 0) : z.n <= ((S && S.jogador.zonas) || 0));
+    // o próximo de cada lado: o da fila (1 a 7) e o da direita (8 a 10)
+    const proximaDoLado = (dir) => zonasVenda().find((z) => ehDireita(z) === dir && !zonaComprada(z)) || null;
+    // os terrenos à venda agora (só na sua fazenda; vazio quando acabou ou o banco ainda não tem o SQL)
+    // (a placa da direita só aparece no nível dela, ou depois de comprar o primeiro de lá: antes fica longe da fazenda)
+    const proximasZonas = () => {
+        if (!S || visita) return [];
+        const dir = proximaDoLado(true);
+        return [proximaDoLado(false), dir && (S.jogador.nivel >= dir.nivel || S.jogador.direita > 0) ? dir : null].filter(Boolean);
+    };
     function atualizarTerreno() {
-        const z = proximaZona();
-        cena.definirTerreno({ zonas: zonasDaTela(), venda: z ? z.n : null });
+        cena.definirTerreno({ zonas: zonasDaTela(), direita: direitaDaTela(), venda: proximasZonas().map((z) => z.n) });
         cena.definirPier(!visita && !!(S && S.pier && S.pier.pronto));   // fase 61
     }
     /* ---------- Estação e clima (vêm do servidor: o mesmo dia para todo mundo) ---------- */
@@ -677,7 +687,7 @@
     function htmlEnergia() {
         const itens = (S.itens || []).filter((i) => i.categoria === 'energia').sort((a, b) => a.nivel_min - b.nivel_min);
         const tenho = (id) => (S.construcoes || []).filter((c) => c.tipo === id).length;
-        const gera = new Set(['solar', 'eolica', 'biomassa', 'reator']), guarda = new Set(['bateria']);
+        const gera = new Set(['solar', 'eolica', 'biomassa', 'hidro', 'reator']), guarda = new Set(['bateria']);
         const linha = (i) => {
             const n = tenho(i.id), trava = i.nivel_min > S.jogador.nivel;
             return `<div class="item${trava ? ' travado' : ''}">
@@ -708,6 +718,12 @@
        trabalhando sem parar (estado.energia.conta). */
     const NOME_GASTO = { oficinas: 'Oficinas na rede (puxar e entregar)', triturador: 'Triturador', robo_colheita: 'Robôs de colheita',
         bau: 'Baús', aspersor: 'Aspersores', estufa: 'Estufas', alarme: 'Alarmes' };
+    // fase 78: quantos geradores ainda cabem agora (o limite de cada um no seu nível)
+    function dicaGeradores() {
+        const sobra = ['painel_solar', 'turbina', 'gerador_bio', 'hidreletrica', 'reator'].map((id) => tipoItem(id)).filter((it) => it && it.nivel_min <= S.jogador.nivel && it.limite)
+            .map((it) => [it, it.limite - quantosTem(it)]).filter(([, n]) => n > 0);
+        return sobra.length ? `. Ainda cabem: ${sobra.map(([it, n]) => `${n} ${esc(it.nome.toLowerCase())}`).join(', ')}` : '';
+    }
     function htmlContaEnergia(c) {
         if (!c) return '';
         const maior = Math.max(c.gera, c.gasta, 1), saldo = c.saldo;
@@ -720,7 +736,7 @@
             <p>Gasta no máximo <b style="color:#c34b35">${c.gasta} ⚡/h</b>${c.desconto ? ` <small>(já com ${c.desconto}% de desconto${meuAjudante('eletricista') ? ', com o eletricista' : ''})</small>` : ''}</p>${barra(c.gasta, '#d9654a')}
             <p class="det">${lista(c.gasta_itens, '−') || '<span>Nada gastando ainda.</span>'}</p>
             <p class="${saldo >= 0 ? 'det' : 'aviso'}"><b>${saldo >= 0 ? `Sobram ${saldo} ⚡/h` : `Faltam ${-saldo} ⚡/h`}</b> com tudo trabalhando sem parar.
-                ${saldo < 0 ? 'Construa mais painéis, turbinas, geradores a biomassa ou o reator (o 2º libera no nível 40), ou contrate e evolua o <b>eletricista</b>.' : 'No dia a dia gasta menos: as máquinas só trabalham quando tem o que fazer.'}</p>`;
+                ${saldo < 0 ? `Construa mais painéis, turbinas e geradores a biomassa (o limite deles sobe quase todo nível até o 29), a <b>usina hidrelétrica</b> (do nível 20) ou o reator (do 25; o 2º no 40)${dicaGeradores()}, ou contrate e evolua o <b>eletricista</b>.` : 'No dia a dia gasta menos: as máquinas só trabalham quando tem o que fazer.'}</p>`;
     }
 
     function alternarGerador(c) {
@@ -1298,6 +1314,12 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-10-18-direita', data: '18/10', titulo: 'Terrenos à direita, mais energia e mais dinheiro', itens: [
+            'Do nível 29 em diante dá para comprar <b>3 terrenos novos à direita</b>: a Serra do leste (nível 29), o Planalto do leste (33) e o Cerrado do leste (38). Não precisa ter o litoral antes. Cada um dá +10 canteiros e mais espaço para construir. Toque na placa no mapa ou vá na Loja → Terrenos.',
+            '<b>Mais energia antes do 29</b>: o limite de painéis solares e turbinas sobe 1 por nível do 17 ao 29, os geradores a biomassa vão até 6 e chegou a <b>Pequena central hidrelétrica</b> (nível 20): 120 ⚡/h sem parar, de dia e de noite.',
+            '<b>Mais dinheiro até o nível 29</b>: tudo vendido no celeiro rende <b>+50%</b>. Do 30 ao 34 a ajuda vai diminuindo.',
+            'Na feira, agora dá para fazer <b>50 compras por dia</b> (eram 40).',
+            'Conquista nova: <b>Compra milionária</b>, para quem pagar 1 milhão de moedas numa compra só.'] },
         { id: '2026-10-18-agua3', data: '18/10', titulo: 'Ninguém mais no canto da água', itens: [
             'Os ajudantes, as visitas e o fazendeiro contornam o lago <b>por fora das pedras</b>: nada de ficar parado no canto, em cima da borda ou com meio corpo na água.',
             'Na praia, a <b>beira do mar</b> mexe de verdade: quando a onda volta aparece a areia molhada, e não sobra mais aquela linha azul reta.',
@@ -2592,7 +2614,7 @@
         aoTile: (x, y) => tocarTile(x, y),
         aoCeleiro: () => { if (S && !painelAtual) abrirPainel('celeiro'); },
         aoCasa: () => { if (S && !painelAtual && !visita) descreverCasa('casa'); },   // fase 66: quem dorme na casa da fazenda
-        aoVenda: () => { if (S && !painelAtual) { abaLoja = 'terrenos'; abrirPainel('loja'); } },
+        aoVenda: () => { if (S && !painelAtual && !visita) { abaLoja = 'terrenos'; abrirPainel('loja'); } },
         aoFeira: () => {   // fase 51: a pracinha da feira, na mata
             if (!S || painelAtual) return;
             abaFeira = !visita && S.feira && S.feira.meus.length ? 'meus' : 'comprar';
@@ -2609,12 +2631,12 @@
             if (!visita) coletarItem(x, y);
         },
         aoSegurar: (alvo) => segurarParaMover(alvo),
-        aoPassar: (alvo) => {
+        aoPassar: (alvo, venda) => {
             if (!S || alvo == null) return;
             if (alvo === 'celeiro') mostrarStatus(`${spr(11, 22)} Celeiro: toque para ver e vender a colheita.`);
             else if (alvo === 'feira') mostrarStatus(visita ? `${A.htmlItem('barraca', 22)} <b>Feira</b>: toque para comprar dos outros jogadores.`
                 : `${A.htmlItem('barraca', 22)} <b>Feira</b>: ${barracas()} barraca${barracas() > 1 ? 's' : ''}, até ${limiteFeira()} anúncios. Toque para comprar e vender com outros jogadores.`);
-            else if (alvo === 'venda') descreverVenda();
+            else if (alvo === 'venda') descreverVenda(venda);
             else if (alvo === 'lago') descreverLago();
             else if (alvo === 'visitante') descreverVisitante();
             else if (typeof alvo === 'object' && alvo.construcao) descreverConstrucao(alvo.construcao.x, alvo.construcao.y);
@@ -2631,8 +2653,8 @@
     cena.definirConstrucoes(visualConstrucoes);
     cena.definirCanteiros(() => ((visita || S) ? (visita || S).canteiros : DEMO_CANTEIROS));
 
-    function descreverVenda() {
-        const z = proximaZona();
+    function descreverVenda(n) {
+        const z = proximasZonas().find((k) => k.n === n) || proximasZonas()[0];
         if (!z) return;
         mostrarStatus(S.jogador.nivel < z.nivel
             ? `${ico('cadeado', 12)} ${esc(z.nome)}: terreno à venda a partir do nível ${z.nivel}.`
@@ -2680,15 +2702,20 @@
     const melhoriaValor = (id) => { const m = ((S && S.melhorias_tipos) || []).find((k) => k.id === id); const n = melhoriaNivel(id); return m && n ? m.niveis[n - 1].valor : 0; };
     // fase 57: painel solar e turbina sobem com o nível, um de cada vez (igual a fazenda_limite_maquina);
     // o limite de agora já vem do servidor em S.itens, isto serve para dizer quando sobe de novo
-    const limiteMaquina = (id, base, n) => (id === 'painel_solar' ? base + Math.max(0, Math.floor((n - 16) / 2))
-        : id === 'turbina' ? base + Math.max(0, Math.floor((n - 17) / 2)) : base);
+    // (fase 78: do 17 ao 29 sobem +1 por nível; o gerador a biomassa e a usina hidrelétrica também sobem)
+    const limiteMaquina = (id, base, n) => base + (id === 'painel_solar' ? Math.max(0, Math.min(n, 29) - 16) + Math.max(0, Math.floor((n - 29) / 2))
+        : id === 'turbina' ? Math.max(0, Math.min(n, 29) - 17) + Math.max(0, Math.floor((n - 29) / 2))
+        : id === 'gerador_bio' ? (n >= 21) + (n >= 24) + 2 * (n >= 28)
+        : id === 'hidreletrica' ? (n >= 23) + (n >= 27)
+        : id === 'reator' ? +(n >= 40) : 0);
     const proximoNivelMaquina = (it) => {
-        if (it.id !== 'painel_solar' && it.id !== 'turbina') return null;
+        if (!['painel_solar', 'turbina', 'gerador_bio', 'hidreletrica', 'reator'].includes(it.id)) return null;
         const base = (it.limite || 0) - limiteMaquina(it.id, 0, S.jogador.nivel);
-        for (let n = S.jogador.nivel + 1; n <= S.jogador.nivel + 2; n++) if (limiteMaquina(it.id, base, n) > it.limite) return n;
+        for (let n = S.jogador.nivel + 1; n <= 45; n++) if (limiteMaquina(it.id, base, n) > it.limite) return n;
         return null;
     };
-    const maxItem = (it) => it.limite || (it.por_terreno ? it.por_terreno * (1 + (it.categoria === 'pomar' ? Math.floor(((S && S.jogador.zonas) || 0) / 2) : ((S && S.jogador.zonas) || 0)))
+    const terrenosComprados = () => ((S && S.jogador.zonas) || 0) + ((S && S.jogador.direita) || 0);   // fase 78: os da direita contam igual
+    const maxItem = (it) => it.limite || (it.por_terreno ? it.por_terreno * (1 + (it.categoria === 'pomar' ? Math.floor(terrenosComprados() / 2) : terrenosComprados()))
         + (it.categoria === 'pomar' ? melhoriaValor('pes') : 0) : null);   // fase 57: + os pés da melhoria
     // quantos já tem (itens do mesmo grupo dividem o limite; desde a fase 43 cada árvore frutífera conta só ela)
     const quantosTem = (it) => (S.construcoes || []).filter((c) => c.tipo === it.id || (it.grupo && (tipoItem(c.tipo) || {}).grupo === it.grupo)).length;
@@ -3965,7 +3992,7 @@
                     </div>
                 </div>
                 ${boasVindas ? '' : `<p><button type="button" class="botao pequeno creme" data-painel-ir="niveis">${ico('xp', 14)} Ver o caminho dos níveis</button></p>
-                <p>${spr(83, 18)} Beleza da fazenda: <b>${S.jogador.beleza || 0}</b> · bônus nas vendas: <b>+${S.jogador.bonus_venda || 0}%</b></p>`}
+                <p>${spr(83, 18)} Beleza da fazenda: <b>${S.jogador.beleza || 0}</b> · bônus nas vendas: <b>+${S.jogador.bonus_venda || 0}%</b>${S.jogador.nivel <= 33 ? ` <small>(com a ajuda de +${Math.max(0, Math.min(50, 50 - 10 * (S.jogador.nivel - 29)))}% para quem está até o nível 29, que cai 10 por nível do 30 ao 34)</small>` : ''}</p>`}
                 ${boasVindas ? '' : `
                 <h3 class="secao-titulo">Conquistas (${minhas.length}/${(S.conquistas_tipos || []).length})</h3>
                 ${htmlConquistas(minhas)}
@@ -4137,7 +4164,7 @@
                     <li>Depois de madura, a planta <b>murcha</b> se ficar tempo demais sem colher.</li>
                     <li>Toque no <b>celeiro</b> para vender a colheita, compre sementes melhores e suba de nível para ganhar canteiros. <b>Vender produtos também dá XP</b>: 1 a cada 25 moedas (o que sai das oficinas, dos bichos, do lago e do pomar). A planta vendida não dá XP: ela já deu na colheita.</li>
                     <li>Os canteiros ficam onde você quiser: <b>Construir → Plantação</b> para colocar, <b>Mover</b> para mudar de lugar. Lado a lado eles viram fileiras.</li>
-                    <li>Na loja, aba <b>Terrenos</b>, compre pedaços da mata em volta para a fazenda crescer (e ganhar mais canteiros). São 7 terrenos, e os últimos são grandes (o 7º é o Litoral, com a praia).</li>
+                    <li>Na loja, aba <b>Terrenos</b>, compre pedaços da mata em volta para a fazenda crescer (e ganhar mais canteiros). São 7 em volta da fazenda (o 7º é o Litoral, com a praia) e, do nível 29 em diante, mais 3 à direita.</li>
                     <li>Todo item do Construir faz alguma coisa: evita seca, praga ou erva, adianta o crescimento, dá itens e XP extras, protege dos vizinhos ou aumenta a <b>beleza</b> (bônus nas vendas). Toque num item para ver o que ele faz.</li>
                     <li>Na loja, aba <b>Ajudantes</b>: contrate pessoas que aram, plantam, cuidam, colhem e tratam dos animais sozinhas (12 tarefas por hora no nível 1, 30 no 2, 90 no 3, 150 no 4 e 240 no 5; o 4 libera no nível 35 e o 5 no 42). Os cuidadores de bicho (Dona Cida, Nina, Bento, Pedrinho, Lia e Tonho) deixam a espécie deles mais rápida: −10% no tempo por nível, somando com o fardo de feno. O <b>Seu Zé</b> também aduba os canteiros crescendo: +1 item na colheita; o <b>Juca</b> colhe também o pomar. A <b>Dona Lurdes</b> (operária, nível 12) cuida das oficinas: leva o que ficou pronto para o celeiro e enche o estoque delas; o <b>Faísca</b> (eletricista, nível 17) faz tudo o que é elétrico gastar menos. Ajudante não gasta energia. Com a fazenda aberta, dá para ver cada um indo até onde trabalhou.</li>
                     <li>Em <b>Construir → Oficinas</b> tem uma oficina para cada matéria-prima: padaria, queijaria, conservas, prensa de óleo, peixaria, defumadouro, casa de sucos, sorveteria, ateliê de penas, cozinha de moqueca, empório (que usa o óleo da prensa), adega e outras. Toque nela para abrir o painel: guarde ingredientes no <b>estoque</b> (até 10 receitas) e ela trabalha sozinha, uma receita atrás da outra. O painel mostra quanto valem os ingredientes, quanto vale o produto e o <b>lucro</b>. Quando aparecer o balão, toque para pegar.</li>
@@ -4387,23 +4414,29 @@
     function htmlLojaTerrenos() {
         const lista = zonasVenda();
         if (!lista.length) return '<p class="vazio-msg">Os terrenos chegam em breve.</p>';
-        const tem = S.jogador.zonas || 0;
-        return '<div class="lista">' + lista.map((z) => {
-            const comprado = z.n <= tem;
-            const proximo = z.n === tem + 1;
-            const travado = !comprado && (!proximo || S.jogador.nivel < z.nivel);
-            return `<div class="item${travado ? ' travada' : ''}">
+        // fase 78: dois lados, cada um com o próximo dele liberado (os da direita não precisam dos da fazenda)
+        const lado = (dir) => {
+            const zs = lista.filter((z) => ehDireita(z) === dir), prox = proximaDoLado(dir);
+            return '<div class="lista">' + zs.map((z) => {
+                const comprado = zonaComprada(z);
+                const proximo = !!prox && z.n === prox.n;
+                const travado = !comprado && (!proximo || S.jogador.nivel < z.nivel);
+                return `<div class="item${travado ? ' travada' : ''}">
                 <span class="ico">${travado ? ico('cadeado', 28) : spr(comprado ? 1 : 39, 44)}</span>
                 <span>
                     <span class="nome">${esc(z.nome)}</span>
-                    <span class="det"><span>${z.w}×${z.h} quadrados</span><span>+${z.canteiros || 6} canteiros</span>${z.lago ? '<span>com lago e pescador!</span>' : ''}${z.mar ? '<span>praia e mar: o lugar do píer!</span>' : ''}</span>
+                    <span class="det"><span>${z.w}×${z.h} quadrados</span><span>+${z.canteiros || 6} canteiros</span>${z.lago ? '<span>com lago e pescador!</span>' : ''}${z.mar ? '<span>praia e mar: o lugar do píer!</span>' : ''}${!comprado && !proximo ? '<span>depois do anterior</span>' : ''}</span>
                 </span>
                 ${comprado ? '<span class="preco">Comprado</span>'
-                    : !proximo ? `<span class="preco">Depois do ${z.n - 1}</span>`
-                    : S.jogador.nivel < z.nivel ? `<span class="preco">Nível ${z.nivel}</span>`
-                    : `<button type="button" class="botao pequeno verde" data-comprar="terreno:${z.n}">${ico('moeda', 14)} ${z.custo}</button>`}
+                    : !proximo || S.jogador.nivel < z.nivel ? `<span class="preco">Nível ${z.nivel}</span>`
+                    : `<button type="button" class="botao pequeno verde" data-comprar="terreno:${z.n}"${S.jogador.moedas < z.custo ? ' disabled' : ''}>${ico('moeda', 14)} ${z.custo.toLocaleString('pt-BR')}</button>`}
             </div>`;
-        }).join('') + '</div><p class="aviso">Cada terreno abre um pedaço da mata em volta: mais espaço para canteiros, cercados, máquinas e enfeites, e mais canteiros no seu limite. Os três últimos são grandes. Também dá para tocar na placa no mapa.</p>';
+            }).join('') + '</div>';
+        };
+        const temDireita = lista.some(ehDireita);
+        return (temDireita ? '<h3 class="secao-titulo">Fazenda</h3>' : '') + lado(false)
+            + (temDireita ? `<h3 class="secao-titulo">À direita (do nível 29)</h3>${lado(true)}<p class="det">Os da direita são comprados em ordem entre eles, sem precisar ter os da fazenda: dá para comprar a Serra do leste no nível 29 mesmo sem o litoral.</p>` : '')
+            + '<p class="aviso">Cada terreno abre um pedaço da mata em volta: mais espaço para canteiros, cercados, máquinas e enfeites, e mais canteiros no seu limite. Também dá para tocar na placa no mapa.</p>';
     }
 
     /* ---------- Baús da sorte (fase 73): para gastar as moedas que sobram ----------
@@ -4521,7 +4554,7 @@
        de fazenda_feira_lista. */
     let abaFeira = 'comprar', feiraDados = null, feiraFiltro = null, feiraItem = null;
     const regrasFeira = () => (S && S.feira && S.feira.regras)
-        || { taxa: 0, min: 0.5, max: 3, horas: 48, por_barraca: 2, barracas_max: 4, barraca_nivel: 5, barraca_precos: [800, 1600, 2400], compras_dia: 40, qtd_max: 99 };
+        || { taxa: 0, min: 0.5, max: 3, horas: 48, por_barraca: 2, barracas_max: 4, barraca_nivel: 5, barraca_precos: [800, 1600, 2400], compras_dia: 50, qtd_max: 99 };
     const limiteFeira = () => (S.feira && S.feira.limite) || 2;
     const barracas = () => (S.feira && S.feira.barracas) || 1;
     // comprar mais uma barraca na feira (até 4)

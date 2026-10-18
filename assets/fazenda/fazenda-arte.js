@@ -46,7 +46,7 @@
 
     /* ---------- Mapa da fazenda (precisa bater com fazenda_livre no SQL) ---------- */
     const MAPA = {
-        w: 48, h: 42,                                // tamanho máximo, com todos os terrenos (fase 61: + o litoral)
+        w: 64, h: 42,   // (fase 78: + a faixa da direita, x 48 a 63)                                // tamanho máximo, com todos os terrenos (fase 61: + o litoral)
         celeiro: { x: 1, y: 1 },                     // 3 x 6
         casa: { x: 5, y: 1 },                        // 3 x 3
         campo: { x: 9, y: 4 },                       // onde os 6 primeiros canteiros nascem
@@ -63,12 +63,12 @@
         feira: { x: -5, y: 1, w: 5, h: 6, barracas: [{ x: -2, y: 2 }, { x: -4, y: 2 }, { x: -2, y: 5 }, { x: -4, y: 5 }] },
         // fase 61: o litoral (terreno 7): areia de y 32 a 36 e mar dali para baixo; o píer é um lugar
         // fixo na areia que entra pelo mar. Igual a fazenda_livre no SQL.
-        mar: { x: 0, y: 37, w: 48, h: 5 },
+        mar: { x: 0, y: 37, w: 64, h: 5 },
         pier: { x: 22, y: 35, w: 3, h: 7 },
         reservas: [
             { x: 1, y: 1, w: 3, h: 6 }, { x: 5, y: 1, w: 3, h: 3 }, null,
             { x: 16, y: 0, w: 6, h: 7 }, { x: 24, y: 14, w: 6, h: 5 },
-            { x: 0, y: 37, w: 48, h: 5 }, { x: 22, y: 35, w: 3, h: 7 }
+            { x: 0, y: 37, w: 64, h: 5 }, { x: 22, y: 35, w: 3, h: 7 }
         ]
     };
     // o galinheiro cresce com os bichos (definirGalinheiro): a reserva é o mesmo objeto
@@ -93,13 +93,18 @@
         { n: 5, x: 0, y: 20, w: 32, h: 12, placa: { x: 15, y: 20 } },
         { n: 6, x: 32, y: 20, w: 16, h: 12, placa: { x: 33, y: 21 } },
         // fase 61: o litoral, nível 31 (areia em cima, mar embaixo: MAPA.mar)
-        { n: 7, x: 0, y: 32, w: 48, h: 10, placa: { x: 10, y: 33 } }
+        { n: 7, x: 0, y: 32, w: 64, h: 10, placa: { x: 10, y: 33 } },   // (fase 78: até a ponta da direita)
+        // fase 78: a faixa da direita (x 48 a 63), do nível 29, comprada à parte dos de 1 a 7
+        { n: 8, x: 48, y: 0, w: 16, h: 11, placa: { x: 49, y: 5 }, direita: true },
+        { n: 9, x: 48, y: 11, w: 16, h: 11, placa: { x: 49, y: 16 }, direita: true },
+        { n: 10, x: 48, y: 22, w: 16, h: 10, placa: { x: 49, y: 26 }, direita: true }
     ];
-    let zonasAtuais = 0;   // terrenos da fazenda que está na tela (a sua ou a do vizinho)
+    let zonasAtuais = 0, direitaAtuais = 0;   // terrenos da fazenda que está na tela (a sua ou a do vizinho)
     const dentroRet = (r, x, y) => x >= r.x && y >= r.y && x < r.x + r.w && y < r.y + r.h;
-    const areasDoTerreno = (zonas = zonasAtuais) => [BASE, ...ZONAS.filter((z) => z.n <= zonas)];
-    function noTerreno(x, y, zonas = zonasAtuais) {
-        return areasDoTerreno(zonas).some((r) => dentroRet(r, x, y));
+    const zonaMinha = (z, zonas = zonasAtuais, direita = direitaAtuais) => (z.direita ? z.n - 7 <= direita : z.n <= zonas);
+    const areasDoTerreno = (zonas = zonasAtuais, direita = direitaAtuais) => [BASE, ...ZONAS.filter((z) => zonaMinha(z, zonas, direita))];
+    function noTerreno(x, y, zonas = zonasAtuais, direita = direitaAtuais) {
+        return areasDoTerreno(zonas, direita).some((r) => dentroRet(r, x, y));
     }
     // dá para construir/pôr canteiro em (x, y)? (dentro do terreno e fora das áreas fixas)
     function livre(x, y) {
@@ -977,6 +982,7 @@
             case 'turbina': return { p: 'farm', i: 1022, topo: quadroHelice ? 1024 : 1023 };
             case 'estufa': return { p: 'farm', i: 1025 };
             case 'gerador_bio': return { p: 'factory', i: 75 };
+            case 'hidreletrica': return { p: 'factory', i: 112 };   // fase 78: a pequena central (a roda gira em desenharMaquinas)
             case 'triturador': return { p: 'factory', i: 101 };
             case 'supercap': return { p: 'factory', i: 86 };
             case 'fabrica_auto': return { p: 'factory', w: 2, h: 2, grade: [[76, 77], [88, 89]] };
@@ -1317,7 +1323,8 @@
         let construcoesFn = () => [];
         let canteirosFn = () => [];                        // [{ posicao, x, y }]
         let construcao = { ativo: false };                 // estado do modo construir
-        let zonaVenda = null;                              // próximo terreno à venda (ZONAS) ou null
+        let zonasVenda = [];                               // os terrenos à venda (ZONAS): o próximo da fila e o da direita (fase 78)
+        let vendaTocada = null;                            // a placa tocada agora (o número do terreno)
         let pierPronto = false;                            // fase 61: o píer já foi construído?
         let pausada = false;                               // fase 62: no alto-mar, a fazenda para de desenhar
         let clima = null;                                  // sol | nublado | chuva | calor | vento
@@ -1375,7 +1382,7 @@
         let cacheCaminho = { chave: null, area: null };
         function areaCaminho() {
             const cons = construcoesFn() || [], cant = listaCanteiros();
-            const chave = cons.length + ':' + cant.length + ':' + zonasAtuais;
+            const chave = cons.length + ':' + cant.length + ':' + zonasAtuais + ':' + direitaAtuais;
             if (cacheCaminho.chave === chave) return cacheCaminho.area;
             let tiles = cons.filter((c) => c.tipo === 'caminho_pedra');
             if (!tiles.length) tiles = cons.filter((c) => c.tipo === 'caminho_terra');
@@ -1402,12 +1409,12 @@
         // o Faísca anda no meio dos equipamentos de energia (painéis, turbinas, baterias, gerador, reator...):
         // os quadrados em volta de cada um, fora dos canteiros e das construções. Ao chegar, olha para o
         // equipamento e mexe nele (olhar = o meio dele). Às vezes atravessa para outro equipamento.
-        const EQUIP_ENERGIA = ['painel_solar', 'turbina', 'bateria', 'supercap', 'gerador_bio', 'reator', 'triturador', 'fabrica_auto'];
+        const EQUIP_ENERGIA = ['painel_solar', 'turbina', 'bateria', 'supercap', 'gerador_bio', 'hidreletrica', 'reator', 'triturador', 'fabrica_auto'];
         let cacheEnergia = { chave: null, area: null };
         function areaEnergia() {
             const cons = construcoesFn() || [], cant = listaCanteiros();
             const equip = cons.filter((c) => EQUIP_ENERGIA.includes(c.tipo));
-            const chave = equip.map((c) => c.tipo + c.x + ',' + c.y).join('|') + ':' + cons.length + ':' + cant.length + ':' + zonasAtuais;
+            const chave = equip.map((c) => c.tipo + c.x + ',' + c.y).join('|') + ':' + cons.length + ':' + cant.length + ':' + zonasAtuais + ':' + direitaAtuais;
             if (cacheEnergia.chave === chave) return cacheEnergia.area;
             const ocupado = new Set(cant.map((c) => c.x + ',' + c.y));
             for (const c of cons) {
@@ -1462,6 +1469,11 @@
             const cx = caixaTerreno();
             let minX = Math.min(wx(cx.x0) - borda, wx(MAPA.feira.x - 1)), maxX = wx(cx.x1) + borda - vw;   // (até a feira, na mata à esquerda)
             let minY = wy(cx.y0) - borda - topo, maxY = wy(cx.y1) + borda + base - vh;
+            // fase 78: a placa de cada terreno à venda sempre aparece inteira, com um pouco de mata em volta
+            for (const zv of zonasVenda) {
+                minX = Math.min(minX, wx(zv.placa.x - 2)); maxX = Math.max(maxX, wx(zv.placa.x + 3) - vw);
+                minY = Math.min(minY, wy(zv.placa.y - 2) - topo); maxY = Math.max(maxY, wy(zv.placa.y + 3) + base - vh);
+            }
             // fase 67: terreno que chega no litoral deixa descer até a areia e um pouco do mar (no
             // celular a tela é baixa e a praia sumia; no computador ela já aparecia)
             if (cx.y1 >= AREIA_Y && cx.y1 < MAPA.mar.y + 3) maxY = Math.max(maxY, wy(MAPA.mar.y + 3) + base - vh);
@@ -1623,7 +1635,7 @@
                     if (dentroTerreno(tx, ty)) continue;
                     if (ty >= AREIA_Y) continue;   // fase 61: no mar não tem árvore; fase 67: nem na areia
                     // perto da placa do terreno à venda fica uma clareira
-                    if (zonaVenda && Math.abs(tx - zonaVenda.placa.x) <= 1 && ty >= zonaVenda.placa.y - 1 && ty <= zonaVenda.placa.y + 1) continue;
+                    if (zonasVenda.some((zv) => Math.abs(tx - zv.placa.x) <= 1 && ty >= zv.placa.y - 1 && ty <= zv.placa.y + 1)) continue;
                     const longe = distTerreno(tx, ty);
                     const chance = longe >= 3 ? 0.9 : longe === 2 ? 0.6 : 0.3;
                     if (r() >= chance) continue;
@@ -1648,7 +1660,7 @@
                 for (let tx = -MARGEM; tx < MAPA.w + MARGEM; tx++) {
                     const v = rp(), w = rp(), jx = Math.floor((rp() - 0.5) * 6), jy = Math.floor((rp() - 0.5) * 3);
                     if (dentroTerreno(tx, ty)) continue;
-                    if (zonaVenda && Math.abs(tx - zonaVenda.placa.x) <= 1 && ty >= zonaVenda.placa.y - 1 && ty <= zonaVenda.placa.y + 1) continue;
+                    if (zonasVenda.some((zv) => Math.abs(tx - zv.placa.x) <= 1 && ty >= zv.placa.y - 1 && ty <= zv.placa.y + 1)) continue;
                     const pecas = [];
                     if (tx < 0 || tx >= MAPA.w) {
                         const longe = tx < 0 ? -tx : tx - MAPA.w + 1;
@@ -2384,10 +2396,12 @@
 
         // terreno à venda: placa na clareira da mata, com uma moeda pulando
         function desenharPlacaVenda(tempo) {
-            const x = wx(zonaVenda.placa.x), y = wy(zonaVenda.placa.y);
             const bob = Math.floor(tempo / 600) % 2 ? -1 : 0;
-            tile(q, 83, x, y, false, 'town');
-            icone(q, 'moeda', x + 4, y - 10 + bob);
+            for (const zv of zonasVenda) {   // (fase 78: até duas placas)
+                const x = wx(zv.placa.x), y = wy(zv.placa.y);
+                tile(q, 83, x, y, false, 'town');
+                icone(q, 'moeda', x + 4, y - 10 + bob);
+            }
         }
 
         function desenharSinalAnimal(a, tempo) {
@@ -2519,7 +2533,7 @@
             const canteiros = listaCanteiros(), mc = mapaCanteiros(canteiros);
             for (const c of canteiros) desenharCanteiro(c, tempo, mc);
             desenharViagens();
-            if (zonaVenda) desenharPlacaVenda(tempo);
+            if (zonasVenda.length) desenharPlacaVenda(tempo);
             FEIRA.barracas.forEach((b, k) => {
                 if (k < feira.barracas) pe.push({ p: 'farm', i: 1064, x: wx(b.x), y: wy(b.y), flip: false, bob: 0 });
                 else if (feira.vagas) { q.globalAlpha = 0.3; tile(q, 1064, wx(b.x), wy(b.y), false, 'farm'); q.globalAlpha = 1; }
@@ -2649,8 +2663,8 @@
             } else if (typeof hover === 'number') {
                 const { x, y } = posCanteiro(hover);
                 moldura(x, y, T, T);
-            } else if (hover === 'venda' && zonaVenda) {
-                moldura(wx(zonaVenda.placa.x), wy(zonaVenda.placa.y), T, T);
+            } else if (hover === 'venda' && zonasVenda.length) {
+                for (const zv of zonasVenda) if (zv.n === vendaTocada) moldura(wx(zv.placa.x), wy(zv.placa.y), T, T);
             } else if (typeof hover === 'string' && hover.startsWith('c:')) {
                 const [hx, hy] = hover.slice(2).split(',').map(Number);
                 const c = lista.find((k) => k.x === hx && k.y === hy);
@@ -2892,7 +2906,7 @@
         const ANIMA = {
             irrigador: 'agua', aspersor: 'agua', pulverizador: 'nevoa', alarme: 'luz', robo_capina: 'robo', robo_colheita: 'robo',
             trator: 'fumaca', colheitadeira: 'fumaca', fabrica_auto: 'fabrica', triturador: 'po', painel_solar: 'reflexo',
-            bateria: 'carga', supercap: 'carga', estufa: 'estufa', reator: 'reator'
+            bateria: 'carga', supercap: 'carga', estufa: 'estufa', reator: 'reator', hidreletrica: 'roda'
         };
         let energiaFrac = 0;   // 0..1, para as luzinhas das baterias
         function desenharMaquinas(lista, tempo) {
@@ -2960,6 +2974,18 @@
                         q.globalAlpha = 0.8;
                         for (let d = 0; d < 6; d++) px(x + 2 + p * 14 - d * 0.5, y + 3 + d, PAL.w);
                         q.globalAlpha = 1;
+                    }
+                } else if (tipo === 'roda') {   // fase 78: a roda d'água girando do lado, e a água caindo
+                    const cx = x + 13, cy = y + 9, ang = t / 600;
+                    q.fillStyle = '#5a3a20'; q.fillRect(cx - 1, cy - 1, 3, 3);
+                    for (let k = 0; k < 4; k++) {
+                        const a = ang + k * Math.PI / 2;
+                        px(cx + Math.cos(a) * 4, cy + Math.sin(a) * 4, '#8a5a32', 2, 2);
+                        px(cx + Math.cos(a) * 2, cy + Math.sin(a) * 2, '#6b4426');
+                    }
+                    for (let k = 0; k < 3; k++) {
+                        const f = (t / 500 + k / 3) % 1;
+                        q.globalAlpha = 1 - f; px(cx + 4, cy - 6 + f * 12, PAL.b); q.globalAlpha = 1;
                     }
                 } else if (tipo === 'carga') {
                     const acesas = Math.round(energiaFrac * 3);
@@ -3277,7 +3303,8 @@
             const c = retCeleiro();
             if (px >= c.x && py >= c.y && px < c.x + c.w && py < c.y + c.h) return 'celeiro';
             // terreno à venda: a placa ou qualquer pedaço de mata dele
-            if (zonaVenda && dentroRet(zonaVenda, tx, ty)) return 'venda';
+            const zv = zonasVenda.find((z) => dentroRet(z, tx, ty));
+            if (zv) { vendaTocada = zv.n; return 'venda'; }
             if (dentroRet(FEIRA, tx, ty)) return 'feira';
             return null;
         }
@@ -3365,7 +3392,7 @@
             if (!mesmoAlvo(alvo, hover)) {
                 hover = alvo;
                 canvas.style.cursor = alvo == null ? 'default' : 'pointer';
-                if (cb.aoPassar) cb.aoPassar(traduzir(alvo));
+                if (cb.aoPassar) cb.aoPassar(traduzir(alvo), vendaTocada);
             }
         });
         const soltar = (e) => {
@@ -3385,10 +3412,10 @@
             const alvo = traduzir(bruto);
             hover = bruto;
             if (alvo == null) return;
-            if (cb.aoPassar) cb.aoPassar(alvo);
+            if (cb.aoPassar) cb.aoPassar(alvo, vendaTocada);
             if (typeof alvo === 'object' && 'tx' in alvo) { if (cb.aoTile) cb.aoTile(alvo.tx, alvo.ty); }
             else if (alvo === 'celeiro') { if (cb.aoCeleiro) cb.aoCeleiro(); }
-            else if (alvo === 'venda') { if (cb.aoVenda) cb.aoVenda(); }
+            else if (alvo === 'venda') { if (cb.aoVenda) cb.aoVenda(vendaTocada); }
             else if (alvo === 'feira') { if (cb.aoFeira) cb.aoFeira(); }
             else if (alvo === 'lago') { if (cb.aoLago) cb.aoLago(); }
             else if (alvo === 'visitante') { if (cb.aoVisitante) cb.aoVisitante(); }
@@ -3481,13 +3508,14 @@
             // fase 51: { barracas, vende: [tile do item de cada anúncio], vagas }
             definirFeira(f) { feira = { barracas: 1, vende: [], vagas: false, ...(f || {}) }; precisaDesenhar = true; },
             definirCanteiros(fn) { canteirosFn = fn; },
-            // terrenos da fazenda na tela e o próximo à venda (número da zona ou null)
+            // terrenos da fazenda na tela e os à venda (números das zonas; fase 78: até dois, e os da direita)
             definirTerreno(t) {
-                const zonas = (t && t.zonas) || 0;
-                const venda = (t && ZONAS.find((z) => z.n === t.venda)) || null;
-                if (zonas === zonasAtuais && venda === zonaVenda) return;
+                const zonas = (t && t.zonas) || 0, direita = (t && t.direita) || 0;
+                const venda = ZONAS.filter((z) => [].concat((t && t.venda) || []).includes(z.n));
+                if (zonas === zonasAtuais && direita === direitaAtuais && venda.map((z) => z.n).join() === zonasVenda.map((z) => z.n).join()) return;
                 zonasAtuais = zonas;
-                zonaVenda = venda;
+                direitaAtuais = direita;
+                zonasVenda = venda;
                 montarFundo();
                 ajustarEscala();
                 limitarCamera();

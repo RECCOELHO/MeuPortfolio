@@ -99,6 +99,8 @@ update public.fazenda_jogadores set nivel_premiado = floor(sqrt(greatest(xp, 0) 
 alter table public.fazenda_jogadores alter column nivel_premiado set default 1;
 alter table public.fazenda_jogadores drop constraint if exists fazenda_jogadores_zonas_check;
 alter table public.fazenda_jogadores add constraint fazenda_jogadores_zonas_check check (zonas between 0 and 7);   -- fase 24: 6 terrenos; fase 61: + o litoral
+-- fase 78: os 3 terrenos da direita (8, 9 e 10), comprados à parte dos de 1 a 7, do nível 29 em diante
+alter table public.fazenda_jogadores add column if not exists direita smallint not null default 0;
 -- quem comprou fileiras na versão 1 recebe as moedas de volta (e fica com os canteiros)
 update public.fazenda_jogadores
    set moedas = moedas + case terrenos when 1 then 400 when 2 then 1600 else 4600 end, terrenos = 0
@@ -789,9 +791,13 @@ returns int language sql stable security definer set search_path = public as $$
 $$;
 
 -- Bônus nas vendas, em %: beleza (+1% a cada 10, até 20) + caixote (+10)
+-- fase 78: do nível 29 para baixo, +50% nas vendas (do 30 ao 34 vai caindo 10 por nível, sem tombo)
 create or replace function public.fazenda_bonus_venda(p_jogador uuid)
-returns int language sql stable security definer set search_path = public as $$
-  select least(fazenda_beleza(p_jogador) / 10, 20) + 10 * fazenda_tem_efeito(p_jogador, 'venda')::int;
+returns int language plpgsql stable security definer set search_path = public as $$
+begin   -- (plpgsql: fazenda_nivel vem mais para baixo no arquivo)
+  return least(fazenda_beleza(p_jogador) / 10, 20) + 10 * fazenda_tem_efeito(p_jogador, 'venda')::int
+       + greatest(0, least(50, 50 - 10 * ((select fazenda_nivel(xp) from fazenda_jogadores where id = p_jogador) - 29)));
+end;
 $$;
 
 insert into public.fazenda_conquistas_tipos (id, nome, descricao, medida, meta, recompensa, ordem) values
@@ -1049,7 +1055,23 @@ returns jsonb language sql immutable as $$
            {"n":4,"nome":"Chapada do leste","x":32,"y":0,"w":16,"h":20,"custo":8000,"nivel":13,"canteiros":10},
            {"n":5,"nome":"Várzea do sul","x":0,"y":20,"w":32,"h":12,"custo":18000,"nivel":16,"canteiros":12},
            {"n":6,"nome":"Sertão do sudeste","x":32,"y":20,"w":16,"h":12,"custo":87500,"nivel":20,"canteiros":10},
-           {"n":7,"nome":"Litoral","x":0,"y":32,"w":48,"h":10,"custo":750000,"nivel":31,"canteiros":10,"mar":true}]'::jsonb;   -- fase 61 (fase 72: do 20 em diante, 2,5x)
+           {"n":7,"nome":"Litoral","x":0,"y":32,"w":64,"h":10,"custo":750000,"nivel":31,"canteiros":10,"mar":true},
+           {"n":8,"nome":"Serra do leste","x":48,"y":0,"w":16,"h":11,"custo":250000,"nivel":29,"canteiros":10,"lado":"direita"},
+           {"n":9,"nome":"Planalto do leste","x":48,"y":11,"w":16,"h":11,"custo":500000,"nivel":33,"canteiros":10,"lado":"direita"},
+           {"n":10,"nome":"Cerrado do leste","x":48,"y":22,"w":16,"h":10,"custo":1000000,"nivel":38,"canteiros":10,"lado":"direita"}]'::jsonb;
+   -- fase 61 (fase 72: do 20 em diante, 2,5x). Fase 78: os 3 da direita (8 a 10), comprados à parte,
+   -- e o litoral vai até a ponta da direita (x 63)
+$$;
+
+-- fase 78: os terrenos de um jogador num número só: zonas (de 1 a 7, em ordem) + 10 x direita (de 8 a 10,
+-- em ordem entre eles). É o que as funções de terreno recebem em p_zonas.
+create or replace function public.fazenda_terrenos(p_zonas int, p_direita int)
+returns int language sql immutable as $$
+  select coalesce(p_zonas, 0) + 10 * coalesce(p_direita, 0);
+$$;
+create or replace function public.fazenda_zona_minha(p_n int, p_terrenos int)
+returns boolean language sql immutable as $$
+  select case when p_n <= 7 then p_n <= p_terrenos % 10 else p_n - 7 <= p_terrenos / 10 end;
 $$;
 
 -- (x, y) fica dentro do terreno de quem já comprou p_zonas terrenos?
@@ -1057,7 +1079,7 @@ create or replace function public.fazenda_no_terreno(p_zonas int, p_x int, p_y i
 returns boolean language sql immutable as $$
   select (p_x between 0 and 21 and p_y between 0 and 12)
       or exists (select 1 from jsonb_array_elements(fazenda_zonas()) z
-                  where (z->>'n')::int <= p_zonas
+                  where fazenda_zona_minha((z->>'n')::int, p_zonas)   -- (fase 78: p_zonas = fazenda_terrenos)
                     and p_x >= (z->>'x')::int and p_x < (z->>'x')::int + (z->>'w')::int
                     and p_y >= (z->>'y')::int and p_y < (z->>'y')::int + (z->>'h')::int);
 $$;
@@ -1069,7 +1091,7 @@ $$;
 -- Igual a maxConstrucoes em fazenda.js.
 create or replace function public.fazenda_max_construcoes(p_zonas int)
 returns int language sql immutable as $$
-  select 250 + 150 * greatest(coalesce(p_zonas, 0), 0);
+  select 250 + 150 * greatest(coalesce(p_zonas, 0) % 10 + coalesce(p_zonas, 0) / 10, 0);   -- (fase 78: os da direita também)
 $$;
 
 -- fase 69: +2 por nível até o último (era até o 25: o limite parava em 54)
@@ -1077,7 +1099,7 @@ create or replace function public.fazenda_limite_canteiros(p_nivel int, p_zonas 
 returns int language sql immutable as $$
   select least(6 + (p_nivel - 1) * 2, 94)
        + coalesce((select sum(coalesce((z->>'canteiros')::int, 6))::int from jsonb_array_elements(fazenda_zonas()) z
-                    where (z->>'n')::int <= p_zonas), 0);
+                    where fazenda_zona_minha((z->>'n')::int, p_zonas)), 0);
 $$;
 
 -- Presente de moedas ao chegar no nível n: 50·n até o 10 e o dobro depois, que custa mais
@@ -1175,15 +1197,21 @@ returns table (solar real, eolica real, reator real) language sql stable as $$
     from (select y.c, fazenda_extremo_de(p_t, y.c) as e from (select fazenda_clima_em(p_t) as c) y) x;
 $$;
 
+-- fase 78: a pequena central hidrelétrica, ⚡ por hora (o rio baixa na onda de calor)
+create or replace function public.fazenda_hidro_em(p_t timestamptz)
+returns real language sql stable as $$
+  select case fazenda_clima_em(p_t) when 'calor' then 80 else 120 end::real;
+$$;
+
 create or replace function public.fazenda_energia_taxa(p_jogador uuid, p_t timestamptz)
 returns real language sql stable security definer set search_path = public as $$
-  select coalesce(sum(case i.efeito when 'solar' then g.solar when 'eolica' then g.eolica when 'reator' then g.reator else 0 end), 0)::real
+  select coalesce(sum(case i.efeito when 'solar' then g.solar when 'eolica' then g.eolica when 'reator' then g.reator when 'hidro' then fazenda_hidro_em(p_t) else 0 end), 0)::real
          -- fase 47: cada alarme gasta 1 ⚡ por hora (a conta só roda para quem tem energia elétrica)
          - (select count(*) from fazenda_construcoes a where a.jogador_id = p_jogador and a.tipo = 'alarme')::real
     from fazenda_construcoes c
     join fazenda_itens i on i.id = c.tipo
     cross join fazenda_gera_em(p_t) g
-   where c.jogador_id = p_jogador and i.efeito in ('solar', 'eolica', 'reator')
+   where c.jogador_id = p_jogador and i.efeito in ('solar', 'eolica', 'reator', 'hidro')
      and c.sobrecarga_em is null;   -- fase 77: em sobrecarga, parado até o conserto
 $$;
 
@@ -1374,8 +1402,8 @@ $$;
 -- terreno; e ocupar todos os canteiros do nível. Vêm as do nível de agora e as que ficaram para trás.
 create or replace function public.fazenda_metas(p_jogador uuid, p_nivel int)
 returns jsonb language sql stable security definer set search_path = public as $$
-  with j as (select zonas from fazenda_jogadores where id = p_jogador),
-       mx as (select fazenda_limite_canteiros(p_nivel, (select zonas from j)) as max,
+  with j as (select fazenda_terrenos(zonas, direita) as ter from fazenda_jogadores where id = p_jogador),
+       mx as (select fazenda_limite_canteiros(p_nivel, (select ter from j)) as max,
                      (select count(*) from fazenda_canteiros where jogador_id = p_jogador)::int as tem)
   select coalesce(jsonb_agg(m order by (m->>'nivel')::int, m->>'tipo', m->>'id'), '[]'::jsonb) from (
     select jsonb_build_object('tipo', 'construir', 'id', i.id, 'nivel', i.nivel_min,
@@ -1392,7 +1420,7 @@ returns jsonb language sql stable security definer set search_path = public as $
       from fazenda_ajudantes_tipos h where h.nivel_min <= p_nivel
     union all
     select jsonb_build_object('tipo', 'terreno', 'id', z->>'n', 'nivel', (z->>'nivel')::int,
-             'feito', (select zonas from j) >= (z->>'n')::int)
+             'feito', fazenda_zona_minha((z->>'n')::int, (select ter from j)))
       from jsonb_array_elements(fazenda_zonas()) z where (z->>'nivel')::int <= p_nivel
     union all
     select jsonb_build_object('tipo', 'canteiros', 'id', 'canteiros', 'nivel', p_nivel,
@@ -1449,7 +1477,7 @@ begin
     select * into j from fazenda_jogadores where id = p_jogador;
   end if;
   -- canteiros não aparecem mais sozinhos: o jogador coloca no modo construir até este limite
-  v_max := fazenda_limite_canteiros(v_nivel, j.zonas);
+  v_max := fazenda_limite_canteiros(v_nivel, fazenda_terrenos(j.zonas, j.direita));
   -- fase 49: as metas de nível; com todas em dia, o bônus de XP vale neste nível (só grava se mudou)
   v_metas := fazenda_metas(p_jogador, v_nivel);
   -- (fase 62: até o 44; era até o 29, quando o 30 era o último nível)
@@ -1488,8 +1516,9 @@ begin
       'xp_proximo', fazenda_xp_nivel(v_nivel + 1),
       'bonus_nivel', v_bonus,   -- fase 49: +50% de XP neste nível (metas em dia)
       'max_canteiros', v_max,
-      'max_construcoes', fazenda_max_construcoes(j.zonas),
+      'max_construcoes', fazenda_max_construcoes(fazenda_terrenos(j.zonas, j.direita)),
       'zonas', j.zonas,
+      'direita', j.direita,   -- fase 78: os terrenos da direita
       'beleza', fazenda_beleza(p_jogador),
       'bonus_venda', fazenda_bonus_venda(p_jogador)
     ),
@@ -3336,6 +3365,7 @@ begin
     'nivel', v_nivel,
     'max_canteiros', fazenda_max_canteiros(v_nivel),
     'zonas', j.zonas,
+    'direita', j.direita,   -- fase 78
     -- fase 48: hoje o visitante ainda pode salvar até 2 plantas murchas e dar ração a até 10 bichos aqui
     'salvos_hoje', (select count(*) from fazenda_visitas where ator_id = p_ator and dono_id = p_dono and tipo = 'salvar'
                      and criado_em > now() - interval '1 day'),
@@ -3850,6 +3880,7 @@ begin
       when 'evento_comprou' then coalesce((v_ev->>'comprou')::int, 0)
       when 'evento_convites' then coalesce((v_ev->>'convites')::int, 0)
       when 'evento_podio' then v_podios
+      when 'maior_compra' then coalesce(s.maior_compra, 0)::int   -- fase 78: a maior compra de uma vez
       else 0
     end;
     if v_valor >= r.meta then
@@ -3959,14 +3990,20 @@ begin
     insert into fazenda_animais (jogador_id, tipo) values (v_id, a.id);
 
   elsif p_categoria = 'terreno' then
-    -- sempre o próximo terreno da fila (p_tipo é ignorado)
-    if j.zonas >= jsonb_array_length(fazenda_zonas()) then raise exception 'terreno_max'; end if;
-    select (z->>'custo')::int as custo, (z->>'nivel')::int as nivel into a
+    -- de 1 a 7, sempre o próximo da fila; fase 78: p_tipo 8 a 10 = o próximo da direita (à parte,
+    -- do nível 29). Sem p_tipo (jogo antigo), o próximo da fila.
+    if coalesce(nullif(p_tipo, ''), '0')::int >= 8 then
+      if j.direita >= 3 then raise exception 'terreno_max'; end if;
+      if p_tipo::int <> 8 + j.direita then raise exception 'terreno_fora_de_ordem'; end if;
+    elsif j.zonas >= 7 then raise exception 'terreno_max';
+    end if;
+    select (z->>'n')::int as n, (z->>'custo')::int as custo, (z->>'nivel')::int as nivel into a
       from jsonb_array_elements(fazenda_zonas()) z
-     where (z->>'n')::int = j.zonas + 1;
+     where (z->>'n')::int = case when coalesce(nullif(p_tipo, ''), '0')::int >= 8 then 8 + j.direita else j.zonas + 1 end;
     if fazenda_nivel(j.xp) < a.nivel then raise exception 'nivel_insuficiente'; end if;
     if j.moedas < a.custo then raise exception 'moedas_insuficientes'; end if;
-    update fazenda_jogadores set moedas = moedas - a.custo, zonas = zonas + 1 where id = v_id;
+    if a.n >= 8 then update fazenda_jogadores set moedas = moedas - a.custo, direita = direita + 1 where id = v_id;
+    else update fazenda_jogadores set moedas = moedas - a.custo, zonas = zonas + 1 where id = v_id; end if;
 
   elsif p_categoria = 'melhoria' then
     -- fase 57: o próximo nível da melhoria (p_tipo = adubo, pomar ou pes)
@@ -4057,7 +4094,7 @@ $$;
      sem cercado (quem já tinha antes do cercado obrigatório): ver fazenda_checar_lugar */
 create or replace function public.fazenda_livre(p_x int, p_y int)
 returns boolean language sql immutable as $$
-  select p_x between 0 and 47 and p_y between 0 and 36            -- fase 61: o litoral vai até a areia (y 36)
+  select p_x between 0 and 63 and p_y between 0 and 36            -- fase 61: o litoral vai até a areia (y 36); fase 78: até x 63
      and not (p_x between 1 and 3  and p_y between 1 and 6)     -- celeiro
      and not (p_x between 5 and 7  and p_y between 1 and 3)     -- casa
      and not (p_x between 24 and 29 and p_y between 14 and 18)  -- lago
@@ -4162,10 +4199,10 @@ begin
   -- canteiro: não é item da loja, é um lugar de plantar (limite pelo nível e terrenos)
   if p_tipo = 'canteiro' then
     if (select count(*) from fazenda_canteiros where jogador_id = v_id)
-       >= fazenda_limite_canteiros(fazenda_nivel(j.xp), j.zonas) then
+       >= fazenda_limite_canteiros(fazenda_nivel(j.xp), fazenda_terrenos(j.zonas, j.direita)) then
       raise exception 'limite_canteiros';
     end if;
-    perform fazenda_checar_lugar(v_id, j.zonas, p_x, p_y, 1, 1);
+    perform fazenda_checar_lugar(v_id, fazenda_terrenos(j.zonas, j.direita), p_x, p_y, 1, 1);
     select min(g) into v_pos from generate_series(0, 299) g   -- fase 56: eram 0..99
      where not exists (select 1 from fazenda_canteiros where jogador_id = v_id and posicao = g);
     if v_pos is null then raise exception 'limite_canteiros'; end if;
@@ -4177,7 +4214,7 @@ begin
   select * into i from fazenda_itens where id = p_tipo;
   if not found then raise exception 'item_invalido'; end if;
   if fazenda_nivel(j.xp) < i.nivel_min then raise exception 'nivel_insuficiente'; end if;
-  perform fazenda_checar_lugar(v_id, j.zonas, p_x, p_y, i.largura, i.altura);
+  perform fazenda_checar_lugar(v_id, fazenda_terrenos(j.zonas, j.direita), p_x, p_y, i.largura, i.altura);
   -- fase 73: o que é da praia só vai na areia do Litoral (y 32 a 36)
   if i.categoria = 'praia' and not (p_y >= 32 and p_y + i.altura - 1 <= 36) then raise exception 'so_na_areia'; end if;
   if i.limite is not null   -- fase 57: painel solar e turbina sobem com o nível
@@ -4191,11 +4228,11 @@ begin
      and (select count(*) from fazenda_construcoes c join fazenda_itens k on k.id = c.tipo
            where c.jogador_id = v_id and (c.tipo = i.id or (i.grupo is not null and k.grupo = i.grupo)))
          >= (case when i.categoria = 'pomar'   -- fase 57: + os pés da melhoria "Mais pés de fruta"
-                  then i.por_terreno * (1 + j.zonas / 2) + fazenda_melhoria(v_id, 'pes')::int
-                  else i.por_terreno * (1 + j.zonas) end) then
+                  then i.por_terreno * (1 + (j.zonas + j.direita) / 2) + fazenda_melhoria(v_id, 'pes')::int   -- (fase 78: + os da direita)
+                  else i.por_terreno * (1 + j.zonas + j.direita) end) then
     raise exception 'limite_terreno';
   end if;
-  if (select count(*) from fazenda_construcoes where jogador_id = v_id) >= fazenda_max_construcoes(j.zonas) then
+  if (select count(*) from fazenda_construcoes where jogador_id = v_id) >= fazenda_max_construcoes(fazenda_terrenos(j.zonas, j.direita)) then
     raise exception 'limite_construcoes';
   end if;
   -- fase 45: quem já tinha o bicho antes do cercado obrigatório ganha o primeiro cercado dele
@@ -4234,7 +4271,7 @@ begin
   -- canteiro (mesmo plantado: a planta vai junto)
   select posicao into v_pos from fazenda_canteiros where jogador_id = v_id and x = p_x and y = p_y;
   if v_pos is not null then
-    perform fazenda_checar_lugar(v_id, j.zonas, p_nx, p_ny, 1, 1, null, null, v_pos);
+    perform fazenda_checar_lugar(v_id, fazenda_terrenos(j.zonas, j.direita), p_nx, p_ny, 1, 1, null, null, v_pos);
     update fazenda_canteiros set x = p_nx, y = p_ny where jogador_id = v_id and posicao = v_pos;
     if p_leve then return jsonb_build_object('ok', true, 'x', p_nx, 'y', p_ny); end if;
     return jsonb_build_object('estado', fazenda_estado(v_id));
@@ -4243,7 +4280,7 @@ begin
   select k.* into i from fazenda_construcoes c join fazenda_itens k on k.id = c.tipo
    where c.jogador_id = v_id and c.x = p_x and c.y = p_y;
   if not found then raise exception 'item_invalido'; end if;
-  perform fazenda_checar_lugar(v_id, j.zonas, p_nx, p_ny, i.largura, i.altura, p_x, p_y);
+  perform fazenda_checar_lugar(v_id, fazenda_terrenos(j.zonas, j.direita), p_nx, p_ny, i.largura, i.altura, p_x, p_y);
   if i.categoria = 'praia' and not (p_ny >= 32 and p_ny + i.altura - 1 <= 36) then raise exception 'so_na_areia'; end if;   -- fase 73
   update fazenda_construcoes set x = p_nx, y = p_ny
    where jogador_id = v_id and x = p_x and y = p_y;
@@ -5333,7 +5370,7 @@ revoke all on public.fazenda_feira from anon, authenticated;
 create or replace function public.fazenda_feira_regras()
 returns jsonb language sql immutable as $$
   select '{"taxa": 0, "min": 0.5, "max": 3, "horas": 48, "por_barraca": 2, "barracas_max": 4, "barraca_nivel": 5,
-           "barraca_precos": [800, 1600, 2400], "compras_dia": 40, "qtd_max": 99}'::jsonb;
+           "barraca_precos": [800, 1600, 2400], "compras_dia": 50, "qtd_max": 99}'::jsonb;
 $$;
 
 -- Fase 51: quantos anúncios abertos dá para ter: 2 por barraca da feira
@@ -5828,8 +5865,11 @@ $$;
 create or replace function public.fazenda_limite_maquina(p_item text, p_limite int, p_nivel int)
 returns int language sql immutable as $$
   select case p_item
-           when 'painel_solar' then p_limite + greatest(0, (p_nivel - 16) / 2)
-           when 'turbina'      then p_limite + greatest(0, (p_nivel - 17) / 2)
+           -- fase 78: do 17 ao 29, +1 por nível (era +1 a cada 2); do 30 em diante, +1 a cada 2
+           when 'painel_solar' then p_limite + greatest(0, least(p_nivel, 29) - 16) + greatest(0, (p_nivel - 29) / 2)
+           when 'turbina'      then p_limite + greatest(0, least(p_nivel, 29) - 17) + greatest(0, (p_nivel - 29) / 2)
+           when 'gerador_bio'  then p_limite + (p_nivel >= 21)::int + (p_nivel >= 24)::int + 2 * (p_nivel >= 28)::int   -- fase 78: 2, 3, 4 e 6
+           when 'hidreletrica' then p_limite + (p_nivel >= 23)::int + (p_nivel >= 27)::int                                -- fase 78: 1, 2 e 3
            when 'reator'       then p_limite + (p_nivel >= 40)::int   -- fase 75: o 2º reator no nível 40
            else p_limite end;
 $$;
@@ -8155,7 +8195,7 @@ begin
   if v is not null then return v; end if;
   select jsonb_build_object(   -- (fase 77: a mesma conta da taxa, com a tempestade e o furacão)
            'solar', round(avg(g.solar)::numeric, 1), 'eolica', round(avg(g.eolica)::numeric, 1),
-           'reator', round(avg(g.reator)::numeric, 1), 'biomassa', 50)
+           'reator', round(avg(g.reator)::numeric, 1), 'hidro', round(avg(fazenda_hidro_em(t))::numeric, 1), 'biomassa', 50)
     into v
     from generate_series(date_trunc('hour', now()), date_trunc('hour', now()) + interval '7 days', interval '12 minutes') t
    cross join lateral fazenda_gera_em(t) g;
@@ -8202,7 +8242,7 @@ begin
     into v_gera, v_g
     from (select c.tipo, count(*) as n, count(*) * (m->>i.efeito)::real as h
             from fazenda_construcoes c join fazenda_itens i on i.id = c.tipo
-           where c.jogador_id = p_jogador and i.efeito in ('solar', 'eolica', 'reator', 'biomassa')
+           where c.jogador_id = p_jogador and i.efeito in ('solar', 'eolica', 'reator', 'biomassa', 'hidro')
            group by c.tipo, i.efeito) x;
 
   -- gasta: cada coisa trabalhando sem parar
@@ -8449,6 +8489,54 @@ notify pgrst, 'reload config';
 notify pgrst, 'reload schema';
 
 -- ------------------------------------------------------------
+-- Fase 78: terrenos à direita, mais energia antes do 29, mais dinheiro do 29 para baixo e a conquista do
+-- milhão.
+-- • Terrenos 8, 9 e 10 na faixa x 48..63 (níveis 29, 33 e 38; 250 mil, 500 mil e 1 milhão), comprados à
+--   parte dos de 1 a 7 (fazenda_jogadores.direita, de 0 a 3). As funções de terreno recebem
+--   fazenda_terrenos(zonas, direita) = zonas + 10 x direita; o litoral vai até x 63.
+-- • Energia: painel e turbina +1 por nível do 17 ao 29; gerador a biomassa 2 → 6 até o 28; a pequena
+--   central hidrelétrica (nível 20, 120 ⚡/h sem parar, 80 no calor; 1, 2 e 3 nos níveis 20, 23 e 27).
+-- • Venda: +50% do nível 29 para baixo (fazenda_bonus_venda), caindo 10 por nível do 30 ao 34.
+-- • Feira: 50 compras por dia (eram 40).
+-- • Conquista "Compra milionária": pagar 1 milhão de moedas de uma vez (um gatilho guarda a maior
+--   queda das moedas numa mudança só, em fazenda_estatisticas.maior_compra).
+-- ------------------------------------------------------------
+alter table public.fazenda_jogadores add column if not exists direita smallint not null default 0;
+alter table public.fazenda_jogadores drop constraint if exists fazenda_jogadores_direita_check;
+alter table public.fazenda_jogadores add constraint fazenda_jogadores_direita_check check (direita between 0 and 3);
+
+insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem, efeito, raio, limite, descricao) values
+  ('hidreletrica', 'Pequena central hidrelétrica', 'energia', 30000, 20, 84, 'hidro', 0, 1,
+   'Uma rodinha d''água num riacho: 120 ⚡/h sem parar, de dia e de noite (80 na onda de calor, com o rio baixo). Tempestade e furacão não estragam. Até 1, mais 1 no nível 23 e no 27.')
+on conflict (id) do update set
+  nome = excluded.nome, categoria = excluded.categoria, custo = excluded.custo, nivel_min = excluded.nivel_min, ordem = excluded.ordem,
+  efeito = excluded.efeito, raio = excluded.raio, limite = excluded.limite, descricao = excluded.descricao;
+update public.fazenda_itens set descricao = 'Gera até 12 ⚡/h de dia (sol forte: 14; nublado: 5; chuva: 3). À noite, nada: no jogo, o dia e a noite se revezam a cada 2 horas. Até 8, mais 1 por nível do 17 ao 29 e 1 a cada 2 níveis depois.' where id = 'painel_solar';
+update public.fazenda_itens set descricao = 'Gera 8 ⚡/h de dia e de noite; 30 ⚡/h na ventania e 14 na chuva. Na calmaria (sem vento, uns 25% do tempo fora da ventania e da chuva), cai para 3 ⚡/h: o painel de energia avisa quando vem. Até 6, mais 1 por nível do 18 ao 29 e 1 a cada 2 níveis depois.' where id = 'turbina';
+update public.fazenda_itens set descricao = 'Ligado, queima 1 milho a cada 30 min: 50 ⚡/h. Toque nele para ligar ou desligar. Até 2, 3 no nível 21, 4 no 24 e 6 no 28.' where id = 'gerador_bio';
+
+-- a conquista do milhão: a maior queda das moedas numa mudança só
+alter table public.fazenda_estatisticas add column if not exists maior_compra bigint not null default 0;
+create or replace function public.fazenda_moedas_pagou()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.moedas < old.moedas - 999999 then
+    insert into fazenda_estatisticas (jogador_id, maior_compra) values (new.id, old.moedas - new.moedas)
+    on conflict (jogador_id) do update set maior_compra = greatest(fazenda_estatisticas.maior_compra, excluded.maior_compra);
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists fazenda_moedas_pagou on public.fazenda_jogadores;
+create trigger fazenda_moedas_pagou after update of moedas on public.fazenda_jogadores
+  for each row when (new.moedas < old.moedas - 999999) execute function public.fazenda_moedas_pagou();
+insert into public.fazenda_conquistas_tipos (id, nome, descricao, medida, meta, recompensa, ordem) values
+  ('milhao', 'Compra milionária', 'Pague 1 milhão de moedas numa compra só', 'maior_compra', 1000000, 50000, 60)
+on conflict (id) do update set nome = excluded.nome, descricao = excluded.descricao, medida = excluded.medida,
+  meta = excluded.meta, recompensa = excluded.recompensa;
+update public.fazenda_conquistas_tipos set diamantes = 20 where id = 'milhao';
+
+-- ------------------------------------------------------------
 -- Permissões: só a API pública fica executável pela chave anon
 -- ------------------------------------------------------------
 revoke execute on function
@@ -8643,7 +8731,11 @@ revoke execute on function
   public.fazenda_extremo_de(timestamptz, text),
   public.fazenda_extremo_em(timestamptz),
   public.fazenda_gera_em(timestamptz),
-  public.fazenda_tempestade(uuid)
+  public.fazenda_tempestade(uuid),
+  public.fazenda_terrenos(int, int),
+  public.fazenda_hidro_em(timestamptz),
+  public.fazenda_zona_minha(int, int),
+  public.fazenda_moedas_pagou()
 from public, anon, authenticated;
 
 grant execute on function
