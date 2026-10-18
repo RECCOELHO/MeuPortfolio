@@ -1123,6 +1123,7 @@
         if (!c) return { fase: 'bloqueado' };
         if (c.estado !== 'plantado') return { fase: c.estado };
         const k = culturas[c.cultura];
+        if (!k) return { fase: 'arado' };   // semente que o jogo ainda não conhece (catálogo atrasado): não quebra a tela
         const inicio = Date.parse(c.plantado_em);
         const maduro = inicio + k.tempo_seg * 1000;
         const murcho = maduro + Math.max(k.tempo_seg * 2, 3600) * 1000;
@@ -1317,6 +1318,8 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-10-18-leve', data: '18/10', titulo: 'Arrastar o mapa sem travar', itens: [
+            'O jogo agora desenha <b>só o pedaço da fazenda que aparece na tela</b>, e não a fazenda inteira a cada quadro. Nas fazendas grandes, arrastar o mapa ficou até <b>2 a 3 vezes mais leve</b>, principalmente no celular.'] },
         { id: '2026-10-18-pergunta', data: '18/10', titulo: 'Sem janelinha do navegador', itens: [
             'Quando o jogo pergunta antes de gastar (melhorias, baús, diamantes, píer, luvas do Perks…), a pergunta aparece <b>dentro do jogo</b>, e não mais na janelinha do navegador.'] },
         { id: '2026-10-18-clima2', data: '18/10', titulo: 'Tela do clima mais fácil', itens: [
@@ -2214,8 +2217,16 @@
         ` → ${itemDe(culturas[it.produz] || { id: it.produz }, 16)} (${fmtDuracao(it.produz_seg)})`;
 
     let cacheVisitaCons = {};
+    // a cena pede a lista a cada quadro: refeita no máximo 5 vezes por segundo (ou quando a fazenda muda)
+    let cacheVisual = { cons: null, em: 0, lista: null, visita: null };
     function visualConstrucoes() {
         if (!S) return DEMO_CONSTRUCOES;
+        const cons = visita ? visita.construcoes : S.construcoes, t = performance.now();
+        if (cacheVisual.cons === cons && cacheVisual.visita === visita && t - cacheVisual.em < 200) return cacheVisual.lista;
+        cacheVisual = { cons, em: t, visita, lista: montarVisualConstrucoes() };
+        return cacheVisual.lista;
+    }
+    function montarVisualConstrucoes() {
         if (visita) {   // na fazenda do vizinho os canos também ligam uns nos outros (sem a luz: a energia é dele)
             const cons = visita.construcoes || [];
             if (cacheVisitaCons.cons !== cons) {

@@ -1547,7 +1547,7 @@
 
         function redimensionar() {
             const W = window.innerWidth, H = window.innerHeight;
-            dpr = Math.min(window.devicePixelRatio || 1, 3);
+            dpr = Math.min(window.devicePixelRatio || 1, 2);   // (no máximo 2x: em tela 3x o celular desenhava 2,25 vezes mais pixels; o pixel art fica igual)
             canvas.width = Math.round(W * dpr);
             canvas.height = Math.round(H * dpr);
             canvas.style.width = W + 'px';
@@ -2513,12 +2513,22 @@
         function desenhar(tempo) {
             sincronizarAnimais();
             quadroHelice = Math.floor(tempo / (clima === 'furacao' ? 45 : clima === 'vento' || clima === 'tempestade' ? 90 : 200)) % 2;   // venta mais, gira mais
-            q.drawImage(fundo, 0, 0);
+            // só o pedaço do mundo que aparece na tela (com uma bordinha): o resto não é desenhado
+            // (antes era o mundo inteiro a cada quadro, e o celular engasgava ao arrastar)
+            const V = { x0: Math.max(0, Math.floor(cam.x) - T), y0: Math.max(0, Math.floor(cam.y) - T) };
+            V.x1 = Math.min(MW, Math.ceil(cam.x + vw) + T); V.y1 = Math.min(MH, Math.ceil(cam.y + vh) + T);
+            const vW = Math.max(1, V.x1 - V.x0), vH = Math.max(1, V.y1 - V.y0);
+            // coisa no quadrado (x, y) que pode aparecer: as altas sobem até 3 quadrados e as largas vão até 4 para a direita
+            const naTela = (x, y) => { const px = wx(x), py = wy(y); return px >= V.x0 - 4 * T && px <= V.x1 && py >= V.y0 - 4 * T && py <= V.y1 + 3 * T; };
+            q.save();
+            q.beginPath(); q.rect(V.x0, V.y0, vW, vH); q.clip();
+            q.drawImage(fundo, V.x0, V.y0, vW, vH, V.x0, V.y0, vW, vH);
             desenharAguaViva(tempo);   // fase 74b: o lago (o laguinho dos patos é desenhado no cercado, com as dele)
             desenharMarVivo(tempo);    // fase 76: o mar da praia
 
-            const lista = construcoesFn() || [];
-            const m = mapaConstrucoes(lista);
+            const todas = construcoesFn() || [];
+            const m = mapaConstrucoes(todas);   // (os vizinhos de cerca e cano vêm da lista toda)
+            const lista = todas.filter((c) => naTela(c.x, c.y));
             const pe = [];   // coisas "em pé", ordenadas pela altura
             for (const c of lista) {
                 const s = spritesDe(c.tipo, c.x, c.y, m);
@@ -2531,7 +2541,7 @@
             }
 
             const canteiros = listaCanteiros(), mc = mapaCanteiros(canteiros);
-            for (const c of canteiros) desenharCanteiro(c, tempo, mc);
+            for (const c of canteiros) if (naTela(c.x, c.y)) desenharCanteiro(c, tempo, mc);
             desenharViagens();
             if (zonasVenda.length) desenharPlacaVenda(tempo);
             FEIRA.barracas.forEach((b, k) => {
@@ -2584,7 +2594,7 @@
             desenharSono(tempo);   // fase 66: os zzz das casas (e de quem dorme na sombra)
             desenharRaios(tempo);   // fase 68: as faíscas do eletricista
             const escuro = faseDoDia(relogio()).n;
-            if (escuro > 0) desenharNoite(lista, tempo, escuro);   // balões e sinais vêm depois: ficam claros
+            if (escuro > 0) desenharNoite(todas, tempo, escuro);   // (as luzes saem da lista toda: a camada fica guardada)   // balões e sinais vêm depois: ficam claros
             desenharRadiacao(tempo);   // fase 68: o bicho radioativo (brilha também de noite)
             if (visitante && !visitante.andando && !visitante.saindo) {   // balão com o pedido, pulando
                 const bx = Math.round(visitante.x) - 2, by = Math.round(visitante.y) - 21 + (Math.floor(tempo / 350) % 2);
@@ -2683,16 +2693,22 @@
                 if (a) moldura(Math.round(a.x), Math.round(a.y), T, T);
             }
 
+            q.restore();   // (o recorte do pedaço da tela)
+
             // recorte da câmera ampliado para a tela
             ctx.imageSmoothingEnabled = false;
-            ctx.fillStyle = (CHAO[EST] || CHAO.primavera).grama;
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            if (escuro > 0) {   // a grama fora do mapa escurece junto
-                ctx.fillStyle = `rgba(16, 22, 58, ${(0.62 * escuro).toFixed(3)})`;
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-            }
             const k = escala * dpr;
-            ctx.drawImage(mundo, 0, 0, MW, MH, -Math.round(cam.x * k), -Math.round(cam.y * k), MW * k, MH * k);
+            const dx = V.x0 * k - Math.round(cam.x * k), dy = V.y0 * k - Math.round(cam.y * k);
+            // a grama de fora do mapa só quando o mundo não cobre a tela toda (zoom bem afastado)
+            if (dx > 0 || dy > 0 || dx + vW * k < canvas.width || dy + vH * k < canvas.height) {
+                ctx.fillStyle = (CHAO[EST] || CHAO.primavera).grama;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                if (escuro > 0) {   // a grama fora do mapa escurece junto
+                    ctx.fillStyle = `rgba(16, 22, 58, ${(0.62 * escuro).toFixed(3)})`;
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                }
+            }
+            ctx.drawImage(mundo, V.x0, V.y0, vW, vH, dx, dy, vW * k, vH * k);
             desenharClima(tempo, k);
         }
 
