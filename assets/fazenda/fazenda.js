@@ -1302,6 +1302,7 @@
             'Os ajudantes, as visitas e o fazendeiro contornam o lago <b>por fora das pedras</b>: nada de ficar parado no canto, em cima da borda ou com meio corpo na água.',
             'Na praia, a <b>beira do mar</b> mexe de verdade: quando a onda volta aparece a areia molhada, e não sobra mais aquela linha azul reta.',
             'Os peixes só nadam dentro da água (nada passando por cima das estacas do píer).',
+            'Arrastar a fazenda ficou mais leve: o jogo só desenha o pedaço que está na tela.',
             'O servidor ficou mais paciente: nos horários cheios, a fazenda não dá mais erro ao abrir ou ao fazer uma ação.'] },
         { id: '2026-10-18-clima', data: '18/10', titulo: 'A tela do clima, a tempestade e o furacão', itens: [
             'Toque no <b>clima</b>, lá em cima: abre a <b>tela do clima</b>, com as próximas 24 horas, o que cada clima faz nos canteiros e na energia e quanto do dia cada um ocupa em cada estação.',

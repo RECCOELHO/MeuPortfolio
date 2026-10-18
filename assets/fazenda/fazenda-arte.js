@@ -1962,6 +1962,7 @@
         }
         function desenharAguaViva(tempo, so) {   // so = um laguinho só (o dos patos, desenhado no cercado)
             for (const r of so ? [so] : aguas().filter((k) => k.lago)) {
+                if (!naTela(r.x0, r.y0, r.x1, r.y1)) continue;   // (fase 77b: fora da tela, nada)
                 const w = r.x1 - r.x0, h = r.y1 - r.y0, sem = Math.abs(Math.round(r.x0 * 7 + r.y0 * 13));
                 q.save(); q.beginPath(); q.rect(r.x0, r.y0, w, h); q.clip();
                 // peixes: cada um numa faixa, ida e volta suave (vira na ponta)
@@ -1999,7 +2000,10 @@
         }
         // o mar da praia (sem o lugar do píer e do barco, que estão no fundo)
         function desenharMarVivo(tempo) {
-            const BEIRA = wy(MAPA.mar.y), X0 = wx(-MARGEM), X1 = wx(MAPA.w + MARGEM), FUNDO = MH;
+            const BEIRA = wy(MAPA.mar.y), FUNDO = MH;
+            if (!naTela(0, BEIRA - 3, MW, FUNDO)) return;   // fase 77b: só o pedaço do mar que está na tela
+            const X0 = wx(-MARGEM), X1 = wx(MAPA.w + MARGEM);
+            const C0 = Math.max(X0, vis.x0 - ((vis.x0 - X0) % 2)), C1 = Math.min(X1, vis.x1);   // as colunas da beira na tela
             const semPier = (sempre) => {   // o recorte do mar, sem o píer e o barco (sempre: também as estacas de antes de construir)
                 q.save(); q.beginPath(); q.rect(X0, BEIRA - 3, X1 - X0, FUNDO - BEIRA + 3);
                 if (zonasAtuais >= 7 && (pierPronto || sempre)) q.rect(wx(MAPA.pier.x) - 2, wy(MAPA.pier.y), (MAPA.pier.w + 3) * T + 4, FUNDO - wy(MAPA.pier.y));
@@ -2009,7 +2013,7 @@
             // onda chegou, o mar dali para baixo e a espuma em cima (no fundo não sobra a linha reta)
             semPier(false);
             const vai = Math.sin(tempo / 1300) * 1.6;
-            for (let x = X0; x < X1; x += 2) {
+            for (let x = C0; x < C1; x += 2) {
                 const topo = BEIRA + Math.round(Math.sin(x / 9 + tempo / 900) * 1.2 + vai);   // de BEIRA − 3 a BEIRA + 3
                 q.fillStyle = '#d2b06c'; q.fillRect(x, BEIRA - 3, 2, topo - BEIRA + 3);
                 q.fillStyle = '#3a7cc4'; q.fillRect(x, topo, 2, BEIRA + 5 - topo);
@@ -2030,6 +2034,7 @@
                 if (t > 0.55) continue;
                 const rr = rng(ciclo * 71 + n * 29);
                 const cx = Math.round(X0 + rr() * (X1 - X0)), cy = Math.round(BEIRA + 8 + rr() * (FUNDO - BEIRA - 12));
+                if (cx + 5 < vis.x0 || cx > vis.x1 || cy < vis.y0 || cy > vis.y1) continue;
                 q.fillStyle = cy > BEIRA + T * 4 ? '#4c88cc' : '#6fa8e6';
                 q.fillRect(cx, cy, 2, 1); q.fillRect(cx + 2, cy - 1, 2, 1); q.fillRect(cx + 4, cy, 1, 1);
                 if (t > 0.15 && t < 0.35) { q.fillStyle = '#d6ebff'; q.fillRect(cx + 2, cy - 1, 1, 1); }
@@ -2496,10 +2501,21 @@
             }
             return memoSem.ocupado;
         }
+        // fase 77b: o pedaço do mundo que está na tela (mais uma bordinha). Só ele é refeito do fundo e
+        // ampliado para a tela; antes era o mundo inteiro a cada quadro, e o arrastar ficava pesado no celular
+        const vis = { x0: 0, y0: 0, x1: 0, y1: 0 };
+        function medirVisivel() {
+            vis.x0 = Math.max(0, Math.floor(cam.x / 8) * 8 - T * 2);
+            vis.y0 = Math.max(0, Math.floor(cam.y / 8) * 8 - T * 2);
+            vis.x1 = Math.min(MW, Math.ceil(cam.x + vw) + T * 2);
+            vis.y1 = Math.min(MH, Math.ceil(cam.y + vh) + T * 2);
+        }
+        const naTela = (x0, y0, x1, y1) => x1 > vis.x0 && x0 < vis.x1 && y1 > vis.y0 && y0 < vis.y1;
         function desenhar(tempo) {
             sincronizarAnimais();
             quadroHelice = Math.floor(tempo / (clima === 'furacao' ? 45 : clima === 'vento' || clima === 'tempestade' ? 90 : 200)) % 2;   // venta mais, gira mais
-            q.drawImage(fundo, 0, 0);
+            medirVisivel();
+            q.drawImage(fundo, vis.x0, vis.y0, vis.x1 - vis.x0, vis.y1 - vis.y0, vis.x0, vis.y0, vis.x1 - vis.x0, vis.y1 - vis.y0);
             desenharAguaViva(tempo);   // fase 74b: o lago (o laguinho dos patos é desenhado no cercado, com as dele)
             desenharMarVivo(tempo);    // fase 76: o mar da praia
 
@@ -2678,7 +2694,8 @@
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
             }
             const k = escala * dpr;
-            ctx.drawImage(mundo, 0, 0, MW, MH, -Math.round(cam.x * k), -Math.round(cam.y * k), MW * k, MH * k);
+            const vw0 = vis.x1 - vis.x0, vh0 = vis.y1 - vis.y0;   // (fase 77b: só o pedaço da tela)
+            if (vw0 > 0 && vh0 > 0) ctx.drawImage(mundo, vis.x0, vis.y0, vw0, vh0, vis.x0 * k - Math.round(cam.x * k), vis.y0 * k - Math.round(cam.y * k), vw0 * k, vh0 * k);
             desenharClima(tempo, k);
         }
 
