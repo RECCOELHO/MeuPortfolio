@@ -1368,7 +1368,7 @@
             const c = (construcoesFn() || []).find((k) => CERCADOS[k.tipo] && CERCADOS[k.tipo].bicho === bicho);
             if (!c) return null;
             const k = CERCADOS[c.tipo];
-            return { x0: wx(c.x) + 6, y0: wy(c.y) + 3, x1: wx(c.x + k.w) - 22, y1: wy(c.y + k.h) - 21 };
+            return { x0: wx(c.x) + 6, y0: wy(c.y) + 3, x1: wx(c.x + k.w) - 22, y1: wy(c.y + k.h) - 21, cercado: true };
         }
         // fase 69: por onde o Faísca anda: a estradinha de pedra (senão a de terra); sem estradinha, pela
         // fazenda toda, longe da plantação (nem no canteiro, nem colado nele, nem em cima de construção)
@@ -1732,7 +1732,10 @@
             // fase 67: a areia vai de ponta a ponta, como o mar (nas laterais, coqueiros e pedras em vez de mata)
             ret(X0, AREIA, X1 - X0, BEIRA - AREIA, '#ecd59a');
             for (let k = 0; k < 1250; k++) ret(X0 + Math.floor(r() * (X1 - X0)), AREIA + Math.floor(r() * (BEIRA - AREIA)), 1, 1, r() < 0.5 ? '#d9bd7c' : '#f6e6b8');
-            ret(X0, BEIRA - 4, X1 - X0, 4, '#d2b06c');   // areia molhada
+            for (let x = X0; x < X1; x += 2) {   // areia molhada (fase 77b: a borda de cima irregular, nada de linha reta)
+                const topo = BEIRA - 5 + Math.round(Math.sin(x / 11) * 1.2 + Math.sin(x / 5.3) * 0.6);
+                ret(x, topo, 2, BEIRA - topo, '#d2b06c');
+            }
             // o mar
             ret(X0, BEIRA, X1 - X0, FUNDO - BEIRA, '#3a7cc4');
             ret(X0, BEIRA + T * 2, X1 - X0, FUNDO - BEIRA - T * 2, '#336fb3');
@@ -1741,7 +1744,8 @@
                 const x = X0 + Math.floor(r() * (X1 - X0)), y = BEIRA + 6 + Math.floor(r() * (FUNDO - BEIRA - 8));
                 ret(x, y, 3 + Math.floor(r() * 4), 1, r() < 0.65 ? '#5d9fe0' : '#2f6aac');
             }
-            // (fase 76: a espuma da beira vai e volta, desenhada a cada quadro em desenharMarVivo)
+            // (fase 76: a espuma da beira vai e volta, desenhada a cada quadro em desenharMarVivo; fase 77b: a
+            // beira inteira, de BEIRA − 3 a BEIRA + 5, também: a areia molhada aparece quando a onda volta)
         }
         // o lugar do píer: estacas e uma plaquinha até ser construído; depois, o píer de tábuas e o barco
         function desenharPier() {
@@ -1841,29 +1845,43 @@
             const x = wx(c.x), y = wy(c.y);
             return { x0: x + 17, y0: y + 17, x1: x + 57, y1: y + 37 };
         };
+        // fase 77b: o que ninguém pisa (e) é a água com a borda dela (as pedras do lago, a grama do laguinho)
+        // e a folga do boneco: o desenho tem 16 px de largura (8 para cada lado do pé) e o pé fica no fim
+        // dele. Antes a folga era de 5 px em volta da água de dentro, e quem andava ficava em cima das pedras,
+        // com meio corpo na água, parado nos cantos.
+        const FOLGA = { lado: 9, cima: 3, baixo: 4 };
+        const obstaculo = (r) => ({ x0: r.x0 - FOLGA.lado, y0: r.y0 - FOLGA.cima, x1: r.x1 + FOLGA.lado, y1: r.y1 + FOLGA.baixo });
         let cacheAguas = { chave: null, lista: [] };
         function aguas() {
             const cons = construcoesFn() || [];
             const patos = cons.filter((c) => CERCADOS[c.tipo] && CERCADOS[c.tipo].chao === 'lago');
             const chave = zonasAtuais + '|' + patos.map((c) => c.x + ',' + c.y).join(';');
             if (cacheAguas.chave === chave) return cacheAguas.lista;
-            const lista = patos.map(laguinhoPato);
-            if (lagoNaTela()) lista.push({ x0: TANQUE.x0 + TANQUE.borda, y0: TANQUE.y0 + TANQUE.borda, x1: TANQUE.x1 - TANQUE.borda, y1: TANQUE.y1 - TANQUE.borda, lago: true });
-            lista.push({ x0: -1e6, y0: wy(MAPA.mar.y), x1: 1e6, y1: 1e6 });   // o mar
+            const lista = patos.map((c) => {   // o laguinho e a margem de grama dele (desenharCercado)
+                const L = laguinhoPato(c);
+                return { ...L, e: obstaculo({ x0: L.x0 - 1, y0: L.y0 - 2, x1: L.x1 + 1, y1: L.y1 + 2 }) };
+            });
+            if (lagoNaTela()) lista.push({ x0: TANQUE.x0 + TANQUE.borda, y0: TANQUE.y0 + TANQUE.borda, x1: TANQUE.x1 - TANQUE.borda, y1: TANQUE.y1 - TANQUE.borda,
+                                          lago: true, e: obstaculo(TANQUE) });   // (o tanque inteiro, com as pedras)
+            const mar = wy(MAPA.mar.y);   // o mar: a onda sobe até 3 px na areia
+            lista.push({ x0: -1e6, y0: mar, x1: 1e6, y1: 1e6, e: { x0: -1e6, y0: mar - 6, x1: 1e6, y1: 1e6 } });
             cacheAguas = { chave, lista };
             return lista;
         }
-        const MARGEM_AGUA = 5;
         const dentroDe = (r, x, y, m) => x > r.x0 - m && x < r.x1 + m && y > r.y0 - m && y < r.y1 + m;
-        const aguaEm = (x, y, m = MARGEM_AGUA) => aguas().find((r) => dentroDe(r, x + 8, y + 14, m)) || null;
-        // um destino que caiu na água vai para a beira mais perto, por fora
+        const aguaEm = (x, y, m = 0) => aguas().find((r) => dentroDe(r.e, x + 8, y + 14, m)) || null;
+        // um destino que caiu na água vai para a beira mais perto, por fora (e não noutra água)
         function foraDaAgua(x, y) {
             const r = aguaEm(x, y);
             if (!r) return null;
-            const px = x + 8, py = y + 14, m = MARGEM_AGUA + 2;
-            const op = [[r.x0 - m, py], [r.x1 + m, py], [px, r.y0 - m], [px, r.y1 + m]].filter(([, yy]) => yy < wy(MAPA.mar.y) - m || r.y1 < 1e5);
-            let melhor = op[0], dmin = Infinity;
-            for (const o of op) { const d = Math.hypot(o[0] - px, o[1] - py); if (d < dmin && !aguaEm(o[0] - 8, o[1] - 14, 0)) { dmin = d; melhor = o; } }
+            const px = x + 8, py = y + 14, E = r.e;
+            let melhor = null, dmin = Infinity;
+            for (const [ox, oy] of [[E.x0 - 2, py], [E.x1 + 2, py], [px, E.y0 - 2], [px, E.y1 + 2]]) {
+                if (Math.abs(ox) > 1e5 || Math.abs(oy) > 1e5 || aguaEm(ox - 8, oy - 14)) continue;
+                const d = Math.hypot(ox - px, oy - py);
+                if (d < dmin) { dmin = d; melhor = [ox, oy]; }
+            }
+            if (!melhor) melhor = [px, E.y0 - 2];   // (sem saída livre: para cima)
             return { x: melhor[0] - 8, y: melhor[1] - 14 };
         }
         // a linha de (ax, ay) a (bx, by) passa por dentro do retângulo?
@@ -1877,16 +1895,24 @@
             }
             return t1 - t0 > 1e-6;
         }
+        // fase 77b: um canto serve se não cai noutra água, não fica longe demais (os do mar) e, no cercado,
+        // não passa da cerca
+        function cantoServe(a, cx, cy, r) {
+            if (Math.abs(cx) > 1e5 || Math.abs(cy) > 1e5) return false;
+            if (aguas().some((k) => k !== r && dentroDe(k.e, cx, cy, 0))) return false;
+            const ar = a.area;
+            return !(ar && ar.cercado && (cx - 8 < ar.x0 - 3 || cx - 8 > ar.x1 + 3 || cy - 14 < ar.y0 - 3 || cy - 14 > ar.y1 + 3));
+        }
         // para onde andar agora: o destino, ou o canto da água que está no caminho
         function desviar(a, tx, ty) {
-            const px = a.x + 8, py = a.y + 14, qx = tx + 8, qy = ty + 14, m = MARGEM_AGUA;
+            const px = a.x + 8, py = a.y + 14, qx = tx + 8, qy = ty + 14;
             for (const r of aguas()) {
-                const e = { x0: r.x0 - m + 1, y0: r.y0 - m + 1, x1: r.x1 + m - 1, y1: r.y1 + m - 1 };
+                const E = r.e, e = { x0: E.x0 + 1, y0: E.y0 + 1, x1: E.x1 - 1, y1: E.y1 - 1 };
                 if (!cortaRet(px, py, qx, qy, e)) continue;
-                const c = m + 1, cantos = [[r.x0 - c, r.y0 - c], [r.x1 + c, r.y0 - c], [r.x0 - c, r.y1 + c], [r.x1 + c, r.y1 + c]];
+                const cantos = [[E.x0 - 1, E.y0 - 1], [E.x1 + 1, E.y0 - 1], [E.x0 - 1, E.y1 + 1], [E.x1 + 1, E.y1 + 1]];
                 let melhor = null, dmin = Infinity;
                 for (const [cx, cy] of cantos) {
-                    if (cortaRet(px, py, cx, cy, e) || Math.hypot(cx - px, cy - py) < 0.5) continue;
+                    if (Math.hypot(cx - px, cy - py) < 0.5 || cortaRet(px, py, cx, cy, e) || !cantoServe(a, cx, cy, r)) continue;
                     const d = Math.hypot(cx - px, cy - py) + Math.hypot(qx - cx, qy - cy);
                     if (d < dmin) { dmin = d; melhor = [cx, cy]; }
                 }
@@ -1894,12 +1920,22 @@
             }
             return { x: tx, y: ty };
         }
-        // um passo de quem anda (ajudante, fazendeiro, visita) sem entrar na água; devolve dx do passo
+        // um passo de quem anda (ajudante, fazendeiro, visita) sem entrar na água; devolve dx do passo.
+        // fase 77b: o canto escolhido fica guardado (a.desvio) até chegar nele ou o destino mudar, senão ele
+        // ficava indo e voltando entre dois cantos; e quem já está dentro da folga sai pelo lado mais perto.
         function passoSeco(a, vel, dt) {
             const f = foraDaAgua(a.tx, a.ty);
             if (f) { a.tx = f.x; a.ty = f.y; }
-            const e = desviar(a, a.tx, a.ty), ex = e.x - a.x, ey = e.y - a.y, ed = Math.hypot(ex, ey);
-            if (ed < 0.01) { a.x = a.tx; a.y = a.ty; return 0; }   // (o desvio não acha saída: chega direto)
+            let e;
+            const preso = aguaEm(a.x, a.y);
+            if (preso) { e = foraDaAgua(a.x, a.y); a.desvio = null; }
+            else if (a.desvio && a.desvio.tx === a.tx && a.desvio.ty === a.ty && Math.hypot(a.desvio.x - a.x, a.desvio.y - a.y) > 0.5) e = a.desvio;
+            else {
+                e = desviar(a, a.tx, a.ty);
+                a.desvio = e.x !== a.tx || e.y !== a.ty ? { x: e.x, y: e.y, tx: a.tx, ty: a.ty } : null;
+            }
+            const ex = e.x - a.x, ey = e.y - a.y, ed = Math.hypot(ex, ey);
+            if (ed < 0.01) { a.desvio = null; if (!preso) { a.x = a.tx; a.y = a.ty; } return 0; }   // (o desvio não acha saída: chega direto)
             const passo = Math.min(ed, vel * dt / 1000);
             a.x += ex / ed * passo; a.y += ey / ed * passo;
             return ex;
@@ -1964,9 +2000,24 @@
         // o mar da praia (sem o lugar do píer e do barco, que estão no fundo)
         function desenharMarVivo(tempo) {
             const BEIRA = wy(MAPA.mar.y), X0 = wx(-MARGEM), X1 = wx(MAPA.w + MARGEM), FUNDO = MH;
-            q.save(); q.beginPath(); q.rect(X0, BEIRA - 3, X1 - X0, FUNDO - BEIRA + 3);
-            if (zonasAtuais >= 7 && pierPronto) q.rect(wx(MAPA.pier.x) - 2, wy(MAPA.pier.y), (MAPA.pier.w + 3) * T + 4, FUNDO - wy(MAPA.pier.y));   // (o píer e o barco)
-            q.clip('evenodd');
+            const semPier = (sempre) => {   // o recorte do mar, sem o píer e o barco (sempre: também as estacas de antes de construir)
+                q.save(); q.beginPath(); q.rect(X0, BEIRA - 3, X1 - X0, FUNDO - BEIRA + 3);
+                if (zonasAtuais >= 7 && (pierPronto || sempre)) q.rect(wx(MAPA.pier.x) - 2, wy(MAPA.pier.y), (MAPA.pier.w + 3) * T + 4, FUNDO - wy(MAPA.pier.y));
+                q.clip('evenodd');
+            };
+            // fase 77b: a beira mexe de verdade. A cada quadro, coluna por coluna: a areia molhada até onde a
+            // onda chegou, o mar dali para baixo e a espuma em cima (no fundo não sobra a linha reta)
+            semPier(false);
+            const vai = Math.sin(tempo / 1300) * 1.6;
+            for (let x = X0; x < X1; x += 2) {
+                const topo = BEIRA + Math.round(Math.sin(x / 9 + tempo / 900) * 1.2 + vai);   // de BEIRA − 3 a BEIRA + 3
+                q.fillStyle = '#d2b06c'; q.fillRect(x, BEIRA - 3, 2, topo - BEIRA + 3);
+                q.fillStyle = '#3a7cc4'; q.fillRect(x, topo, 2, BEIRA + 5 - topo);
+                q.fillStyle = '#e8f2fb'; q.fillRect(x, topo, 2, 2);
+                if ((x / 2 + Math.floor(tempo / 400)) % 5 < 2) { q.fillStyle = '#bcd8f2'; q.fillRect(x, topo + 3, 2, 1); }
+            }
+            q.restore();
+            semPier(true);   // os peixes e as cristas, nunca por cima das estacas, do píer ou do barco
             // cardumes: sombras passando bem devagar lá no fundo
             for (let n = 0; n < 5; n++) {
                 const per = 52000 + n * 9700, f = ((tempo + n * 17000) % (2 * per)) / per, u = f < 1 ? f : 2 - f;
@@ -1982,13 +2033,6 @@
                 q.fillStyle = cy > BEIRA + T * 4 ? '#4c88cc' : '#6fa8e6';
                 q.fillRect(cx, cy, 2, 1); q.fillRect(cx + 2, cy - 1, 2, 1); q.fillRect(cx + 4, cy, 1, 1);
                 if (t > 0.15 && t < 0.35) { q.fillStyle = '#d6ebff'; q.fillRect(cx + 2, cy - 1, 1, 1); }
-            }
-            // a espuma da beira: a onda chega e volta
-            const vai = Math.sin(tempo / 1300) * 1.6;
-            for (let x = X0; x < X1; x += 2) {
-                const o = Math.round(Math.sin(x / 9 + tempo / 900) * 1.2 + vai);
-                q.fillStyle = '#e8f2fb'; q.fillRect(x, BEIRA + o, 2, 2);
-                if ((x / 2 + Math.floor(tempo / 400)) % 5 < 2) { q.fillStyle = '#bcd8f2'; q.fillRect(x, BEIRA + 3 + o, 2, 1); }
             }
             q.restore();
         }
@@ -2007,9 +2051,10 @@
                     const area = areaDe(v.tipo);
                     const r = rng(hash(v.id));
                     // nasce no lugar mais longe dos outros bichos (com fome eles ficam parados: nada de balão em cima de balão)
-                    let x = 0, y = 0, folga = -1;
+                    let x = area.x0, y = area.y0, folga = -1;
                     for (let k = 0; k < 10; k++) {
                         const cx = area.x0 + r() * (area.x1 - area.x0), cy = area.y0 + r() * (area.y1 - area.y0);
+                        if (v.tipo !== 'pato' && aguaEm(cx, cy)) continue;   // fase 77b: só o pato nasce na água
                         let perto = Infinity;
                         for (const b of atores.values()) if (!b.ajudante && b.v) perto = Math.min(perto, Math.hypot((cx - b.x) * 0.8, cy - b.y));
                         if (perto > folga) { folga = perto; x = cx; y = cy; }
@@ -2032,7 +2077,9 @@
                 const area = areaDe(h.area);
                 const r = rng(hash(h.id));
                 const nasce = area.pontos && area.pontos[Math.floor(r() * area.pontos.length)];
-                const x = nasce ? nasce.x : area.x0 + r() * (area.x1 - area.x0), y = nasce ? nasce.y : area.y0 + r() * (area.y1 - area.y0);
+                let x = nasce ? nasce.x : area.x0 + r() * (area.x1 - area.x0), y = nasce ? nasce.y : area.y0 + r() * (area.y1 - area.y0);
+                const seco = foraDaAgua(x, y);   // fase 77b: nunca nasce dentro da água
+                if (seco) { x = seco.x; y = seco.y; }
                 atores.set(h.id, {
                     dormir: h.dormir || null, dentro: !!(h.dormir && !h.dormir.sombra && h.dormir.ja),   // (já estava lá dentro quando a tela abriu)
                     id: h.id, tipo: h.tipo, i: arte.i, p: arte.p, ferramenta: arte.ferramenta, ferramentaP: arte.ferramentaP, area, x, y, tx: x, ty: y,
@@ -2048,8 +2095,13 @@
             if (a.area.pontos) {   // fase 69: o próximo pedaço da estradinha, perto (até uns 3 quadrados): segue o caminho
                 const perto = a.area.pontos.filter((p) => { const d = Math.hypot(p.x - a.x, p.y - a.y); return d > 2 && d < 3.5 * T; });
                 const longe = !perto.length || Math.random() < (a.area.salto || 0);   // (o Faísca às vezes vai para outro equipamento)
-                const lista = longe ? a.area.pontos : perto, p = lista[Math.floor(Math.random() * lista.length)];
-                return { x: p.x + (Math.random() - 0.5) * 6, y: p.y + (Math.random() - 0.5) * 4, olhar: p.olhar };
+                const lista = longe ? a.area.pontos : perto;
+                let alvo = null;
+                for (let k = 0; k < 6 && (!alvo || aguaEm(alvo.x, alvo.y)); k++) {   // (fase 77b: nada de ponto na água)
+                    const p = lista[Math.floor(Math.random() * lista.length)];
+                    alvo = { x: p.x + (Math.random() - 0.5) * 6, y: p.y + (Math.random() - 0.5) * 4, olhar: p.olhar };
+                }
+                return alvo;
             }
             let melhor = null, folga = -1;
             const nada = a.tipo === 'pato' && !a.ajudante;   // fase 74b: só o pato vai para a água
