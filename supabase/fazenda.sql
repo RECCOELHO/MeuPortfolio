@@ -8507,7 +8507,7 @@ alter table public.fazenda_jogadores add constraint fazenda_jogadores_direita_ch
 
 insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem, efeito, raio, limite, descricao) values
   ('hidreletrica', 'Pequena central hidrelétrica', 'energia', 30000, 20, 84, 'hidro', 0, 1,
-   'Uma rodinha d''água num riacho: 120 ⚡/h sem parar, de dia e de noite (80 na onda de calor, com o rio baixo). Tempestade e furacão não estragam. Até 1, mais 1 no nível 23 e no 27.')
+   'Uma rodinha d''água com o próprio tanque: vai em qualquer lugar da fazenda, sem precisar de rio nem de lago. 120 ⚡/h sem parar, de dia e de noite (80 na onda de calor, com menos água). Tempestade e furacão não estragam. Até 1, mais 1 no nível 23 e no 27.')
 on conflict (id) do update set
   nome = excluded.nome, categoria = excluded.categoria, custo = excluded.custo, nivel_min = excluded.nivel_min, ordem = excluded.ordem,
   efeito = excluded.efeito, raio = excluded.raio, limite = excluded.limite, descricao = excluded.descricao;

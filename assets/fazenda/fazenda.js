@@ -1314,6 +1314,8 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-10-18-usina', data: '18/10', titulo: 'A usina vai em qualquer lugar', itens: [
+            'A <b>Pequena central hidrelétrica</b> vem com o <b>próprio tanque d\'água</b>: dá para pôr em qualquer lugar da fazenda, sem rio nem lago. Agora o desenho mostra o tanque embaixo da roda.'] },
         { id: '2026-10-18-abas', data: '18/10', titulo: 'Abas fixas na loja', itens: [
             'As <b>abas</b> da loja, da feira e dos outros painéis ficam <b>presas lá em cima</b> enquanto você rola a lista: dá para trocar de aba sem subir tudo de novo.',
             'Na Loja → Terrenos, os 10 terrenos ficam numa <b>lista só</b>; os 3 da direita aparecem marcados como "à direita da fazenda".'] },
