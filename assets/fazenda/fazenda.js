@@ -1317,6 +1317,8 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-10-18-pergunta', data: '18/10', titulo: 'Sem janelinha do navegador', itens: [
+            'Quando o jogo pergunta antes de gastar (melhorias, baús, diamantes, píer, luvas do Perks…), a pergunta aparece <b>dentro do jogo</b>, e não mais na janelinha do navegador.'] },
         { id: '2026-10-18-clima2', data: '18/10', titulo: 'Tela do clima mais fácil', itens: [
             'A parte de <b>tempestade e furacão</b>, na tela do clima, ficou mais curta: o que pode estragar e como arrumar, em duas linhas.'] },
         { id: '2026-10-18-usina', data: '18/10', titulo: 'A usina vai em qualquer lugar', itens: [
@@ -3486,12 +3488,27 @@
         return k;
     }
 
-    function clicarCanteiro(p) {
+    // pergunta dentro do jogo (no lugar do confirm do navegador, que quebrava a imersão): devolve true no "sim"
+    function perguntar(texto, sim = 'Sim', nao = 'Cancelar') {
+        return new Promise((ok) => {
+            const fundo = document.createElement('div');
+            fundo.className = 'pergunta-fundo';
+            fundo.innerHTML = `<div class="cartao pergunta" role="alertdialog" aria-modal="true"><p>${esc(texto)}</p>
+                <div class="pergunta-botoes"><button type="button" class="botao creme" data-r="0">${esc(nao)}</button><button type="button" class="botao verde" data-r="1">${esc(sim)}</button></div></div>`;
+            const fim = (v) => { fundo.remove(); document.removeEventListener('keydown', tecla, true); ok(v); };
+            const tecla = (e) => { if (e.key === 'Escape') { e.stopPropagation(); fim(false); } else if (e.key === 'Enter') { e.preventDefault(); fim(true); } };
+            fundo.addEventListener('click', (e) => { const b = e.target.closest('[data-r]'); if (b) fim(b.dataset.r === '1'); else if (e.target === fundo) fim(false); });
+            document.addEventListener('keydown', tecla, true);
+            document.body.appendChild(fundo);
+            fundo.querySelector('[data-r="1"]').focus();
+        });
+    }
+    async function clicarCanteiro(p) {
         if (!S || painelAtual) return;
         descrever(p);
         if (visita) {
             const av = acaoVisita(canteiro(p));
-            if (av === 'pegar_luva' && !confirm(`Esse canteiro tem alarme. Usar 1 luva do Perks para passar? (você tem ${luvas()})`)) return;
+            if (av === 'pegar_luva' && !await perguntar(`Esse canteiro tem alarme. Usar 1 luva do Perks para passar? (você tem ${luvas()})`)) return;
             if (av) { cena.irAte(p); executarVisita(av, [p]); }
             return;
         }
@@ -3813,7 +3830,7 @@
         });
     }
 
-    function acaoVisitaEmMassa(tipo) {
+    async function acaoVisitaEmMassa(tipo) {
         if (tipo === 'casa') return voltarCasa();
         if (tipo === 'outro') return visitar(null);
         if (!visita) return;
@@ -3834,7 +3851,7 @@
         }
         // fase 66: os canteiros com alarme, se tiver luva do Perks (pergunta antes de gastar)
         const comAlarme = tipo === 'pegar' ? visita.canteiros.filter((c) => podeLuva(c, info(c))).map((c) => c.posicao) : [];
-        const usar = comAlarme.length && confirm(`${comAlarme.length} canteiro(s) com alarme. Usar ${Math.min(comAlarme.length, luvas())} luva(s) do Perks para pegar deles também? (você tem ${luvas()})`)
+        const usar = comAlarme.length && await perguntar(`${comAlarme.length} canteiro(s) com alarme. Usar ${Math.min(comAlarme.length, luvas())} luva(s) do Perks para pegar deles também? (você tem ${luvas()})`)
             ? comAlarme.slice(0, luvas()) : [];
         if (!ps.length && !usar.length) return toast('Nada pra pegar aqui agora.', undefined, 'leve');
         if (ps.length) executarVisita(tipo, ps);
@@ -5344,7 +5361,7 @@
             return;
         }
         if (e.target.closest('[data-pier-construir]')) {   // fase 61
-            if (!confirm(`Construir o píer? Usa as 9 peças e ${moeda((S.pier.receita || {}).moedas || 0).replace(/<[^>]+>/g, '')} moedas.`)) return;
+            if (!await perguntar(`Construir o píer? Usa as 9 peças e ${moeda((S.pier.receita || {}).moedas || 0).replace(/<[^>]+>/g, '')} moedas.`)) return;
             enfileirar([], async () => {
                 const r = await rpc('fazenda_construir_pier', { p_token: token });
                 aplicarEstado(r.estado);
@@ -5357,7 +5374,7 @@
         const pc = e.target.closest('[data-pier-comprar]');
         if (pc) {
             const id = pc.dataset.pierComprar, k = culturas[id] || { nome: id }, preco = ((S.pier.receita || {}).diamantes || {})[id];
-            if (!confirm(`Comprar 1 ${k.nome.toLowerCase()} por ${preco} diamantes?`)) return;
+            if (!await perguntar(`Comprar 1 ${k.nome.toLowerCase()} por ${preco} diamantes?`)) return;
             pc.disabled = true;
             enfileirar([], async () => {
                 const r = await rpc('fazenda_pier_comprar_peca', { p_token: token, p_item: id });
@@ -5438,7 +5455,7 @@
         }
         const ad = e.target.closest('[data-admin-desbanir]');
         if (ad) {
-            if (!confirm(`Desbanir ${ad.dataset.apelido}? A conta volta a entrar no jogo.`)) return;
+            if (!await perguntar(`Desbanir ${ad.dataset.apelido}? A conta volta a entrar no jogo.`)) return;
             enfileirar([], async () => {
                 await rpc('fazenda_admin_banir', { p_token: token, p_jogador: ad.dataset.adminDesbanir, p_banir: false, p_motivo: null });
                 toast(`${ico('escudo', 14)} <b>${esc(ad.dataset.apelido)}</b> foi desbanido(a).`, '', 'importante');
@@ -5449,7 +5466,7 @@
         const ag = e.target.closest('[data-admin-cargo]');
         if (ag) {
             const dar = ag.dataset.dar === '1';
-            if (!confirm(dar ? `Tornar ${ag.dataset.apelido} admin? Admin pode banir e desbanir jogadores.` : `Tirar o admin de ${ag.dataset.apelido}?`)) return;
+            if (!await perguntar(dar ? `Tornar ${ag.dataset.apelido} admin? Admin pode banir e desbanir jogadores.` : `Tirar o admin de ${ag.dataset.apelido}?`)) return;
             enfileirar([], async () => {
                 await rpc('fazenda_admin_definir', { p_token: token, p_jogador: ag.dataset.adminCargo, p_admin: dar });
                 toast(`${ico('escudo', 14)} ${dar ? 'Agora' : 'Não é mais'} admin: <b>${esc(ag.dataset.apelido)}</b>.`, '', 'importante');
@@ -5459,7 +5476,7 @@
         }
         const an = e.target.closest('[data-admin-codigo]');
         if (an) {
-            if (!confirm(`Gerar um código de recuperação novo para ${an.dataset.apelido}? O código antigo para de valer e a fazenda sai dos aparelhos onde estiver aberta.`)) return;
+            if (!await perguntar(`Gerar um código de recuperação novo para ${an.dataset.apelido}? O código antigo para de valer e a fazenda sai dos aparelhos onde estiver aberta.`)) return;
             an.disabled = true;
             enfileirar([], async () => {
                 const r = await rpc('fazenda_admin_novo_codigo', { p_token: token, p_jogador: an.dataset.adminCodigo });
@@ -5626,7 +5643,7 @@
         const bs = e.target.closest('[data-bau-sorte]');
         if (bs) {   // fase 73: baú da sorte (é caro: pergunta antes)
             const t = S.baus_sorte && S.baus_sorte[bs.dataset.bauSorte];
-            if (!t || !confirm(`Abrir o ${t.nome.toLowerCase()} por ${t.preco.toLocaleString('pt-BR')} moedas? É sorte: quase sempre volta menos do que custou.`)) return;
+            if (!t || !await perguntar(`Abrir o ${t.nome.toLowerCase()} por ${t.preco.toLocaleString('pt-BR')} moedas? É sorte: quase sempre volta menos do que custou.`)) return;
             bs.disabled = true;
             enfileirar([], async () => {
                 const r = await rpc('fazenda_abrir_bau_sorte', { p_token: token, p_tipo: bs.dataset.bauSorte });
@@ -5645,7 +5662,7 @@
             if (categoria === 'melhoria') {   // fase 57: é caro: pergunta antes
                 const m = (S.melhorias_tipos || []).find((k) => k.id === tipo), prox = m && m.niveis[melhoriaNivel(tipo)];
                 const mats = prox && prox.itens ? Object.entries(prox.itens).map(([id, n]) => `${n} ${((culturas[id] || {}).nome || id).toLowerCase()}`).join(', ') : '';   // fase 65
-                if (prox && !confirm(`Comprar ${prox.nome || m.nome} (nível ${melhoriaNivel(tipo) + 1}) por ${prox.custo.toLocaleString('pt-BR')} moedas${mats ? ` e ${mats}` : ''}?`)) return;
+                if (prox && !await perguntar(`Comprar ${prox.nome || m.nome} (nível ${melhoriaNivel(tipo) + 1}) por ${prox.custo.toLocaleString('pt-BR')} moedas${mats ? ` e ${mats}` : ''}?`)) return;
             }
             comp.disabled = true;
             enfileirar([], async () => {
@@ -5714,7 +5731,7 @@
         if (e.target.closest('[data-cal-dourado]')) {
             const preco = (S.calendario && S.calendario.regras.dourado) || 120;
             if ((S.jogador.diamantes || 0) < preco) { abaLoja = 'diamantes'; abrirPainel('loja'); return; }
-            if (!confirm(`Liberar a trilha dourada deste ciclo por ${preco} diamantes?`)) return;
+            if (!await perguntar(`Liberar a trilha dourada deste ciclo por ${preco} diamantes?`)) return;
             enfileirar([], async () => {
                 const r = await rpc('fazenda_calendario_dourado', { p_token: token });
                 aplicarEstado(r.estado);
@@ -5745,7 +5762,7 @@
         const cha = e.target.closest('[data-chat-apagar]');
         if (cha) {
             const id = Number(cha.dataset.chatApagar), m = chat.msgs.find((x) => x.id === id);
-            if (!m || !confirm(m.jogador === S.jogador.id ? 'Apagar a sua mensagem?' : `Apagar a mensagem de ${m.apelido} para todo mundo?`)) return;
+            if (!m || !await perguntar(m.jogador === S.jogador.id ? 'Apagar a sua mensagem?' : `Apagar a mensagem de ${m.apelido} para todo mundo?`)) return;
             rpc('fazenda_chat_apagar', { p_token: token, p_id: id })
                 .then(() => { chat.msgs = chat.msgs.filter((x) => x.id !== id); desenharChat(true); })
                 .catch(tratarErro);
@@ -5843,7 +5860,7 @@
             const msg = codigo
                 ? `Sair desta fazenda? Para voltar você vai precisar do código ${codigo}.`
                 : 'Sair desta fazenda? Sem o código de recuperação você NÃO consegue voltar.';
-            if (confirm(msg)) {
+            if (await perguntar(msg, 'Sair')) {
                 fecharPainel();
                 sair(true);
                 mostrarEntrada();
