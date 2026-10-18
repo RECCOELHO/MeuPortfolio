@@ -1203,11 +1203,21 @@ returns real language sql stable as $$
   select case fazenda_clima_em(p_t) when 'calor' then 80 else 120 end::real;
 $$;
 
+-- fase 81: quantas luzes ficam acesas de noite (a casa da fazenda + casinhas + lampiões); de dia, 0
+create or replace function public.fazenda_luzes_noite(p_jogador uuid, p_t timestamptz)
+returns int language sql stable security definer set search_path = public as $$
+  select case when fazenda_dia_em(p_t) then 0
+              else 1 + (select count(*) from fazenda_construcoes c
+                         where c.jogador_id = p_jogador and c.tipo in ('casa_vermelha', 'casa_azul', 'lampiao'))::int end;
+$$;
+
 create or replace function public.fazenda_energia_taxa(p_jogador uuid, p_t timestamptz)
 returns real language sql stable security definer set search_path = public as $$
   select coalesce(sum(case i.efeito when 'solar' then g.solar when 'eolica' then g.eolica when 'reator' then g.reator when 'hidro' then fazenda_hidro_em(p_t) else 0 end), 0)::real
-         -- fase 47: cada alarme gasta 1 ⚡ por hora (a conta só roda para quem tem energia elétrica)
-         - (select count(*) from fazenda_construcoes a where a.jogador_id = p_jogador and a.tipo = 'alarme')::real
+         -- fase 47: cada alarme gasta ⚡ por hora (a conta só roda para quem tem energia elétrica); fase 81: 5 (era 1)
+         - 5 * (select count(*) from fazenda_construcoes a where a.jogador_id = p_jogador and a.tipo = 'alarme')::real
+         -- fase 81: de noite, cada luz gasta 1 ⚡ por hora: a casa da fazenda, as casinhas e os lampiões
+         - fazenda_luzes_noite(p_jogador, p_t)::real
     from fazenda_construcoes c
     join fazenda_itens i on i.id = c.tipo
     cross join fazenda_gera_em(p_t) g
@@ -8288,11 +8298,13 @@ begin
     select 'estufa', sum(ct.por_h) * 5   -- 5 por plantio no alcance dela
       from cons e join cant ct on abs(ct.x - e.x) <= e.raio and abs(ct.y - e.y) <= e.raio where e.efeito = 'estufa'
     union all
-    select 'alarme', count(*)::real from cons where tipo = 'alarme'
+    select 'alarme', 5 * count(*)::real from cons where tipo = 'alarme'   -- fase 81: 5 ⚡/h cada (era 1)
+    union all
+    select 'luzes', 1 + count(*)::real from cons where tipo in ('casa_vermelha', 'casa_azul', 'lampiao')   -- fase 81: de noite
   )
-  select coalesce(jsonb_agg(jsonb_build_object('tipo', tipo, 'h', round((h * case when tipo = 'alarme' then 1 else v_desc end)::numeric)) order by h desc)
+  select coalesce(jsonb_agg(jsonb_build_object('tipo', tipo, 'h', round((h * case when tipo in ('alarme', 'luzes') then 1 else v_desc end)::numeric)) order by h desc)
                     filter (where coalesce(h, 0) > 0), '[]'::jsonb),
-         coalesce(sum(h * case when tipo = 'alarme' then 1 else v_desc end), 0)
+         coalesce(sum(h * case when tipo in ('alarme', 'luzes') then 1 else v_desc end), 0)
     into v_gasta, v_c
     from itens;
 
@@ -8581,6 +8593,17 @@ begin
 end $$;
 
 -- ------------------------------------------------------------
+-- Fase 81: o alarme gasta 5 ⚡ por hora (era 1) e, de noite, cada luz gasta 1 ⚡ por hora: a casa da
+-- fazenda, as casinhas (vermelha e azul) e os lampiões (fazenda_luzes_noite em fazenda_energia_taxa,
+-- e "luzes" na conta da energia). Só para quem tem energia elétrica: sem máquina de energia a conta
+-- nem roda (fazenda_energia_atualizar). Bateria zerada, as luzes apagam no jogo.
+-- ------------------------------------------------------------
+update public.fazenda_itens set descricao = 'Vizinhos não pegam nada dos canteiros em volta (3 quadrados). Com energia elétrica na fazenda, gasta 5 ⚡ por hora e desliga se a bateria zerar.' where id = 'alarme';
+update public.fazenda_itens set descricao = 'Acende sozinho de noite e ilumina em volta. +3 de beleza (beleza dá bônus nas vendas). Com energia elétrica na fazenda, gasta 1 ⚡ por hora de noite e apaga se a bateria zerar.' where id = 'lampiao';
+update public.fazenda_itens set descricao = 'Casinha: +20 de beleza (beleza dá bônus nas vendas) e 1 cama para um ajudante descansar (2 h numa cama; sem cama livre, 4 h na sombra). Com energia elétrica na fazenda, a luz gasta 1 ⚡ por hora de noite.' where id = 'casa_vermelha';
+update public.fazenda_itens set descricao = 'Casinha: +30 de beleza (beleza dá bônus nas vendas) e 2 camas para os ajudantes descansarem (2 h numa cama; sem cama livre, 4 h na sombra). Com energia elétrica na fazenda, a luz gasta 1 ⚡ por hora de noite.' where id = 'casa_azul';
+
+-- ------------------------------------------------------------
 -- Permissões: só a API pública fica executável pela chave anon
 -- ------------------------------------------------------------
 revoke execute on function
@@ -8778,6 +8801,7 @@ revoke execute on function
   public.fazenda_tempestade(uuid),
   public.fazenda_terrenos(int, int),
   public.fazenda_hidro_em(timestamptz),
+  public.fazenda_luzes_noite(uuid, timestamptz),
   public.fazenda_zona_minha(int, int),
   public.fazenda_moedas_pagou()
 from public, anon, authenticated;
