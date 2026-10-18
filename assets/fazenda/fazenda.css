@@ -3029,3 +3029,54 @@ body.construindo .status {
     font-weight: 700;
     color: var(--laranja);
 }
+
+/* fase 77: a tela do clima */
+.clima-agora {
+    display: grid;
+    grid-template-columns: 64px 1fr;
+    gap: 12px;
+    align-items: center;
+    padding: 10px 12px;
+    background: var(--creme-luz);
+    box-shadow: 0 -2px 0 var(--o), 0 2px 0 var(--o), -2px 0 0 var(--o), 2px 0 0 var(--o), inset 0 -3px 0 var(--creme-2);
+    margin: 3px 3px 10px;
+}
+.clima-agora.extremo,
+.clima-faixa > div.extremo {
+    background: #fde3d6;
+}
+.clima-agora b {
+    font-size: 20px;
+}
+.clima-agora small {
+    display: block;
+    color: var(--texto-suave);
+    font-size: 13px;
+}
+.clima-agora p {
+    margin: 4px 0 0;
+    font-size: 14px;
+}
+.clima-faixa {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+    gap: 10px;
+    padding: 4px 3px 10px;
+}
+.clima-faixa > div {
+    display: grid;
+    justify-items: center;
+    gap: 3px;
+    min-width: 70px;
+    padding: 6px 4px;
+    background: var(--creme-luz);
+    box-shadow: 0 -2px 0 var(--o), 0 2px 0 var(--o), -2px 0 0 var(--o), 2px 0 0 var(--o);
+    font-size: 12px;
+    text-align: center;
+}
+.clima-faixa small {
+    font-weight: 800;
+}
+.hud-clima.extremo {
+    background: #fde3d6;
+}

@@ -133,6 +133,7 @@
         estoque_cheio: 'O estoque dessa oficina está cheio (10 receitas).',
         sem_visita: 'A visita já foi embora. Outra chega daqui a pouco.',
         visita_mudou: 'Essa visita já foi embora e chegou outra: toque nela para ver o pedido.',
+        sem_sobrecarga: 'Esse gerador já está funcionando.',
         avatar_invalido: 'Não deu para salvar esse avatar.',
         falta_pedido: 'Ainda não tem o bastante no celeiro para esse pedido.',
         sem_canteiros_crescendo: 'Não tem canteiro crescendo para adubar: plante primeiro.',
@@ -446,12 +447,23 @@
             get efeito() { return S && S.estacao === 'inverno' ? 'a neve rega tudo, nenhum canteiro seca.' : 'rega tudo, nenhum canteiro seca.'; }
         },
         calor: { nome: 'Onda de calor', efeito: 'a terra seca mais rápido, fique de olho nos canteiros.' },
-        vento: { nome: 'Ventania', efeito: 'espalha pragas pelos canteiros (e a turbina gira forte).' }
+        vento: { nome: 'Ventania', efeito: 'espalha pragas pelos canteiros (e a turbina gira forte).' },
+        // fase 77: por cima da chuva e da ventania (o clima de baixo continua valendo)
+        tempestade: {
+            get nome() { return S && S.estacao === 'inverno' ? 'Nevasca' : 'Tempestade'; },
+            efeito: 'chuva forte com raios: rega tudo, mas um raio pode dar sobrecarga num painel solar ou numa turbina.'
+        },
+        furacao: { nome: 'Furacão', efeito: 'vento fortíssimo: espalha pragas, pode arrancar plantações e derrubar painéis e turbinas.' }
     };
     const ORDEM_ESTACOES = ['primavera', 'verao', 'outono', 'inverno'];
     const naEstacao = (e) => (e === 'primavera' ? 'na ' : 'no ') + NOME_ESTACAO[e];   // "na primavera", "no verão"
     const hora = (iso) => new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     const climaAgora = () => S && S.clima && (S.clima.agora || S.clima.hoje);
+    // fase 77: o que aparece (a tempestade ou o furacão, enquanto durar; senão o clima de baixo)
+    const climaVisto = () => {
+        const e = S && S.clima && S.clima.extremo;
+        return e && CLIMA[e] && (!S.clima.extremo_ate || Date.parse(S.clima.extremo_ate) > agora()) ? e : climaAgora();
+    };
     // quanto falta para a estação e começar (0 = já é ela); 42 h cada, sempre na mesma ordem
     function faltaParaEstacao(e) {
         if (!S || !S.estacao_fim || e === S.estacao) return 0;
@@ -460,13 +472,15 @@
     }
     const iconeClima = (c) => (c === 'nublado' ? 'nuvem' : CLIMA[c] ? c : 'sol');
     const daEstacao = (k) => !k.estacao || !S || k.estacao === S.estacao;
-    let noiteMostrada = null;   // para redesenhar o clima do topo quando vira o dia ou a noite
+    let noiteMostrada = null, climaMostrado = null;   // para redesenhar o clima do topo quando vira o dia ou a noite (ou acaba a tempestade)
     function desenharClima() {
         if (!el.clima) return;
         if (S && S.estacao) cena.definirEstacao(S.estacao);
-        const c = climaAgora();
+        const c = climaVisto();
+        climaMostrado = c;
         el.clima.hidden = !CLIMA[c];
         if (!CLIMA[c]) return;
+        el.clima.classList.toggle('extremo', c === 'tempestade' || c === 'furacao');
         const dia = A.faseDoDia(agora());
         noiteMostrada = dia.noite;
         // de noite "sol" vira céu limpo (só a lua); os outros climas aparecem ao lado dela
@@ -474,11 +488,12 @@
         el.clima.innerHTML = (dia.noite ? ico('lua', 22) : '') + (ceuLimpo ? '' : ico(iconeClima(c), 22)) +
             `<span>${dia.noite ? 'Noite · ' : ''}${ceuLimpo ? 'céu limpo' : CLIMA[c].nome}</span>`;
         const prox = CLIMA[S.clima.proximo || S.clima.amanha];
-        el.clima.title = `${dia.noite ? `Noite até ${hora(dia.fim)}. ` : `Dia até ${hora(dia.fim)}. `}${CLIMA[c].nome}${S.clima.ate ? ' até ' + hora(S.clima.ate) : ''}: ${CLIMA[c].efeito}${prox ? ' Depois: ' + prox.nome.toLowerCase() + '.' : ''}`;
-        cena.definirClima(visita ? null : c);
+        const ate = c !== climaAgora() ? S.clima.extremo_ate : S.clima.ate;
+        el.clima.title = `${dia.noite ? `Noite até ${hora(dia.fim)}. ` : `Dia até ${hora(dia.fim)}. `}${CLIMA[c].nome}${ate ? ' até ' + hora(ate) : ''}: ${CLIMA[c].efeito}${prox ? ' Depois: ' + prox.nome.toLowerCase() + '.' : ''} Toque para ver a tela do clima.`;
+        cena.definirClima(visita ? null : c);   // (fase 77: a tempestade e o furacão também)
     }
     function descreverClima() {
-        const c = climaAgora();
+        const c = climaVisto();
         if (!CLIMA[c]) return;
         const prox = S.clima.proximo || S.clima.amanha;
         const fimEst = S.estacao_fim ? Date.parse(S.estacao_fim) - agora() : 0;
@@ -489,6 +504,130 @@
             `${ico(iconeClima(c), 18)} <b>${CLIMA[c].nome}</b>${S.clima.ate ? ' até ' + hora(S.clima.ate) : ''}: ${CLIMA[c].efeito}` +
             (CLIMA[prox] ? ` Depois: ${ico(iconeClima(prox), 16)} ${CLIMA[prox].nome.toLowerCase()}.` : '') +
             (S.estacao ? ` É ${NOME_ESTACAO[S.estacao]}${fimEst > 0 && S.estacao_proxima ? `, vira ${NOME_ESTACAO[S.estacao_proxima]} em ${fmtTempo(fimEst)}` : ''}.` : ''));
+    }
+
+    /* ---------- Fase 77: a tela do clima ----------
+       O clima de agora, as próximas 24 h e as chances de cada clima na estação (fazenda_clima_info, igual
+       para todo mundo), o que cada um faz e a tempestade e o furacão. Os ⚡/h são os de fazenda_gera_em. */
+    const GERA_CLIMA = { sol: [12, 8], calor: [14, 5], nublado: [5, 10], chuva: [3, 14], vento: [10, 30], tempestade: [2, 20], furacao: [3, 40] };
+    const PLANTA_CLIMA = {
+        sol: '+1 item em cada colheita.',
+        nublado: 'nenhum problema novo aparece nos canteiros.',
+        chuva: 'rega tudo: nenhum canteiro seca.',
+        calor: 'a terra seca mais rápido (metade dos problemas vira seca).',
+        vento: 'espalha pragas (metade dos problemas vira praga).',
+        tempestade: 'rega tudo como a chuva, mas cai raio nos geradores.',
+        furacao: 'espalha pragas, arranca plantações e derruba geradores.'
+    };
+    let climaInfo = null, climaInfoEm = 0;
+    async function carregarClimaInfo() {
+        try {
+            climaInfo = await rpc('fazenda_clima_info', {});
+            climaInfoEm = Date.now();
+            if (painelAtual === 'clima') abrirPainel('clima', true);
+        } catch (e) { /* sem a previsão longa, a tela mostra o resto */ }
+    }
+    const regrasExtremo = () => (climaInfo && climaInfo.regras) || { tempestade: 4, furacao: 6, chance: 250, nivel: 5, conserto_pct: 20, eletricista_min: [60, 40, 25, 15, 10] };
+    const pctTexto = (v) => (v >= 10 ? Math.round(v) : Math.round(v * 10) / 10).toLocaleString('pt-BR') + '%';
+    function htmlClima() {
+        const c = climaVisto(), base = climaAgora(), dia = A.faseDoDia(agora()), r = regrasExtremo();
+        const extremo = c === 'tempestade' || c === 'furacao', ate = extremo ? S.clima.extremo_ate : S.clima.ate;
+        const fimEst = S.estacao_fim ? Date.parse(S.estacao_fim) - agora() : 0;
+        const tab = climaInfo && climaInfo.tabela && climaInfo.tabela[S.estacao];
+        // quanto do dia cada clima ocupa nesta estação (a tempestade sai da chuva; o furacão, da ventania)
+        const pct = (k) => !tab ? null : k === 'tempestade' ? (tab.chuva || 0) / r.tempestade : k === 'furacao' ? (tab.vento || 0) / r.furacao
+            : k === 'chuva' ? (tab.chuva || 0) * (1 - 1 / r.tempestade) : k === 'vento' ? (tab.vento || 0) * (1 - 1 / r.furacao) : tab[k] || 0;
+        const lista = ((climaInfo && climaInfo.lista) || []).filter((p, i, l) => !l[i + 1] || Date.parse(l[i + 1].de) > agora());
+        const faixa = lista.length ? `<h3 class="secao-titulo">Próximas 24 horas</h3><div class="clima-faixa">${lista.map((p, i) => {
+            const k = CLIMA[p.extremo] ? p.extremo : p.clima;
+            return `<div class="${p.extremo ? 'extremo' : ''}"><small>${i === 0 ? 'agora' : hora(p.de)}</small>${ico(iconeClima(k), 26)}<span>${CLIMA[k] ? esc(CLIMA[k].nome) : esc(k)}</span></div>`;
+        }).join('')}</div>` : '<p class="det">Buscando a previsão das próximas horas…</p>';
+        const cartao = (k) => {
+            const [sol, tur] = GERA_CLIMA[k], v = pct(k);
+            return `<div class="item${k === c ? ' selecionada' : ''}"><span class="ico">${ico(iconeClima(k), 34)}</span>
+                <span><span class="nome">${esc(CLIMA[k].nome)}${k === c ? ' <small>(agora)</small>' : ''}</span>
+                    <span class="det"><span class="txt">Canteiros: ${PLANTA_CLIMA[k]}</span></span>
+                    <span class="det"><span>${A.htmlItem('painel_solar', 16)} ${sol} ⚡/h de dia</span><span>${A.htmlItem('turbina', 16)} ${tur} ⚡/h</span>${v != null ? `<span>${pctTexto(v)} do dia ${naEstacao(S.estacao)}</span>` : ''}</span></span>
+            </div>`;
+        };
+        const parados = (S.construcoes || []).filter((k) => k.sobrecarga_em).length, eletr = meuAjudante('eletricista');
+        const minE = (n) => r.eletricista_min[Math.min(n, 5) - 1];
+        const ini = Math.max(0, ORDEM_ESTACOES.indexOf(S.estacao));
+        const estacoes = ORDEM_ESTACOES.slice(ini).concat(ORDEM_ESTACOES.slice(0, ini)).map((e) => {
+            const t = climaInfo && climaInfo.tabela && climaInfo.tabela[e], falta = faltaParaEstacao(e);
+            const semente = (S.culturas || []).find((k) => k.estacao === e && k.tipo === 'cultura');
+            return `<div class="item${e === S.estacao ? ' selecionada' : ''}"><span class="ico">${semente ? itemDe(semente, 34) : ico('sol', 30)}</span>
+                <span><span class="nome">${NOME_ESTACAO[e][0].toUpperCase() + NOME_ESTACAO[e].slice(1)}${e === S.estacao ? ` <small>(agora${fimEst > 0 ? `, acaba em ${fmtTempo(fimEst)}` : ''})</small>` : ` <small>(em ${fmtTempo(falta)})</small>`}</span>
+                    <span class="det">${t ? Object.entries(t).sort((a, b) => b[1] - a[1]).map(([k, p]) => `<span>${ico(iconeClima(k), 14)} ${p}%</span>`).join('') : ''}</span>
+                    ${semente ? `<span class="det"><span>Semente da estação: ${esc(semente.nome.toLowerCase())}</span></span>` : ''}</span>
+            </div>`;
+        }).join('');
+        return `<div class="clima-agora${extremo ? ' extremo' : ''}">${ico(iconeClima(c), 56)}<div>
+                <b>${esc(CLIMA[c].nome)}</b><small>${ate ? `até ${hora(ate)}` : ''}${extremo ? ` · por cima ${base === 'vento' ? 'da ventania' : S.estacao === 'inverno' ? 'da neve' : 'da chuva'}` : ''}</small>
+                <p>${CLIMA[c].efeito[0].toUpperCase() + CLIMA[c].efeito.slice(1)}</p></div></div>
+            <p class="det"><span class="txt">${dia.noite ? `${ico('lua', 14)} <b>Noite</b> até ${hora(dia.fim)}: o painel solar não gera e as luzes acendem.` : `${ico('sol', 14)} <b>Dia</b> até ${hora(dia.fim)}.`}
+                Dia e noite se revezam a cada 2 horas. É ${NOME_ESTACAO[S.estacao]}${fimEst > 0 && S.estacao_proxima ? `; vira ${NOME_ESTACAO[S.estacao_proxima]} em ${fmtTempo(fimEst)}` : ''}.</span></p>
+            ${faixa}
+            <h3 class="secao-titulo">Tempestade e furacão</h3>
+            <div class="oficina-conta">
+                <span>${ico('tempestade', 16)} <b>Tempestade</b>: 1 em cada ${r.tempestade} pedaços de chuva (de 36 min). No inverno, nevasca.</span>
+                <span>${ico('furacao', 16)} <b>Furacão</b>: 1 em cada ${r.furacao} pedaços de ventania.</span>
+            </div>
+            <p class="det"><span class="txt">Em cada um, cada <b>painel solar</b> e cada <b>turbina</b> tem <b>1 chance em ${r.chance}</b> de levar um raio ou cair com o vento: fica em <b>sobrecarga</b> e para de gerar até ser consertado. No furacão, cada <b>canteiro plantado</b> também tem 1 chance em ${r.chance} de ser arrancado; a <b>estufa elétrica</b> protege os canteiros em volta dela. Até o nível ${r.nivel - 1}, nada estraga.</span></p>
+            <p class="det"><span class="txt">Para consertar: toque no gerador (custa ${r.conserto_pct}% do preço dele) ou tenha o <b>eletricista</b>, que conserta sozinho: em ${r.eletricista_min.map((m, i) => `${m} min no nível ${i + 1}`).join(', ').replace(/, ([^,]*)$/, ' e $1')}.${eletr ? ` O seu está no nível ${eletr.nivel}: ${minE(eletr.nivel)} min.` : ''}</span></p>
+            ${parados ? `<p class="aviso">${ico('raio', 14)} Agora: ${parados === 1 ? '1 gerador em sobrecarga' : `${parados} geradores em sobrecarga`}. Toque nele na fazenda para consertar.</p>` : ''}
+            <h3 class="secao-titulo">O que cada clima faz</h3>
+            <div class="lista">${['sol', 'nublado', 'chuva', 'calor', 'vento', 'tempestade', 'furacao'].map(cartao).join('')}</div>
+            <p class="det"><span class="txt"><b>Calmaria</b>: em alguns pedaços sem chuva e sem ventania o vento para, e a turbina cai para 3 ⚡/h. O reator dá 700 ⚡/h com qualquer tempo (500 na onda de calor).</span></p>
+            <h3 class="secao-titulo">Estações (42 horas cada)</h3>
+            <div class="lista">${estacoes}</div>
+            <div class="rodape-painel"><span></span><button type="button" class="botao verde" data-fechar>Entendi</button></div>`;
+    }
+
+    // fase 77: gerador em sobrecarga (o raio ou o furacão): parado até o conserto
+    let consertoAlvo = null;
+    const custoConserto = (c) => Math.ceil(((tipoItem(c.tipo) || {}).custo || 0) * regrasExtremo().conserto_pct / 100);
+    function htmlConserto() {
+        const c = consertoAlvo && (S.construcoes || []).find((k) => k.x === consertoAlvo.x && k.y === consertoAlvo.y);
+        if (!c || !c.sobrecarga_em) return `<p class="vazio-msg">Esse gerador já está funcionando.</p><div class="rodape-painel"><span></span><button type="button" class="botao verde" data-fechar>Ok</button></div>`;
+        const it = tipoItem(c.tipo) || { nome: c.tipo }, custo = custoConserto(c), eletr = meuAjudante('eletricista');
+        const fem = it.efeito === 'eolica', min = eletr && regrasExtremo().eletricista_min[Math.min(eletr.nivel, 5) - 1];
+        return `<div class="visita-topo">${A.htmlItem(c.tipo, 56)}<div><b>${esc(it.nome)}</b><small>em sobrecarga desde ${hora(c.sobrecarga_em)}</small></div></div>
+            <p class="fala">${ico('tempestade', 16)} Um raio (ou o vento do furacão) deu sobrecarga: ${fem ? 'a turbina' : 'o painel'} parou de gerar energia até ser consertad${fem ? 'a' : 'o'}.</p>
+            <p class="det"><span class="txt">${eletr ? `O <b>eletricista</b> (nível ${eletr.nivel}) conserta sozinho ${min} min depois do raio, lá pelas ${hora(Date.parse(c.sobrecarga_em) + min * 60000)}.` : 'Com o <b>eletricista</b> (Loja → Ajudantes), os geradores se consertam sozinhos.'}</span></p>
+            <div class="rodape-painel">
+                <button type="button" class="botao creme" data-fechar>Agora não</button>
+                <button type="button" class="botao verde" data-consertar${S.jogador.moedas >= custo ? '' : ' disabled'}>Consertar por ${moeda(custo)}</button>
+            </div>`;
+    }
+    function consertar() {
+        const c = consertoAlvo && (S.construcoes || []).find((k) => k.x === consertoAlvo.x && k.y === consertoAlvo.y);
+        fecharPainel();
+        if (!c || !c.sobrecarga_em) return;
+        const nome = esc(((tipoItem(c.tipo) || {}).nome || c.tipo));
+        enfileirar([], async () => {
+            const r = await rpc('fazenda_consertar', { p_token: token, p_x: c.x, p_y: c.y });
+            som.tocar('moeda');
+            toast(`${A.htmlItem(c.tipo, 20)} ${nome} ${(tipoItem(c.tipo) || {}).efeito === 'eolica' ? 'consertada' : 'consertado'}: voltou a gerar energia (−${r.pagou} ${ico('moeda', 14)}).`);
+            aplicarEstado(r.estado);
+        });
+    }
+    // fase 77: o que a tempestade e o furacão fizeram (o servidor manda uma vez só)
+    function avisarClima(estado) {
+        const ev = estado.clima_eventos || [];
+        if (!ev.length) return;
+        const no = (id) => (id === 'turbina' ? 'na sua turbina' : 'no seu painel solar'), o = (id) => (id === 'turbina' ? 'a sua turbina' : 'o seu painel solar');
+        const sobre = ev.filter((e) => e.evento === 'sobrecarga'), arr = ev.filter((e) => e.evento === 'arrancou'), cons = ev.filter((e) => e.evento === 'consertou');
+        if (sobre.length) {
+            som.tocar('erro');
+            const raio = sobre.filter((e) => e.clima !== 'furacao').length, um = sobre[0];
+            toast(`${ico(raio ? 'tempestade' : 'furacao', 18)} ${sobre.length === 1 ? (raio ? `Um raio caiu ${no(um.item)}` : `O furacão derrubou ${o(um.item)}`) : `${raio ? 'Os raios e o vento' : 'O furacão'} deram sobrecarga em ${sobre.length} geradores`}: ${sobre.length === 1 ? 'parou' : 'pararam'} de gerar energia. ${meuAjudante('eletricista') ? 'O eletricista já vai consertar (ou toque para consertar agora).' : 'Toque no gerador para consertar.'}`, undefined, 'importante');
+        }
+        if (arr.length) {
+            const k = culturas[arr[0].item];
+            toast(`${ico('furacao', 18)} O furacão arrancou ${arr.length === 1 ? `a plantação de ${esc(k ? k.nome.toLowerCase() : 'um canteiro')}` : `${arr.length} plantações`}: o canteiro ficou arado, pronto para plantar de novo. A estufa elétrica protege os canteiros em volta dela.`, undefined, 'importante');
+        }
+        if (cons.length) toast(`${ico('raio', 16)} O eletricista consertou ${cons.length === 1 ? o(cons[0].item) : `${cons.length} geradores`}: ${cons.length === 1 ? 'voltou' : 'voltaram'} a gerar energia.`);
     }
 
     /* ---------- Energia (nível 16+) ----------
@@ -552,6 +691,7 @@
         const en = S.energia || {}, carga = Math.floor(cargaAgora()), cap = en.capacidade || 50;
         return `
             ${temEletrico() ? htmlContaEnergia(en.conta) : ''}
+            ${(S.construcoes || []).some((k) => k.sobrecarga_em) ? `<p class="aviso">${ico('tempestade', 14)} ${(S.construcoes || []).filter((k) => k.sobrecarga_em).length} gerador(es) em sobrecarga por raio ou furacão: parados até o conserto. Toque neles na fazenda.</p>` : ''}
             ${temEletrico() ? `<p>${ico('raio', 16)} Agora: <b>${carga}</b> de ${cap} ⚡ · entrando <b>${Math.round(Number(en.por_hora) || 0)}</b> ⚡ por hora.${textoVento()}</p>
                 <p class="det">Bateria cheia: o que sobrar do sol, do vento e do reator é vendido sozinho, 1 ${ico('moeda', 12)} a cada 5 ⚡.</p>
                 <span class="estoque-barra"><i style="width:${Math.round(carga / cap * 100)}%"></i></span>
@@ -1158,6 +1298,11 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-10-18-clima', data: '18/10', titulo: 'A tela do clima, a tempestade e o furacão', itens: [
+            'Toque no <b>clima</b>, lá em cima: abre a <b>tela do clima</b>, com as próximas 24 horas, o que cada clima faz nos canteiros e na energia e quanto do dia cada um ocupa em cada estação.',
+            'De vez em quando a chuva vira <b>tempestade</b> com raios (no inverno, nevasca) e a ventania vira <b>furacão</b>. Na tempestade a turbina dá 20 ⚡/h; no furacão, 40.',
+            'Em cada tempestade ou furacão, cada <b>painel solar</b> e cada <b>turbina</b> tem 1 chance em 250 de entrar em <b>sobrecarga</b>: solta fumaça e para de gerar até o conserto. Toque nele para consertar (20% do preço) ou deixe com o <b>eletricista</b>, que conserta sozinho.',
+            'No furacão, cada canteiro plantado também tem 1 chance em 250 de ser arrancado. A <b>estufa elétrica</b> protege os canteiros em volta dela. Até o nível 4, nada estraga.'] },
         { id: '2026-10-18-visitas', data: '18/10', titulo: 'Visita a cada 10 minutos', itens: [
             'Chega uma <b>visita na porteira</b> a cada <b>10 minutos</b> (antes era a cada 3 horas). Cada pedido é menor que o de antes, mas no dia rende mais.',
             'Os pedidos <b>crescem com o seu nível</b>: mais quantidade e, do nível 15 em diante, também produtos das oficinas, dos bichos e do pomar.',
@@ -2357,6 +2502,7 @@
 
     function coletarItem(x, y) {
         const c = (S.construcoes || []).find((k) => k.x === x && k.y === y);
+        if (c && c.sobrecarga_em) { consertoAlvo = { x, y }; return abrirPainel('conserto'); }   // fase 77
         if (c && (tipoItem(c.tipo) || {}).efeito === 'biomassa') return alternarGerador(c);
         const o = c && infoOficina(c);
         if (o) return acaoOficina(c, o);
@@ -2427,6 +2573,7 @@
             }
         }
         if (!visita && it.categoria === 'energia') {
+            if (c.sobrecarga_em) return mostrarStatus(`${A.htmlItem(c.tipo, 22)} <b>${esc(it.nome)}</b>: <b>em sobrecarga</b> desde ${hora(c.sobrecarga_em)}, não está gerando. Toque para consertar.`);   // fase 77
             const extra = it.efeito === 'biomassa' ? (c.iniciado_em ? ' <b>Ligado.</b> Toque para desligar.' : ' <b>Desligado.</b> Toque para ligar.')
                 : it.efeito === 'bateria' ? ` Agora: ${Math.floor(cargaAgora())} de ${S.energia.capacidade} ⚡.` : '';
             return mostrarStatus(`${A.htmlItem(c.tipo, 22)} <b>${esc(it.nome)}</b>: ${esc(it.descricao)}${extra}${dicaItem(it)}`);
@@ -3074,6 +3221,7 @@
         avisarFeira(estado);
         avisarReservas(estado);   // fase 67
         avisarRadiacao(estado);   // fase 68
+        avisarClima(estado);   // fase 77
         desenharClima();
         agendarAvisos();
         energiaEm = agora();
@@ -3948,6 +4096,13 @@
         } else if (nome === 'energia') {
             el.painelTitulo.innerHTML = `${ico('raio', 26)} Energia e máquinas`;
             corpo.innerHTML = htmlEnergia();
+        } else if (nome === 'clima') {   // fase 77: a tela do clima
+            el.painelTitulo.innerHTML = `${ico(iconeClima(climaVisto()), 26)} Clima`;
+            corpo.innerHTML = htmlClima();
+            if (!soAtualizar && Date.now() - climaInfoEm > 60000) carregarClimaInfo();
+        } else if (nome === 'conserto') {   // fase 77: gerador em sobrecarga
+            el.painelTitulo.innerHTML = `${ico('tempestade', 26)} Sobrecarga`;
+            corpo.innerHTML = htmlConserto();
         } else if (nome === 'bau') {
             const b = bauAberto && (S.construcoes || []).find((k) => k.x === bauAberto.x && k.y === bauAberto.y && k.tipo === 'bau');
             el.painelTitulo.innerHTML = `${A.htmlItem('bau', 32)} Baú`;
@@ -3986,7 +4141,7 @@
                     <li>Na loja tem <b>animais</b> (até 5 de cada; cada um sai 50% mais caro que o anterior). Cada bicho mora no <b>cercado</b> dele: construa o cercado da espécie em <b>Construir → Bichos</b> antes de comprar (quem já tinha bicho sem cercado ganha o primeiro de graça, e os bichos ficam no galinheiro ou no pasto antigo até ele ficar pronto). Cercado com bicho dentro não dá para desmanchar, só mudar de lugar. Dê ração (sai do celeiro) e colete ovos, leite e lã. No celeiro, <b>Reservar</b> guarda a ração deles para não ir junto no "Vender tudo".</li>
                     <li>No botão <b>Construir</b> você coloca cercas, caminhos, árvores, flores e objetos onde quiser. Toque em <b>Pronto</b> para fechar.</li>
                     <li>Toque num item já colocado para ver o que ele faz; o <b>alcance</b> dele (irrigador, alarme, estufa...) aparece marcado no chão. <b>Segure o dedo 3 segundos</b> num item ou canteiro para pegar e levar para outro lugar.</li>
-                    <li>A semana tem as 4 <b>estações</b> (42 horas cada), e cada uma muda a cara da fazenda (pétalas na primavera, grama quente no verão, folhas caindo no outono, neve no inverno) e tem uma semente só dela: morango, melancia, abóbora e repolho. O <b>clima</b> muda várias vezes por dia: sol dá +1 na colheita, chuva rega tudo, onda de calor seca mais, nublado não traz problema novo e ventania espalha pragas. Toque no clima, lá em cima, para ver até quando ele vai.</li>
+                    <li>A semana tem as 4 <b>estações</b> (42 horas cada), e cada uma muda a cara da fazenda (pétalas na primavera, grama quente no verão, folhas caindo no outono, neve no inverno) e tem uma semente só dela: morango, melancia, abóbora e repolho. O <b>clima</b> muda várias vezes por dia: sol dá +1 na colheita, chuva rega tudo, onda de calor seca mais, nublado não traz problema novo e ventania espalha pragas. De vez em quando a chuva vira <b>tempestade</b> com raios e a ventania vira <b>furacão</b>: em cada um, cada painel solar e turbina tem 1 chance em 250 de entrar em sobrecarga (para até o conserto) e, no furacão, cada canteiro tem 1 em 250 de ser arrancado. Toque no clima, lá em cima, para ver a tela do clima: as próximas horas e o que cada um faz.</li>
                     <li>O jogo tem o próprio <b>dia e noite</b>: eles se revezam a cada 2 horas (12 horas de dia e 12 de noite em cada dia de verdade). De noite o mapa escurece, as janelas, os lampiões e as oficinas acendem, aparecem vaga-lumes, e o painel solar não gera energia. Toque no clima para ver quando amanhece.</li>
                     <li>O <b>baú</b> guarda em si (até 200 itens) o que recolhe sozinho, com energia, do que estiver encostado nele: o bloco de canteiros, um cercado (coleta e dá ração), uma árvore do pomar e o cesto do lago (1,6 ⚡ cada). Toque no baú para ver o que tem.</li>
                     <li>No nível 16 chegam os <b>canos de vidro</b> (Construir → Energia, 25 cada). Canos encostados formam uma <b>rede</b>, e tudo o que encosta num cano dela (baús, oficinas, o celeiro, a fábrica automática) trabalha junto: a rede <b>enche sozinha o estoque das oficinas</b> (até 10 receitas, 1,6 ⚡ cada) com o que tem nos baús e no celeiro da rede, dividindo entre todas; o produto vai para outra oficina que usa ele (o óleo da prensa vai para o empório), para o celeiro ou para um baú; e o que nenhuma oficina usa sai do baú para o celeiro (1,6 ⚡ por viagem). Para o celeiro fazer parte, o cano tem que encostar no próprio prédio do celeiro. Nada anda sem estar ligado. Como saber se está funcionando: a <b>luz no meio do cano</b> fica verde pulsando quando a rede liga duas coisas ou mais (vermelha piscando = sem energia), a oficina na rede ganha um selinho de cano no balão, o baú mostra uma barrinha de quanto está cheio, e cada item aparece passando pelo cano quando viaja.</li>
@@ -5052,6 +5207,7 @@
         }
         const at = e.target.closest('[data-atender]');
         if (at) { atender(at.dataset.atender === '1'); return; }
+        if (e.target.closest('[data-consertar]')) { consertar(); return; }   // fase 77
         if (e.target.closest('[data-visita-chat]')) {   // fase 76: o pedido fora do nível vira um pedido no chat
             const v = visitaAgora(), k = v && culturas[v.item];
             if (v && k) {
@@ -5779,7 +5935,7 @@
     $('tutPular').addEventListener('click', encerrarTutorial);
 
     el.btnConstruir.addEventListener('click', abrirConstrucao);
-    if (el.clima) el.clima.addEventListener('click', descreverClima);
+    if (el.clima) el.clima.addEventListener('click', () => { if (S && !visita) abrirPainel('clima'); else descreverClima(); });   // fase 77: a tela do clima
     $('hudDiamantesBtn').addEventListener('click', () => {
         if (!S || visita) return;
         abaLoja = 'diamantes';
@@ -5935,7 +6091,7 @@
                 recarregar();
             }
         }
-        if (S.clima && A.faseDoDia(agora()).noite !== noiteMostrada) desenharClima();   // virou o dia ou a noite
+        if (S.clima && (A.faseDoDia(agora()).noite !== noiteMostrada || climaVisto() !== climaMostrado)) desenharClima();   // virou o dia ou a noite (ou passou a tempestade)
         if (painelAtual === 'oficina') {
             const c = oficinaDoPainel(), o = c && infoOficina(c), alvo = el.painelCorpo.querySelector('[data-oficina-agora]');
             if (o && alvo) alvo.innerHTML = htmlOficinaAgora(o);
