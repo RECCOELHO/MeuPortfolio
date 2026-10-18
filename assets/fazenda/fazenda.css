@@ -3096,3 +3096,29 @@ body.construindo .status {
     color: var(--texto-suave);
 }
 .clima-regras li { margin: 4px 0; }
+
+/* pergunta dentro do jogo (no lugar do confirm do navegador) */
+.pergunta-fundo {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    display: grid;
+    place-items: center;
+    padding: 20px;
+    background: rgba(63, 38, 49, .45);
+}
+.pergunta {
+    width: min(360px, 100%);
+    text-align: center;
+}
+.pergunta p {
+    margin: 0 0 16px;
+    font-size: 16px;
+    line-height: 1.4;
+}
+.pergunta-botoes {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+}
+.pergunta-botoes .botao { flex: 1; }
