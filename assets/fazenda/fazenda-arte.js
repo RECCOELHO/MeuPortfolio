@@ -2977,6 +2977,10 @@
                     }
                 } else if (tipo === 'roda') {   // fase 78: a roda d'água girando do lado, e a água caindo
                     const cx = x + 13, cy = y + 9, ang = t / 600;
+                    // a usina vem com o próprio tanque d'água embaixo da roda (não precisa de rio nem de lago)
+                    q.fillStyle = '#3f2631'; q.fillRect(x + 7, y + 11, 10, 5);
+                    q.fillStyle = '#3b7dd8'; q.fillRect(x + 8, y + 12, 8, 3);
+                    px(x + 9 + Math.floor(t / 300) % 6, y + 12, '#9fd3ff', 2, 1);
                     q.fillStyle = '#5a3a20'; q.fillRect(cx - 1, cy - 1, 3, 3);
                     for (let k = 0; k < 4; k++) {
                         const a = ang + k * Math.PI / 2;
