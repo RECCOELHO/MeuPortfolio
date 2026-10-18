@@ -516,9 +516,11 @@
         if (!mostra) return;
         const c = Math.floor(cargaAgora()), cap = S.energia.capacidade;
         cena.definirEnergia(cap ? c / cap : 0);
-        el.energia.innerHTML = `${ico('raio', 16)}<b>${c}</b><small>/${cap}</small>`;
+        const conta = S.energia.conta;   // fase 75: o saldo da conta (▲ sobra, ▼ falta)
+        const sinal = conta && conta.gasta > 0 ? `<i class="saldo-energia ${conta.saldo >= 0 ? 'sobra' : 'falta'}" style="font-style:normal;font-size:10px;margin-left:2px;color:${conta.saldo >= 0 ? '#3e8948' : '#c34b35'}">${conta.saldo >= 0 ? '▲' : '▼'}</i>` : '';
+        el.energia.innerHTML = `${ico('raio', 16)}<b>${c}</b><small>/${cap}</small>${sinal}`;
         el.energia.classList.toggle('vazia', c < 5);
-        el.energia.title = `Energia: ${c} de ${cap} ⚡`;
+        el.energia.title = `Energia: ${c} de ${cap} ⚡${conta ? ` · gera ${conta.gera}/h, gasta até ${conta.gasta}/h` : ''}`;
     }
     function descreverEnergia() {
         if (!temEletrico()) return;
@@ -548,6 +550,7 @@
         const grupo = (titulo, lista) => lista.length ? `<h3 class="secao-titulo">${titulo}</h3><div class="lista">${lista.map(linha).join('')}</div>` : '';
         const en = S.energia || {}, carga = Math.floor(cargaAgora()), cap = en.capacidade || 50;
         return `
+            ${temEletrico() ? htmlContaEnergia(en.conta) : ''}
             ${temEletrico() ? `<p>${ico('raio', 16)} Agora: <b>${carga}</b> de ${cap} ⚡ · entrando <b>${Math.round(Number(en.por_hora) || 0)}</b> ⚡ por hora.${textoVento()}</p>
                 <p class="det">Bateria cheia: o que sobrar do sol, do vento e do reator é vendido sozinho, 1 ${ico('moeda', 12)} a cada 5 ⚡.</p>
                 <span class="estoque-barra"><i style="width:${Math.round(carga / cap * 100)}%"></i></span>
@@ -557,6 +560,26 @@
             ${grupo('Guardam energia', itens.filter((i) => guarda.has(i.efeito)))}
             ${grupo('Trabalham por você (gastam energia)', itens.filter((i) => !gera.has(i.efeito) && !guarda.has(i.efeito)))}
             <div class="rodape-painel"><span></span><button type="button" class="botao verde" data-fechar>Entendi</button></div>`;
+    }
+
+    /* ---------- Fase 75: a conta da energia, como no Cities: Skylines ----------
+       O servidor manda quanto a fazenda gera em média por hora e quanto gasta no máximo por hora, com tudo
+       trabalhando sem parar (estado.energia.conta). */
+    const NOME_GASTO = { oficinas: 'Oficinas na rede (puxar e entregar)', triturador: 'Triturador', robo_colheita: 'Robôs de colheita',
+        bau: 'Baús', aspersor: 'Aspersores', estufa: 'Estufas', alarme: 'Alarmes' };
+    function htmlContaEnergia(c) {
+        if (!c) return '';
+        const maior = Math.max(c.gera, c.gasta, 1), saldo = c.saldo;
+        const barra = (v, cor) => `<span class="estoque-barra" style="--cor:${cor}"><i style="width:${Math.round(v / maior * 100)}%;background:${cor}"></i></span>`;
+        const nome = (t) => NOME_GASTO[t] || ((tipoItem(t) || {}).nome || t);
+        const lista = (l, sinal) => (l || []).map((k) => `<span>${esc(nome(k.tipo))}${k.n ? ` (${k.n})` : ''}: ${sinal}${k.h} ⚡/h</span>`).join('');
+        return `<h3 class="secao-titulo">A conta da energia</h3>
+            <p>Gera em média <b style="color:#3e8948">${c.gera} ⚡/h</b></p>${barra(c.gera, '#5fae4a')}
+            <p class="det">${lista(c.gera_itens, '+') || '<span>Nenhum gerador ainda.</span>'}</p>
+            <p>Gasta no máximo <b style="color:#c34b35">${c.gasta} ⚡/h</b>${c.desconto ? ` <small>(já com ${c.desconto}% de desconto${meuAjudante('eletricista') ? ', com o eletricista' : ''})</small>` : ''}</p>${barra(c.gasta, '#d9654a')}
+            <p class="det">${lista(c.gasta_itens, '−') || '<span>Nada gastando ainda.</span>'}</p>
+            <p class="${saldo >= 0 ? 'det' : 'aviso'}"><b>${saldo >= 0 ? `Sobram ${saldo} ⚡/h` : `Faltam ${-saldo} ⚡/h`}</b> com tudo trabalhando sem parar.
+                ${saldo < 0 ? 'Construa mais painéis, turbinas, geradores a biomassa ou o reator (o 2º libera no nível 40), ou contrate e evolua o <b>eletricista</b>.' : 'No dia a dia gasta menos: as máquinas só trabalham quando tem o que fazer.'}</p>`;
     }
 
     function alternarGerador(c) {
@@ -1134,6 +1157,14 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-10-18-agua2', data: '18/10', titulo: 'A água refeita', itens: [
+            'A água do lago, do laguinho dos patos e do <b>mar</b> foi refeita: brilhinhos que acendem e apagam, <b>peixes nadando</b> de um lado para o outro, a espuma da onda indo e voltando na areia e, de vez em quando, um peixe pulando.',
+            'Os <b>patos</b> nadando ficam com metade do corpo dentro da água; fora dela, aparecem inteiros.',
+            'O laguinho dos patos ficou menor, com chão em volta: o cuidador anda à direita e embaixo dele.'] },
+        { id: '2026-10-18-energia', data: '18/10', titulo: 'A conta da energia e o reator forte', itens: [
+            'No painel da <b>energia</b> (toque no ⚡ lá em cima) aparece a conta, como no Cities: Skylines: quanto a fazenda <b>gera</b> em média por hora e quanto <b>gasta no máximo</b>, com tudo trabalhando. Ao lado do ⚡, um ▲ verde quando sobra e um ▼ vermelho quando falta.',
+            'O <b>reator</b> agora dá <b>700 ⚡/h</b> (500 na onda de calor; eram 120), e no <b>nível 40</b> libera o 2º reator. Com tudo no máximo, a fazenda fica no positivo até sem o eletricista.',
+            'A radiação do reator é sorteada a cada <b>30 minutos</b>: mais bichos radioativos dando produto de 2 em 2 minutos.'] },
         { id: '2026-10-18-agua', data: '18/10', titulo: 'Vender rápido e água de verdade', itens: [
             '<b>Vender produtos</b> agora vai tudo de uma vez: o jogo não fica mais parado alguns segundos.',
             'Ninguém mais anda em cima da água: o fazendeiro, os ajudantes e as visitas contornam o lago e o laguinho dos patos (os patos continuam nadando).',

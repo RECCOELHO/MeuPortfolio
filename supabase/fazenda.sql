@@ -1132,7 +1132,7 @@ returns real language sql stable security definer set search_path = public as $$
                                   else 0 end
            when 'eolica' then case when fazenda_vento_calmo(p_t) then 3   -- fase 48: calmaria
                                    else case x.clima when 'vento' then 30 when 'chuva' then 14 when 'nublado' then 10 when 'sol' then 8 else 5 end end
-           when 'reator' then case x.clima when 'calor' then 80 else 120 end
+           when 'reator' then case x.clima when 'calor' then 500 else 700 end   -- fase 75: era 120 (80 no calor)
            else 0 end), 0)::real
          -- fase 47: cada alarme gasta 1 ⚡ por hora (a conta só roda para quem tem energia elétrica)
          - (select count(*) from fazenda_construcoes a where a.jogador_id = p_jogador and a.tipo = 'alarme')::real
@@ -1516,6 +1516,7 @@ begin
       'calmo', fazenda_vento_calmo(now()),   -- fase 48: sem vento agora (a turbina quase para)
       'vento', v_prev->'vento',
       'capacidade', fazenda_capacidade(p_jogador),
+      'conta', fazenda_energia_conta(p_jogador),   -- fase 75: quanto gera e quanto gasta, por hora
       'por_hora', fazenda_energia_taxa(p_jogador, now()) + 50 * (
         select count(*) from fazenda_construcoes c join fazenda_itens i on i.id = c.tipo
          where c.jogador_id = p_jogador and i.efeito = 'biomassa' and c.iniciado_em is not null)),
@@ -5723,6 +5724,7 @@ returns int language sql immutable as $$
   select case p_item
            when 'painel_solar' then p_limite + greatest(0, (p_nivel - 16) / 2)
            when 'turbina'      then p_limite + greatest(0, (p_nivel - 17) / 2)
+           when 'reator'       then p_limite + (p_nivel >= 40)::int   -- fase 75: o 2º reator no nível 40
            else p_limite end;
 $$;
 
@@ -7029,7 +7031,8 @@ update public.fazenda_itens
 
 create or replace function public.fazenda_radiacao_regras()
 returns jsonb language sql immutable as $$
-  select '{"chance": 200, "minutos": 30, "cada_seg": 120, "morte": 200, "horas_max": 24}'::jsonb;
+  -- fase 75: o sorteio é a cada 30 min (era de hora em hora), no máximo os últimos 48 (24 h)
+  select '{"chance": 200, "minutos": 30, "cada_seg": 120, "morte": 200, "intervalo_min": 30, "sorteios_max": 48}'::jsonb;
 $$;
 
 -- Entrega o que os bichos radioativos deram até p_ate (1 produto a cada 2 min) e fecha a radiação que já
@@ -7077,7 +7080,8 @@ set search_path = public, extensions
 as $$
 declare
   v_r     jsonb := fazenda_radiacao_regras();
-  v_max   int := (v_r->>'horas_max')::int;
+  v_max   int := (v_r->>'sorteios_max')::int;
+  v_int   interval := make_interval(mins => (v_r->>'intervalo_min')::int);   -- fase 75: 30 min
   v_desde timestamptz;
   v_n     int;
   v_t     timestamptz;
@@ -7093,10 +7097,10 @@ begin
     update fazenda_jogadores set radiacao_em = now() where id = p_jogador;
     return;
   end if;
-  v_n := floor(extract(epoch from now() - v_desde) / 3600)::int;
-  if v_n > v_max then v_desde := v_desde + make_interval(hours => v_n - v_max); v_n := v_max; end if;
+  v_n := floor(extract(epoch from now() - v_desde) / extract(epoch from v_int))::int;
+  if v_n > v_max then v_desde := v_desde + v_int * (v_n - v_max); v_n := v_max; end if;
   for k in 1..v_n loop
-    v_t := v_desde + make_interval(hours => k);
+    v_t := v_desde + v_int * k;
     perform fazenda_radiacao_fechar(p_jogador, v_t);   -- o que acabou antes desta hora fecha primeiro
     for a in update fazenda_animais an
                 set radioativo_de = v_t, radioativo_ate = v_t + make_interval(mins => (v_r->>'minutos')::int), radioativo_dado = 0
@@ -7108,7 +7112,7 @@ begin
         from fazenda_animais_tipos t where t.id = a.tipo;
     end loop;
   end loop;
-  if v_n > 0 then update fazenda_jogadores set radiacao_em = v_desde + make_interval(hours => v_n) where id = p_jogador; end if;
+  if v_n > 0 then update fazenda_jogadores set radiacao_em = v_desde + v_int * v_n where id = p_jogador; end if;
   perform fazenda_radiacao_fechar(p_jogador, now());
   delete from fazenda_radiacao where jogador_id = p_jogador and em < now() - interval '7 days';
 end;
@@ -7514,7 +7518,7 @@ begin
   select k, fazenda_cache_valor(k), now()
     from unnest(array['culturas', 'animais_tipos', 'conquistas_tipos', 'ajudantes_tipos', 'melhorias_tipos', 'melhorias']) k
   on conflict (chave) do update set valor = excluded.valor, em = excluded.em;
-  delete from fazenda_cache where chave like 'itens:%';   -- os itens de cada nível se refazem na próxima vez
+  delete from fazenda_cache where chave like 'itens:%' or chave like 'energia%';   -- se refazem na próxima vez (fase 75: e a conta da energia)
 end;
 $$;
 
@@ -8018,6 +8022,137 @@ select public.fazenda_cache_montar();
 drop function if exists public.fazenda_vender(text, text, int);
 
 -- ------------------------------------------------------------
+-- Fase 75: a energia que fecha a conta, como no Cities: Skylines.
+-- • A conta (fazenda_energia_conta): quanto a fazenda gera em média por hora (cada gerador pela média de
+--   uma semana de clima e de dia e noite, guardada em fazenda_cache) e quanto gasta no máximo por hora,
+--   com tudo trabalhando sem parar (oficinas, triturador, fábrica, robôs, baús, aspersores, estufas e
+--   alarmes, com o desconto do eletricista). Fica pronta por jogador até as construções mudarem.
+-- • Balanceamento: com tudo no máximo no nível 45, a fazenda gastava ~1.440 ⚡/h e gerava ~540. O reator
+--   passa a dar 700 ⚡/h (500 no calor; eram 120 e 80) e o 2º reator libera no nível 40: no máximo, gera
+--   ~1.770 e gasta ~1.650 sem eletricista (~830 com o eletricista no 3).
+-- • A radiação do reator é sorteada a cada 30 min (era de hora em hora), 1 em 200 por bicho.
+-- ------------------------------------------------------------
+update public.fazenda_itens
+   set descricao = 'Gera 700 ⚡/h sem parar, de dia e de noite (500 na onda de calor, para não esquentar). No nível 40 dá para ter o 2º. Cuidado com a radiação: a cada 30 min, cada bicho da fazenda tem 1 em 200 de ficar radioativo por meia hora (dá o produto dele a cada 2 minutos, direto no celeiro) e, no fim, 1 em 200 de não resistir.'
+ where id = 'reator';
+
+-- quanto cada gerador dá em média por hora: uma semana de clima, de 12 em 12 min (a mesma conta de
+-- fazenda_energia_taxa), guardada em fazenda_cache (o fim de cada faseN.sql refaz)
+create or replace function public.fazenda_energia_medias()
+returns jsonb
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v jsonb := (select valor from fazenda_cache where chave = 'energia_medias');
+begin
+  if v is not null then return v; end if;
+  select jsonb_build_object(
+           'solar', round(avg(case when fazenda_dia_em(t)
+                                   then case c when 'sol' then 12 when 'calor' then 14 when 'vento' then 10 when 'nublado' then 5 else 3 end
+                                   else 0 end)::numeric, 1),
+           'eolica', round(avg(case when calmo then 3
+                                    else case c when 'vento' then 30 when 'chuva' then 14 when 'nublado' then 10 when 'sol' then 8 else 5 end end)::numeric, 1),
+           'reator', round(avg(case c when 'calor' then 500 else 700 end)::numeric, 1),
+           'biomassa', 50)
+    into v
+    from (select t, fazenda_clima_em(t) as c, fazenda_vento_calmo(t) as calmo
+            from generate_series(date_trunc('hour', now()), date_trunc('hour', now()) + interval '7 days', interval '12 minutes') t) x;
+  perform fazenda_cache_gravar('energia_medias', v);
+  return v;
+end;
+$$;
+
+-- a conta da energia de uma fazenda: gera (média por hora) e gasta (no máximo por hora, tudo
+-- trabalhando), por tipo. Guardada por jogador enquanto as construções e o eletricista não mudam.
+create or replace function public.fazenda_energia_conta(p_jogador uuid)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_ass  text;
+  v      jsonb;
+  m      jsonb;
+  v_tri  boolean;
+  v_fab  boolean;
+  v_desc real;
+  v_rede jsonb;
+  v_gera jsonb;
+  v_gasta jsonb;
+  v_g    real;
+  v_c    real;
+begin
+  select md5(coalesce(string_agg(c.tipo || c.x || ',' || c.y, ';' order by c.x, c.y), '') || ':' ||
+             coalesce((select h.nivel from fazenda_ajudantes h join fazenda_ajudantes_tipos t on t.id = h.tipo
+                        where h.jogador_id = p_jogador and t.funcao = 'energia' limit 1), 0))
+    into v_ass from fazenda_construcoes c where c.jogador_id = p_jogador;
+  select valor into v from fazenda_cache where chave = 'energia:' || p_jogador;
+  if v is not null and v->>'ass' = v_ass then return v - 'ass'; end if;
+
+  m := fazenda_energia_medias();
+  v_tri := fazenda_tem_efeito(p_jogador, 'triturar');
+  v_fab := fazenda_tem_efeito(p_jogador, 'automatico');
+  v_desc := fazenda_energia_preco(p_jogador, 1);   -- quanto 1 ⚡ custa de verdade (0,8 e o eletricista)
+  v_rede := coalesce((select jsonb_agg(to_jsonb(r)) from fazenda_rede(p_jogador) r), '[]'::jsonb);
+
+  -- gera: cada gerador pela média dele
+  select coalesce(jsonb_agg(jsonb_build_object('tipo', x.tipo, 'n', x.n, 'h', round(x.h::numeric))), '[]'::jsonb), coalesce(sum(x.h), 0)
+    into v_gera, v_g
+    from (select c.tipo, count(*) as n, count(*) * (m->>i.efeito)::real as h
+            from fazenda_construcoes c join fazenda_itens i on i.id = c.tipo
+           where c.jogador_id = p_jogador and i.efeito in ('solar', 'eolica', 'reator', 'biomassa')
+           group by c.tipo, i.efeito) x;
+
+  -- gasta: cada coisa trabalhando sem parar
+  with cons as (
+    select c.x, c.y, c.tipo, i.efeito, i.raio, i.produz_seg, i.entradas
+      from fazenda_construcoes c join fazenda_itens i on i.id = c.tipo where c.jogador_id = p_jogador),
+  cant as (   -- colheitas por hora de cada canteiro (o que está plantado; vazio conta como 2 h)
+    select c.x, c.y, 3600.0 / coalesce(k.tempo_seg, 7200) as por_h
+      from fazenda_canteiros c left join fazenda_culturas k on k.id = c.cultura where c.jogador_id = p_jogador),
+  itens as (
+    -- oficinas: na rede, 2 do puxar e 2 da entrega (e 15 do triturador); fora dela, com a fábrica automática, 8
+    select 'oficinas' as tipo,
+           sum(3600.0 / o.produz_seg *
+               case when exists (select 1 from jsonb_array_elements(v_rede) r where r->>'papel' = 'oficina' and (r->>'x')::int = o.x and (r->>'y')::int = o.y)
+                    then 4 when v_fab then 8 else 0 end) as h
+      from cons o where o.entradas is not null
+    union all
+    select 'triturador', case when v_tri then sum(3600.0 / o.produz_seg) * 15 end
+      from cons o where o.entradas is not null
+       and (exists (select 1 from jsonb_array_elements(v_rede) r where r->>'papel' = 'oficina' and (r->>'x')::int = o.x and (r->>'y')::int = o.y) or v_fab)
+    union all
+    select 'robo_colheita', sum(ct.por_h) * 6   -- 4 da colheita e 2 do replantio
+      from cons r join cant ct on abs(ct.x - r.x) <= r.raio and abs(ct.y - r.y) <= r.raio where r.efeito = 'robo'
+    union all
+    select 'bau', sum(ct.por_h) * 2   -- o baú recolhe o que está encostado nele
+      from cons b join cant ct on abs(ct.x - b.x) <= 1 and abs(ct.y - b.y) <= 1 where b.tipo = 'bau'
+    union all
+    select 'aspersor', sum(ct.por_h) * 2   -- uma seca por plantio, mais ou menos
+      from cons a join cant ct on abs(ct.x - a.x) <= a.raio and abs(ct.y - a.y) <= a.raio where a.efeito = 'aspersor'
+    union all
+    select 'estufa', sum(ct.por_h) * 5   -- 5 por plantio no alcance dela
+      from cons e join cant ct on abs(ct.x - e.x) <= e.raio and abs(ct.y - e.y) <= e.raio where e.efeito = 'estufa'
+    union all
+    select 'alarme', count(*)::real from cons where tipo = 'alarme'
+  )
+  select coalesce(jsonb_agg(jsonb_build_object('tipo', tipo, 'h', round((h * case when tipo = 'alarme' then 1 else v_desc end)::numeric)) order by h desc)
+                    filter (where coalesce(h, 0) > 0), '[]'::jsonb),
+         coalesce(sum(h * case when tipo = 'alarme' then 1 else v_desc end), 0)
+    into v_gasta, v_c
+    from itens;
+
+  v := jsonb_build_object('gera', round(v_g), 'gasta', round(v_c), 'saldo', round(v_g - v_c),
+                          'gera_itens', v_gera, 'gasta_itens', v_gasta, 'desconto', round((1 - v_desc)::numeric * 100));
+  perform fazenda_cache_gravar('energia:' || p_jogador, v || jsonb_build_object('ass', v_ass));
+  return v;
+end;
+$$;
+
+select public.fazenda_cache_montar();
+
+-- ------------------------------------------------------------
 -- Permissões: só a API pública fica executável pela chave anon
 -- ------------------------------------------------------------
 revoke execute on function
@@ -8205,7 +8340,9 @@ revoke execute on function
   public.fazenda_semana_tentar_fechar(),
   public.fazenda_bot_xp(uuid, int),
   public.fazenda_bot_xp_gravar(),
-  public.fazenda_baus_sorte()
+  public.fazenda_baus_sorte(),
+  public.fazenda_energia_medias(),
+  public.fazenda_energia_conta(uuid)
 from public, anon, authenticated;
 
 grant execute on function
