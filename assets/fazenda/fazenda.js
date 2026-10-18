@@ -1134,6 +1134,11 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-10-18-agua', data: '18/10', titulo: 'Vender rápido e água de verdade', itens: [
+            '<b>Vender produtos</b> agora vai tudo de uma vez: o jogo não fica mais parado alguns segundos.',
+            'Ninguém mais anda em cima da água: o fazendeiro, os ajudantes e as visitas contornam o lago e o laguinho dos patos (os patos continuam nadando).',
+            'A água do lago e do laguinho dos patos <b>mexe</b>: ondinhas, brilhos e, de vez em quando, um peixe pulando.',
+            'Os <b>baús da sorte</b> não dão mais moedas: só itens, diamantes e, bem raramente, um item raro.'] },
         { id: '2026-10-17-conteudo2', data: '17/10', titulo: 'Cabra, búfala, peixes do mar e ajudantes 5 estrelas', itens: [
             '<b>Cabra</b> (nível 33) e <b>búfala</b> (38), com o capril e o curral delas e as cuidadoras <b>Dona Zefa</b> e <b>Seu Badu</b>. A <b>queijaria de búfala</b> (40) faz mussarela.',
             'Os peixes do mar viram receita: <b>enlatados</b> (33, sardinha em lata), <b>sushi</b> (39, sashimi) e <b>caldeirada</b> (42).',
@@ -5048,9 +5053,12 @@
                 : [qual === '*' ? null : qual];
             enfileirar([], async () => {
                 let ganho = 0, xp = 0, semXp = 0, estado = null;
-                for (const item of lista) {
-                    const r = await rpc('fazenda_vender', { p_token: token, p_item: item, p_quantidade: null });
-                    ganho += r.ganho; xp += r.xp || 0; semXp += r.sem_xp || 0; estado = r.estado;
+                // fase 74b: os produtos todos numa chamada só (um por vez travava o jogo uns segundos)
+                if (lista.length) {
+                    const r = await rpc('fazenda_vender', qual === 'finais'
+                        ? { p_token: token, p_item: null, p_quantidade: null, p_itens: lista }
+                        : { p_token: token, p_item: lista[0], p_quantidade: null });
+                    ganho = r.ganho; xp = r.xp || 0; semXp = r.sem_xp || 0; estado = r.estado;
                 }
                 const guardou = qual !== 'finais' && Object.keys(S.reservas || {}).length ? ' A ração dos animais ficou guardada.' : '';
                 // fase 56: o que veio da feira vende pelas moedas de sempre, mas sem XP
