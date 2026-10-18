@@ -1040,6 +1040,9 @@
         chuva: ['....ooo....', '...owwwo...', '.oowwwwwoo.', 'owwwwwwwsso', '.ossssssso.', '..ooooooo..', '..b..b..b..', '.b..b..b...'],
         // ventania: a nuvem com rajadas azuis saindo pela esquerda; a de baixo enrola na ponta
         vento: ['.........ooo....', '........owwwo...', 'BBB...oowwwwwoo.', '.....owwwwwwwwso', '.BBBBowwwwwwwsso', '......ossssssso.', '.......ooooooo..', '................', 'BB.BBBBBBBBB....', '............B...', '.........B..B...', '..........BB....'],
+        // fase 77: a tempestade (nuvem escura com raio) e o furacão (o funil girando)
+        tempestade: ['....ooo....', '...oSSSo...', '.ooSSSSSoo.', 'oSSSSSSSSSo', 'oSSSSSSSSSo', '.oooyyoooo.', '..b.yy..b..', '...yy......', '..yyyyy.b..', '....yy.....', '...yy......', '..y........'],
+        furacao: ['ooooooooooo', 'oSSSSSSSSSo', '.ooooooooo.', '.osssssSSo.', '..ooooooo..', '..oSSSSSo..', '...ooooo...', '...osSSo...', '....ooo....', '....oSo....', '.....o.....'],
         play: ['oo.....', 'owoo...', 'owwwoo.', 'owwwwwo', 'owwwoo.', 'owoo...', 'oo.....'],
         raio: ['...oooo', '..oyyyo', '..oyyo.', '.oyyo..', '.oyyyyo', 'oyyyyo.', 'ooyyo..', '..oyo..', '.oyo...', '.oo....'],
         coracao: ['.oo.oo.', 'orrorRo', 'orwrrRo', 'orrrrRo', '.orrRo.', '..oRo..', '...o...'],
@@ -2443,7 +2446,7 @@
         }
         function desenhar(tempo) {
             sincronizarAnimais();
-            quadroHelice = Math.floor(tempo / (clima === 'vento' ? 90 : 200)) % 2;   // venta mais, gira mais
+            quadroHelice = Math.floor(tempo / (clima === 'furacao' ? 45 : clima === 'vento' || clima === 'tempestade' ? 90 : 200)) % 2;   // venta mais, gira mais
             q.drawImage(fundo, 0, 0);
             desenharAguaViva(tempo);   // fase 74b: o lago (o laguinho dos patos é desenhado no cercado, com as dele)
             desenharMarVivo(tempo);    // fase 76: o mar da praia
@@ -2457,7 +2460,8 @@
                 if (s.cano) { desenharCano(c, tempo); continue; }
                 if (s.chao) tile(q, s.i, wx(c.x), wy(c.y), false, s.p);   // caminho/flores: chão
                 else if (s.grade) pe.push({ ...s, x: wx(c.x), y: wy(c.y + s.h - 1), gy: wy(c.y), flip: false, bob: 0 });
-                else pe.push({ ...s, x: wx(c.x), y: wy(c.y), flip: false, bob: ANIMA[c.tipo] === 'robo' && Math.floor((tempo + c.x * 97) / 380) % 2 ? -1 : 0 });
+                else pe.push({ ...s, ...(c.sobrecarga_em && s.topo != null ? { topo: 1023 } : null),   // fase 77: em sobrecarga, a hélice para
+                    x: wx(c.x), y: wy(c.y), flip: false, bob: ANIMA[c.tipo] === 'robo' && Math.floor((tempo + c.x * 97) / 380) % 2 ? -1 : 0 });
             }
 
             const canteiros = listaCanteiros(), mc = mapaCanteiros(canteiros);
@@ -2842,6 +2846,19 @@
         function desenharMaquinas(lista, tempo) {
             const px = (x, y, cor, w = 1, h = 1) => { q.fillStyle = cor; q.fillRect(Math.round(x), Math.round(y), w, h); };
             for (const c of lista) {
+                if (c.sobrecarga_em) {   // fase 77: o raio ou o furacão deu sobrecarga: fumaça escura e faísca vermelha
+                    const x = wx(c.x), y = wy(c.y), t = tempo + (c.x * 137 + c.y * 61) % 997, topo = c.tipo === 'turbina' ? y - 13 : y + 1;
+                    for (let k = 0; k < 4; k++) {
+                        const f = (t / 1700 + k / 4) % 1, tam = 3 + Math.round(f * 4);
+                        q.globalAlpha = 0.85 * (1 - f);
+                        px(x + 8 + Math.sin(f * 6 + k * 2) * 3 + f * 4 - tam / 2, topo - f * 18 - tam / 2, k % 2 ? '#3f2631' : '#5d5560', tam, tam);
+                    }
+                    q.globalAlpha = 1;
+                    const pisca = Math.floor(t / 220) % 5;
+                    if (pisca === 0) { px(x + 5, topo + 2, '#ff3b2f', 2, 2); px(x + 10, topo + 4, '#fdbe53', 1, 2); }
+                    else if (pisca === 2) { px(x + 10, topo + 1, '#ff3b2f', 2, 2); px(x + 6, topo + 5, '#fdbe53', 2, 1); }
+                    continue;
+                }
                 const tipo = ANIMA[c.tipo];
                 if (!tipo) continue;
                 const x = wx(c.x), y = wy(c.y), t = tempo + (c.x * 137 + c.y * 61) % 997;   // cada uma no seu ritmo
@@ -3065,7 +3082,7 @@
             const W = canvas.width, H = canvas.height, passo = Math.max(2, Math.round(k));
             const neve = EST === 'inverno', outono = EST === 'outono', primavera = EST === 'primavera';
             if (!neve && !outono && !primavera) return;
-            const forte = neve && clima === 'chuva';
+            const forte = neve && (clima === 'chuva' || clima === 'tempestade');
             const lado = forte ? 42 : 105;
             const n = neve ? Math.round((W * H) / (lado * lado * dpr * dpr)) : outono ? 12 : 8;
             for (let i = 0; i < n; i++) {
@@ -3085,12 +3102,69 @@
             }
         }
 
+        // fase 77: o relâmpago da tempestade, de 4 a 7 s um do outro: a tela pisca e o raio desce em zigue-zague
+        function desenharRelampago(tempo, k) {
+            const W = canvas.width, H = canvas.height, ciclo = Math.floor(tempo / 5500), fase = tempo % 5500;
+            const espera = 1200 + ((ciclo * 2654435761) >>> 0) % 3000;   // cada relâmpago numa hora do ciclo
+            const dt = fase - espera;
+            if (dt < 0 || dt > 260) return;
+            ctx.fillStyle = `rgba(255, 255, 255, ${(0.45 * (1 - dt / 260)).toFixed(3)})`;
+            ctx.fillRect(0, 0, W, H);
+            if (dt > 140) return;
+            const passo = Math.max(2, Math.round(k)), sem = (ciclo * 40503) >>> 0;
+            let x = W * (0.15 + (sem % 70) / 100), y = 0;
+            for (let i = 0; y < H * 0.55; i++) {
+                const ny = y + passo * (6 + ((sem >> (i % 16)) & 3) * 2), nx = x + passo * ((((sem >> (i % 13)) & 7) - 3.5) * 1.6);
+                const n = Math.max(1, Math.round((ny - y) / passo));
+                for (let j = 0; j <= n; j++) {
+                    const px = Math.round(x + (nx - x) * j / n), py = Math.round(y + (ny - y) * j / n);
+                    ctx.fillStyle = 'rgba(253, 240, 160, .45)'; ctx.fillRect(px - passo, py, passo * 4, passo);   // o brilho em volta
+                    ctx.fillStyle = '#ffffff'; ctx.fillRect(px, py, passo * 2, passo);
+                }
+                x = nx; y = ny;
+            }
+        }
+
         function desenharClima(tempo, k) {
             const W = canvas.width, H = canvas.height;
             desenharEstacao(tempo, k);
-            if (clima === 'chuva' && EST === 'inverno') {   // no inverno a chuva vira neve (desenhada acima)
-                ctx.fillStyle = 'rgba(70, 80, 100, .12)';
+            if ((clima === 'chuva' || clima === 'tempestade') && EST === 'inverno') {   // no inverno a chuva vira neve (desenhada acima)
+                ctx.fillStyle = clima === 'tempestade' ? 'rgba(40, 50, 80, .40)' : 'rgba(70, 80, 100, .12)';
                 ctx.fillRect(0, 0, W, H);
+                if (clima === 'tempestade') desenharRelampago(tempo, k);   // a nevasca também troveja
+                return;
+            }
+            if (clima === 'tempestade') {   // fase 77: chuva forte e de lado, céu bem escuro e o relâmpago
+                ctx.fillStyle = 'rgba(25, 35, 70, .42)';
+                ctx.fillRect(0, 0, W, H);
+                ctx.fillStyle = 'rgba(190, 225, 255, .6)';
+                const passo = Math.max(2, Math.round(k)), alto = passo * 7, n = Math.round((W * H) / (60 * 60 * dpr * dpr));
+                for (let i = 0; i < n; i++) {
+                    const x = ((i * 97) % W + (tempo * 0.18 * passo)) % W;
+                    const y = ((i * 211) % H + tempo * 0.9 * passo) % H;
+                    ctx.fillRect(Math.round(x), Math.round(y), passo, alto);
+                    ctx.fillRect(Math.round(x) + passo, Math.round(y) + alto - passo, passo, passo);
+                }
+                desenharRelampago(tempo, k);
+                return;
+            }
+            if (clima === 'furacao') {   // fase 77: rajadas fortes, folhas e galhos voando, céu esverdeado
+                ctx.fillStyle = 'rgba(40, 60, 55, .36)';
+                ctx.fillRect(0, 0, W, H);
+                const passo = Math.max(2, Math.round(k));
+                ctx.fillStyle = 'rgba(255, 255, 255, .5)';
+                for (let i = 0; i < 34; i++) {
+                    const y = ((i * 131) % H + Math.sin(tempo / 300 + i) * passo * 6), x = ((i * 389) + tempo * 1.3 * passo) % (W + 300) - 150;
+                    ctx.fillRect(Math.round(x), Math.round(y), passo * (18 + (i % 4) * 6), passo);
+                }
+                const cores = ['#4e974c', '#84c669', '#cf8254', '#e38628'];
+                for (let i = 0; i < 18; i++) {
+                    const x = ((i * 233) + tempo * (0.9 + (i % 3) * 0.3) * passo) % (W + 100) - 50;
+                    const y = ((i * 173) % H) + Math.sin(tempo / 220 + i * 1.3) * passo * 10;
+                    ctx.fillStyle = cores[i % 4];
+                    const vira = Math.floor(tempo / 120 + i) % 2;
+                    ctx.fillRect(Math.round(x), Math.round(y), passo * (vira ? 2 : 1), passo * (vira ? 1 : 2));
+                }
                 return;
             }
             if (clima === 'nublado') {
