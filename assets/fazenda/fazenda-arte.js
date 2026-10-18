@@ -60,7 +60,7 @@
         lago: { x: 24, y: 14, w: 6, h: 5 },
         // fase 51: a feira, numa pracinha de terra na mata à esquerda do celeiro (fora do terreno,
         // onde não dá para expandir). A 1ª barraca todo mundo tem; as outras são compradas.
-        feira: { x: -5, y: 1, w: 5, h: 6, barracas: [{ x: -2, y: 2 }, { x: -4, y: 2 }, { x: -2, y: 5 }, { x: -4, y: 5 }] },
+        feira: { x: -5, y: 1, w: 5, h: 6, barracas: [{ x: -2, y: 2 }, { x: -4, y: 2 }, { x: -2, y: 5 }, { x: -4, y: 5 }, { x: -3, y: 2 }, { x: -3, y: 5 }] },   // (fase 82: a 5ª e a 6ª, de diamante)
         // fase 61: o litoral (terreno 7): areia de y 32 a 36 e mar dali para baixo; o píer é um lugar
         // fixo na areia que entra pelo mar. Igual a fazenda_livre no SQL.
         mar: { x: 0, y: 37, w: 64, h: 5 },
@@ -2499,7 +2499,8 @@
             if (zonasVenda.length) desenharPlacaVenda(tempo);
             FEIRA.barracas.forEach((b, k) => {
                 if (k < feira.barracas) pe.push({ p: 'farm', i: 1064, x: wx(b.x), y: wy(b.y), flip: false, bob: 0 });
-                else if (feira.vagas) { q.globalAlpha = 0.3; tile(q, 1064, wx(b.x), wy(b.y), false, 'farm'); q.globalAlpha = 1; }
+                else if (feira.vagas && (k < 4 || k === feira.barracas)) {   // (fase 82: das de diamante, só a próxima)
+                     q.globalAlpha = 0.3; tile(q, 1064, wx(b.x), wy(b.y), false, 'farm'); q.globalAlpha = 1; }
             });
 
             for (const a of atores.values()) {

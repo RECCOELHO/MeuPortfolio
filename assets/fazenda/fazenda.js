@@ -1031,7 +1031,7 @@
             if (!it || !it.produz) continue;
             if (it.entradas && c.iniciado_em) {
                 const o = infoOficina(c);
-                const fim = o.termina || Date.parse(c.iniciado_em) + it.produz_seg * 1000;
+                const fim = o.termina || Date.parse(c.iniciado_em) + segOficina(it) * 1000;
                 ev.push({ quando: fim, chave: 'o' + c.x + ',' + c.y + c.iniciado_em + ':' + c.estoque, texto: `${it.nome} terminou o estoque` });
             }
             if (!it.entradas && c.colhido_em) ev.push({ quando: Date.parse(c.colhido_em) + it.produz_seg * 1000, chave: 'p' + c.x + ',' + c.y + c.colhido_em, texto: `${it.nome} com frutas prontas` });
@@ -1319,6 +1319,9 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-10-19-melhorias', data: '19/10', titulo: 'Oficina nível 2 e 3 e melhorias de diamante', itens: [
+            'Toque numa <b>oficina</b>: dá para subir ela para o <b>nível 2</b> (100 mil) e o <b>nível 3</b> (400 mil). A receita fica 15% e 30% mais rápida, em todas as oficinas daquele tipo.',
+            'Na Loja → Melhorias, as novas <b>de diamante</b>: turno de 12 h dos ajudantes (150), cesto do Bira com 24 peixes (80), cesto do Seu Nonato +50% (80), fila de 15 receitas nas oficinas (100) e a 5ª e a 6ª barraca da feira (100 e 150).'] },
         { id: '2026-10-18-luzes', data: '18/10', titulo: 'Alarmes e luzes gastam energia', itens: [
             'Para quem já tem energia elétrica na fazenda: cada <b>alarme</b> agora gasta <b>5 ⚡ por hora</b> (era 1).',
             '<b>De noite</b>, cada luz gasta <b>1 ⚡ por hora</b>: a casa da fazenda, cada casinha e cada lampião. Se a bateria zerar, as luzes apagam e voltam quando a energia voltar.',
@@ -2212,7 +2215,7 @@
         const rede = S && !visita ? vizinhosNaRede(c.x, c.y) : null;
         const ligada = !!rede && (rede.baus.length + rede.oficinas.length > 0 || rede.celeiro);
         const auto = !!rede && (rede.celeiro || rede.baus.length > 0 || rede.oficinas.some((k) => (tipoItem(k.tipo).entradas || {})[it.produz]));
-        const dur = it.produz_seg * 1000;
+        const dur = segOficina(it) * 1000;
         let t = c.iniciado_em ? Date.parse(c.iniciado_em) : null, estoque = c.estoque || 0, prontos = c.prontos || 0;
         for (let n = 0; t != null && agora() >= t + dur && n < 48; n++) {
             if (!auto) prontos += it.produz_qtd;   // com a fábrica automática vai direto para o celeiro
@@ -2229,7 +2232,7 @@
         .filter((f) => f.falta > 0);
     const nomeItem = (id) => esc(((culturas[id] || {}).nome || id).toLowerCase());
     const receitaHtml = (it) => Object.entries(it.entradas).map(([item, qtd]) => `${qtd} ${itemDe(culturas[item] || { id: item }, 16)}`).join(' + ') +
-        ` → ${itemDe(culturas[it.produz] || { id: it.produz }, 16)} (${fmtDuracao(it.produz_seg)})`;
+        ` → ${itemDe(culturas[it.produz] || { id: it.produz }, 16)} (${fmtDuracao(segOficina(it))})`;
 
     let cacheVisitaCons = {};
     // a cena pede a lista a cada quadro: refeita no máximo 5 vezes por segundo (ou quando a fazenda muda)
@@ -2465,7 +2468,7 @@
     function pegarOficina(c, o) {
         c.prontos = 0;
         c.estoque = o.estoque;
-        c.iniciado_em = o.estado === 'trabalhando' ? new Date(agora() + o.falta - o.it.produz_seg * 1000).toISOString() : null;
+        c.iniciado_em = o.estado === 'trabalhando' ? new Date(agora() + o.falta - segOficina(o.it) * 1000).toISOString() : null;
         som.tocar('colher');
         enfileirar([], async () => {
             const r = await rpc('fazenda_oficina', { p_token: token, p_x: c.x, p_y: c.y });
@@ -2474,6 +2477,10 @@
         });
     }
     // o painel da oficina: a receita, a conta do lucro, o que está fazendo, o estoque
+    // fase 82 (B10): oficina nível 2 e 3 (por tipo): a receita fica 15% e 30% mais rápida
+    const oficinaNivel = (tipo) => ((S && S.oficina_niveis && S.oficina_niveis.tem) || {})[tipo] || 1;
+    const regrasOficinaNivel = () => (S && S.oficina_niveis && S.oficina_niveis.regras) || [];
+    const segOficina = (it) => Math.ceil(it.produz_seg * (1 - (((regrasOficinaNivel()[oficinaNivel(it.id) - 2]) || {}).rapidez || 0)));
     const valorReceita = (it) => Object.entries(it.entradas).reduce((a, [item, qtd]) => a + qtd * ((culturas[item] || {}).venda || 0), 0);
     // o que falta na rede para mais uma receita: conta o que já chegou na oficina pelo cano, os baús
     // da rede e o celeiro, se a rede chega nele (igual a fazenda_rede_puxar no SQL)
@@ -2524,7 +2531,9 @@
     function htmlOficina(c, o) {
         const it = o.it, max = (S && S.estoque_max) || 10;
         const entra = valorReceita(it), sai = it.produz_qtd * (o.produto.venda || 0), lucro = sai - entra;
-        const porDia = Math.floor(86400 / it.produz_seg);
+        const porDia = Math.floor(86400 / segOficina(it));
+        // fase 82: o próximo nível desta oficina (vale para todas do mesmo tipo)
+        const nivOf = oficinaNivel(it.id), proxOf = regrasOficinaNivel()[nivOf - 1];
         const ocupado = o.estoque + (o.estado === 'trabalhando' ? 1 : 0);
         const cabe = Math.max(0, max - ocupado);
         const temNoCeleiro = Math.min(...Object.entries(it.entradas).map(([item, qtd]) => Math.floor(Math.max(0, naCeleiro(item) - reservaDe(item)) / qtd)));
@@ -2538,6 +2547,10 @@
                 <span class="${lucro > 0 ? 'lucro' : 'prejuizo'}">Lucro: <b>${lucro > 0 ? '+' : ''}${lucro}</b> ${ico('moeda', 14)} por receita (${entra ? Math.round(lucro / entra * 100) : 0}%)</span>
             </div>
             <p class="det">Sem parar, faz até <b>${porDia * it.produz_qtd}</b> ${itemDe(o.produto, 16)} por dia: <b>+${lucro * porDia}</b> ${ico('moeda', 12)} a mais do que vender os ingredientes, e cada um ainda dá ${o.produto.xp || 0} ${ico('xp', 12)}.</p>
+            ${!visita && regrasOficinaNivel().length ? `<h3 class="secao-titulo">Oficina nível ${nivOf}${nivOf > 1 ? `: receita ${Math.round(regrasOficinaNivel()[nivOf - 2].rapidez * 100)}% mais rápida` : ''}</h3>
+                ${proxOf ? `<p class="det">Nível ${proxOf.nivel}: a receita fica <b>${Math.round(proxOf.rapidez * 100)}% mais rápida</b> (${fmtDuracao(Math.ceil(it.produz_seg * (1 - proxOf.rapidez)))} em vez de ${fmtDuracao(segOficina(it))}), em todas as ${esc(it.nome.toLowerCase())}s da fazenda.
+                    <button type="button" class="botao pequeno verde" data-comprar="oficina:${esc(it.id)}"${S.jogador.moedas >= proxOf.custo ? '' : ' disabled'}>Melhorar: ${ico('moeda', 14)} ${proxOf.custo.toLocaleString('pt-BR')}</button></p>`
+                : '<p class="det">Nível máximo.</p>'}` : ''}
             <h3 class="secao-titulo">Agora</h3>
             <div class="oficina-agora" data-oficina-agora>${htmlOficinaAgora(o)}</div>
             <h3 class="secao-titulo">Estoque: ${o.estoque} receita${o.estoque === 1 ? '' : 's'} guardada${o.estoque === 1 ? '' : 's'}${o.estado === 'trabalhando' ? ' + 1 fazendo' : ''} (cabem ${max})</h3>
@@ -2736,6 +2749,7 @@
     }
     // quantos dá para ter: limite fixo, ou por terreno (amoreira: 4 na fazenda inicial + 4 por terreno comprado)
     // (fase 47: no pomar, cada fruta tem 1 pé e +1 a cada 2 terrenos, até 4; igual a fazenda_construir)
+    const turnoH = () => Math.max(8, melhoriaValor('turno') || 0);   // fase 82: 12 h com o turno de diamante
     const melhoriaNivel = (id) => (S && S.melhorias && S.melhorias[id]) || 0;
     const melhoriaValor = (id) => { const m = ((S && S.melhorias_tipos) || []).find((k) => k.id === id); const n = melhoriaNivel(id); return m && n ? m.niveis[n - 1].valor : 0; };
     // fase 57: painel solar e turbina sobem com o nível, um de cada vez (igual a fazenda_limite_maquina);
@@ -4465,7 +4479,7 @@
                 </span>
                 ${acao}
             </div>`;
-        }).join('') + '</div><p class="aviso">Ajudantes trabalham sozinhos, até com a fazenda fechada (guardam até 8 h de trabalho), e não gastam energia elétrica: são a mão de obra de graça ao lado das máquinas. Eles têm a própria energia: a barra cheia dura 8 h de trabalho; acabou, descansam 2 h numa cama (cada casinha dá camas) ou 4 h na sombra. Toque num ajudante (ou em Ver) para ver o que ele fez e mandar descansar. O que eles colhem dá metade do XP. Quem cuida de animais precisa de ração no celeiro.</p>'
+        }).join('') + `</div><p class="aviso">Ajudantes trabalham sozinhos, até com a fazenda fechada (guardam até ${turnoH()} h de trabalho), e não gastam energia elétrica: são a mão de obra de graça ao lado das máquinas. Eles têm a própria energia: a barra cheia dura ${turnoH()} h de trabalho${turnoH() > 8 ? ' (com o turno de diamante)' : ''}; acabou, descansam 2 h numa cama (cada casinha dá camas) ou 4 h na sombra. Toque num ajudante (ou em Ver) para ver o que ele fez e mandar descansar. O que eles colhem dá metade do XP. Quem cuida de animais precisa de ração no celeiro.</p>`
             + (lojaD() && (S.ajudantes || []).length ? `<p class="det">${ativoAte(S.jogador.cafe_ate) ? `<b>Café servido:</b> trabalhando em dobro até ${hora(S.jogador.cafe_ate)}. ` : `Café dos ajudantes: todos em dobro por ${lojaD().cafe.horas} horas. `}${botaoDiamante('cafe', lojaD().cafe.preco, ativoAte(S.jogador.cafe_ate) ? `+${lojaD().cafe.horas} horas` : 'Servir café')}</p>` : '');
     }
 
@@ -4528,9 +4542,13 @@
             const tem = melhoriaNivel(m.id), prox = m.niveis[tem];
             const travado = prox && S.jogador.nivel < prox.nivel;
             const cadeado = travado && !tem;   // já tem um nível: o cartão fica normal, só o próximo espera
-            const passos = m.niveis.map((k, i) => `<span${i < tem ? ' class="feito"' : ''}>${i < tem ? '✓' : ''}${m.id === 'pes' ? '+' + k.valor + ' pé' + (k.valor > 1 ? 's' : '') : Math.round(k.valor * 100) + '%'} (nível ${k.nivel})</span>`).join('');
+            const passos = m.niveis.map((k, i) => `<span${i < tem ? ' class="feito"' : ''}>${i < tem ? '✓' : ''}${k.texto ? esc(k.texto) : m.id === 'pes' ? '+' + k.valor + ' pé' + (k.valor > 1 ? 's' : '') : Math.round(k.valor * 100) + '%'}${k.nivel > 1 ? ` (nível ${k.nivel})` : ''}</span>`).join('');
+            const falta = !prox ? null : m.id === 'cesto_bira' && (S.jogador.zonas || 0) < 3 ? 'Precisa do lago' : m.id === 'cesto_nonato' && !(S.mar && S.mar.cesto) ? 'Precisa do Seu Nonato'
+                : m.id === 'barraca' && barracas() < 4 ? 'Antes, as 4 barracas' : null;   // fase 82
+            const icone = { turno: retratoAjudante('colhedor', 40), cesto_bira: A.htmlTile(120, 40, 'factory'), cesto_nonato: A.htmlTile(120, 40, 'factory'),
+                fila: A.htmlItem('queijaria', 40), barraca: A.htmlItem('barraca', 40) }[m.id];
             return `<div class="item${cadeado ? ' travada' : ''}">
-                <span class="ico">${cadeado ? ico('cadeado', 28) : A.htmlItem(m.id === 'adubo' ? 'canteiro' : 'laranjeira', 40)}</span>
+                <span class="ico">${cadeado ? ico('cadeado', 28) : icone || A.htmlItem(m.id === 'adubo' ? 'canteiro' : 'laranjeira', 40)}</span>
                 <span>
                     <span class="nome">${esc(m.nome)}${tem ? ` · ${tem}/${m.niveis.length}` : ''}</span>
                     <span class="det"><span class="txt">${esc(m.descricao)}</span></span>
@@ -4538,9 +4556,11 @@
                 </span>
                 ${!prox ? '<span class="preco">Completa</span>'
                     : travado ? `<span class="preco">${tem ? 'Próximo no n' : 'N'}ível ${prox.nivel}</span>`
+                    : falta ? `<span class="preco">${falta}</span>`
+                    : prox.diamantes ? `<button type="button" class="botao pequeno verde" data-comprar="melhoria:${esc(m.id)}"${(S.jogador.diamantes || 0) >= prox.diamantes ? '' : ' disabled'}>${ico('diamante', 14)} ${prox.diamantes}</button>`
                     : `<button type="button" class="botao pequeno verde" data-comprar="melhoria:${esc(m.id)}">${ico('moeda', 14)} ${fmt(prox.custo)}</button>`}
             </div>`;
-        }).join('') + '</div><p class="aviso">Melhorias valem para sempre e para a fazenda toda. Cada uma tem níveis, comprados um depois do outro.</p>';
+        }).join('') + '</div><p class="aviso">Melhorias valem para sempre e para a fazenda toda. Cada uma tem níveis, comprados um depois do outro. As do fim são pagas com diamante. Para deixar uma oficina mais rápida, toque nela.</p>';
     }
 
     /* ---------- Diamantes à venda (Mercado Pago) ----------
@@ -4615,7 +4635,8 @@
     // comprar mais uma barraca na feira (até 4)
     function dicaBarraca() {
         const r = regrasFeira(), n = barracas(), max = r.barracas_max || 4;
-        if (n >= max) return '';
+        if (n >= 6) return '';
+        if (n >= max) return `<p class="det"><span class="txt">${A.htmlItem('barraca', 16)} Você tem ${n} barracas. A 5ª e a 6ª são com diamante: Loja → Melhorias.</span></p>`;   // fase 82
         const preco = (r.barraca_precos || [])[n - 1] || 0, nivel = r.barraca_nivel || 5;
         return S.jogador.nivel < nivel
             ? `<p class="det"><span class="txt">${A.htmlItem('barraca', 16)} No nível ${nivel} dá para comprar mais barracas na feira: cada uma dá mais ${r.por_barraca || 2} anúncios.</span></p>`
@@ -5692,7 +5713,12 @@
             if (categoria === 'melhoria') {   // fase 57: é caro: pergunta antes
                 const m = (S.melhorias_tipos || []).find((k) => k.id === tipo), prox = m && m.niveis[melhoriaNivel(tipo)];
                 const mats = prox && prox.itens ? Object.entries(prox.itens).map(([id, n]) => `${n} ${((culturas[id] || {}).nome || id).toLowerCase()}`).join(', ') : '';   // fase 65
-                if (prox && !await perguntar(`Comprar ${prox.nome || m.nome} (nível ${melhoriaNivel(tipo) + 1}) por ${prox.custo.toLocaleString('pt-BR')} moedas${mats ? ` e ${mats}` : ''}?`)) return;
+                const preco = prox && prox.diamantes ? `${prox.diamantes} diamantes` : prox ? `${prox.custo.toLocaleString('pt-BR')} moedas` : '';   // fase 82
+                if (prox && !await perguntar(`Comprar ${m.diamante ? (m.niveis.length > 1 ? `${m.nome}: ${prox.texto}` : m.nome) : `${prox.nome || m.nome} (nível ${melhoriaNivel(tipo) + 1})`} por ${preco}${mats ? ` e ${mats}` : ''}?`)) return;
+            }
+            if (categoria === 'oficina') {   // fase 82: oficina nível 2 e 3
+                const it = tipoItem(tipo), prox = regrasOficinaNivel()[oficinaNivel(tipo) - 1];
+                if (!it || !prox || !await perguntar(`Melhorar ${it.nome.toLowerCase()} para o nível ${prox.nivel} por ${prox.custo.toLocaleString('pt-BR')} moedas? A receita fica ${Math.round(prox.rapidez * 100)}% mais rápida em todas as ${it.nome.toLowerCase()}s.`)) return;
             }
             comp.disabled = true;
             enfileirar([], async () => {
@@ -5712,11 +5738,14 @@
                     const k = m.mar && m.niveis[melhoriaNivel(tipo) - 1];   // fase 62: as do mar têm nome em cada nível
                     toast(k ? `${iconeMar(tipo, 22)} <b>${esc(k.nome)}</b>! Já vale no alto-mar.` : `${ico('xp', 18)} <b>${esc(m.nome)}</b> nível ${melhoriaNivel(tipo)}! Vale para a fazenda toda.`, 'festa');
                     som.tocar('festa');
+                } else if (categoria === 'oficina') {   // fase 82
+                    toast(`${A.htmlItem(tipo, 22)} ${esc((tipoItem(tipo) || {}).nome || 'Oficina')} nível ${oficinaNivel(tipo)}! As receitas ficaram mais rápidas.`, 'festa');
+                    som.tocar('festa');
                 } else {
                     const nome = (tipoAnimal(tipo) || {}).nome;
                     toast(`${esc(nome || 'Item')} chegou na fazenda!`);
                 }
-                if (painelAtual === 'loja') abrirPainel('loja', true);
+                if (painelAtual === 'loja' || painelAtual === 'oficina') abrirPainel(painelAtual, true);
             }).finally(() => { comp.disabled = false; });
             return;
         }

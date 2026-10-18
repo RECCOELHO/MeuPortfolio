@@ -1582,7 +1582,7 @@ begin
     'visitante', fazenda_visitante(p_jogador),
     -- o lago (só com o terreno 3): desde quando o cesto enche, o ritmo, o máximo e as chances
     'lago', case when j.zonas >= 3 then jsonb_build_object(
-      'desde', j.lago_em, 'intervalo', 1800, 'max', 16,
+      'desde', j.lago_em, 'intervalo', 1800, 'max', fazenda_cesto_max(p_jogador),
       'estatua', fazenda_tem_efeito(p_jogador, 'chico'),
       'peixes', (select jsonb_agg(jsonb_build_object('id', peixe, 'chance', chance))
                    from fazenda_peixes(fazenda_tem_efeito(p_jogador, 'chico')))) end,
@@ -1646,7 +1646,9 @@ begin
                                           'estoque', estoque, 'prontos', prontos, 'pago', pago,   -- fase 72: pago
                                           'sobrecarga_em', sobrecarga_em))   -- fase 77: parado até o conserto
         from fazenda_construcoes where jogador_id = p_jogador), '[]'::jsonb),
-    'estoque_max', fazenda_estoque_max(),
+    'estoque_max', fazenda_estoque_max_de(p_jogador),   -- fase 82: 15 com a fila de diamante
+    'oficina_niveis', jsonb_build_object('regras', fazenda_oficina_niveis(),
+                        'tem', coalesce((select jsonb_object_agg(tipo, nivel) from fazenda_oficina_nivel where jogador_id = p_jogador), '{}'::jsonb)),
     'itens', fazenda_cache_itens(v_nivel),   -- fase 57: o limite que vale para o nível de agora (fase 71: pronto, um por nível)
     'melhorias', coalesce((select jsonb_object_agg(id, nivel) from fazenda_melhorias where jogador_id = p_jogador), '{}'::jsonb),
     'camas', jsonb_build_object('total', fazenda_camas(p_jogador), 'ocupadas', fazenda_camas_ocupadas(p_jogador)),   -- fase 59
@@ -2535,7 +2537,8 @@ declare
   v_puxou boolean;
 begin
   for o in
-    select c.x, c.y, c.iniciado_em, c.estoque, c.prontos, i.produz, i.produz_seg, i.produz_qtd, i.entradas
+    select c.x, c.y, c.iniciado_em, c.estoque, c.prontos, i.produz, i.produz_qtd, i.entradas,
+           ceil(i.produz_seg * (1 - fazenda_oficina_rapidez(p_jogador, c.tipo)))::int as produz_seg   -- fase 82: nível 2 e 3
       from fazenda_construcoes c join fazenda_itens i on i.id = c.tipo
      where c.jogador_id = p_jogador and i.entradas is not null
      order by i.ordem, c.x, c.y   -- (a prensa antes do empório: o óleo chega no mesmo passo)
@@ -2581,13 +2584,13 @@ begin
   end loop;
   -- Fase 42: a rede enche o estoque das oficinas sozinha (até o máximo), uma receita por vez em
   -- rodízio, para dividir o que tem entre todas; a oficina parada que ganhou ingrediente já começa
-  for v_volta in 1..fazenda_estoque_max() loop
+  for v_volta in 1..fazenda_estoque_max_de(p_jogador) loop
     v_puxou := false;
     for o in
       select c.x, c.y, c.estoque, c.iniciado_em, i.entradas
         from fazenda_construcoes c join fazenda_itens i on i.id = c.tipo
        where c.jogador_id = p_jogador and i.entradas is not null
-         and c.estoque + (c.iniciado_em is not null)::int < fazenda_estoque_max()
+         and c.estoque + (c.iniciado_em is not null)::int < fazenda_estoque_max_de(p_jogador)
        order by i.ordem, c.x, c.y
     loop
       continue when fazenda_redes_de(v_membros, 'oficina', o.x, o.y) is null;
@@ -2914,12 +2917,12 @@ begin
       update fazenda_ajudantes set atualizado_em = now() where jogador_id = p_jogador and tipo = a.tipo;
       continue;
     end if;
-    v_custo := 100 / (fazenda_ritmo(a.nivel) * 8);
+    v_custo := 100 / (fazenda_ritmo(a.nivel) * fazenda_turno(p_jogador));   -- fase 82: 12 h com o turno de diamante
     -- fase 43: com o café (diamantes) o tempo dentro dele vale em dobro
     v_seg := extract(epoch from now() - a.atualizado_em)::real
            + case when v_cafe_ate is null then 0
                   else greatest(extract(epoch from least(now(), v_cafe_ate) - greatest(a.atualizado_em, v_cafe_de))::real, 0) end;
-    v_cred := least(a.credito + v_seg / 3600 * fazenda_ritmo(a.nivel), fazenda_ritmo(a.nivel) * 8);
+    v_cred := least(a.credito + v_seg / 3600 * fazenda_ritmo(a.nivel), fazenda_ritmo(a.nivel) * fazenda_turno(p_jogador));
     v_n := least(floor(v_cred), floor(a.energia / v_custo + 0.001))::int;   -- fase 59: e o que a energia deixa
 
     for v_tent in 1..2 loop   -- fase 71: 1 = modo rápido; 2 = deu erro, refaz no modo seguro
@@ -2936,7 +2939,7 @@ begin
              where cc.jogador_id = p_jogador and cc.estado = 'plantado'
                and now() >= cc.plantado_em + make_interval(secs => k.tempo_seg)
                and cc.plantado_em + make_interval(secs => k.tempo_seg + greatest(k.tempo_seg * 2, 3600))
-                   > greatest(a.atualizado_em, now() - interval '8 hours')
+                   > greatest(a.atualizado_em, now() - make_interval(hours => fazenda_turno(p_jogador)::int))
              order by cc.plantado_em + make_interval(secs => k.tempo_seg + greatest(k.tempo_seg * 2, 3600)) limit v_n
           loop
             if fazenda_bot_aplicar(p_jogador, case when c.murcha then 'colher_tarde' else 'colher' end, c.posicao, null, v_seguro) is not null then
@@ -2983,7 +2986,7 @@ begin
             for c in
               select k.x, k.y, i.entradas from fazenda_construcoes k join fazenda_itens i on i.id = k.tipo
                where k.jogador_id = p_jogador and i.entradas is not null
-                 and k.estoque + (k.iniciado_em is not null)::int < fazenda_estoque_max()
+                 and k.estoque + (k.iniciado_em is not null)::int < fazenda_estoque_max_de(p_jogador)
                order by i.ordem, k.x, k.y
             loop
               exit when v_feito >= v_n;
@@ -4019,7 +4022,7 @@ begin
     -- fase 57: o próximo nível da melhoria (p_tipo = adubo, pomar ou pes)
     -- fase 62: e as do alto-mar (barco, vara e marinheiro), que pedem o píer pronto
     select (n->>'nivel')::int as nivel, (n->>'custo')::int as custo, coalesce((m->>'mar')::boolean, false) as mar,
-           n->'itens' as itens into a
+           n->'itens' as itens, coalesce((n->>'diamantes')::int, 0) as diamantes into a
       from jsonb_array_elements(fazenda_melhorias_tipos()) m,
            jsonb_array_elements(m->'niveis') with ordinality as x(n, i)
      where m->>'id' = p_tipo
@@ -4032,6 +4035,11 @@ begin
     if p_tipo = 'expedicao' and coalesce((select nivel from fazenda_melhorias where jogador_id = v_id and id = 'barco'), 0) < 4 then
       raise exception 'barco_pequeno';
     end if;
+    -- fase 82: as de diamante (D8) e o que cada uma precisa antes
+    if p_tipo = 'cesto_bira' and j.zonas < 3 then raise exception 'sem_lago'; end if;
+    if p_tipo = 'cesto_nonato' and fazenda_mar_item(v_id, 'marinheiro') is null then raise exception 'sem_marinheiro'; end if;
+    if p_tipo = 'barraca' and j.barracas < 4 then raise exception 'barracas_antes'; end if;
+    if j.diamantes < a.diamantes then raise exception 'diamantes_insuficientes'; end if;
     if j.moedas < a.custo then raise exception 'moedas_insuficientes'; end if;
     -- fase 65: as peças pedem materiais raros do celeiro (o que está guardado para o píer fica)
     if exists (select 1 from jsonb_each_text(coalesce(a.itens, '{}'::jsonb)) e
@@ -4042,7 +4050,12 @@ begin
     -- barco ou marinheiro novo (e o motor e a rede) mudam o ritmo: o que já está no cardume (ou no cesto) fica lá
     v_n := case when p_tipo in ('barco', 'motor') then fazenda_mar_contar(v_id, 'barco')
                 when p_tipo in ('marinheiro', 'rede') then fazenda_mar_contar(v_id, 'marinheiro') end;
-    update fazenda_jogadores set moedas = moedas - a.custo where id = v_id;
+    update fazenda_jogadores set moedas = moedas - a.custo, diamantes = diamantes - a.diamantes,
+           barracas = barracas + (p_tipo = 'barraca')::int   -- fase 82: a 5ª e a 6ª barraca
+     where id = v_id;
+    if a.diamantes > 0 then
+      insert into fazenda_diamantes_usos (jogador_id, item, diamantes) values (v_id, 'melhoria:' || p_tipo, a.diamantes);
+    end if;
     update fazenda_celeiro c set quantidade = c.quantidade - e.value::int
       from jsonb_each_text(coalesce(a.itens, '{}'::jsonb)) e
      where c.jogador_id = v_id and c.item = e.key;
@@ -4055,6 +4068,21 @@ begin
       update fazenda_jogadores set marinheiro_em = now() - make_interval(secs => v_n * (fazenda_mar_item(v_id, 'marinheiro')->>'intervalo')::int)
        where id = v_id;
     end if;
+
+  elsif p_categoria = 'oficina' then
+    -- fase 82 (B10): oficina nível 2 e 3, por tipo (vale para todas as oficinas daquele tipo)
+    if not exists (select 1 from fazenda_construcoes c join fazenda_itens i on i.id = c.tipo
+                    where c.jogador_id = v_id and c.tipo = p_tipo and i.entradas is not null) then
+      raise exception 'item_invalido';
+    end if;
+    v_n := coalesce((select nivel from fazenda_oficina_nivel where jogador_id = v_id and tipo = p_tipo), 1);
+    if v_n >= 3 then raise exception 'melhoria_max'; end if;
+    v_preco := (fazenda_oficina_niveis()->(v_n - 1)->>'custo')::int;
+    if j.moedas < v_preco then raise exception 'moedas_insuficientes'; end if;
+    perform fazenda_oficinas_andar(v_id);   -- o que já ficou pronto sai no ritmo de antes
+    update fazenda_jogadores set moedas = moedas - v_preco where id = v_id;
+    insert into fazenda_oficina_nivel (jogador_id, tipo, nivel) values (v_id, p_tipo, 2)
+    on conflict (jogador_id, tipo) do update set nivel = fazenda_oficina_nivel.nivel + 1;
 
   else
     raise exception 'item_invalido';
@@ -4457,7 +4485,7 @@ begin
 
   if p_receitas > 0 then
     -- a receita em andamento também ocupa um lugar
-    v_n := least(p_receitas, fazenda_estoque_max() - r.estoque - (case when r.iniciado_em is null then 0 else 1 end));
+    v_n := least(p_receitas, fazenda_estoque_max_de(v_id) - r.estoque - (case when r.iniciado_em is null then 0 else 1 end));
     if v_n <= 0 then raise exception 'estoque_cheio'; end if;
     v_n := fazenda_abastecer(v_id, r.entradas, v_n);
     if v_n = 0 then raise exception 'sem_ingredientes'; end if;
@@ -4767,7 +4795,7 @@ declare
 begin
   select zonas, lago_em into j from fazenda_jogadores where id = p_jogador for update;
   if j.zonas < 3 or j.lago_em is null then return v_peixes; end if;
-  v_n := least(floor(extract(epoch from now() - j.lago_em) / 1800)::int, 16, greatest(coalesce(p_max, 0), 0));
+  v_n := least(floor(extract(epoch from now() - j.lago_em) / 1800)::int, fazenda_cesto_max(p_jogador), greatest(coalesce(p_max, 0), 0));   -- fase 82: 24 com o cesto grande
   if v_n <= 0 then return v_peixes; end if;
   for v_k in 1..v_n loop
     v_r := random() * 100;
@@ -4781,7 +4809,7 @@ begin
     end loop;
   end loop;
   -- o cesto enche até 16 (8 h): o que passou disso não conta; o que ficou no cesto continua lá
-  update fazenda_jogadores set lago_em = greatest(j.lago_em, now() - interval '8 hours') + make_interval(secs => v_n * 1800)
+  update fazenda_jogadores set lago_em = greatest(j.lago_em, now() - make_interval(secs => fazenda_cesto_max(p_jogador) * 1800)) + make_interval(secs => v_n * 1800)
    where id = p_jogador;
   insert into fazenda_estatisticas (jogador_id) values (p_jogador) on conflict do nothing;
   update fazenda_estatisticas set peixes = peixes + v_n, lendarios = lendarios + coalesce((v_peixes->>'velho_chico')::int, 0)
@@ -5307,7 +5335,7 @@ begin
 
   elsif p_item = 'oficina' then
     perform fazenda_oficinas_andar(v_id);
-    select c.iniciado_em, i.produz_seg, i.entradas into o
+    select c.iniciado_em, ceil(i.produz_seg * (1 - fazenda_oficina_rapidez(v_id, c.tipo)))::int as produz_seg, i.entradas into o
       from fazenda_construcoes c join fazenda_itens i on i.id = c.tipo
      where c.jogador_id = v_id and c.x = p_x and c.y = p_y
        for update of c;
@@ -5866,7 +5894,17 @@ returns jsonb language sql immutable as $$
             "niveis":[{"nivel":37,"custo":600000,"valor":0.15,"nome":"Rede de arrasto","itens":{"corda_naval":2}},
                       {"nivel":43,"custo":2400000,"valor":0.3,"nome":"Rede dupla","itens":{"corda_naval":3,"ancora":1}}]},
            {"id":"expedicao","nome":"Kit de expedição","mar":true,"peca":true,"descricao":"Bússola, mapa e tanque extra: deixa o barco oceânico pronto para viajar às ilhas (nível 46, na próxima expansão).",
-            "niveis":[{"nivel":45,"custo":6000000,"valor":1,"nome":"Kit de expedição","itens":{"perola_negra":3,"marlim":2,"ancora":2}}]}]'::jsonb;
+            "niveis":[{"nivel":45,"custo":6000000,"valor":1,"nome":"Kit de expedição","itens":{"perola_negra":3,"marlim":2,"ancora":2}}]},
+           {"id":"turno","nome":"Turno de 12 horas","diamante":true,"descricao":"Os ajudantes trabalham 12 horas com a barra de energia cheia (eram 8) e guardam até 12 horas de trabalho com a fazenda fechada.",
+            "niveis":[{"nivel":5,"custo":0,"diamantes":150,"valor":12,"texto":"12 h de trabalho"}]},
+           {"id":"cesto_bira","nome":"Cesto grande do Bira","diamante":true,"descricao":"O cesto do Bira no lago guarda 50% mais peixe: 24 em vez de 16 (enche por 12 horas).",
+            "niveis":[{"nivel":1,"custo":0,"diamantes":80,"valor":0.5,"texto":"24 peixes"}]},
+           {"id":"cesto_nonato","nome":"Cesto grande do Seu Nonato","diamante":true,"descricao":"O cesto do marinheiro no alto-mar guarda 50% mais peixe.",
+            "niveis":[{"nivel":33,"custo":0,"diamantes":80,"valor":0.5,"texto":"+50% no cesto"}]},
+           {"id":"fila","nome":"Fila de 15 receitas","diamante":true,"descricao":"Cada oficina guarda até 15 receitas no estoque (eram 10): trabalha mais tempo sozinha.",
+            "niveis":[{"nivel":3,"custo":0,"diamantes":100,"valor":15,"texto":"15 receitas"}]},
+           {"id":"barraca","nome":"Mais barracas na feira","diamante":true,"descricao":"Depois das 4 barracas compradas com moedas, a 5ª e a 6ª: cada uma dá mais 2 anúncios na feira.",
+            "niveis":[{"nivel":5,"custo":0,"diamantes":100,"valor":5,"texto":"5ª barraca"},{"nivel":5,"custo":0,"diamantes":150,"valor":6,"texto":"6ª barraca"}]}]'::jsonb;
 $$;
 
 -- quanto a melhoria vale para o jogador agora (0 = não comprou)
@@ -5880,6 +5918,43 @@ begin
   if v_n is null then return 0; end if;
   return coalesce((fazenda_cache_ler('melhorias')->p_id->'niveis'->(v_n - 1)->>'valor')::real, 0);
 end;
+$$;
+
+-- fase 82: as melhorias de diamante (D8) e a oficina nível 2 e 3 (B10)
+-- quantas receitas cabem no estoque de cada oficina (10; 15 com a fila de diamante)
+create or replace function public.fazenda_estoque_max_de(p_jogador uuid)
+returns int language sql stable security definer set search_path = public as $$
+  select greatest(fazenda_estoque_max(), fazenda_melhoria(p_jogador, 'fila')::int);
+$$;
+-- quantos peixes cabem no cesto do Bira (16; 24 com o cesto grande), 1 a cada 30 min
+create or replace function public.fazenda_cesto_max(p_jogador uuid)
+returns int language sql stable security definer set search_path = public as $$
+  select round(16 * (1 + fazenda_melhoria(p_jogador, 'cesto_bira')))::int;
+$$;
+-- quantas horas o ajudante trabalha com a barra cheia e guarda com a fazenda fechada (8; 12 com o turno)
+create or replace function public.fazenda_turno(p_jogador uuid)
+returns real language sql stable security definer set search_path = public as $$
+  select greatest(8, fazenda_melhoria(p_jogador, 'turno'));
+$$;
+-- o nível de cada tipo de oficina (1 = a de sempre; 2 e 3 compradas com moedas)
+create table if not exists public.fazenda_oficina_nivel (
+  jogador_id uuid not null references public.fazenda_jogadores(id) on delete cascade,
+  tipo       text not null,
+  nivel      smallint not null default 1 check (nivel between 1 and 3),
+  primary key (jogador_id, tipo)
+);
+alter table public.fazenda_oficina_nivel enable row level security;
+revoke all on public.fazenda_oficina_nivel from anon, authenticated;
+-- os níveis 2 e 3: preço e quanto a receita fica mais rápida
+create or replace function public.fazenda_oficina_niveis()
+returns jsonb language sql immutable as $$
+  select '[{"nivel": 2, "custo": 100000, "rapidez": 0.15}, {"nivel": 3, "custo": 400000, "rapidez": 0.3}]'::jsonb;
+$$;
+-- quanto mais rápida fica a receita desse tipo de oficina (0, 0.15 ou 0.3)
+create or replace function public.fazenda_oficina_rapidez(p_jogador uuid, p_tipo text)
+returns real language sql stable security definer set search_path = public as $$
+  select coalesce((select (fazenda_oficina_niveis()->(n.nivel - 2)->>'rapidez')::real
+                     from fazenda_oficina_nivel n where n.jogador_id = p_jogador and n.tipo = p_tipo and n.nivel >= 2), 0)::real;
 $$;
 
 -- o limite de cada máquina no nível (null = sem limite)
@@ -6295,6 +6370,11 @@ $$;
 -- junto, para continuar guardando 8 horas)
 create or replace function public.fazenda_mar_item(p_jogador uuid, p_id text)
 returns jsonb language sql stable security definer set search_path = public as $$
+  -- fase 82: o cesto grande do Seu Nonato (diamante) guarda 50% mais
+  select case when y.r is not null and p_id = 'marinheiro' and fazenda_melhoria(p_jogador, 'cesto_nonato') > 0
+              then y.r || jsonb_build_object('max', ceil((y.r->>'max')::int * (1 + fazenda_melhoria(p_jogador, 'cesto_nonato')))::int)
+              else y.r end
+    from (
   select case when x.i is null then null
               when p_id = 'barco' and fazenda_melhoria(p_jogador, 'motor') > 0
                 then x.i || jsonb_build_object('intervalo', round((x.i->>'intervalo')::int * (1 - fazenda_melhoria(p_jogador, 'motor')))::int)
@@ -6305,7 +6385,7 @@ returns jsonb language sql stable security definer set search_path = public as $
     from (select case when coalesce(g.nivel, 0) = 0 then m->'base' else m->'niveis'->(g.nivel - 1) end as i
             from jsonb_array_elements(fazenda_melhorias_tipos()) m
             left join fazenda_melhorias g on g.jogador_id = p_jogador and g.id = p_id
-           where m->>'id' = p_id) x;
+           where m->>'id' = p_id) x) y(r);
 $$;
 
 -- fase 65: 1 pérola a cada quantos peixes (o sonar baixa de 200 para 150, 100 e 70)
@@ -6902,7 +6982,7 @@ begin
     cross join lateral (select case
              when not v_tem then 'sem_colhedor'
              when h.ultimo_descanso_de is not null and m.em >= h.ultimo_descanso_de and m.em < h.ultimo_descanso_ate then 'descansando'
-             when m.em < now() - interval '8 hours' then 'fechada'
+             when m.em < now() - make_interval(hours => fazenda_turno(p_jogador)::int) then 'fechada'
              else 'nao_deu_conta' end as motivo) x
    where c.jogador_id = p_jogador and c.estado = 'plantado' and now() >= m.em and m.em > now() - interval '7 days'
   on conflict (jogador_id, posicao, plantado_em) do nothing;
@@ -8269,7 +8349,7 @@ begin
 
   -- gasta: cada coisa trabalhando sem parar
   with cons as (
-    select c.x, c.y, c.tipo, i.efeito, i.raio, i.produz_seg, i.entradas
+    select c.x, c.y, c.tipo, i.efeito, i.raio, i.produz_seg * (1 - fazenda_oficina_rapidez(p_jogador, c.tipo)) as produz_seg, i.entradas
       from fazenda_construcoes c join fazenda_itens i on i.id = c.tipo where c.jogador_id = p_jogador),
   cant as (   -- colheitas por hora de cada canteiro (o que está plantado; vazio conta como 2 h)
     select c.x, c.y, 3600.0 / coalesce(k.tempo_seg, 7200) as por_h
@@ -8604,6 +8684,25 @@ update public.fazenda_itens set descricao = 'Casinha: +20 de beleza (beleza dá 
 update public.fazenda_itens set descricao = 'Casinha: +30 de beleza (beleza dá bônus nas vendas) e 2 camas para os ajudantes descansarem (2 h numa cama; sem cama livre, 4 h na sombra). Com energia elétrica na fazenda, a luz gasta 1 ⚡ por hora de noite.' where id = 'casa_azul';
 
 -- ------------------------------------------------------------
+-- Fase 82: oficina nível 2 e 3 e as melhorias de diamante.
+-- • B10: cada tipo de oficina sobe para o nível 2 (100 mil) e o 3 (400 mil): a receita fica 15% e 30%
+--   mais rápida (fazenda_oficina_nivel, fazenda_comprar categoria 'oficina').
+-- • D8, na Loja → Melhorias, pagas com diamante (fazenda_melhorias_tipos, "diamante": true):
+--   turno de 12 h dos ajudantes (150), cesto do Bira +50% (80), cesto do Seu Nonato +50% (80),
+--   fila de 15 receitas nas oficinas (100) e a 5ª e a 6ª barraca da feira (100 e 150).
+-- ------------------------------------------------------------
+
+-- (a tabela também fica lá em cima, antes de fazenda_oficina_rapidez, para o fazenda.sql do zero)
+create table if not exists public.fazenda_oficina_nivel (
+  jogador_id uuid not null references public.fazenda_jogadores(id) on delete cascade,
+  tipo       text not null,
+  nivel      smallint not null default 1 check (nivel between 1 and 3),
+  primary key (jogador_id, tipo)
+);
+alter table public.fazenda_oficina_nivel enable row level security;
+revoke all on public.fazenda_oficina_nivel from anon, authenticated;
+
+-- ------------------------------------------------------------
 -- Permissões: só a API pública fica executável pela chave anon
 -- ------------------------------------------------------------
 revoke execute on function
@@ -8802,6 +8901,11 @@ revoke execute on function
   public.fazenda_terrenos(int, int),
   public.fazenda_hidro_em(timestamptz),
   public.fazenda_luzes_noite(uuid, timestamptz),
+  public.fazenda_estoque_max_de(uuid),
+  public.fazenda_cesto_max(uuid),
+  public.fazenda_turno(uuid),
+  public.fazenda_oficina_niveis(),
+  public.fazenda_oficina_rapidez(uuid, text),
   public.fazenda_zona_minha(int, int),
   public.fazenda_moedas_pagou()
 from public, anon, authenticated;
