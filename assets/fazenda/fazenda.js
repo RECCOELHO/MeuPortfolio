@@ -1314,6 +1314,9 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-10-18-abas', data: '18/10', titulo: 'Abas fixas na loja', itens: [
+            'As <b>abas</b> da loja, da feira e dos outros painéis ficam <b>presas lá em cima</b> enquanto você rola a lista: dá para trocar de aba sem subir tudo de novo.',
+            'Na Loja → Terrenos, os 10 terrenos ficam numa <b>lista só</b>; os 3 da direita aparecem marcados como "à direita da fazenda".'] },
         { id: '2026-10-18-direita', data: '18/10', titulo: 'Terrenos à direita, mais energia e mais dinheiro', itens: [
             'Do nível 29 em diante dá para comprar <b>3 terrenos novos à direita</b>: a Serra do leste (nível 29), o Planalto do leste (33) e o Cerrado do leste (38). Não precisa ter o litoral antes. Cada um dá +10 canteiros e mais espaço para construir. Toque na placa no mapa ou vá na Loja → Terrenos.',
             '<b>Mais energia antes do 29</b>: o limite de painéis solares e turbinas sobe 1 por nível do 17 ao 29, os geradores a biomassa vão até 6 e chegou a <b>Pequena central hidrelétrica</b> (nível 20): 120 ⚡/h sem parar, de dia e de noite.',
@@ -3870,6 +3873,11 @@
     }
     if (instalador) instalador.aoMudar(() => { if (painelAtual === 'conta') abrirPainel('conta', true); });
 
+    // as abas do painel (loja, feira...) ficam presas logo abaixo do título enquanto a lista rola
+    if (window.ResizeObserver) {
+        const cab = el.painelTitulo.closest('header');
+        new ResizeObserver(() => cab.parentElement.style.setProperty('--abas-topo', `${Math.max(0, cab.offsetHeight - 20)}px`)).observe(cab);
+    }
     function abrirPainel(nome, soAtualizar, boasVindas) {
         if (!soAtualizar) ultimoFoco = document.activeElement;
         painelAtual = nome;
@@ -4414,29 +4422,23 @@
     function htmlLojaTerrenos() {
         const lista = zonasVenda();
         if (!lista.length) return '<p class="vazio-msg">Os terrenos chegam em breve.</p>';
-        // fase 78: dois lados, cada um com o próximo dele liberado (os da direita não precisam dos da fazenda)
-        const lado = (dir) => {
-            const zs = lista.filter((z) => ehDireita(z) === dir), prox = proximaDoLado(dir);
-            return '<div class="lista">' + zs.map((z) => {
-                const comprado = zonaComprada(z);
-                const proximo = !!prox && z.n === prox.n;
-                const travado = !comprado && (!proximo || S.jogador.nivel < z.nivel);
-                return `<div class="item${travado ? ' travada' : ''}">
+        // uma lista só; os da direita (fase 78) são comprados em ordem entre eles, sem precisar dos da fazenda
+        const proximos = [proximaDoLado(false), proximaDoLado(true)].filter(Boolean).map((z) => z.n);
+        return '<div class="lista">' + lista.map((z) => {
+            const comprado = zonaComprada(z);
+            const proximo = proximos.includes(z.n);
+            const travado = !comprado && (!proximo || S.jogador.nivel < z.nivel);
+            return `<div class="item${travado ? ' travada' : ''}">
                 <span class="ico">${travado ? ico('cadeado', 28) : spr(comprado ? 1 : 39, 44)}</span>
                 <span>
                     <span class="nome">${esc(z.nome)}</span>
-                    <span class="det"><span>${z.w}×${z.h} quadrados</span><span>+${z.canteiros || 6} canteiros</span>${z.lago ? '<span>com lago e pescador!</span>' : ''}${z.mar ? '<span>praia e mar: o lugar do píer!</span>' : ''}${!comprado && !proximo ? '<span>depois do anterior</span>' : ''}</span>
+                    <span class="det"><span>${z.w}×${z.h} quadrados</span><span>+${z.canteiros || 6} canteiros</span>${z.lago ? '<span>com lago e pescador!</span>' : ''}${z.mar ? '<span>praia e mar: o lugar do píer!</span>' : ''}${ehDireita(z) ? '<span>à direita da fazenda</span>' : ''}${!comprado && !proximo ? '<span>depois do anterior</span>' : ''}</span>
                 </span>
                 ${comprado ? '<span class="preco">Comprado</span>'
                     : !proximo || S.jogador.nivel < z.nivel ? `<span class="preco">Nível ${z.nivel}</span>`
                     : `<button type="button" class="botao pequeno verde" data-comprar="terreno:${z.n}"${S.jogador.moedas < z.custo ? ' disabled' : ''}>${ico('moeda', 14)} ${z.custo.toLocaleString('pt-BR')}</button>`}
             </div>`;
-            }).join('') + '</div>';
-        };
-        const temDireita = lista.some(ehDireita);
-        return (temDireita ? '<h3 class="secao-titulo">Fazenda</h3>' : '') + lado(false)
-            + (temDireita ? `<h3 class="secao-titulo">À direita (do nível 29)</h3>${lado(true)}<p class="det">Os da direita são comprados em ordem entre eles, sem precisar ter os da fazenda: dá para comprar a Serra do leste no nível 29 mesmo sem o litoral.</p>` : '')
-            + '<p class="aviso">Cada terreno abre um pedaço da mata em volta: mais espaço para canteiros, cercados, máquinas e enfeites, e mais canteiros no seu limite. Também dá para tocar na placa no mapa.</p>';
+        }).join('') + '</div><p class="aviso">Cada terreno abre um pedaço da mata em volta: mais espaço para canteiros, cercados, máquinas e enfeites, e mais canteiros no seu limite. Os 3 à direita da fazenda (do nível 29) não precisam do litoral: são comprados em ordem entre eles. Também dá para tocar na placa no mapa.</p>';
     }
 
     /* ---------- Baús da sorte (fase 73): para gastar as moedas que sobram ----------

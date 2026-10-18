@@ -609,6 +609,13 @@ button {
     flex-wrap: wrap;   /* a loja tem 5 abas: no celular vira duas linhas */
     gap: 10px;
     margin: 4px 0 18px;
+    /* as abas ficam à vista enquanto a lista rola, logo abaixo do título */
+    position: sticky;
+    top: var(--abas-topo, 50px);
+    z-index: 1;
+    margin: 0 -20px 14px;
+    padding: 4px 20px 10px;
+    background: var(--creme);
 }
 
 .painel-abas button {
