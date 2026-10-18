@@ -8556,6 +8556,31 @@ update public.fazenda_conquistas_tipos set diamantes = 20 where id = 'milhao';
 -- ------------------------------------------------------------
 
 -- ------------------------------------------------------------
+-- Fase 80: os produtos das oficinas valem 3,2x a matéria-prima (eram ~1,7x).
+-- Preço = 3,2 x o valor dos ingredientes, para cima de 5 em 5. Repete até parar de mudar, porque
+-- 7 produtos também são ingrediente (açúcar, café torrado, chocolate, fio, molho, óleo e tecido):
+-- cada etapa da cadeia dá 3,2x sobre o preço novo do que entra. Só sobe, nunca desce; as
+-- matérias-primas, os bichos e os raros não mudam.
+-- ------------------------------------------------------------
+do $$
+declare
+  n int;
+begin
+  for k in 1..8 loop
+    update public.fazenda_culturas p set venda = x.novo
+      from (select i.produz, (ceil(3.2 * sum(c.venda * e.value::int) / i.produz_qtd / 5) * 5)::int as novo
+              from public.fazenda_itens i
+              cross join lateral jsonb_each_text(i.entradas) e
+              join public.fazenda_culturas c on c.id = e.key
+             where i.entradas is not null
+             group by i.produz, i.produz_qtd) x
+     where p.id = x.produz and p.venda < x.novo;
+    get diagnostics n = row_count;
+    exit when n = 0;
+  end loop;
+end $$;
+
+-- ------------------------------------------------------------
 -- Permissões: só a API pública fica executável pela chave anon
 -- ------------------------------------------------------------
 revoke execute on function

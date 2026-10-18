@@ -1318,6 +1318,10 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-10-18-oficinas', data: '18/10', titulo: 'Oficinas rendendo mais que o triplo', itens: [
+            'Tudo que sai das <b>oficinas</b> agora vale <b>3,2 vezes</b> o que entra nele (antes era 1,7x). Exemplos: o queijo foi de 240 para <b>450</b>, o vinho de 470 para <b>880</b> e a moqueca de 840 para <b>1.585</b>.',
+            'Quem faz produto com outro produto (roupa com fio e tecido, bombom com chocolate e açúcar) ganha em cada etapa: a roupa foi de 1.890 para <b>6.785</b>.',
+            'As plantas, as frutas, o leite, os ovos e os peixes continuam com o mesmo preço.'] },
         { id: '2026-10-18-moedas', data: '18/10', titulo: 'Diamante vira moeda e baús mais baratos', itens: [
             'Na Loja → Diamantes, dá para <b>trocar 10 diamantes por moedas</b>: são 2.000 moedas por nível seu (no nível 30, 60 mil). Quanto mais alto, maior o pacote.',
             'Os <b>baús da sorte</b> ficaram pela <b>metade do preço</b>: madeira 25 mil, prata 125 mil e ouro 500 mil. A chance de diamante e de item raro é a mesma de antes.',
