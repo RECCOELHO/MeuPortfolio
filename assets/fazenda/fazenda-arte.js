@@ -2676,12 +2676,15 @@
         let relogio = () => Date.now();
         const LUZ_QUENTE = '255, 196, 110';
         // cada luz: f = brilho por cima; ilumina = quanto ela tira da escuridão (o chão volta à cor do dia)
+        // fase 81: com energia elétrica, a casa, as casinhas e os lampiões gastam 1 ⚡/h de noite; bateria zerada, apagam
+        let luzesAcesas = true;
         function luzesDaNoite(lista, tempo) {
-            const L = [{ x: wx(MAPA.casa.x) + 1.5 * T, y: wy(MAPA.casa.y) + 2 * T, r: 3.5 * T, cor: LUZ_QUENTE, f: 0.3, ilumina: 0.6 }];
+            const L = luzesAcesas ? [{ x: wx(MAPA.casa.x) + 1.5 * T, y: wy(MAPA.casa.y) + 2 * T, r: 3.5 * T, cor: LUZ_QUENTE, f: 0.3, ilumina: 0.6 }] : [];
             const cel = retCeleiro();
             L.push({ x: cel.x + cel.w / 2, y: cel.y + cel.h - T, r: 3 * T, cor: LUZ_QUENTE, f: 0.25, ilumina: 0.55 });
             for (const c of lista) {
                 const x = wx(c.x), y = wy(c.y);
+                if (!luzesAcesas && (c.tipo === 'lampiao' || c.tipo === 'casa_vermelha' || c.tipo === 'casa_azul')) continue;
                 if (c.tipo === 'lampiao') {   // o poste: luz fixa (sem tremer) que ilumina uma área grande em volta
                     L.push({ x: x + T / 2, y: y + 5, r: 8 * T, cor: '255, 210, 120', f: 0.3, ilumina: 0.9 });
                 } else if (c.tipo === 'casa_vermelha' || c.tipo === 'casa_azul') {
@@ -3536,6 +3539,7 @@
             telaDoVisitante() { return visitante ? { x: (visitante.x + T / 2 - cam.x) * escala, y: (visitante.y - 4 - cam.y) * escala } : null; },
             // quanto as baterias têm (0..1): as luzinhas delas acendem conforme a carga
             definirEnergia(frac) { energiaFrac = Math.max(0, Math.min(1, frac || 0)); },
+            definirLuzes(acesas) { luzesAcesas = acesas !== false; },   // fase 81
             // fileiras do galinheiro (2 a 4; 0 = não tem, fase 45): refaz o chão e os bichos pequenos se espalham no espaço novo
             definirGalinheiro(linhas) {
                 const h = linhas > 0 ? Math.max(2, Math.min(4, linhas)) : 0;

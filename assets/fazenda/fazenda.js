@@ -659,13 +659,14 @@
     function cargaAgora() {
         const en = S && S.energia;
         if (!en) return 0;
-        // (pode cair: à noite, sem sol, os alarmes gastam 1 ⚡ por hora cada)
+        // (pode cair: à noite, sem sol, os alarmes gastam 5 ⚡ por hora cada e as luzes 1 cada)
         return Math.max(0, Math.min(en.capacidade, Number(en.carga) + Number(en.por_hora) * Math.max(0, agora() - energiaEm) / 3600000));
     }
     function desenharEnergia() {
         if (!el.energia) return;
         const mostra = temEletrico();
         el.energia.hidden = !mostra;
+        cena.definirLuzes(!mostra || cargaAgora() >= 1);   // fase 81: bateria zerada, as luzes das casas e os lampiões apagam
         if (!mostra) return;
         const c = Math.floor(cargaAgora()), cap = S.energia.capacidade;
         cena.definirEnergia(cap ? c / cap : 0);
@@ -682,7 +683,7 @@
         const temSol = (S.construcoes || []).some((c) => c.tipo === 'painel_solar');
         const dia = A.faseDoDia(agora());
         mostrarStatus(`${ico('raio', 18)} <b>Energia</b>: ${Math.floor(cargaAgora())} de ${S.energia.capacidade} ⚡. ` +
-            (ph > 0 ? `Entrando ${ph} ⚡/h agora.` : ph < 0 ? `Saindo ${-ph} ⚡/h agora (os alarmes gastam 1 ⚡ por hora cada)${temSol && dia.noite ? `; o painel solar volta a gerar às ${hora(dia.fim)}` : ''}.` : `Nada entrando agora${temSol && dia.noite ? ` (é noite no jogo: o painel solar volta a gerar às ${hora(dia.fim)})` : ''}.`) +
+            (ph > 0 ? `Entrando ${ph} ⚡/h agora.` : ph < 0 ? `Saindo ${-ph} ⚡/h agora (cada alarme gasta 5 ⚡/h e, de noite, cada luz de casa e lampião 1 ⚡/h)${temSol && dia.noite ? `; o painel solar volta a gerar às ${hora(dia.fim)}` : ''}.` : `Nada entrando agora${temSol && dia.noite ? ` (é noite no jogo: o painel solar volta a gerar às ${hora(dia.fim)})` : ''}.`) +
             textoVento() +
             ' Baterias guardam mais; as máquinas elétricas gastam ao trabalhar.');
     }
@@ -720,7 +721,7 @@
        O servidor manda quanto a fazenda gera em média por hora e quanto gasta no máximo por hora, com tudo
        trabalhando sem parar (estado.energia.conta). */
     const NOME_GASTO = { oficinas: 'Oficinas na rede (puxar e entregar)', triturador: 'Triturador', robo_colheita: 'Robôs de colheita',
-        bau: 'Baús', aspersor: 'Aspersores', estufa: 'Estufas', alarme: 'Alarmes' };
+        bau: 'Baús', aspersor: 'Aspersores', estufa: 'Estufas', alarme: 'Alarmes (5 ⚡/h cada)', luzes: 'Luzes de noite (casas e lampiões)' };
     // fase 78: quantos geradores ainda cabem agora (o limite de cada um no seu nível)
     function dicaGeradores() {
         const sobra = ['painel_solar', 'turbina', 'gerador_bio', 'hidreletrica', 'reator'].map((id) => tipoItem(id)).filter((it) => it && it.nivel_min <= S.jogador.nivel && it.limite)
@@ -1318,6 +1319,14 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-10-18-luzes', data: '18/10', titulo: 'Alarmes e luzes gastam energia', itens: [
+            'Para quem já tem energia elétrica na fazenda: cada <b>alarme</b> agora gasta <b>5 ⚡ por hora</b> (era 1).',
+            '<b>De noite</b>, cada luz gasta <b>1 ⚡ por hora</b>: a casa da fazenda, cada casinha e cada lampião. Se a bateria zerar, as luzes apagam e voltam quando a energia voltar.',
+            'Quem ainda não tem energia elétrica (antes do nível 16) continua como sempre: alarmes e luzes de graça.'] },
+        { id: '2026-10-18-oficinas', data: '18/10', titulo: 'Oficinas rendendo mais que o triplo', itens: [
+            'Tudo que sai das <b>oficinas</b> agora vale <b>3,2 vezes</b> o que entra nele (antes era 1,7x). Exemplos: o queijo foi de 240 para <b>450</b>, o vinho de 470 para <b>880</b> e a moqueca de 840 para <b>1.585</b>.',
+            'Quem faz produto com outro produto (roupa com fio e tecido, bombom com chocolate e açúcar) ganha em cada etapa: a roupa foi de 1.890 para <b>6.785</b>.',
+            'As plantas, as frutas, o leite, os ovos e os peixes continuam com o mesmo preço.'] },
         { id: '2026-10-18-moedas', data: '18/10', titulo: 'Diamante vira moeda e baús mais baratos', itens: [
             'Na Loja → Diamantes, dá para <b>trocar 10 diamantes por moedas</b>: são 2.000 moedas por nível seu (no nível 30, 60 mil). Quanto mais alto, maior o pacote.',
             'Os <b>baús da sorte</b> ficaram pela <b>metade do preço</b>: madeira 25 mil, prata 125 mil e ouro 500 mil. A chance de diamante e de item raro é a mesma de antes.',
