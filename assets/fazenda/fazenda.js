@@ -1336,6 +1336,10 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-10-19-freio', data: '19/10', titulo: 'Ajudar os vizinhos: com limite de novo', itens: [
+            'A ajuda sem limite deixou subir dezenas de níveis numa noite só. Agora: cada vizinho dá XP em até <b>30 ajudas por dia</b> (depois, a ajuda continua valendo para o dono).',
+            'Até juntar o XP de <b>1 nível inteiro</b> no dia ajudando, vale cheio; depois disso, cada ajuda vale <b>1/4</b>. A faixa da visita mostra quanto você já juntou.',
+            'A sequência vai até <b>+50%</b> (+5% por vizinho), a fazenda abandonada dá <b>+25%</b> e plantar lá vale 2 ajudas.'] },
         { id: '2026-10-19-raros', data: '19/10', titulo: 'Loja de raros e vales do calendário', itens: [
             'Na Loja → Diamantes, a <b>loja de raros</b>: madeira nobre, corda naval, pedra de cantaria, ferro forjado, âncora, leme dourado, pérola negra e luva do Perks, por diamantes. Até 2 compras por semana.',
             'O <b>café</b> e o <b>XP em dobro</b> do calendário agora viram <b>vales</b>: ficam guardados e você liga quando quiser (no calendário ou na Loja → Diamantes). Usar com ele já ligado soma o tempo.'] },
@@ -3457,7 +3461,7 @@
     function avisarSequencia() {
         const sq = S && S.social && S.social.sequencia && Date.parse(S.social.sequencia.ate) > agora() ? S.social.sequencia : null;
         const n = sq ? sq.n : 0;
-        if (n > ultimaSeq && n > 1) toast(`${ico('xp', 16)} <b>Sequência x${n}</b>: +${Math.round(sq.bonus * 100)}% de XP nas ajudas. Ajude outro vizinho em até 10 minutos para subir mais (até +100%).`, 'festa');
+        if (n > ultimaSeq && n > 1) toast(`${ico('xp', 16)} <b>Sequência x${n}</b>: +${Math.round(sq.bonus * 100)}% de XP nas ajudas. Ajude outro vizinho em até 10 minutos para subir mais (até +50%).`, 'festa');
         ultimaSeq = n;
     }
 
@@ -3880,7 +3884,11 @@
         const ex = document.getElementById('visitaExtra');
         if (!ex || !visita) return;
         const sq = S && S.social && S.social.sequencia && Date.parse(S.social.sequencia.ate) > agora() ? S.social.sequencia : null;
-        ex.innerHTML = (visita.abandonada ? ' <span class="chip-abandonada">Abandonada: +50% XP</span>' : '')
+        // fase 85: o XP de ajuda do dia (até o teto vale cheio; depois, 1/4) e as 30 ajudas que dão XP nesta fazenda
+        const ah = S && S.social && S.social.ajuda_hoje, aqui = visita.ajudas_hoje;
+        ex.innerHTML = (visita.abandonada ? ' <span class="chip-abandonada">Abandonada: +25% XP</span>' : '')
+            + (aqui != null ? ` <span class="chip-sequencia"${aqui >= 30 ? ' style="background:#e9c8b8;color:#5a2a1a"' : ''}>Aqui hoje: ${Math.min(aqui, 30)}/30</span>` : '')
+            + (ah ? ` <span class="chip-sequencia"${ah.xp >= ah.teto ? ' style="background:#e9c8b8;color:#5a2a1a"' : ''}>XP de ajuda hoje: ${Math.round(Math.min(100, ah.xp / Math.max(1, ah.teto) * 100))}%${ah.xp >= ah.teto ? ' (agora vale 1/4)' : ''}</span>` : '')
             + (sq && sq.n > 1 ? ` <span class="chip-sequencia">Sequência x${sq.n}: +${Math.round(sq.bonus * 100)}%</span>` : '');
     }
     function visitar(id) {
@@ -3890,7 +3898,7 @@
             const trocou = !visita || visita.id !== v.id;
             mostrarVisita(v);
             if (trocou && v.abandonada) {   // fase 83
-                mostrarStatus(`<b>${esc(v.apelido)}</b> sumiu há mais de 3 dias e a roça está largada: aqui toda ajuda vale <b>+50% de XP</b>. Dá para limpar as murchas, colher para o dono, arar e até <b>plantar com o seu dinheiro</b> (Ajudar tudo faz tudo).`);
+                mostrarStatus(`<b>${esc(v.apelido)}</b> sumiu há mais de 3 dias e a roça está largada: aqui toda ajuda vale <b>+25% de XP</b>. Dá para limpar as murchas, colher para o dono, arar e até <b>plantar com o seu dinheiro</b> (Ajudar tudo faz tudo).`);
             } else if (trocou) {
                 const prontos = v.canteiros.filter((c) => podePegar(c, info(c))).length;
                 mostrarStatus(prontos
@@ -4016,7 +4024,7 @@
             if (!ps.length && !murchas.length && !famintos.length && !prontos.length && !limpar.length && !colher.length && !arar.length && !plantar.length) {
                 return toast('A fazenda do vizinho está em ordem.', undefined, 'leve');
             }
-            if (plantar.length && !await perguntar(`Plantar ${plantar.length} canteiro(s) de ${k.nome.toLowerCase()} com o seu dinheiro (${moeda(plantar.length * k.custo).replace(/<[^>]+>/g, '')} moedas)? Cada um vale 5 ajudas de XP.`, 'Plantar', 'Não plantar')) plantar = [];
+            if (plantar.length && !await perguntar(`Plantar ${plantar.length} canteiro(s) de ${k.nome.toLowerCase()} com o seu dinheiro (${moeda(plantar.length * k.custo).replace(/<[^>]+>/g, '')} moedas)? Cada um vale 2 ajudas de XP.`, 'Plantar', 'Não plantar')) plantar = [];
             if (ps.length) executarVisita('ajudar', ps);
             if (colher.length) executarVisita('colher', colher);
             if (murchas.length) executarVisita('salvar', murchas.map((c) => c.posicao));

@@ -1652,6 +1652,9 @@ begin
     'social', jsonb_build_object(   -- (fase 83: num objeto só: o estado chegou no limite de 100 argumentos)
       'alarme_off', jsonb_build_object('seg', j.alarme_off_seg, 'em', j.alarme_off_em),
       'raros_semana', fazenda_raros_semana(p_jogador),   -- fase 84
+      -- fase 85: o XP de ajuda de hoje e o teto (passou dele, cada ajuda vale 1/4)
+      'ajuda_hoje', jsonb_build_object('xp', case when j.ajuda_dia = fazenda_hoje() then coalesce(j.ajuda_xp_dia, 0) else 0 end,
+                                       'teto', fazenda_ajuda_teto(p_jogador)),
       'vizinhos_resumo', coalesce((select jsonb_agg(jsonb_build_object('apelido', x.apelido, 'tipo', x.tipo, 'qtd', x.qtd, 'em', x.em) order by x.em desc)
         from (select a.apelido, v.tipo, sum(v.qtd)::int as qtd, max(v.criado_em) as em
                 from fazenda_visitas v join fazenda_jogadores a on a.id = v.ator_id
@@ -3420,6 +3423,7 @@ begin
     'premio_ajuda', fazenda_premio_ajuda(p_ator),
     -- fase 83: dono sumido há mais de 3 dias (+50% de XP e dá para plantar) e as murchas que ainda dá para limpar hoje
     'abandonada', fazenda_abandonada(p_dono),
+    'ajudas_hoje', fazenda_ajudas_hoje(p_ator, p_dono),   -- fase 85: até 30 dão XP
     'limpos_hoje', (select count(*) from fazenda_visitas where ator_id = p_ator and dono_id = p_dono and tipo = 'limpar'
                      and criado_em > now() - interval '1 day'),
     'canteiros', coalesce((
@@ -3544,14 +3548,26 @@ declare
   j      record;
   v_seq  uuid[];
   v_xp   int;
+  v_base int;
+  v_un   int;
+  v_cheio int;
+  v_dia  int;
 begin
   if coalesce(p_unidades, 0) <= 0 then return 0; end if;
-  select seq_donos, seq_em into j from fazenda_jogadores where id = p_ator for update;
+  select seq_donos, seq_em, xp, ajuda_dia, ajuda_xp_dia into j from fazenda_jogadores where id = p_ator for update;
   v_seq := case when j.seq_em is null or j.seq_em < now() - interval '10 minutes' then '{}'::uuid[] else coalesce(j.seq_donos, '{}') end;
   if p_dono is not null and not (p_dono = any(v_seq)) then v_seq := v_seq || p_dono; end if;
-  v_xp := round(p_unidades * fazenda_premio_ajuda(p_ator) * (1 + fazenda_sequencia_bonus(cardinality(v_seq)))
-                * case when fazenda_abandonada(p_dono) then 1.5 else 1 end)::int;   -- fazenda abandonada: +50%
-  update fazenda_jogadores set xp = xp + v_xp, moedas = moedas + p_unidades, seq_donos = v_seq, seq_em = now() where id = p_ator;
+  -- fase 85: cada vizinho dá XP em até 30 ajudas por dia (a ajuda continua valendo para o dono)
+  v_un := least(p_unidades, greatest(0, 30 - fazenda_ajudas_hoje(p_ator, p_dono)));
+  v_base := round(v_un * fazenda_premio_ajuda(p_ator) * (1 + fazenda_sequencia_bonus(cardinality(v_seq)))
+                  * case when fazenda_abandonada(p_dono) then 1.25 else 1 end)::int;   -- fazenda abandonada: +25% (fase 85; era +50%)
+  -- fase 85: até 1 nível de XP de ajuda por dia vale cheio; o que passar disso vale 1/4
+  v_dia := case when j.ajuda_dia = fazenda_hoje() then coalesce(j.ajuda_xp_dia, 0) else 0 end;
+  v_cheio := greatest(0, fazenda_ajuda_teto(p_ator) - v_dia);
+  v_xp := least(v_base, v_cheio) + (v_base - least(v_base, v_cheio)) / 4;
+  update fazenda_jogadores set xp = xp + v_xp, moedas = moedas + p_unidades, seq_donos = v_seq, seq_em = now(),
+         ajuda_dia = fazenda_hoje(), ajuda_xp_dia = v_dia + v_xp
+   where id = p_ator;
   return v_xp;
 end;
 $$;
@@ -3562,10 +3578,25 @@ returns boolean language sql stable security definer set search_path = public as
   select coalesce((select visto_em < now() - interval '3 days' from fazenda_jogadores where id = p_dono), false);
 $$;
 
--- fase 83: o bônus da sequência com n vizinhos (o 1º não dá bônus; +10% a cada um depois, até +100%)
+-- fase 85: quantas ajudas (unidades) o ator já fez hoje na fazenda desse dono
+create or replace function public.fazenda_ajudas_hoje(p_ator uuid, p_dono uuid)
+returns int language plpgsql stable security definer set search_path = public as $$
+begin   -- (plpgsql: fazenda_hoje vem mais adiante no arquivo)
+  return (select coalesce(sum(qtd + case when tipo = 'plantar' then 1 else 0 end), 0)::int from fazenda_visitas   -- (plantar vale 2)
+           where ator_id = p_ator and dono_id = p_dono and tipo <> 'roubo'
+             and criado_em >= (fazenda_hoje()::timestamp at time zone 'America/Sao_Paulo'));
+end;
+$$;
+-- fase 85: o teto do dia (o XP de 1 nível inteiro do ator)
+create or replace function public.fazenda_ajuda_teto(p_ator uuid)
+returns int language sql stable security definer set search_path = public as $$
+  select (fazenda_xp_nivel(n + 1) - fazenda_xp_nivel(n))::int from (select fazenda_nivel(xp) as n from fazenda_jogadores where id = p_ator) x;
+$$;
+
+-- fase 83: o bônus da sequência com n vizinhos (o 1º não dá bônus; fase 85: +5% a cada um depois, até +50%)
 create or replace function public.fazenda_sequencia_bonus(p_n int)
 returns real language sql immutable as $$
-  select least(1.0, 0.1 * greatest(coalesce(p_n, 0) - 1, 0))::real;
+  select least(0.5, 0.05 * greatest(coalesce(p_n, 0) - 1, 0))::real;
 $$;
 
 -- Fase 48: o vizinho salva uma planta murcha (1 por dia em cada fazenda): ela volta madura, sem
@@ -3594,8 +3625,8 @@ begin
      set plantado_em = now() - make_interval(secs => k.tempo_seg), erva = false, praga = false, seco = false, prox_evento = null
    where jogador_id = p_dono and posicao = p_posicao;
   v_xp := fazenda_premiar_ajuda(p_ator, 3, p_dono);
-  insert into fazenda_visitas (ator_id, dono_id, tipo, posicao, plantado_em, cultura, qtd)
-  values (p_ator, p_dono, 'salvar', p_posicao, now() - make_interval(secs => k.tempo_seg), k.id, 3);
+  insert into fazenda_visitas (ator_id, dono_id, tipo, posicao, plantado_em, cultura, qtd, xp)
+  values (p_ator, p_dono, 'salvar', p_posicao, now() - make_interval(secs => k.tempo_seg), k.id, 3, v_xp);
   perform fazenda_missao(p_ator, 'ajudar', 3);
   return v_xp;
 end;
@@ -3619,6 +3650,7 @@ declare
   v_un int;
   v_tipo text;
   v_cult text;
+  v_xp int;
 begin
   select * into c from fazenda_canteiros where jogador_id = p_dono and posicao = p_posicao for update;
   if not found then raise exception 'nada_a_fazer'; end if;
@@ -3657,12 +3689,13 @@ begin
            erva = false, praga = false, seco = false, roubado = 0, adubado = false,
            prox_evento = now() + make_interval(secs => k.tempo_seg * (0.15 + random() * 0.35))
      where jogador_id = p_dono and posicao = p_posicao;
-    v_un := 5; v_tipo := 'plantar'; v_cult := k.id;
+    v_un := 2; v_tipo := 'plantar'; v_cult := k.id;   -- (fase 85: 2 ajudas; eram 5)
   end if;
-  insert into fazenda_visitas (ator_id, dono_id, tipo, posicao, plantado_em, cultura, qtd)
-  values (p_ator, p_dono, v_tipo, p_posicao, now(), v_cult, 1);
+  v_xp := fazenda_premiar_ajuda(p_ator, v_un, p_dono);
+  insert into fazenda_visitas (ator_id, dono_id, tipo, posicao, plantado_em, cultura, qtd, xp)
+  values (p_ator, p_dono, v_tipo, p_posicao, now(), v_cult, 1, v_xp);   -- (fase 85: e o XP dado)
   perform fazenda_missao(p_ator, 'ajudar', 1);
-  return fazenda_premiar_ajuda(p_ator, v_un, p_dono);
+  return v_xp;
 end;
 $$;
 
@@ -3699,8 +3732,8 @@ begin
   -- fase 48: o XP de cada uma cresce com o nível de quem ajuda (fazenda_premio_ajuda); fase 83: sem limite
   v_premio := fazenda_premiar_ajuda(p_ator, v_n, p_dono);
 
-  insert into fazenda_visitas (ator_id, dono_id, tipo, posicao, plantado_em, cultura, qtd)
-  values (p_ator, p_dono, 'ajuda', p_posicao, c.plantado_em, k.id, v_n);
+  insert into fazenda_visitas (ator_id, dono_id, tipo, posicao, plantado_em, cultura, qtd, xp)
+  values (p_ator, p_dono, 'ajuda', p_posicao, c.plantado_em, k.id, v_n, v_premio);
   perform fazenda_missao(p_ator, 'ajudar', v_n);
 
   return v_premio;   -- (fase 48: o XP ganho; antes, os problemas)
@@ -3851,6 +3884,7 @@ declare
   v_a     bigint;
   v_feito int := 0;
   v_xp    int := 0;
+  v_um    int;
   r       record;
   v_tem   int;
 begin
@@ -3875,9 +3909,10 @@ begin
                                case when fazenda_tem_efeito(p_vizinho, 'feno') then 0.2 else 0 end
                                + fazenda_cuidador_adianta(p_vizinho, r.tipo)))
        where id = v_a;
-      v_xp := v_xp + fazenda_premiar_ajuda(v_id, 1, p_vizinho);
-      insert into fazenda_visitas (ator_id, dono_id, tipo, posicao, plantado_em, cultura, qtd)
-      values (v_id, p_vizinho, 'bicho', 0, now(), r.racao, 1);
+      v_um := fazenda_premiar_ajuda(v_id, 1, p_vizinho);
+      v_xp := v_xp + v_um;
+      insert into fazenda_visitas (ator_id, dono_id, tipo, posicao, plantado_em, cultura, qtd, xp)
+      values (v_id, p_vizinho, 'bicho', 0, now(), r.racao, 1, v_um);
       v_feito := v_feito + 1;
     exception when others then
       if array_length(p_animais, 1) = 1 then raise; end if;
@@ -3901,6 +3936,7 @@ declare
   v_a     bigint;
   v_feito int := 0;
   v_xp    int := 0;
+  v_um    int;
   v_prod  text;
 begin
   if p_vizinho is null or p_vizinho = v_id then raise exception 'propria_fazenda'; end if;
@@ -3912,9 +3948,10 @@ begin
        where a.id = v_a and a.jogador_id = p_vizinho;
       if not found then raise exception 'animal_invalido'; end if;
       perform fazenda_animal_um(p_vizinho, v_a, 'coletar', true);
-      v_xp := v_xp + fazenda_premiar_ajuda(v_id, 1, p_vizinho);
-      insert into fazenda_visitas (ator_id, dono_id, tipo, posicao, plantado_em, cultura, qtd)
-      values (v_id, p_vizinho, 'coleta', 0, now(), v_prod, 1);
+      v_um := fazenda_premiar_ajuda(v_id, 1, p_vizinho);
+      v_xp := v_xp + v_um;
+      insert into fazenda_visitas (ator_id, dono_id, tipo, posicao, plantado_em, cultura, qtd, xp)
+      values (v_id, p_vizinho, 'coleta', 0, now(), v_prod, 1, v_um);
       v_feito := v_feito + 1;
     exception when others then
       if array_length(p_animais, 1) = 1 then raise; end if;
@@ -8988,6 +9025,18 @@ revoke all on public.fazenda_vales from anon, authenticated;
 revoke all on sequence public.fazenda_vales_id_seq from anon, authenticated;
 
 -- ------------------------------------------------------------
+-- Fase 85: freio no XP de ajudar os vizinhos (um jogador subiu dezenas de níveis numa noite só, sem
+-- trapaça: só usando a ajuda sem limite da fase 83 sem parar).
+-- • Cada vizinho dá XP em até 30 ajudas por dia (fazenda_ajudas_hoje); depois, a ajuda vale só para o dono.
+-- • Até 1 nível de XP de ajuda por dia vale cheio; o que passar vale 1/4 (ajuda_dia, ajuda_xp_dia).
+-- • Plantar na abandonada vale 2 ajudas (eram 5); sequência até +50% (+5% por vizinho); abandonada +25%.
+-- • fazenda_visitas.xp guarda o XP dado em cada ajuda (para conferir depois).
+-- ------------------------------------------------------------
+alter table public.fazenda_jogadores add column if not exists ajuda_dia date;
+alter table public.fazenda_jogadores add column if not exists ajuda_xp_dia int not null default 0;
+alter table public.fazenda_visitas add column if not exists xp int;
+
+-- ------------------------------------------------------------
 -- Permissões: só a API pública fica executável pela chave anon
 -- ------------------------------------------------------------
 revoke execute on function
@@ -9088,6 +9137,8 @@ revoke execute on function
   public.fazenda_sequencia_bonus(int),
   public.fazenda_abandonada(uuid),
   public.fazenda_raros_semana(uuid),
+  public.fazenda_ajudas_hoje(uuid, uuid),
+  public.fazenda_ajuda_teto(uuid),
   public.fazenda_roca_um(uuid, uuid, int, text),
   public.fazenda_salvar_um(uuid, uuid, int),
   public.fazenda_alarme_ligado(uuid),
