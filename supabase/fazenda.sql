@@ -1651,6 +1651,7 @@ begin
     -- que os vizinhos fizeram aqui (o jogo mostra o que é novo desde a última vez)
     'social', jsonb_build_object(   -- (fase 83: num objeto só: o estado chegou no limite de 100 argumentos)
       'alarme_off', jsonb_build_object('seg', j.alarme_off_seg, 'em', j.alarme_off_em),
+      'raros_semana', fazenda_raros_semana(p_jogador),   -- fase 84
       'vizinhos_resumo', coalesce((select jsonb_agg(jsonb_build_object('apelido', x.apelido, 'tipo', x.tipo, 'qtd', x.qtd, 'em', x.em) order by x.em desc)
         from (select a.apelido, v.tipo, sum(v.qtd)::int as qtd, max(v.criado_em) as em
                 from fazenda_visitas v join fazenda_jogadores a on a.id = v.ator_id
@@ -5378,7 +5379,9 @@ returns jsonb language sql immutable as $$
            "oficina": {"por_hora": 1},
            "murchas": {"preco": 1, "por": 25},
            "agora": {"horas": 4},
-           "moedas": {"preco": 10, "por_nivel": 2000}}'::jsonb;   -- fase 79: 10 diamantes = 2.000 moedas por nível
+           "moedas": {"preco": 10, "por_nivel": 2000},
+           "raros": {"por": 10000, "por_semana": 2,
+                     "itens": ["madeira_nobre", "corda_naval", "pedra_cantaria", "ferro_forjado", "ancora", "leme_dourado", "perola_negra", "luva_perks"]}}'::jsonb;   -- fase 84: a loja de raros   -- fase 79: 10 diamantes = 2.000 moedas por nível
 $$;
 
 -- o dia da loja (o pacote de XP tem limite por dia) é o de Brasília (UTC-3)
@@ -7600,6 +7603,19 @@ returns jsonb language sql immutable as $$
   select '{"fazendeiro_ouro": "calendario"}'::jsonb;
 $$;
 
+-- fase 84 (D10): o café e o XP em dobro do calendário viram vales guardados (fazenda_usar_vale liga)
+create table if not exists public.fazenda_vales (
+  id         bigserial primary key,
+  jogador_id uuid not null references public.fazenda_jogadores(id) on delete cascade,
+  tipo       text not null check (tipo in ('cafe', 'xp2')),
+  minutos    int  not null,
+  criado_em  timestamptz not null default now()
+);
+create index if not exists fazenda_vales_jogador on public.fazenda_vales (jogador_id);
+alter table public.fazenda_vales enable row level security;
+revoke all on public.fazenda_vales from anon, authenticated;
+revoke all on sequence public.fazenda_vales_id_seq from anon, authenticated;
+
 -- Entrega um prêmio e devolve o que foi dado de fato (com as moedas já vezes o nível)
 -- Fase 70: cada moeda da tabela vale um décimo do presente do nível (no 30: 300; antes era só o nível,
 -- 30, e o prêmio não fazia diferença); o XP da trilha dourada ({"pago": true}) não conta no evento.
@@ -7617,6 +7633,11 @@ begin
   select fazenda_nivel(xp) into v_nivel from fazenda_jogadores where id = p_jogador;
   if v_tipo in ('xp', 'xp2') and v_nivel >= 45 then v_tipo := 'moedas'; v_qtd := 50; end if;   -- no último nível, XP não serve
   if v_tipo = 'cafe' and not exists (select 1 from fazenda_ajudantes where jogador_id = p_jogador) then v_tipo := 'moedas'; v_qtd := 20; end if;
+  -- fase 84: o café e o XP em dobro viram vale (o jogador liga quando quiser); {"usar": true} liga na hora
+  if v_tipo in ('cafe', 'xp2') and not coalesce((p->>'usar')::boolean, false) then
+    insert into fazenda_vales (jogador_id, tipo, minutos) values (p_jogador, v_tipo, v_qtd);
+    return jsonb_build_object('tipo', 'vale', 'vale', v_tipo, 'qtd', v_qtd);
+  end if;
   if v_tipo = 'moedas' then
     v_qtd := v_qtd * greatest(fazenda_presente_nivel(v_nivel) / 10, 1);
     update fazenda_jogadores set moedas = moedas + v_qtd where id = p_jogador;
@@ -7676,7 +7697,62 @@ begin
   if v_dia >= v_dias and v_pode then v_ciclo := v_ciclo + 1; v_dia := 0; end if;
   return jsonb_build_object('ciclo', v_ciclo, 'dia', v_dia, 'pode', v_pode,
                             'dourado', coalesce(r.dourado_ciclo = v_ciclo, false),
-                            'regras', fazenda_calendario_regras(), 'premios', fazenda_calendario_premios());
+                            'regras', fazenda_calendario_regras(), 'premios', fazenda_calendario_premios(),
+                            'vales', coalesce((select jsonb_agg(jsonb_build_object('id', v.id, 'tipo', v.tipo, 'minutos', v.minutos) order by v.id)
+                                                 from fazenda_vales v where v.jogador_id = p_jogador), '[]'::jsonb));
+end;
+$$;
+
+-- fase 84 (D10): usa um vale (o café ou o XP em dobro guardado); com ele já ligado, soma o tempo
+create or replace function public.fazenda_usar_vale(p_token text, p_vale bigint)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id uuid := fazenda_auth(p_token);
+  v    record;
+  g    jsonb;
+begin
+  select * into v from fazenda_vales where id = p_vale and jogador_id = v_id for update;
+  if not found then raise exception 'vale_invalido'; end if;
+  if v.tipo = 'cafe' and not exists (select 1 from fazenda_ajudantes where jogador_id = v_id) then raise exception 'sem_ajudantes'; end if;
+  delete from fazenda_vales where id = p_vale;
+  g := fazenda_calendario_dar(v_id, jsonb_build_object('tipo', v.tipo, 'qtd', v.minutos, 'usar', true));
+  return jsonb_build_object('ganho', g, 'estado', fazenda_estado(v_id));
+end;
+$$;
+
+-- fase 84 (D9): quantas compras na loja de raros esta semana (a semana vira na segunda, em Brasília)
+create or replace function public.fazenda_raros_semana(p_jogador uuid)
+returns int language sql stable security definer set search_path = public as $$
+  select count(*)::int from fazenda_diamantes_usos
+   where jogador_id = p_jogador and item like 'raro:%'
+     and em >= (date_trunc('week', now() at time zone 'America/Sao_Paulo') at time zone 'America/Sao_Paulo');
+$$;
+
+-- fase 84 (D9): compra 1 material raro com diamantes (1 💎 a cada 10 mil do preço de venda), até 2 por semana
+create or replace function public.fazenda_comprar_raro(p_token text, p_item text)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id    uuid := fazenda_auth(p_token);
+  v_l     jsonb := fazenda_loja_diamantes()->'raros';
+  v_preco int;
+begin
+  if v_l is null or not (v_l->'itens' ? p_item) then raise exception 'item_invalido'; end if;
+  perform 1 from fazenda_jogadores where id = v_id for update;   -- (dois toques juntos: um só passa)
+  if fazenda_raros_semana(v_id) >= (v_l->>'por_semana')::int then raise exception 'limite_semana'; end if;
+  select ceil(venda / (v_l->>'por')::numeric)::int into v_preco from fazenda_culturas where id = p_item;
+  if v_preco is null then raise exception 'item_invalido'; end if;
+  if (select diamantes from fazenda_jogadores where id = v_id) < v_preco then raise exception 'diamantes_insuficientes'; end if;
+  update fazenda_jogadores set diamantes = diamantes - v_preco where id = v_id;
+  insert into fazenda_celeiro (jogador_id, item, quantidade) values (v_id, p_item, 1)
+  on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + 1;
+  insert into fazenda_diamantes_usos (jogador_id, item, diamantes) values (v_id, 'raro:' || p_item, v_preco);
+  return jsonb_build_object('item', p_item, 'diamantes', v_preco, 'estado', fazenda_estado(v_id));
 end;
 $$;
 
@@ -8893,6 +8969,25 @@ drop function if exists public.fazenda_premiar_ajuda(uuid, int);   -- (agora rec
 alter table public.fazenda_visitas alter column cultura drop not null;   -- (arar um canteiro vazio não tem planta)
 
 -- ------------------------------------------------------------
+-- Fase 84: a loja de raros (D9) e os vales do calendário (D10).
+-- • Loja → Diamantes vende os materiais do píer e do barco a 1 💎 a cada 10 mil do preço, até 2 compras
+--   por semana (fazenda_comprar_raro; a semana vira na segunda, em Brasília).
+-- • O café e o XP em dobro do calendário viram vales guardados (fazenda_vales), ligados quando o jogador
+--   quiser (fazenda_usar_vale); com ele já ligado, soma o tempo.
+-- ------------------------------------------------------------
+create table if not exists public.fazenda_vales (
+  id         bigserial primary key,
+  jogador_id uuid not null references public.fazenda_jogadores(id) on delete cascade,
+  tipo       text not null check (tipo in ('cafe', 'xp2')),
+  minutos    int  not null,
+  criado_em  timestamptz not null default now()
+);
+create index if not exists fazenda_vales_jogador on public.fazenda_vales (jogador_id);
+alter table public.fazenda_vales enable row level security;
+revoke all on public.fazenda_vales from anon, authenticated;
+revoke all on sequence public.fazenda_vales_id_seq from anon, authenticated;
+
+-- ------------------------------------------------------------
 -- Permissões: só a API pública fica executável pela chave anon
 -- ------------------------------------------------------------
 revoke execute on function
@@ -8992,6 +9087,7 @@ revoke execute on function
   public.fazenda_premiar_ajuda(uuid, int, uuid),
   public.fazenda_sequencia_bonus(int),
   public.fazenda_abandonada(uuid),
+  public.fazenda_raros_semana(uuid),
   public.fazenda_roca_um(uuid, uuid, int, text),
   public.fazenda_salvar_um(uuid, uuid, int),
   public.fazenda_alarme_ligado(uuid),
@@ -9134,6 +9230,8 @@ grant execute on function
   public.fazenda_usar_diamantes(text, text, int, int),
   public.fazenda_vizinho_bicho(text, uuid, bigint[]),
   public.fazenda_vizinho_coletar(text, uuid, bigint[]),
+  public.fazenda_comprar_raro(text, text),
+  public.fazenda_usar_vale(text, bigint),
   public.fazenda_feira_anunciar(text, text, int, int),
   public.fazenda_feira_cancelar(text, bigint),
   public.fazenda_feira_comprar(text, bigint),

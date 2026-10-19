@@ -50,6 +50,8 @@
         sem_permissao: 'Só os admins do jogo podem fazer isso.',
         // fase 69: o calendário
         calendario_hoje: 'Você já pegou o prêmio de hoje. Volte amanhã!',
+        limite_semana: 'Esta semana você já comprou os 2 raros. Na segunda tem mais!',
+        vale_invalido: 'Esse vale já foi usado.',
         ja_dourado: 'A trilha dourada já está liberada neste ciclo.',
         avatar_exclusivo: 'Esse personagem só sai no dia 28 do calendário dourado.',
         // fase 67: o chat
@@ -1334,6 +1336,9 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-10-19-raros', data: '19/10', titulo: 'Loja de raros e vales do calendário', itens: [
+            'Na Loja → Diamantes, a <b>loja de raros</b>: madeira nobre, corda naval, pedra de cantaria, ferro forjado, âncora, leme dourado, pérola negra e luva do Perks, por diamantes. Até 2 compras por semana.',
+            'O <b>café</b> e o <b>XP em dobro</b> do calendário agora viram <b>vales</b>: ficam guardados e você liga quando quiser (no calendário ou na Loja → Diamantes). Usar com ele já ligado soma o tempo.'] },
         { id: '2026-10-19-vizinhos', data: '19/10', titulo: 'Ajudar os vizinhos sem limite', itens: [
             'Ajudar os vizinhos agora dá XP <b>sem limite</b>: cada ajuda vale 0,30% do seu nível, e o XP em dobro soma por cima.',
             '<b>Sequência:</b> cada vizinho diferente que você ajuda em até 10 minutos dá +10% de XP, até +100%. A faixa da visita mostra a sua sequência.',
@@ -4875,8 +4880,8 @@
                 return { html: ico('moeda', 16), curto: numero(m), longo: `${numero(m)} moedas` }; }
             case 'diamantes': return { html: ico('diamante', 16), curto: String(p.qtd), longo: `${p.qtd} diamantes` };
             case 'xp': return { html: ico('xp', 16), curto: `${p.qtd}%`, longo: `${p.qtd}% do XP do nível` };
-            case 'xp2': return { html: ico('xp', 16), curto: `×2 ${tempoCal(p.qtd)}`, longo: `XP em dobro por ${tempoCal(p.qtd)}` };
-            case 'cafe': return { html: itemDe(culturas.cafe || { id: 'cafe' }, 16), curto: tempoCal(p.qtd), longo: `café dos ajudantes por ${tempoCal(p.qtd)}` };
+            case 'xp2': return { html: ico('xp', 16), curto: `vale ×2 ${tempoCal(p.qtd)}`, longo: `vale de XP em dobro por ${tempoCal(p.qtd)} (use quando quiser)` };   // fase 84
+            case 'cafe': return { html: itemDe(culturas.cafe || { id: 'cafe' }, 16), curto: `vale ${tempoCal(p.qtd)}`, longo: `vale de café dos ajudantes por ${tempoCal(p.qtd)} (use quando quiser)` };
             case 'item': return { html: itemDe(k, 16), curto: String(p.qtd), longo: `${p.qtd} ${nomeQtd(k, p.qtd)}` };
             case 'avatar': return { html: A.htmlAvatar({ tipo: p.avatar }, 18), curto: 'novo!', longo: `o ${(A.AVATAR_TIPOS[p.avatar] || {}).nome || 'personagem'} (exclusivo)` };
             default: return { html: '', curto: '', longo: '' };
@@ -4889,6 +4894,7 @@
         return g.tipo === 'moedas' ? `${ico('moeda', 14)} ${numero(g.qtd)}`
             : g.tipo === 'diamantes' ? `${ico('diamante', 14)} ${g.qtd}`
             : g.tipo === 'xp' ? `+${numero(g.qtd)} ${ico('xp', 14)}`
+            : g.tipo === 'vale' ? `vale de ${g.vale === 'xp2' ? 'XP em dobro' : 'café dos ajudantes'} por ${tempoCal(g.qtd)} (guardado: use quando quiser)`   // fase 84
             : g.tipo === 'xp2' ? `XP em dobro por ${tempoCal(g.qtd)}`
             : g.tipo === 'cafe' ? `café dos ajudantes por ${tempoCal(g.qtd)}`
             : g.tipo === 'item' ? `${g.qtd} ${itemDe(k, 14)} ${esc(nomeQtd(k, g.qtd))}`
@@ -4921,7 +4927,8 @@
             <div class="cal-grade">${Array.from({ length: total }, (_, k) => casa(k + 1)).join('')}</div>
             <p class="det">Em cima, o grátis; embaixo, o da trilha dourada. Toque numa casinha para ver o prêmio.</p>
             <div class="rodape-painel"><span></span>${acao}</div>
-            ${dourado}`;
+            ${dourado}
+            ${htmlVales() || '<p class="det">O café e o XP em dobro do calendário viram <b>vales</b>: ficam guardados e você liga quando quiser (aqui ou na Loja → Diamantes).</p>'}`;
     }
 
     /* ---------- Chat (fase 67) ----------
@@ -5163,13 +5170,37 @@
         const usar = htmlUsarDiamantes();
         if (!pacotes.length && !usar) return '<p class="vazio-msg">Os diamantes chegam em breve.</p>';
         return `<p>Você tem <b>${S.jogador.diamantes || 0}</b> ${ico('diamante', 14)}. Ganha 5 a cada nível${ANUNCIO.ligado ? ' e 1 por anúncio' : ''}.</p>
-            ${usar}${pacotes.length ? `<h3 class="secao-titulo">Comprar diamantes</h3>` : ''}
+            ${htmlVales()}${usar}${htmlLojaRaros()}${pacotes.length ? `<h3 class="secao-titulo">Comprar diamantes</h3>` : ''}
             <div class="lista">` + pacotes.map((p) => `<div class="item">
                 <span class="ico">${ico('diamante', 36)}</span>
                 <span><span class="nome">${p.diamantes} diamantes</span><span class="det">${p.bonus ? `<span class="bonus-txt">+${p.bonus} de bônus</span>` : ''}<span>${lojaD() ? `dá para ${Math.floor(p.diamantes / lojaD().cafe.preco)} cafés dos ajudantes (${lojaD().cafe.horas} h cada)` : ''}</span></span></span>
                 <button type="button" class="botao pequeno verde" data-diamantes="${esc(p.id)}">${reais(p.valor)}</button>
             </div>`).join('') + `</div>
             <p class="aviso">O pagamento é no Mercado Pago (Pix, cartão ou saldo): a fazenda não vê os dados do seu cartão. Os diamantes caem assim que o pagamento é aprovado. Também dá para ganhar: 5 a cada nível${ANUNCIO.ligado ? ' e 1 por anúncio' : ''}. <a href="privacidade.html" target="_blank" rel="noopener">Como funciona a compra</a></p>`;
+    }
+    // fase 84 (D9): os materiais raros do píer e do barco, até 2 compras por semana
+    const precoRaro = (k, l) => Math.ceil((k.venda || 0) / l.por);
+    function htmlLojaRaros() {
+        const l = lojaD() && lojaD().raros;
+        if (!l) return '';
+        const feitas = (S.social && S.social.raros_semana) || 0, acabou = feitas >= l.por_semana;
+        return `<h3 class="secao-titulo">Materiais raros <small>(até ${l.por_semana} por semana; esta semana: ${feitas})</small></h3><div class="lista">`
+            + l.itens.map((id) => culturas[id]).filter(Boolean).map((k) => {
+                const preco = precoRaro(k, l);
+                return `<div class="item"><span class="ico">${itemDe(k, 36)}</span>
+                    <span><span class="nome">${esc(k.nome)}</span><span class="det"><span>Você tem ${naCeleiro(k.id)}</span><span>vale ${moeda(k.venda.toLocaleString('pt-BR'))}</span></span></span>
+                    ${acabou ? '<span class="preco">Na segunda</span>' : `<button type="button" class="botao pequeno verde" data-raro="${esc(k.id)}" data-preco="${preco}"${(S.jogador.diamantes || 0) >= preco ? '' : ' disabled'}>${ico('diamante', 14)} ${preco}</button>`}</div>`;
+            }).join('') + `</div><p class="det">Para o píer, a tunagem do barco e as luvas do Perks. A semana vira na segunda.</p>`;
+    }
+    // fase 84 (D10): os vales do calendário (café e XP em dobro guardados), usados quando quiser
+    const nomeVale = (v) => (v.tipo === 'xp2' ? `XP em dobro ${tempoCal(v.minutos)}` : `Café dos ajudantes ${tempoCal(v.minutos)}`);
+    function htmlVales() {
+        const vs = (S.calendario && S.calendario.vales) || [];
+        if (!vs.length) return '';
+        return `<h3 class="secao-titulo">Seus vales <small>(do calendário: use quando quiser)</small></h3><div class="lista">`
+            + vs.map((v) => `<div class="item"><span class="ico">${v.tipo === 'xp2' ? ico('xp', 34) : itemDe(culturas.cafe || { id: 'cafe' }, 34)}</span>
+                <span><span class="nome">${esc(nomeVale(v))}</span><span class="det"><span>${v.tipo === 'xp2' ? 'todo XP que você ganha vem dobrado' : 'todos os ajudantes trabalham em dobro'}; com ele já ligado, soma o tempo</span></span></span>
+                <button type="button" class="botao pequeno verde" data-vale="${v.id}">Usar</button></div>`).join('') + '</div>';
     }
     async function comprarDiamantes(pacote) {
         let res, data;
@@ -5715,6 +5746,33 @@
         if (ml) { abaLoja = ml.dataset.metaLoja; abrirPainel('loja'); return; }
         if (e.target.closest('[data-colher-tudo]')) { abrirPainel('colherTudo'); return; }
         if (e.target.closest('[data-colher-tudo-agora]')) { colherTudoAgora(); return; }
+        const rv = e.target.closest('[data-raro]');   // fase 84 (D9)
+        if (rv) {
+            const k = culturas[rv.dataset.raro] || { nome: rv.dataset.raro };
+            if (!await perguntar(`Comprar 1 ${k.nome.toLowerCase()} por ${rv.dataset.preco} diamantes? (até 2 raros por semana)`)) return;
+            rv.disabled = true;
+            enfileirar([], async () => {
+                const r = await rpc('fazenda_comprar_raro', { p_token: token, p_item: rv.dataset.raro });
+                aplicarEstado(r.estado);
+                som.tocar('moeda');
+                toast(`${itemDe(k, 20)} ${esc(k.nome)} chegou no celeiro! ${ico('diamante', 14)} −${r.diamantes}`, 'festa');
+                if (painelAtual) abrirPainel(painelAtual, true);
+            }).finally(() => { rv.disabled = false; });
+            return;
+        }
+        const vl = e.target.closest('[data-vale]');   // fase 84 (D10)
+        if (vl) {
+            vl.disabled = true;
+            enfileirar([], async () => {
+                const r = await rpc('fazenda_usar_vale', { p_token: token, p_vale: Number(vl.dataset.vale) });
+                aplicarEstado(r.estado);
+                som.tocar('festa');
+                const j = r.estado.jogador;
+                toast(r.ganho && r.ganho.tipo === 'xp2' ? `${ico('xp', 16)} XP em dobro até ${hora(j.xp2_ate)}!` : `${itemDe(culturas.cafe || { id: 'cafe' }, 16)} Café servido: os ajudantes trabalham em dobro até ${hora(j.cafe_ate)}!`, 'festa');
+                if (painelAtual) abrirPainel(painelAtual, true);
+            }).finally(() => { vl.disabled = false; });
+            return;
+        }
         const ud = e.target.closest('[data-usar-diamante]');
         if (ud) {
             if (!ud.dataset.confirmar) {   // o primeiro toque só pede para confirmar (diamante vale dinheiro)
