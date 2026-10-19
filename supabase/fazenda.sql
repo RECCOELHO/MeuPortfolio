@@ -3423,7 +3423,6 @@ begin
     'premio_ajuda', fazenda_premio_ajuda(p_ator),
     -- fase 83: dono sumido há mais de 3 dias (+50% de XP e dá para plantar) e as murchas que ainda dá para limpar hoje
     'abandonada', fazenda_abandonada(p_dono),
-    'ajudas_hoje', fazenda_ajudas_hoje(p_ator, p_dono),   -- fase 85: até 30 dão XP
     'limpos_hoje', (select count(*) from fazenda_visitas where ator_id = p_ator and dono_id = p_dono and tipo = 'limpar'
                      and criado_em > now() - interval '1 day'),
     'canteiros', coalesce((
@@ -3557,8 +3556,8 @@ begin
   select seq_donos, seq_em, xp, ajuda_dia, ajuda_xp_dia into j from fazenda_jogadores where id = p_ator for update;
   v_seq := case when j.seq_em is null or j.seq_em < now() - interval '10 minutes' then '{}'::uuid[] else coalesce(j.seq_donos, '{}') end;
   if p_dono is not null and not (p_dono = any(v_seq)) then v_seq := v_seq || p_dono; end if;
-  -- fase 85: cada vizinho dá XP em até 30 ajudas por dia (a ajuda continua valendo para o dono)
-  v_un := least(p_unidades, greatest(0, 30 - fazenda_ajudas_hoje(p_ator, p_dono)));
+  -- fase 86: sem o limite de 30 por vizinho (fase 85); quem segura é o canteiro (fazenda_roca_um) e o teto do dia
+  v_un := p_unidades;
   v_base := round(v_un * fazenda_premio_ajuda(p_ator) * (1 + fazenda_sequencia_bonus(cardinality(v_seq)))
                   * case when fazenda_abandonada(p_dono) then 1.25 else 1 end)::int;   -- fazenda abandonada: +25% (fase 85; era +50%)
   -- fase 85: até 1 nível de XP de ajuda por dia vale cheio; o que passar disso vale 1/4
@@ -3691,10 +3690,18 @@ begin
      where jogador_id = p_dono and posicao = p_posicao;
     v_un := 2; v_tipo := 'plantar'; v_cult := k.id;   -- (fase 85: 2 ajudas; eram 5)
   end if;
+  -- fase 86: colher, arar e plantar dão XP 1 vez por dia em cada canteiro (para quem ajuda); de novo no
+  -- mesmo canteiro, a ajuda vale para o dono mas não dá XP (o vai e volta de plantar e colher não sobe nível)
+  if v_tipo in ('colher', 'arar', 'plantar') and exists (
+       select 1 from fazenda_visitas
+        where ator_id = p_ator and tipo = v_tipo and dono_id = p_dono and posicao = p_posicao
+          and criado_em >= (fazenda_hoje()::timestamp at time zone 'America/Sao_Paulo')) then
+    v_un := 0;
+  end if;
   v_xp := fazenda_premiar_ajuda(p_ator, v_un, p_dono);
   insert into fazenda_visitas (ator_id, dono_id, tipo, posicao, plantado_em, cultura, qtd, xp)
   values (p_ator, p_dono, v_tipo, p_posicao, now(), v_cult, 1, v_xp);   -- (fase 85: e o XP dado)
-  perform fazenda_missao(p_ator, 'ajudar', 1);
+  if v_un > 0 then perform fazenda_missao(p_ator, 'ajudar', 1); end if;
   return v_xp;
 end;
 $$;
@@ -3874,6 +3881,40 @@ $$;
 -- Fase 48: o vizinho dá ração aos bichos com fome; cada um vale 1 ajuda.
 -- Fase 83: a ração sai do celeiro de quem ajuda (era do dono, até 10 por dia) e não tem limite. O
 -- bicho começa com o feno e o cuidador do dono, como se o dono tivesse dado.
+-- Fase 86: o miolo de 1 bicho ficou em fazenda_vizinho_bicho_um (o Ajudar tudo também usa). Devolve o XP.
+create or replace function public.fazenda_vizinho_bicho_um(p_ator uuid, p_dono uuid, p_animal bigint)
+returns int
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  r     record;
+  v_tem int;
+  v_xp  int;
+begin
+  select a.tipo, a.alimentado_em, t.racao, t.racao_qtd, t.tempo_seg into r
+    from fazenda_animais a join fazenda_animais_tipos t on t.id = a.tipo
+   where a.id = p_animal and a.jogador_id = p_dono
+     for update of a;
+  if not found then raise exception 'animal_invalido'; end if;
+  if r.alimentado_em is not null then raise exception 'ja_alimentado'; end if;
+  -- a ração de quem ajuda (a que ele guardou para os bichos dele fica)
+  select coalesce((select quantidade from fazenda_celeiro where jogador_id = p_ator and item = r.racao), 0)
+       - coalesce((select quantidade from fazenda_reservas where jogador_id = p_ator and item = r.racao), 0) into v_tem;
+  if v_tem < r.racao_qtd then raise exception 'sem_racao_sua'; end if;
+  update fazenda_celeiro set quantidade = quantidade - r.racao_qtd where jogador_id = p_ator and item = r.racao;
+  update fazenda_animais
+     set alimentado_em = now() - make_interval(secs => r.tempo_seg * (
+                           case when fazenda_tem_efeito(p_dono, 'feno') then 0.2 else 0 end
+                           + fazenda_cuidador_adianta(p_dono, r.tipo)))
+   where id = p_animal;
+  v_xp := fazenda_premiar_ajuda(p_ator, 1, p_dono);
+  insert into fazenda_visitas (ator_id, dono_id, tipo, posicao, plantado_em, cultura, qtd, xp)
+  values (p_ator, p_dono, 'bicho', 0, now(), r.racao, 1, v_xp);
+  return v_xp;
+end;
+$$;
+
 create or replace function public.fazenda_vizinho_bicho(p_token text, p_vizinho uuid, p_animais bigint[])
 returns jsonb
 language plpgsql security definer
@@ -3884,35 +3925,13 @@ declare
   v_a     bigint;
   v_feito int := 0;
   v_xp    int := 0;
-  v_um    int;
-  r       record;
-  v_tem   int;
 begin
   if p_vizinho is null or p_vizinho = v_id then raise exception 'propria_fazenda'; end if;
   if not exists (select 1 from fazenda_jogadores where id = p_vizinho and banido_em is null) then raise exception 'vizinho_invalido'; end if;
   if p_animais is null or array_length(p_animais, 1) is null or array_length(p_animais, 1) > 50 then raise exception 'nada_a_fazer'; end if;
   foreach v_a in array p_animais loop
     begin
-      select a.tipo, a.alimentado_em, t.racao, t.racao_qtd, t.tempo_seg into r
-        from fazenda_animais a join fazenda_animais_tipos t on t.id = a.tipo
-       where a.id = v_a and a.jogador_id = p_vizinho
-         for update of a;
-      if not found then raise exception 'animal_invalido'; end if;
-      if r.alimentado_em is not null then raise exception 'ja_alimentado'; end if;
-      -- a ração de quem ajuda (a que ele guardou para os bichos dele fica)
-      select coalesce((select quantidade from fazenda_celeiro where jogador_id = v_id and item = r.racao), 0)
-           - coalesce((select quantidade from fazenda_reservas where jogador_id = v_id and item = r.racao), 0) into v_tem;
-      if v_tem < r.racao_qtd then raise exception 'sem_racao_sua'; end if;
-      update fazenda_celeiro set quantidade = quantidade - r.racao_qtd where jogador_id = v_id and item = r.racao;
-      update fazenda_animais
-         set alimentado_em = now() - make_interval(secs => r.tempo_seg * (
-                               case when fazenda_tem_efeito(p_vizinho, 'feno') then 0.2 else 0 end
-                               + fazenda_cuidador_adianta(p_vizinho, r.tipo)))
-       where id = v_a;
-      v_um := fazenda_premiar_ajuda(v_id, 1, p_vizinho);
-      v_xp := v_xp + v_um;
-      insert into fazenda_visitas (ator_id, dono_id, tipo, posicao, plantado_em, cultura, qtd, xp)
-      values (v_id, p_vizinho, 'bicho', 0, now(), r.racao, 1, v_um);
+      v_xp := v_xp + fazenda_vizinho_bicho_um(v_id, p_vizinho, v_a);
       v_feito := v_feito + 1;
     exception when others then
       if array_length(p_animais, 1) = 1 then raise; end if;
@@ -3926,6 +3945,27 @@ $$;
 
 -- Fase 83: o vizinho coleta o produto pronto dos bichos do dono: o produto vai para o celeiro do dono
 -- (que ganha metade do XP, como com o ajudante) e quem ajuda ganha 1 ajuda por bicho
+-- Fase 86: o miolo de 1 bicho ficou em fazenda_vizinho_coletar_um. Devolve o XP.
+create or replace function public.fazenda_vizinho_coletar_um(p_ator uuid, p_dono uuid, p_animal bigint)
+returns int
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_prod text;
+  v_xp   int;
+begin
+  select t.produto into v_prod from fazenda_animais a join fazenda_animais_tipos t on t.id = a.tipo
+   where a.id = p_animal and a.jogador_id = p_dono;
+  if not found then raise exception 'animal_invalido'; end if;
+  perform fazenda_animal_um(p_dono, p_animal, 'coletar', true);
+  v_xp := fazenda_premiar_ajuda(p_ator, 1, p_dono);
+  insert into fazenda_visitas (ator_id, dono_id, tipo, posicao, plantado_em, cultura, qtd, xp)
+  values (p_ator, p_dono, 'coleta', 0, now(), v_prod, 1, v_xp);
+  return v_xp;
+end;
+$$;
+
 create or replace function public.fazenda_vizinho_coletar(p_token text, p_vizinho uuid, p_animais bigint[])
 returns jsonb
 language plpgsql security definer
@@ -3936,22 +3976,13 @@ declare
   v_a     bigint;
   v_feito int := 0;
   v_xp    int := 0;
-  v_um    int;
-  v_prod  text;
 begin
   if p_vizinho is null or p_vizinho = v_id then raise exception 'propria_fazenda'; end if;
   if not exists (select 1 from fazenda_jogadores where id = p_vizinho and banido_em is null) then raise exception 'vizinho_invalido'; end if;
   if p_animais is null or array_length(p_animais, 1) is null or array_length(p_animais, 1) > 50 then raise exception 'nada_a_fazer'; end if;
   foreach v_a in array p_animais loop
     begin
-      select t.produto into v_prod from fazenda_animais a join fazenda_animais_tipos t on t.id = a.tipo
-       where a.id = v_a and a.jogador_id = p_vizinho;
-      if not found then raise exception 'animal_invalido'; end if;
-      perform fazenda_animal_um(p_vizinho, v_a, 'coletar', true);
-      v_um := fazenda_premiar_ajuda(v_id, 1, p_vizinho);
-      v_xp := v_xp + v_um;
-      insert into fazenda_visitas (ator_id, dono_id, tipo, posicao, plantado_em, cultura, qtd, xp)
-      values (v_id, p_vizinho, 'coleta', 0, now(), v_prod, 1, v_um);
+      v_xp := v_xp + fazenda_vizinho_coletar_um(v_id, p_vizinho, v_a);
       v_feito := v_feito + 1;
     exception when others then
       if array_length(p_animais, 1) = 1 then raise; end if;
@@ -3959,6 +3990,74 @@ begin
   end loop;
   if v_feito > 0 then perform fazenda_missao(v_id, 'ajudar', v_feito); end if;
   return jsonb_build_object('feitos', v_feito, 'xp', v_xp,
+                            'vizinho', fazenda_vizinho(p_vizinho, v_id), 'estado', fazenda_estado(v_id));
+end;
+$$;
+
+-- Fase 86: o "Ajudar tudo" numa chamada só. Eram até 8 (ajudar, colher, salvar, limpar, arar, plantar,
+-- ração e coleta) e cada uma devolvia o estado inteiro de quem ajuda, o que mais pesa no servidor: com
+-- muita gente ajudando, o banco ficou lento para todo mundo. p_lista:
+--   {"ajudar":[pos], "colher":[pos], "salvar":[pos], "limpar":[pos], "arar":[pos], "plantar":[pos],
+--    "semente":"<id>", "bicho":[animal], "coleta":[animal]}
+-- Faz na ordem do jogo; o que der erro é pulado (como em lote). Devolve, por ação, quantos fez, o XP
+-- e o XP de cada canteiro (ou bicho).
+create or replace function public.fazenda_ajudar_tudo(p_token text, p_vizinho uuid, p_lista jsonb)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id     uuid := fazenda_auth(p_token);
+  v_acao   text;
+  v_item   bigint;
+  v_xp     int;
+  v_um     jsonb;
+  v_n      int;
+  v_soma   int;
+  v_bichos int := 0;
+  v_feitos jsonb := '{}'::jsonb;
+  v_total  jsonb := '{}'::jsonb;
+  v_result jsonb := '{}'::jsonb;
+begin
+  if p_vizinho is null or p_vizinho = v_id then raise exception 'propria_fazenda'; end if;
+  if not exists (select 1 from fazenda_jogadores where id = p_vizinho and banido_em is null) then raise exception 'vizinho_invalido'; end if;
+  if p_lista is null or jsonb_typeof(p_lista) <> 'object' then raise exception 'nada_a_fazer'; end if;
+  if (select coalesce(sum(jsonb_array_length(v)), 0) from jsonb_each(p_lista) e(k, v) where jsonb_typeof(v) = 'array') > 400 then
+    raise exception 'acao_invalida';
+  end if;
+
+  perform fazenda_tick(p_vizinho);
+
+  foreach v_acao in array array['ajudar', 'colher', 'salvar', 'limpar', 'arar', 'plantar', 'bicho', 'coleta'] loop
+    continue when jsonb_typeof(p_lista->v_acao) is distinct from 'array';
+    v_um := '{}'::jsonb; v_n := 0; v_soma := 0;
+    for v_item in select (x #>> '{}')::bigint from jsonb_array_elements(p_lista->v_acao) x loop
+      begin
+        v_xp := case v_acao
+          when 'ajudar'  then fazenda_ajudar_um(v_id, p_vizinho, v_item::int)
+          when 'salvar'  then fazenda_salvar_um(v_id, p_vizinho, v_item::int)
+          when 'plantar' then fazenda_roca_um(v_id, p_vizinho, v_item::int, 'plantar:' || coalesce(p_lista->>'semente', ''))
+          when 'bicho'   then fazenda_vizinho_bicho_um(v_id, p_vizinho, v_item)
+          when 'coleta'  then fazenda_vizinho_coletar_um(v_id, p_vizinho, v_item)
+          else fazenda_roca_um(v_id, p_vizinho, v_item::int, v_acao) end;   -- colher, limpar, arar
+        v_um := v_um || jsonb_build_object(v_item::text, v_xp);
+        v_n := v_n + 1;
+        v_soma := v_soma + v_xp;
+      exception when others then
+        null;   -- pula o que não deu (já feito, sem ração, sem moedas...)
+      end;
+    end loop;
+    if v_n > 0 then
+      v_feitos := v_feitos || jsonb_build_object(v_acao, v_n);
+      v_total := v_total || jsonb_build_object(v_acao, v_soma);
+      v_result := v_result || jsonb_build_object(v_acao, v_um);
+      if v_acao in ('bicho', 'coleta') then v_bichos := v_bichos + v_n; end if;
+    end if;
+  end loop;
+
+  if v_bichos > 0 then perform fazenda_missao(v_id, 'ajudar', v_bichos); end if;   -- (os canteiros contam lá dentro)
+  perform fazenda_bot_xp_gravar();   -- a metade do XP da colheita que vai para o dono
+  return jsonb_build_object('feitos', v_feitos, 'xp', v_total, 'resultado', v_result,
                             'vizinho', fazenda_vizinho(p_vizinho, v_id), 'estado', fazenda_estado(v_id));
 end;
 $$;
@@ -8045,7 +8144,10 @@ begin
   select k, fazenda_cache_valor(k), now()
     from unnest(array['culturas', 'animais_tipos', 'conquistas_tipos', 'ajudantes_tipos', 'melhorias_tipos', 'melhorias']) k
   on conflict (chave) do update set valor = excluded.valor, em = excluded.em;
-  delete from fazenda_cache where chave like 'itens:%' or chave like 'energia%';   -- se refazem na próxima vez (fase 75: e a conta da energia)
+  -- se refazem na próxima vez (fase 75: e a conta da energia de cada jogador). Fase 86: a média dos geradores
+  -- (energia_medias) fica: montada na hora custava 1,5 s, e com o banco cheio a chamada caía antes de gravar,
+  -- então todas tentavam de novo e o jogo travava. Ela se refaz com fazenda_energia_medias_refazer().
+  delete from fazenda_cache where chave like 'itens:%' or chave like 'energia:%';
 end;
 $$;
 
@@ -8586,6 +8688,19 @@ begin
 end;
 $$;
 
+-- fase 86: refaz a média dos geradores na hora (no fim do fazenda.sql e de cada faseN.sql), para nenhuma
+-- chamada do jogo ter que montar
+create or replace function public.fazenda_energia_medias_refazer()
+returns jsonb
+language plpgsql security definer
+set search_path = public
+as $$
+begin
+  delete from fazenda_cache where chave = 'energia_medias' or chave like 'energia:%';
+  return fazenda_energia_medias();
+end;
+$$;
+
 -- a conta da energia de uma fazenda: gera (média por hora) e gasta (no máximo por hora, tudo
 -- trabalhando), por tipo. Guardada por jogador enquanto as construções e o eletricista não mudam.
 create or replace function public.fazenda_energia_conta(p_jogador uuid)
@@ -9037,6 +9152,19 @@ alter table public.fazenda_jogadores add column if not exists ajuda_xp_dia int n
 alter table public.fazenda_visitas add column if not exists xp int;
 
 -- ------------------------------------------------------------
+-- Fase 86: o jogo travando com todo mundo ajudando, e o XP por canteiro.
+-- • Desde a fase 83 o "Ajudar tudo" virou a coisa mais usada do jogo, e mandava até 8 chamadas, cada uma
+--   devolvendo o estado inteiro de quem ajuda: o banco ficou lento para todos (até 10 s para carregar).
+--   Agora é uma chamada só, fazenda_ajudar_tudo (as antigas continuam, para o jogo velho aberto).
+-- • Sai o limite de 30 ajudas por vizinho (fase 85): numa fazenda grande, um Ajudar tudo já passava dele.
+--   No lugar, colher, arar e plantar dão XP 1 vez por dia em cada canteiro (fazenda_roca_um). O teto do
+--   dia continua: até 1 nível inteiro vale cheio, depois 1/4.
+-- • A média dos geradores (energia_medias) custava 1,5 s para montar e era apagada no fim de cada faseN.sql;
+--   com o banco cheio, a chamada que ia montar caía por tempo antes de gravar e todas tentavam de novo.
+--   Agora fazenda_cache_montar não apaga mais ela, e fazenda_energia_medias_refazer() monta na hora da fase.
+-- ------------------------------------------------------------
+
+-- ------------------------------------------------------------
 -- Permissões: só a API pública fica executável pela chave anon
 -- ------------------------------------------------------------
 revoke execute on function
@@ -9232,6 +9360,7 @@ revoke execute on function
   public.fazenda_bot_xp_gravar(),
   public.fazenda_baus_sorte(),
   public.fazenda_energia_medias(),
+  public.fazenda_energia_medias_refazer(),
   public.fazenda_energia_conta(uuid),
   public.fazenda_extremo_regras(),
   public.fazenda_extremo_de(timestamptz, text),
@@ -9247,7 +9376,9 @@ revoke execute on function
   public.fazenda_oficina_niveis(),
   public.fazenda_oficina_rapidez(uuid, text),
   public.fazenda_zona_minha(int, int),
-  public.fazenda_moedas_pagou()
+  public.fazenda_moedas_pagou(),
+  public.fazenda_vizinho_bicho_um(uuid, uuid, bigint),
+  public.fazenda_vizinho_coletar_um(uuid, uuid, bigint)
 from public, anon, authenticated;
 
 grant execute on function
@@ -9281,6 +9412,7 @@ grant execute on function
   public.fazenda_usar_diamantes(text, text, int, int),
   public.fazenda_vizinho_bicho(text, uuid, bigint[]),
   public.fazenda_vizinho_coletar(text, uuid, bigint[]),
+  public.fazenda_ajudar_tudo(text, uuid, jsonb),
   public.fazenda_comprar_raro(text, text),
   public.fazenda_usar_vale(text, bigint),
   public.fazenda_feira_anunciar(text, text, int, int),
@@ -9310,3 +9442,6 @@ grant execute on function
   public.fazenda_consertar(text, int, int),
   public.fazenda_clima_info()
 to anon, authenticated;
+
+-- fase 86: a média dos geradores já pronta (as chamadas do jogo não montam mais na hora)
+select public.fazenda_energia_medias_refazer() is not null as energia_medias_pronta;
