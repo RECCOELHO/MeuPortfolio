@@ -1336,6 +1336,8 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-10-19-versao', data: '19/10', titulo: 'O jogo se atualiza sozinho', itens: [
+            'Quando sai uma versão nova, o jogo percebe: voltando para a aba ele já se atualiza, e jogando ele pergunta antes. Assim ninguém fica com a loja mostrando preço errado da versão antiga.'] },
         { id: '2026-10-19-sem-travar', data: '19/10', titulo: 'O jogo sem travar e o XP por canteiro', itens: [
             'O jogo estava travando com todo mundo ajudando os vizinhos. O <b>Ajudar tudo</b> agora vai numa chamada só (eram até 8), e o servidor não precisa mais montar a conta da energia na hora.',
             'Acabou o limite de 30 ajudas por vizinho: a fazenda inteira dá XP. Em cada canteiro, <b>colher, arar e plantar dão XP 1 vez por dia</b>; de novo no mesmo canteiro, a ajuda vale para o dono, mas sem XP.',
@@ -6476,14 +6478,46 @@
             ultimoPoll = Date.now();
             recarregar();
         }
+        if (document.visibilityState === 'visible' && Date.now() - versaoConferida > VERSAO_MS) conferirVersao(false);
     }, 1000);
 
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible' && S) {
             ultimoPoll = mexeuEm = Date.now();
             recarregar();
+            conferirVersao(true);
         }
     });
+
+    // Versão nova do jogo: no celular a aba fica aberta horas sem recarregar e continuava no jogo velho,
+    // falando com o servidor novo (preço e texto errados na loja). Confere o fazenda.html: se ele já pede
+    // outro fazenda.js, voltando para a aba recarrega na hora; jogando, pergunta.
+    const VERSAO_MS = 10 * 60000;
+    const minhaVersao = ([...document.scripts].map((s) => s.src).find((u) => /\/fazenda\.js\?v=/.test(u)) || '').split('?v=')[1] || null;
+    let versaoConferida = Date.now(), versaoAdiada = false, versaoPerguntando = false;
+    async function versaoNova() {
+        if (!minhaVersao) return false;
+        try {
+            const r = await fetch('fazenda.html', { cache: 'no-store' });
+            if (!r.ok) return false;
+            const m = (await r.text()).match(/\/fazenda\.js\?v=([\w.-]+)/);
+            return !!m && m[1] !== minhaVersao;
+        } catch {
+            return false;   // sem internet: fica como está
+        }
+    }
+    async function conferirVersao(voltou) {
+        if (versaoPerguntando) return;
+        versaoConferida = Date.now();
+        if (!await versaoNova()) return;
+        if (voltou && !pendentes) return location.reload();   // estava fora: tudo já está salvo no servidor
+        if (versaoAdiada) return;   // "Depois": atualiza quando voltar para a aba
+        versaoPerguntando = true;
+        const sim = await perguntar('Saiu uma versão nova do jogo. Atualizar agora? Leva só um instante e nada se perde.', 'Atualizar', 'Depois');
+        versaoPerguntando = false;
+        if (sim) location.reload();
+        else versaoAdiada = true;
+    }
 
     /* ---------- Início ---------- */
     (async function iniciar() {
