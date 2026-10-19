@@ -3535,6 +3535,35 @@ returns int language sql stable security definer set search_path = public as $$
     from (select fazenda_nivel(xp) as n from fazenda_jogadores where id = p_ator) x;
 $$;
 
+-- fase 87: a missão "ajudar" de cada item; no lote do Ajudar tudo, soma e conta uma vez só no fim
+create or replace function public.fazenda_missao_ajuda(p_ator uuid, p_n int)
+returns void language plpgsql security definer set search_path = public as $$
+declare
+  v_lote jsonb := nullif(current_setting('fazenda.ajuda_lote', true), '')::jsonb;
+begin
+  if v_lote is null then perform fazenda_missao(p_ator, 'ajudar', p_n); return; end if;
+  perform set_config('fazenda.ajuda_lote', (v_lote || jsonb_build_object('missao', (v_lote->>'missao')::int + p_n))::text, true);
+end;
+$$;
+
+-- fase 87: quem ajuda paga a semente (plantar na abandonada); no lote, o gasto sai no fim
+create or replace function public.fazenda_lote_gastar(p_ator uuid, p_custo int)
+returns void language plpgsql security definer set search_path = public as $$
+declare
+  v_lote jsonb := nullif(current_setting('fazenda.ajuda_lote', true), '')::jsonb;
+begin
+  if v_lote is null then
+    if (select moedas from fazenda_jogadores where id = p_ator) < p_custo then raise exception 'moedas_insuficientes'; end if;
+    update fazenda_jogadores set moedas = moedas - p_custo where id = p_ator;
+    return;
+  end if;
+  if (select moedas from fazenda_jogadores where id = p_ator) + (v_lote->>'moedas')::int - (v_lote->>'gasto')::int < p_custo then
+    raise exception 'moedas_insuficientes';
+  end if;
+  perform set_config('fazenda.ajuda_lote', (v_lote || jsonb_build_object('gasto', (v_lote->>'gasto')::int + p_custo))::text, true);
+end;
+$$;
+
 -- Dá o prêmio de p_unidades ajudas; devolve o XP. Fase 83: sem o limite de 30 por dia, e com a
 -- sequência de vizinhos: cada vizinho diferente ajudado em até 10 min do anterior dá +10% (até +100%);
 -- 10 min sem ajudar, ela zera. O XP em dobro e os bônus de nível somam por cima (gatilho do XP).
@@ -3551,19 +3580,33 @@ declare
   v_un   int;
   v_cheio int;
   v_dia  int;
+  v_lote jsonb;
 begin
   if coalesce(p_unidades, 0) <= 0 then return 0; end if;
-  select seq_donos, seq_em, xp, ajuda_dia, ajuda_xp_dia into j from fazenda_jogadores where id = p_ator for update;
-  v_seq := case when j.seq_em is null or j.seq_em < now() - interval '10 minutes' then '{}'::uuid[] else coalesce(j.seq_donos, '{}') end;
+  -- fase 87: dentro do Ajudar tudo (fazenda_ajudar_tudo) a conta é a mesma, mas o XP e as moedas somam no
+  -- lote e gravam uma vez só no fim (antes, cada item regravava a linha inteira do jogador)
+  v_lote := nullif(current_setting('fazenda.ajuda_lote', true), '')::jsonb;
+  if v_lote is not null then
+    v_seq := array(select jsonb_array_elements_text(v_lote->'seq'))::uuid[];
+  else
+    select seq_donos, seq_em, xp, ajuda_dia, ajuda_xp_dia into j from fazenda_jogadores where id = p_ator for update;
+    v_seq := case when j.seq_em is null or j.seq_em < now() - interval '10 minutes' then '{}'::uuid[] else coalesce(j.seq_donos, '{}') end;
+  end if;
   if p_dono is not null and not (p_dono = any(v_seq)) then v_seq := v_seq || p_dono; end if;
   -- fase 86: sem o limite de 30 por vizinho (fase 85); quem segura é o canteiro (fazenda_roca_um) e o teto do dia
   v_un := p_unidades;
   v_base := round(v_un * fazenda_premio_ajuda(p_ator) * (1 + fazenda_sequencia_bonus(cardinality(v_seq)))
                   * case when fazenda_abandonada(p_dono) then 1.25 else 1 end)::int;   -- fazenda abandonada: +25% (fase 85; era +50%)
   -- fase 85: até 1 nível de XP de ajuda por dia vale cheio; o que passar disso vale 1/4
-  v_dia := case when j.ajuda_dia = fazenda_hoje() then coalesce(j.ajuda_xp_dia, 0) else 0 end;
-  v_cheio := greatest(0, fazenda_ajuda_teto(p_ator) - v_dia);
+  v_dia := case when v_lote is not null then (v_lote->>'dia')::int
+                when j.ajuda_dia = fazenda_hoje() then coalesce(j.ajuda_xp_dia, 0) else 0 end;
+  v_cheio := greatest(0, coalesce((v_lote->>'teto')::int, fazenda_ajuda_teto(p_ator)) - v_dia);
   v_xp := least(v_base, v_cheio) + (v_base - least(v_base, v_cheio)) / 4;
+  if v_lote is not null then
+    perform set_config('fazenda.ajuda_lote', (v_lote || jsonb_build_object('seq', to_jsonb(v_seq), 'dia', v_dia + v_xp,
+      'xp', (v_lote->>'xp')::int + v_xp, 'moedas', (v_lote->>'moedas')::int + p_unidades))::text, true);
+    return v_xp;
+  end if;
   update fazenda_jogadores set xp = xp + v_xp, moedas = moedas + p_unidades, seq_donos = v_seq, seq_em = now(),
          ajuda_dia = fazenda_hoje(), ajuda_xp_dia = v_dia + v_xp
    where id = p_ator;
@@ -3626,7 +3669,7 @@ begin
   v_xp := fazenda_premiar_ajuda(p_ator, 3, p_dono);
   insert into fazenda_visitas (ator_id, dono_id, tipo, posicao, plantado_em, cultura, qtd, xp)
   values (p_ator, p_dono, 'salvar', p_posicao, now() - make_interval(secs => k.tempo_seg), k.id, 3, v_xp);
-  perform fazenda_missao(p_ator, 'ajudar', 3);
+  perform fazenda_missao_ajuda(p_ator, 3);
   return v_xp;
 end;
 $$;
@@ -3681,8 +3724,7 @@ begin
     if not found then raise exception 'cultura_invalida'; end if;
     if k.estacao is not null and k.estacao <> fazenda_estacao_em(now()) then raise exception 'fora_de_estacao'; end if;
     if fazenda_nivel((select xp from fazenda_jogadores where id = p_ator)) < k.nivel_min then raise exception 'nivel_insuficiente'; end if;
-    if (select moedas from fazenda_jogadores where id = p_ator) < k.custo then raise exception 'moedas_insuficientes'; end if;
-    update fazenda_jogadores set moedas = moedas - k.custo where id = p_ator;
+    perform fazenda_lote_gastar(p_ator, k.custo);   -- (fase 87: no Ajudar tudo, sai no fim, numa gravação só)
     update fazenda_canteiros
        set estado = 'plantado', cultura = k.id, plantado_em = now(),
            erva = false, praga = false, seco = false, roubado = 0, adubado = false,
@@ -3701,7 +3743,7 @@ begin
   v_xp := fazenda_premiar_ajuda(p_ator, v_un, p_dono);
   insert into fazenda_visitas (ator_id, dono_id, tipo, posicao, plantado_em, cultura, qtd, xp)
   values (p_ator, p_dono, v_tipo, p_posicao, now(), v_cult, 1, v_xp);   -- (fase 85: e o XP dado)
-  if v_un > 0 then perform fazenda_missao(p_ator, 'ajudar', 1); end if;
+  if v_un > 0 then perform fazenda_missao_ajuda(p_ator, 1); end if;
   return v_xp;
 end;
 $$;
@@ -3741,7 +3783,7 @@ begin
 
   insert into fazenda_visitas (ator_id, dono_id, tipo, posicao, plantado_em, cultura, qtd, xp)
   values (p_ator, p_dono, 'ajuda', p_posicao, c.plantado_em, k.id, v_n, v_premio);
-  perform fazenda_missao(p_ator, 'ajudar', v_n);
+  perform fazenda_missao_ajuda(p_ator, v_n);
 
   return v_premio;   -- (fase 48: o XP ganho; antes, os problemas)
 end;
@@ -4018,6 +4060,8 @@ declare
   v_feitos jsonb := '{}'::jsonb;
   v_total  jsonb := '{}'::jsonb;
   v_result jsonb := '{}'::jsonb;
+  v_lote   jsonb;
+  j        record;
 begin
   if p_vizinho is null or p_vizinho = v_id then raise exception 'propria_fazenda'; end if;
   if not exists (select 1 from fazenda_jogadores where id = p_vizinho and banido_em is null) then raise exception 'vizinho_invalido'; end if;
@@ -4027,6 +4071,13 @@ begin
   end if;
 
   perform fazenda_tick(p_vizinho);
+
+  -- fase 87: o lote (o XP, as moedas e a missão somam aqui e gravam uma vez só no fim)
+  select seq_donos, seq_em, ajuda_dia, ajuda_xp_dia into j from fazenda_jogadores where id = v_id for update;
+  perform set_config('fazenda.ajuda_lote', jsonb_build_object(
+    'seq', case when j.seq_em is null or j.seq_em < now() - interval '10 minutes' then '[]'::jsonb else to_jsonb(coalesce(j.seq_donos, '{}')) end,
+    'dia', case when j.ajuda_dia = fazenda_hoje() then coalesce(j.ajuda_xp_dia, 0) else 0 end,
+    'teto', fazenda_ajuda_teto(v_id), 'xp', 0, 'moedas', 0, 'gasto', 0, 'missao', 0)::text, true);
 
   foreach v_acao in array array['ajudar', 'colher', 'salvar', 'limpar', 'arar', 'plantar', 'bicho', 'coleta'] loop
     continue when jsonb_typeof(p_lista->v_acao) is distinct from 'array';
@@ -4055,7 +4106,16 @@ begin
     end if;
   end loop;
 
-  if v_bichos > 0 then perform fazenda_missao(v_id, 'ajudar', v_bichos); end if;   -- (os canteiros contam lá dentro)
+  v_lote := current_setting('fazenda.ajuda_lote')::jsonb;
+  perform set_config('fazenda.ajuda_lote', '', true);
+  if (v_lote->>'moedas')::int > 0 or (v_lote->>'gasto')::int > 0 then
+    update fazenda_jogadores
+       set xp = xp + (v_lote->>'xp')::int, moedas = moedas + (v_lote->>'moedas')::int - (v_lote->>'gasto')::int,
+           seq_donos = array(select jsonb_array_elements_text(v_lote->'seq'))::uuid[], seq_em = now(),
+           ajuda_dia = fazenda_hoje(), ajuda_xp_dia = (v_lote->>'dia')::int
+     where id = v_id;
+  end if;
+  if (v_lote->>'missao')::int + v_bichos > 0 then perform fazenda_missao(v_id, 'ajudar', (v_lote->>'missao')::int + v_bichos); end if;
   perform fazenda_bot_xp_gravar();   -- a metade do XP da colheita que vai para o dono
   return jsonb_build_object('feitos', v_feitos, 'xp', v_total, 'resultado', v_result,
                             'vizinho', fazenda_vizinho(p_vizinho, v_id), 'estado', fazenda_estado(v_id));
@@ -9165,6 +9225,13 @@ alter table public.fazenda_visitas add column if not exists xp int;
 -- ------------------------------------------------------------
 
 -- ------------------------------------------------------------
+-- Fase 87: o banco travou sem memória (1 GB, swap cheio, o disco não dava conta). O Ajudar tudo gravava
+-- a linha inteira de quem ajuda (e a missão) a cada item: 100 itens, umas 200 gravações. Agora o XP, as
+-- moedas, a semente paga e a missão somam num lote (fazenda.ajuda_lote) e gravam uma vez só no fim.
+-- A conta é a mesma (teto do dia, 1/4 depois, sequência, abandonada, regra por canteiro).
+-- ------------------------------------------------------------
+
+-- ------------------------------------------------------------
 -- Permissões: só a API pública fica executável pela chave anon
 -- ------------------------------------------------------------
 revoke execute on function
@@ -9378,7 +9445,9 @@ revoke execute on function
   public.fazenda_zona_minha(int, int),
   public.fazenda_moedas_pagou(),
   public.fazenda_vizinho_bicho_um(uuid, uuid, bigint),
-  public.fazenda_vizinho_coletar_um(uuid, uuid, bigint)
+  public.fazenda_vizinho_coletar_um(uuid, uuid, bigint),
+  public.fazenda_missao_ajuda(uuid, int),
+  public.fazenda_lote_gastar(uuid, int)
 from public, anon, authenticated;
 
 grant execute on function
