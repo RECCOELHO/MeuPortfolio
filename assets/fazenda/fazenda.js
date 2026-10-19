@@ -1336,6 +1336,10 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-10-19-sem-travar', data: '19/10', titulo: 'O jogo sem travar e o XP por canteiro', itens: [
+            'O jogo estava travando com todo mundo ajudando os vizinhos. O <b>Ajudar tudo</b> agora vai numa chamada só (eram até 8), e o servidor não precisa mais montar a conta da energia na hora.',
+            'Acabou o limite de 30 ajudas por vizinho: a fazenda inteira dá XP. Em cada canteiro, <b>colher, arar e plantar dão XP 1 vez por dia</b>; de novo no mesmo canteiro, a ajuda vale para o dono, mas sem XP.',
+            'Continua: até juntar o XP de 1 nível inteiro no dia ajudando, vale cheio; depois, cada ajuda vale 1/4.'] },
         { id: '2026-10-19-freio', data: '19/10', titulo: 'Ajudar os vizinhos: com limite de novo', itens: [
             'A ajuda sem limite deixou subir dezenas de níveis numa noite só. Agora: cada vizinho dá XP em até <b>30 ajudas por dia</b> (depois, a ajuda continua valendo para o dono).',
             'Até juntar o XP de <b>1 nível inteiro</b> no dia ajudando, vale cheio; depois disso, cada ajuda vale <b>1/4</b>. A faixa da visita mostra quanto você já juntou.',
@@ -3884,10 +3888,9 @@
         const ex = document.getElementById('visitaExtra');
         if (!ex || !visita) return;
         const sq = S && S.social && S.social.sequencia && Date.parse(S.social.sequencia.ate) > agora() ? S.social.sequencia : null;
-        // fase 85: o XP de ajuda do dia (até o teto vale cheio; depois, 1/4) e as 30 ajudas que dão XP nesta fazenda
-        const ah = S && S.social && S.social.ajuda_hoje, aqui = visita.ajudas_hoje;
+        // fase 85: o XP de ajuda do dia (até o teto vale cheio; depois, 1/4). Fase 86: sem as 30 ajudas por fazenda
+        const ah = S && S.social && S.social.ajuda_hoje;
         ex.innerHTML = (visita.abandonada ? ' <span class="chip-abandonada">Abandonada: +25% XP</span>' : '')
-            + (aqui != null ? ` <span class="chip-sequencia"${aqui >= 30 ? ' style="background:#e9c8b8;color:#5a2a1a"' : ''}>Aqui hoje: ${Math.min(aqui, 30)}/30</span>` : '')
             + (ah ? ` <span class="chip-sequencia"${ah.xp >= ah.teto ? ' style="background:#e9c8b8;color:#5a2a1a"' : ''}>XP de ajuda hoje: ${Math.round(Math.min(100, ah.xp / Math.max(1, ah.teto) * 100))}%${ah.xp >= ah.teto ? ' (agora vale 1/4)' : ''}</span>` : '')
             + (sq && sq.n > 1 ? ` <span class="chip-sequencia">Sequência x${sq.n}: +${Math.round(sq.bonus * 100)}%</span>` : '');
     }
@@ -3939,8 +3942,8 @@
                 flutuar(Number(pos), pegando
                     ? `+${qtd} ${k ? itemDe(k, 20) : ''}`
                     : acao === 'salvar' ? `Salvou! ${qtd ? `+${qtd} ${ico('xp', 16)}` : ''}`
-                    : acao === 'colher' ? `Pro dono! +${qtd} ${ico('xp', 16)}`
-                    : acao.startsWith('plantar') ? `Plantou! +${qtd} ${ico('xp', 16)}`
+                    : acao === 'colher' ? `Pro dono!${qtd ? ` +${qtd} ${ico('xp', 16)}` : ''}`   // (fase 86: 0 = o canteiro já deu XP hoje)
+                    : acao.startsWith('plantar') ? `Plantou!${qtd ? ` +${qtd} ${ico('xp', 16)}` : ''}`
                     : qtd ? `+${qtd} ${ico('xp', 16)}` : `${ico('coracao', 16)}`, n * 70);   // (fase 48: o XP de ajudar vem do servidor)
             });
             aplicarEstado(r.estado);
@@ -3959,6 +3962,42 @@
             } else if (posicoes.length === 1) {
                 descrever(posicoes[0]);
             }
+            return r;
+        });
+    }
+
+    // fase 86: o Ajudar tudo numa chamada só (eram até 8, cada uma com o estado inteiro: o servidor travava)
+    const TEXTO_AJUDA = {
+        ajudar: (n) => `cuidou de ${n} canteiro(s)`, colher: (n) => `colheu ${n} para o dono`,
+        salvar: (n) => `salvou ${n} murcha(s)`, limpar: (n) => `limpou ${n} murcha(s)`, arar: (n) => `arou ${n}`,
+        plantar: (n) => `plantou ${n}`, bicho: (n) => `deu ração a ${n} bicho(s)`, coleta: (n) => `coletou de ${n} bicho(s)`
+    };
+    function ajudarTudoVizinho(lista) {
+        const dono = visita.id;
+        const posicoes = ['ajudar', 'colher', 'salvar', 'limpar', 'arar', 'plantar'].flatMap((a) => lista[a] || []);
+        return enfileirar(posicoes, async () => {
+            const r = await rpc('fazenda_ajudar_tudo', { p_token: token, p_vizinho: dono, p_lista: lista });
+            const feitos = Object.keys(TEXTO_AJUDA).filter((a) => r.feitos && r.feitos[a]).map((a) => [a, r.feitos[a]]);
+            if (feitos.length) som.tocar('cuidar');
+            let n = 0, semXp = 0;
+            Object.entries(r.resultado || {}).forEach(([acao, porPos]) => {
+                if (acao === 'bicho' || acao === 'coleta') return;
+                Object.entries(porPos).forEach(([pos, xp]) => {
+                    if (!xp && acao !== 'salvar') semXp++;
+                    flutuar(Number(pos), acao === 'colher' ? `Pro dono!${xp ? ` +${xp} ${ico('xp', 16)}` : ''}`
+                        : acao === 'plantar' ? `Plantou!${xp ? ` +${xp} ${ico('xp', 16)}` : ''}`
+                        : xp ? `+${xp} ${ico('xp', 16)}` : ico('coracao', 16), Math.min(n++, 40) * 50);
+                });
+            });
+            const total = Object.values(r.xp || {}).reduce((a, b) => a + b, 0);
+            if (feitos.length) {
+                toast(`${ico('coracao', 16)} No vizinho: ${feitos.map(([a, q]) => TEXTO_AJUDA[a](q)).join(', ')}. +${total} ${ico('xp', 14)}`
+                    + (semXp ? ` (${semXp} canteiro(s) já tinham dado XP hoje)` : ''));
+            } else {
+                toast('Não deu para ajudar agora: a fazenda do vizinho mudou. Tente de novo.', undefined, 'leve');
+            }
+            aplicarEstado(r.estado);
+            if (visita && visita.id === dono) mostrarVisita(r.vizinho);
             return r;
         });
     }
@@ -4025,14 +4064,17 @@
                 return toast('A fazenda do vizinho está em ordem.', undefined, 'leve');
             }
             if (plantar.length && !await perguntar(`Plantar ${plantar.length} canteiro(s) de ${k.nome.toLowerCase()} com o seu dinheiro (${moeda(plantar.length * k.custo).replace(/<[^>]+>/g, '')} moedas)? Cada um vale 2 ajudas de XP.`, 'Plantar', 'Não plantar')) plantar = [];
-            if (ps.length) executarVisita('ajudar', ps);
-            if (colher.length) executarVisita('colher', colher);
-            if (murchas.length) executarVisita('salvar', murchas.map((c) => c.posicao));
-            if (limpar.length) executarVisita('limpar', limpar.map((c) => c.posicao));
-            if (arar.length) executarVisita('arar', arar);
-            if (plantar.length) executarVisita('plantar:' + k.id, plantar);
-            if (famintos.length) alimentarBichosVizinho(famintos);
-            if (prontos.length) coletarBichosVizinho(prontos);
+            // fase 86: tudo numa chamada só (o servidor faz na mesma ordem de antes)
+            const lista = {};
+            if (ps.length) lista.ajudar = ps;
+            if (colher.length) lista.colher = colher;
+            if (murchas.length) lista.salvar = murchas.map((c) => c.posicao);
+            if (limpar.length) lista.limpar = limpar.map((c) => c.posicao);
+            if (arar.length) lista.arar = arar;
+            if (plantar.length) { lista.plantar = plantar; lista.semente = k.id; }
+            if (famintos.length) lista.bicho = famintos;
+            if (prontos.length) lista.coleta = prontos;
+            if (Object.keys(lista).length) ajudarTudoVizinho(lista);
             return;
         }
         // fase 66: os canteiros com alarme, se tiver luva do Perks (pergunta antes de gastar)
@@ -4057,10 +4099,17 @@
         buscando = true;
         const acoesAntes = acoesFeitas;
         try {
+            // fase 86: visitando, só a fazenda do vizinho (as ações já trazem o seu estado; ao voltar, busca tudo)
+            if (visita) {
+                const v = await rpc('fazenda_visitar', { p_token: token, p_vizinho: visita.id });
+                if (acoesFeitas !== acoesAntes || !visita) return;
+                mostrarVisita(v);
+                buscasFalhas = 0;
+                return;
+            }
             const estado = await rpc('fazenda_carregar', { p_token: token });
             if (acoesFeitas !== acoesAntes) return;   // fase 56: chegou depois de uma ação: é de antes dela
             aplicarEstado(estado);
-            if (visita) mostrarVisita(await rpc('fazenda_visitar', { p_token: token, p_vizinho: visita.id }));
             buscasFalhas = 0;
         } catch (e) {
             if (saiuDoJogo(e)) tratarErro(e);
