@@ -1682,6 +1682,8 @@ begin
     'social', jsonb_build_object(   -- (fase 83: num objeto só: o estado chegou no limite de 100 argumentos)
       'alarme_off', jsonb_build_object('seg', j.alarme_off_seg, 'em', j.alarme_off_em),
       'raros_semana', fazenda_raros_semana(p_jogador),   -- fase 84
+      -- fase 91: quantas vezes cada ajudante foi demitido (contratar e evoluir ficam 50% mais caros a cada uma)
+      'demitidos', coalesce((select jsonb_object_agg(d.tipo, d.vezes) from fazenda_ajudantes_demitidos d where d.jogador_id = p_jogador), '{}'::jsonb),
       -- fase 85: o XP de ajuda de hoje e o teto (passou dele, cada ajuda vale 1/4)
       'ajuda_hoje', jsonb_build_object('xp', case when j.ajuda_dia = fazenda_hoje() then coalesce(j.ajuda_xp_dia, 0) else 0 end,
                                        'teto', fazenda_ajuda_teto(p_jogador)),
@@ -3268,7 +3270,7 @@ declare
   j       record;
   t       record;
   v_nivel int;
-  v_custo int;
+  v_custo bigint;
 begin
   select * into j from fazenda_jogadores where id = v_id for update;
   select * into t from fazenda_ajudantes_tipos where id = p_tipo;
@@ -3280,7 +3282,7 @@ begin
   -- fase 74: até o nível 5; o 4 pede o nível 35 do jogador e o 5, o 42 (igual a EVOLUIR_NIVEL em fazenda.js)
   if v_nivel >= 5 then raise exception 'nivel_maximo'; end if;
   if (v_nivel = 3 and fazenda_nivel_de(j.xp, j.nivel_trava) < 35) or (v_nivel = 4 and fazenda_nivel_de(j.xp, j.nivel_trava) < 42) then raise exception 'nivel_insuficiente'; end if;
-  v_custo := t.custo * (array[1, 4, 8, 16, 32])[coalesce(v_nivel, 0) + 1];
+  v_custo := round(t.custo * (array[1, 4, 8, 16, 32])[coalesce(v_nivel, 0) + 1] * fazenda_ajudante_mult(v_id, p_tipo));   -- fase 91: +50% a cada demissão dele
   if j.moedas < v_custo then raise exception 'moedas_insuficientes'; end if;
   update fazenda_jogadores set moedas = moedas - v_custo where id = v_id;
   insert into fazenda_ajudantes (jogador_id, tipo) values (v_id, p_tipo)
@@ -9380,6 +9382,47 @@ end;
 $fn$;
 
 -- ------------------------------------------------------------
+-- Fase 91: demitir o ajudante. Ele vai embora com todos os níveis, sem devolver as moedas, e cada demissão
+-- daquele ajudante deixa contratar e evoluir ele 50% mais caro (1,5x, 2,25x, 3,4x...); os outros não mudam.
+-- ------------------------------------------------------------
+create table if not exists public.fazenda_ajudantes_demitidos (
+  jogador_id uuid not null references public.fazenda_jogadores(id) on delete cascade,
+  tipo       text not null references public.fazenda_ajudantes_tipos(id),
+  vezes      int not null default 0,
+  primary key (jogador_id, tipo)
+);
+alter table public.fazenda_ajudantes_demitidos enable row level security;
+revoke all on public.fazenda_ajudantes_demitidos from anon, authenticated;
+
+-- quanto mais caro fica contratar e evoluir esse ajudante (1,5 elevado ao número de demissões)
+create or replace function public.fazenda_ajudante_mult(p_jogador uuid, p_tipo text)
+returns numeric language plpgsql stable security definer set search_path = public as $$
+begin
+  return power(1.5::numeric, coalesce((select vezes from fazenda_ajudantes_demitidos where jogador_id = p_jogador and tipo = p_tipo), 0));
+end;
+$$;
+
+create or replace function public.fazenda_demitir(p_token text, p_tipo text)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id uuid := fazenda_auth(p_token);
+begin
+  if not exists (select 1 from fazenda_ajudantes where jogador_id = v_id and tipo = p_tipo) then
+    raise exception 'sem_ajudante';
+  end if;
+  perform fazenda_trabalhar(v_id);   -- o que ele já fez até agora fica feito
+  perform fazenda_ajudantes_fechar(v_id, p_tipo);
+  delete from fazenda_ajudantes where jogador_id = v_id and tipo = p_tipo;
+  insert into fazenda_ajudantes_demitidos (jogador_id, tipo, vezes) values (v_id, p_tipo, 1)
+  on conflict (jogador_id, tipo) do update set vezes = fazenda_ajudantes_demitidos.vezes + 1;
+  return jsonb_build_object('estado', fazenda_estado(v_id));
+end;
+$$;
+
+-- ------------------------------------------------------------
 -- Permissões: só a API pública fica executável pela chave anon
 -- ------------------------------------------------------------
 revoke execute on function
@@ -9597,6 +9640,7 @@ revoke execute on function
   public.fazenda_missao_ajuda(uuid, int),
   public.fazenda_lote_gastar(uuid, int),
   public.fazenda_catalogos_ver(int),
+  public.fazenda_ajudante_mult(uuid, text),
   public.fazenda_nivel_de(int, int),
   public.fazenda_conta_nivel(text, text),
   public.fazenda_nivel_trava(uuid),
@@ -9623,6 +9667,7 @@ grant execute on function
   public.fazenda_coletar(text, int, int),
   public.fazenda_reservar(text, text, int),
   public.fazenda_contratar(text, text),
+  public.fazenda_demitir(text, text),
   public.fazenda_oficina(text, int, int),
   public.fazenda_estoque(text, int, int, int),
   public.fazenda_atender(text, boolean, bigint),
