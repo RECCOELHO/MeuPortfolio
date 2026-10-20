@@ -306,9 +306,10 @@ alter table public.fazenda_jogadores add column if not exists semente text refer
 -- Fase 70: o XP que veio de diamante (pacote de XP, calendário dourado, a metade do XP em dobro) não conta
 -- no evento; e os anúncios do dia (quando voltarem: 6 por dia, diamante só nos 3 primeiros)
 alter table public.fazenda_jogadores add column if not exists xp_pago bigint not null default 0;
--- Fase 88: o nível onde o jogador trava por faltar algo que conta (oficina, cercado, máquina, energia, pomar)
+-- Fase 90: o nível onde o jogador trava por faltar algo que conta (oficina, cercado, máquina, energia, pomar)
 -- daquele nível; 2 = começo (o cercado das galinhas é o 1º que conta). Ver fazenda_nivel_trava.
 alter table public.fazenda_jogadores add column if not exists nivel_trava int not null default 2;
+alter table public.fazenda_jogadores add column if not exists nivel_base int;   -- fase 90: o nível no dia da regra (não baixa)
 alter table public.fazenda_jogadores add column if not exists anuncio_dia date;
 alter table public.fazenda_jogadores add column if not exists anuncio_n smallint not null default 0;
 
@@ -987,7 +988,7 @@ begin
 end;
 $$;
 
--- fase 88: o nível de verdade: o do XP, mas só passa do nível N quem tem tudo o que conta do nível N
+-- fase 90: o nível de verdade: o do XP, mas só passa do nível N quem tem tudo o que conta dos níveis até N
 create or replace function public.fazenda_nivel_de(p_xp int, p_trava int)
 returns int language sql immutable as $$
   select least(fazenda_nivel(p_xp), coalesce(p_trava, 45));
@@ -1548,7 +1549,7 @@ begin
       'admin', j.admin,   -- fase 53: 'dono', 'admin' ou null
       'xp', j.xp,
       'nivel', v_nivel,
-      -- fase 88: com XP para mais e travado por faltar algo do nível: o que falta comprar
+      -- fase 90: com XP para mais e travado por faltar algo do nível: o que falta comprar
       'trava', case when fazenda_nivel(j.xp) > v_nivel then
                  jsonb_build_object('nivel', v_nivel, 'faltam', fazenda_nivel_faltam(p_jogador, v_nivel)) end,
       'xp_nivel', fazenda_xp_nivel(v_nivel),
@@ -1681,9 +1682,6 @@ begin
     'social', jsonb_build_object(   -- (fase 83: num objeto só: o estado chegou no limite de 100 argumentos)
       'alarme_off', jsonb_build_object('seg', j.alarme_off_seg, 'em', j.alarme_off_em),
       'raros_semana', fazenda_raros_semana(p_jogador),   -- fase 84
-      -- fase 88: quem a regra nova rebaixou (o jogo avisa uma vez)
-      'rebaixado', (select jsonb_build_object('antes', b.nivel_antes, 'novo', b.nivel_novo, 'moedas', b.moedas, 'itens', b.itens, 'em', b.em)
-                      from fazenda_rebaixados b where b.jogador_id = p_jogador and b.em > now() - interval '14 days'),
       -- fase 85: o XP de ajuda de hoje e o teto (passou dele, cada ajuda vale 1/4)
       'ajuda_hoje', jsonb_build_object('xp', case when j.ajuda_dia = fazenda_hoje() then coalesce(j.ajuda_xp_dia, 0) else 0 end,
                                        'teto', fazenda_ajuda_teto(p_jogador)),
@@ -9306,13 +9304,15 @@ end;
 $$;
 
 
--- Fase 88: só passa de nível quem tem tudo daquele nível. O XP não é mais a única coisa: para passar do
--- nível N, o jogador precisa ter na fazenda tudo o que conta do nível N (oficinas, cercados, máquinas,
--- energia sem o cano e pomar; enfeites, caminhos, objetos, casas e praia não contam). Nenhum XP sai: com
--- o que falta comprado, sobe direto até onde o XP der. Quem estava alto sem algo de um nível de baixo
--- volta para ele: o que for de nível acima sai da fazenda e as moedas pagas voltam (fazenda_rebaixados).
+-- ------------------------------------------------------------
+-- Fase 90: só passa de nível quem tem tudo dos seus níveis (a regra votada: vale daqui para frente). O XP não
+-- é mais a única coisa: para passar do nível N, o jogador precisa ter na fazenda tudo o que conta dos níveis
+-- 1 a N (oficinas, cercados, máquinas, energia sem o cano e pomar; enfeites, caminhos, objetos, casas e praia
+-- não contam). Ninguém caiu: o nível de cada um no dia da regra fica guardado (nivel_base) e não baixa; daí
+-- para cima, só sobe quem completar o que falta. Nenhum XP sai.
 -- ------------------------------------------------------------
 alter table public.fazenda_jogadores add column if not exists nivel_trava int not null default 2;
+alter table public.fazenda_jogadores add column if not exists nivel_base int;   -- fase 90: o nível no dia da regra (não baixa)
 create or replace function public.fazenda_conta_nivel(p_categoria text, p_id text)
 returns boolean language sql immutable as $$
   select p_categoria in ('oficina', 'bichos', 'maquina', 'energia', 'pomar') and p_id <> 'cano';
@@ -9328,12 +9328,12 @@ begin
 end;
 $$;
 
--- o que falta do nível p_nivel (os ids, para a tela)
+-- o que falta dos níveis até p_nivel (os ids, para a tela; fase 90: os de baixo também, de quem não caiu)
 create or replace function public.fazenda_nivel_faltam(p_jogador uuid, p_nivel int)
 returns jsonb language plpgsql stable security definer set search_path = public as $$
 begin
-  return coalesce((select jsonb_agg(i.id order by i.ordem) from fazenda_itens i
-                    where fazenda_conta_nivel(i.categoria, i.id) and i.nivel_min = p_nivel
+  return coalesce((select jsonb_agg(i.id order by i.nivel_min, i.ordem) from fazenda_itens i
+                    where fazenda_conta_nivel(i.categoria, i.id) and i.nivel_min <= p_nivel
                       and not exists (select 1 from fazenda_construcoes c where c.jogador_id = p_jogador and c.tipo = i.id)), '[]'::jsonb);
 end;
 $$;
@@ -9344,11 +9344,11 @@ create or replace function public.fazenda_trava_gatilho()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
   if tg_op = 'DELETE' then
-    update fazenda_jogadores j set nivel_trava = fazenda_nivel_trava(j.id)
-     where j.id in (select distinct jogador_id from velhas) and j.nivel_trava is distinct from fazenda_nivel_trava(j.id);
+    update fazenda_jogadores j set nivel_trava = greatest(fazenda_nivel_trava(j.id), j.nivel_base)
+     where j.id in (select distinct jogador_id from velhas) and j.nivel_trava is distinct from greatest(fazenda_nivel_trava(j.id), j.nivel_base);
   else
-    update fazenda_jogadores j set nivel_trava = fazenda_nivel_trava(j.id)
-     where j.id in (select distinct jogador_id from novas) and j.nivel_trava is distinct from fazenda_nivel_trava(j.id);
+    update fazenda_jogadores j set nivel_trava = greatest(fazenda_nivel_trava(j.id), j.nivel_base)
+     where j.id in (select distinct jogador_id from novas) and j.nivel_trava is distinct from greatest(fazenda_nivel_trava(j.id), j.nivel_base);
   end if;
   return null;
 end;
@@ -9363,53 +9363,18 @@ drop trigger if exists fazenda_trava_upd on public.fazenda_construcoes;
 create trigger fazenda_trava_upd after update on public.fazenda_construcoes
   referencing new table as novas for each statement execute function public.fazenda_trava_gatilho();
 
--- quem foi rebaixado pela regra nova (o jogo mostra uma vez)
-create table if not exists public.fazenda_rebaixados (
-  jogador_id  uuid primary key references public.fazenda_jogadores(id) on delete cascade,
-  nivel_antes int not null,
-  nivel_novo  int not null,
-  moedas      bigint not null default 0,
-  itens       jsonb not null default '[]'::jsonb,
-  em          timestamptz not null default now()
-);
-alter table public.fazenda_rebaixados enable row level security;
-revoke all on public.fazenda_rebaixados from anon, authenticated;
 
--- a trava de todo mundo e o rebaixamento (o que for de nível acima sai e o que foi pago volta; o que estava
--- pronto na oficina vai para o celeiro; bicho de nível acima também sai, pelo preço dele). Roda no fim da fase.
+-- o dia da regra: guarda o nível de cada um (pelo XP de hoje; ninguém cai) e a trava. Rodar de novo não muda
+-- nada para quem já tem a base. Devolve quantos jogadores ganharam a base agora.
 create or replace function public.fazenda_regra_nivel_aplicar()
 returns int language plpgsql security definer set search_path = public as $fn$
 declare
-  v_n int := 0;
-  r record;
-  v_itens jsonb;
-  v_moedas bigint;
+  v_n int;
 begin
-  update fazenda_jogadores set nivel_trava = fazenda_nivel_trava(id) where nivel_trava is distinct from fazenda_nivel_trava(id);
-  for r in select id, fazenda_nivel(xp) as nivel_xp, fazenda_nivel_de(xp, nivel_trava) as nivel_novo
-             from fazenda_jogadores where banido_em is null and fazenda_nivel(xp) > fazenda_nivel_de(xp, nivel_trava) loop
-    select coalesce(jsonb_agg(i.id), '[]'::jsonb), coalesce(sum(coalesce(c.pago, i.custo)), 0) into v_itens, v_moedas
-      from fazenda_construcoes c join fazenda_itens i on i.id = c.tipo
-     where c.jogador_id = r.id and i.nivel_min > r.nivel_novo;
-    select v_moedas + coalesce(sum(t.custo), 0), v_itens || coalesce(jsonb_agg(t.id), '[]'::jsonb) into v_moedas, v_itens
-      from fazenda_animais a join fazenda_animais_tipos t on t.id = a.tipo
-     where a.jogador_id = r.id and t.nivel_min > r.nivel_novo;
-    -- o pronto nas oficinas que saem vai para o celeiro
-    insert into fazenda_celeiro (jogador_id, item, quantidade)
-    select r.id, i.produz, sum(c.prontos)::int from fazenda_construcoes c join fazenda_itens i on i.id = c.tipo
-     where c.jogador_id = r.id and i.nivel_min > r.nivel_novo and i.produz is not null and c.prontos > 0
-     group by i.produz
-    on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + excluded.quantidade;
-    delete from fazenda_construcoes c using fazenda_itens i
-     where i.id = c.tipo and c.jogador_id = r.id and i.nivel_min > r.nivel_novo;
-    delete from fazenda_animais a using fazenda_animais_tipos t
-     where t.id = a.tipo and a.jogador_id = r.id and t.nivel_min > r.nivel_novo;
-    update fazenda_jogadores set moedas = moedas + v_moedas where id = r.id;
-    insert into fazenda_rebaixados (jogador_id, nivel_antes, nivel_novo, moedas, itens)
-    values (r.id, r.nivel_xp, r.nivel_novo, v_moedas, v_itens)
-    on conflict (jogador_id) do nothing;   -- (rodar de novo não paga de novo: o que era de cima já saiu)
-    if found then v_n := v_n + 1; end if;
-  end loop;
+  update fazenda_jogadores set nivel_base = fazenda_nivel(xp) where nivel_base is null;
+  get diagnostics v_n = row_count;
+  update fazenda_jogadores set nivel_trava = greatest(fazenda_nivel_trava(id), nivel_base)
+   where nivel_trava is distinct from greatest(fazenda_nivel_trava(id), nivel_base);
   return v_n;
 end;
 $fn$;
@@ -9705,5 +9670,5 @@ to anon, authenticated;
 -- fase 86: a média dos geradores já pronta (as chamadas do jogo não montam mais na hora)
 select public.fazenda_energia_medias_refazer() is not null as energia_medias_pronta;
 
--- fase 88: a regra nova de nível vale para todos (rebaixa quem não tem tudo do nível; uma vez só)
-select public.fazenda_regra_nivel_aplicar() as rebaixados;
+-- fase 90: o dia da regra de nível (guarda o nível de cada um; ninguém cai)
+select public.fazenda_regra_nivel_aplicar() as jogadores_com_base;
