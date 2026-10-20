@@ -3128,3 +3128,7 @@ body.construindo .status {
 .chip-abandonada, .chip-sequencia { font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 3px; white-space: nowrap; }
 .chip-abandonada { background: #f3d36b; color: #5a3a14; }
 .chip-sequencia { background: #6ee68c; color: #1f4d2b; }
+
+/* fase 88: o que falta ter para passar de nível fica marcado na paleta de construir */
+.paleta-item.falta-nivel { position: relative; box-shadow: 0 0 0 2px #f2b632 inset; }
+.paleta-item.falta-nivel::after { content: '!'; position: absolute; top: 2px; right: 4px; font-weight: bold; color: #b5730a; }

@@ -1234,6 +1234,10 @@
     const tipoAnimal = (id) => S && S.animais_tipos && S.animais_tipos.find((t) => t.id === id);
     const ITEM_CANTEIRO = { id: 'canteiro', nome: 'Canteiro', categoria: 'plantacao', custo: 0, nivel_min: 1, largura: 1, altura: 1 };
     const tipoItem = (id) => (id === 'canteiro' ? ITEM_CANTEIRO : S && S.itens && S.itens.find((t) => t.id === id));
+    // fase 88: só passa do nível quem tem na fazenda tudo o que conta dele (oficinas, cercados, máquinas, energia, pomar)
+    const CONTA_NIVEL = ['oficina', 'bichos', 'maquina', 'energia', 'pomar'];
+    const contaNivel = (i) => !!i && CONTA_NIVEL.includes(i.categoria) && i.id !== 'cano';
+    const nomesFaltam = (t) => ((t && t.faltam) || []).map((id) => (tipoItem(id) || { nome: id }).nome);
     const meusAnimais = () => (visita ? visita.animais : S && S.animais) || [];
     const naCeleiro = (item) => (S && S.celeiro[item]) || 0;
 
@@ -1336,6 +1340,10 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-10-20-regra-nivel', data: '20/10', titulo: 'Regra nova: para subir de nível, tenha tudo do nível', itens: [
+            'O XP não é mais a única coisa: para passar de um nível, é preciso ter na fazenda <b>tudo o que conta daquele nível</b>: as oficinas, os cercados, as máquinas, a energia e as árvores do pomar dele. Enfeites, caminhos e casas não contam.',
+            'Ninguém perdeu XP. Quem estava num nível alto sem algo de um nível de baixo voltou para ele; o que era de nível acima saiu da fazenda e <b>voltou em moedas</b>, pelo preço pago. Comprando o que falta, você sobe direto até onde o seu XP der.',
+            'A barra de XP mostra o que falta comprar para subir.'] },
         { id: '2026-10-20-leve', data: '20/10', titulo: 'O jogo mais leve', itens: [
             'Cada ação agora manda bem menos coisa para o servidor e de volta (a loja e as sementes só vêm quando mudam), para o jogo não travar quando tem muita gente jogando.',
             'As conquistas aparecem em até 1 minuto depois de feitas.'] },
@@ -2887,7 +2895,8 @@
             const max = maxItem(i), tem = max ? quantosTem(i) : 0;
             const preco = i.id === 'canteiro' ? `${S.canteiros.length}/${S.jogador.max_canteiros}`
                 : max && tem >= max ? (i.por_terreno ? `${tem}/${max}` : 'Já tem') : cercadoGratis(i) ? 'Grátis' : `${ico('moeda', 11)}${i.custo}`;
-            return `<button type="button" class="paleta-item${sel ? ' selecionado' : ''}${travado ? ' travado' : ''}" data-item="${esc(i.id)}" title="${esc(i.nome)}${i.descricao ? ': ' + esc(i.descricao) : ''}">
+            const falta = !!(S.jogador.trava && (S.jogador.trava.faltam || []).includes(i.id));   // fase 88: falta para subir
+            return `<button type="button" class="paleta-item${sel ? ' selecionado' : ''}${travado ? ' travado' : ''}${falta ? ' falta-nivel' : ''}" data-item="${esc(i.id)}" title="${esc(i.nome)}${falta ? ' (falta para passar de nível)' : contaNivel(i) ? ' (conta para passar de nível)' : ''}${i.descricao ? ': ' + esc(i.descricao) : ''}">
                 ${travado ? ico('cadeado', 18) : A.htmlItem(i.id, 32)}
                 <small>${travado ? `Nv ${i.nivel_min}` : preco}</small>
             </button>`;
@@ -3081,8 +3090,8 @@
         if (btnAdmin) btnAdmin.hidden = !j.admin;
         const faixa = j.xp_proximo - j.xp_nivel;
         const prog = (j.xp - j.xp_nivel) / faixa;
-        el.xpBar.style.width = `${Math.min(100, prog * 100)}%`;
-        el.xp.textContent = `${j.xp}/${j.xp_proximo}`;
+        el.xpBar.style.width = `${j.trava ? 100 : Math.min(100, prog * 100)}%`;
+        el.xp.textContent = j.trava ? `Para subir: ${nomesFaltam(j.trava).join(', ')}` : `${j.xp}/${j.xp_proximo}`;   // fase 88
         // a isca: o que vem no próximo nível fica sempre à vista, e a barra brilha quando falta pouco
         const hudAvatar = document.getElementById('hudAvatar');
         if (hudAvatar) hudAvatar.innerHTML = A.htmlAvatar(j.avatar, 40);
@@ -3113,7 +3122,8 @@
         if (hcal) { hcal.hidden = !calendarioPronto(); atualizarAlertaMenu(); }
         if (el.hudPerfil) {
             const prox = j.nivel < NIVEL_MAX ? liberaNoNivel(j.nivel + 1).slice(0, 3).map((x) => x.nome).join(', ') : '';
-            el.hudPerfil.title = j.nivel < NIVEL_MAX
+            el.hudPerfil.title = j.trava ? `Você já tem XP para subir, mas para passar do nível ${j.nivel} falta ter na fazenda: ${nomesFaltam(j.trava).join(', ')}. Toque para abrir o seu perfil.`
+                : j.nivel < NIVEL_MAX
                 ? `Faltam ${j.xp_proximo - j.xp} XP para o nível ${j.nivel + 1}${prox ? ': ' + prox : ''}. Toque para abrir o seu perfil.`
                 : 'Nível máximo! Toque para abrir o seu perfil.';
         }
@@ -3442,6 +3452,13 @@
     function avisarSocial() {
         if (!S || visita) { atualizarFaixaVisita(); avisarSequencia(); return; }
         const so = S.social || {};
+        // fase 88: a regra nova de nível rebaixou (uma vez só)
+        const rb = so.rebaixado;
+        if (rb && store.get('fazenda_rebaixado_visto') !== rb.em) {
+            store.set('fazenda_rebaixado_visto', rb.em);
+            const falta = S.jogador.trava ? ` Para voltar a subir, falta ter: <b>${esc(nomesFaltam(S.jogador.trava).join(', '))}</b>.` : '';
+            toast(`${ico('xp', 18)} Regra nova: só passa de nível quem tem na fazenda tudo o que conta do nível (oficinas, cercados, máquinas, energia e pomar). Você estava no ${rb.antes} e ficou no <b>${rb.novo}</b>; o seu XP continua todo guardado.${falta}${rb.moedas ? ` O que era de nível acima saiu e voltou em moedas: <b>+${moeda(rb.moedas)}</b> (${(rb.itens || []).length} itens).` : ''}`, 'festa', 'importante');
+        }
         // o que os vizinhos fizeram desde a última vez (uma vez só)
         const visto = Number(store.get('fazenda_resumo_visto')) || 0;
         const novos = (so.vizinhos_resumo || []).filter((r) => Date.parse(r.em) > visto && r.tipo !== 'roubo');
@@ -4507,7 +4524,8 @@
             el.painelTitulo.innerHTML = `${ico('xp', 26)} Caminho dos níveis`;
             const falta = j.xp_proximo - j.xp;
             corpo.innerHTML = `
-                <p>Você está no nível <b>${j.nivel}</b>${j.nivel < NIVEL_MAX ? `: faltam <b>${falta}</b> ${ico('xp', 14)} para o próximo.` : '. Fazenda completa!'}</p>
+                <p>Você está no nível <b>${j.nivel}</b>${j.trava ? `. O XP já dá para subir, mas falta ter na fazenda: <b>${esc(nomesFaltam(j.trava).join(', '))}</b>.` : j.nivel < NIVEL_MAX ? `: faltam <b>${falta}</b> ${ico('xp', 14)} para o próximo.` : '. Fazenda completa!'}</p>
+                <p class="aviso">Para passar de um nível, além do XP, é preciso ter na fazenda tudo o que conta daquele nível: as oficinas, os cercados, as máquinas, a energia e as árvores do pomar dele (enfeites, caminhos e casas não contam).</p>
                 <p class="aviso">Colher, cuidar dos canteiros, os animais, as missões e vender produtos dão XP. Cada nível traz um presente de moedas e 5 diamantes. Do nível 10 em diante cada nível pede mais XP que o anterior (do 16 ao 25, 35% a mais a cada nível; do 25 em diante, 7%), e do 11 em diante o presente dobra. O 45 é o último nível.</p>
                 <ol class="caminho">${Array.from({ length: NIVEL_MAX }, (_, i) => i + 1).map((n) => {
                     const x = extrasDoNivel(n);
