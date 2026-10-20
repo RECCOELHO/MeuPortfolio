@@ -84,6 +84,7 @@
         cultura_invalida: 'Semente inválida.',
         nivel_insuficiente: 'Você ainda não tem nível para essa semente.',
         moedas_insuficientes: 'Moedas insuficientes.',
+        sem_ajudante: 'Esse ajudante não trabalha mais na sua fazenda.',
         diamantes_insuficientes: 'Faltam diamantes. Você ganha 5 a cada nível.',
         limite_diario: 'Hoje já foram os 3 pacotes de XP. Amanhã tem mais!',
         xp_maximo: 'Você já está no nível máximo.',
@@ -1256,7 +1257,9 @@
     const efeitoAjudante = (t, nivel) => t.funcao === 'energia' ? DESCONTO_ELETRICISTA[nivel] + ' de energia'
         : t.funcao === 'animal' ? ADIANTA_CUIDADOR[nivel] + ' no tempo dos bichos'
         : RITMO[nivel] + ' por hora';
-    const custoAjudante = (t, nivel) => t.custo * [1, 4, 8, 16, 32][nivel || 0];   // contratar e evoluir até o 5 (fase 72: eram 2x e 4x; fase 74: 4 e 5)
+    // fase 91: cada demissão daquele ajudante deixa contratar e evoluir ele 50% mais caro (igual a fazenda_ajudante_mult)
+    const multAjudante = (id) => 1.5 ** (((S && S.social && S.social.demitidos) || {})[id] || 0);
+    const custoAjudante = (t, nivel) => Math.round(t.custo * [1, 4, 8, 16, 32][nivel || 0] * multAjudante(t.id));   // contratar e evoluir até o 5 (fase 72: eram 2x e 4x; fase 74: 4 e 5)
 
     /* ---------- Fase 59: a tela do ajudante ----------
        O que ele fez hoje e ontem (estado.ajudantes[].hoje/ontem), a barra de energia (a cheia dura 8 h de
@@ -1302,7 +1305,7 @@
             <h3 class="secao-titulo">Hoje ele</h3>${listaFeito(h.hoje)}
             <h3 class="secao-titulo">Ontem</h3>${listaFeito(h.ontem)}
             <div class="rodape-painel">
-                <span></span>
+                <button type="button" class="botao pequeno creme" data-demitir="${esc(t.id)}">Demitir</button>
                 ${parado ? '<span class="preco">Descansando</span>'
                     : e >= 75 ? `<span class="preco" title="Só dá para mandar descansar com menos de 75% de energia">Bem disposto (${Math.round(e)}%)</span>`
                     : livres ? `<button type="button" class="botao creme" data-ajudante-descansar="${esc(t.id)}">${ico('lua', 16)} Mandar descansar (1 h)</button>`
@@ -1341,6 +1344,9 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-10-20-demitir', data: '20/10', titulo: 'Dá para demitir o ajudante', itens: [
+            'Na tela do ajudante (Loja → Ajudantes → Ver), o botão <b>Demitir</b>: o ajudante sai da fazenda com os níveis que tinha, e as moedas pagas não voltam.',
+            'Cada demissão deixa contratar e evoluir aquele ajudante <b>50% mais caro</b>, e soma: 1,5x, depois 2,25x... Os outros ajudantes não mudam.'] },
         { id: '2026-10-20-regra-nivel', data: '20/10', titulo: 'Regra nova: para subir de nível, tenha tudo dos seus níveis', itens: [
             'Votada no grupo: o XP não é mais a única coisa. Para passar de um nível, é preciso ter na fazenda <b>tudo o que conta daquele nível e dos de baixo</b>: as oficinas, os cercados, as máquinas, a energia e as árvores do pomar. Enfeites, caminhos e casas não contam.',
             '<b>Ninguém caiu de nível</b> e nada saiu da fazenda: você continua no seu nível, e o XP continua contando. Só passa para o próximo depois de ter o que falta.',
@@ -5933,6 +5939,22 @@
                 const t = tipoAjudante(ajDesc.dataset.ajudanteDescansar);
                 toast(`${retratoAjudante(ajDesc.dataset.ajudanteDescansar, 20)} ${esc(t ? t.nome : 'O ajudante')} foi descansar. Volta em 1 h com a energia cheia.`);
             }).finally(() => { ajDesc.disabled = false; });
+            return;
+        }
+        const dem = e.target.closest('[data-demitir]');   // fase 91
+        if (dem) {
+            const t = tipoAjudante(dem.dataset.demitir), h = meuAjudante(dem.dataset.demitir);
+            if (!t || !h) return;
+            const depois = Math.round(t.custo * multAjudante(t.id) * 1.5);
+            perguntar(`Demitir ${t.nome}? Sai da fazenda com ${h.nivel > 1 ? `os ${h.nivel} níveis` : 'o nível'} que tem, e as moedas pagas não voltam. Para contratar de novo, fica 50% mais caro (${depois.toLocaleString('pt-BR')} moedas).`, 'Demitir', 'Cancelar').then((sim) => {
+                if (!sim) return;
+                enfileirar([], async () => {
+                    const r = await rpc('fazenda_demitir', { p_token: token, p_tipo: t.id });
+                    aplicarEstado(r.estado);
+                    fecharPainel();
+                    toast(`${retratoAjudante(t.id, 20)} ${esc(t.nome)} foi embora da fazenda.`);
+                });
+            });
             return;
         }
         const contr = e.target.closest('[data-contratar]');
