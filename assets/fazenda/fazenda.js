@@ -1336,6 +1336,9 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-10-20-leve', data: '20/10', titulo: 'O jogo mais leve', itens: [
+            'Cada ação agora manda bem menos coisa para o servidor e de volta (a loja e as sementes só vêm quando mudam), para o jogo não travar quando tem muita gente jogando.',
+            'As conquistas aparecem em até 1 minuto depois de feitas.'] },
         { id: '2026-10-19-sem-travar', data: '19/10', titulo: 'O jogo sem travar e o XP por canteiro', itens: [
             'O jogo estava travando com todo mundo ajudando os vizinhos. O <b>Ajudar tudo</b> agora vai numa chamada só (eram até 8), e o servidor não precisa mais montar a conta da energia na hora.',
             'Acabou o limite de 30 ajudas por vizinho: a fazenda inteira dá XP. Em cada canteiro, <b>colher, arar e plantar dão XP 1 vez por dia</b>; de novo no mesmo canteiro, a ajuda vale para o dono, mas sem XP.',
@@ -3010,7 +3013,7 @@
                     await rpc('fazenda_mover', { p_token: token, p_x: de.x, p_y: de.y, p_nx: x, p_ny: y, p_leve: true });
                 } catch (e) {
                     otimistas.delete(o);
-                    try { aplicarEstado(await rpc('fazenda_carregar', { p_token: token })); } catch (e2) { /* a próxima busca acerta */ }
+                    try { aplicarEstado(await rpc('fazenda_carregar', { p_token: token, p_cat: (S && S.cat_ver) || '' })); } catch (e2) { /* a próxima busca acerta */ }
                     throw e;
                 }
                 otimistas.delete(o);
@@ -3309,6 +3312,7 @@
         return true;
     }
 
+    const CATALOGOS = ['zonas_venda', 'culturas', 'animais_tipos', 'itens', 'melhorias_tipos', 'conquistas_tipos', 'ajudantes_tipos'];
     function aplicarEstado(estado) {
         const antes = S;
         // longe = primeira carga ou voltou depois de um tempo: aí o relatório dos ajudantes vira aviso
@@ -3316,6 +3320,8 @@
         ultimoEstadoEm = Date.now();
         if (!estado.diario) estado.diario = []; // banco ainda sem o SQL da fase 2
         if (!estado.construcoes) estado.construcoes = [];
+        // fase 89: o servidor só manda os catálogos quando mudam; sem eles, valem os que já estão aqui
+        if (antes) CATALOGOS.forEach((k) => { if (!(k in estado) && k in antes) estado[k] = antes[k]; });
         S = estado;
         cacheCanos = {};   // fase 73b
         if (versaoNova(estado)) return;
@@ -4107,7 +4113,7 @@
                 buscasFalhas = 0;
                 return;
             }
-            const estado = await rpc('fazenda_carregar', { p_token: token });
+            const estado = await rpc('fazenda_carregar', { p_token: token, p_cat: (S && S.cat_ver) || '' });
             if (acoesFeitas !== acoesAntes) return;   // fase 56: chegou depois de uma ação: é de antes dela
             aplicarEstado(estado);
             buscasFalhas = 0;
@@ -6509,7 +6515,7 @@
         el.entradaCarregando.hidden = false;
         el.entradaCarregando.textContent = tentativa ? 'Tentando de novo…' : 'Abrindo a porteira…';
         try {
-            aplicarEstado(await rpc('fazenda_carregar', { p_token: token }));
+            aplicarEstado(await rpc('fazenda_carregar', { p_token: token, p_cat: (S && S.cat_ver) || '' }));
         } catch (e) {
             if (saiuDoJogo(e) || !token) {
                 if (token) sair(false);

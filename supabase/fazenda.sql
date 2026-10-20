@@ -1299,17 +1299,25 @@ language plpgsql security definer
 set search_path = public, extensions
 as $$
 declare
-  v_id uuid;
+  v_id   uuid;
+  v_hash text;
+  v_leve boolean;
+  v_cat  text;
 begin
   if p_token is null or length(p_token) < 32 then
     raise exception 'token_invalido';
   end if;
-  select jogador_id into v_id
+  v_hash := encode(digest(p_token, 'sha256'), 'hex');
+  select jogador_id, leve, cat_ver into v_id, v_leve, v_cat
     from fazenda_sessoes
-   where token_hash = encode(digest(p_token, 'sha256'), 'hex');
+   where token_hash = v_hash;
   if v_id is null then
     raise exception 'token_invalido';
   end if;
+  -- fase 89: o jogo dessa sessão já tem os catálogos? (o fazenda_estado manda só o que muda)
+  perform set_config('fazenda.eu', v_id::text, true), set_config('fazenda.sessao', v_hash, true),
+          set_config('fazenda.leve', case when v_leve then '1' else '' end, true),
+          set_config('fazenda.cat_ver', coalesce(v_cat, ''), true);
   -- fase 53: conta banida pelos admins não entra (nenhuma chamada passa daqui)
   if exists (select 1 from fazenda_jogadores where id = v_id and banido_em is not null) then
     raise exception 'conta_banida';
@@ -1454,8 +1462,16 @@ declare
   v_clima jsonb := v_prev->'clima';
   v_metas jsonb;
   v_bonus int;
+  -- fase 89: sessão do jogo novo, que já tem os catálogos: manda só o que muda
+  v_leve  boolean := coalesce(current_setting('fazenda.leve', true), '') = '1'
+                     and current_setting('fazenda.eu', true) = p_jogador::text;
+  v_omite boolean := false;
+  v_ver   text;
 begin
-  perform fazenda_checar_conquistas(p_jogador);
+  -- fase 89: na sessão leve, as conquistas ficam para o carregar (de minuto em minuto)
+  if not v_leve or coalesce(current_setting('fazenda.carregar', true), '') = '1' then
+    perform fazenda_checar_conquistas(p_jogador);
+  end if;
   select * into j from fazenda_jogadores where id = p_jogador;
   if j.convite is null then   -- (quem nasceu entre o SQL e o deploy)
     update fazenda_jogadores set convite = fazenda_novo_convite() where id = p_jogador;
@@ -1486,6 +1502,7 @@ begin
      where id = p_jogador and nivel_premiado is not distinct from j.nivel_premiado;   -- fase 70: paga uma vez só
     select * into j from fazenda_jogadores where id = p_jogador;
   end if;
+  v_omite := v_leve and fazenda_catalogos_ver(v_nivel) = current_setting('fazenda.cat_ver', true);   -- fase 89
   -- canteiros não aparecem mais sozinhos: o jogador coloca no modo construir até este limite
   v_max := fazenda_limite_canteiros(v_nivel, fazenda_terrenos(j.zonas, j.direita));
   -- fase 49: as metas de nível; com todas em dia, o bônus de XP vale neste nível (só grava se mudou)
@@ -1532,7 +1549,7 @@ begin
       'beleza', fazenda_beleza(p_jogador),
       'bonus_venda', fazenda_bonus_venda(p_jogador)
     ),
-    'zonas_venda', fazenda_zonas(),
+    'zonas_venda', case when not v_omite then fazenda_zonas() end,
     'pacotes_diamantes', fazenda_pacotes_diamantes(),
     'loja_diamantes', fazenda_loja_diamantes(),
     'baus_sorte', fazenda_baus_sorte(),   -- fase 73
@@ -1635,12 +1652,12 @@ begin
     'reservas', coalesce((
       select jsonb_object_agg(item, quantidade)
         from fazenda_reservas where jogador_id = p_jogador), '{}'::jsonb),
-    'culturas', fazenda_cache_ler('culturas'),   -- fase 71: os catálogos vêm prontos (fazenda_cache)
+    'culturas', case when not v_omite then fazenda_cache_ler('culturas') end,   -- fase 71: os catálogos vêm prontos (fazenda_cache)
     'animais', coalesce((
       select jsonb_agg(jsonb_build_object('id', id, 'tipo', tipo, 'alimentado_em', alimentado_em,
                'radioativo_ate', case when radioativo_ate > now() then radioativo_ate end) order by id)   -- fase 68
         from fazenda_animais where jogador_id = p_jogador), '[]'::jsonb),
-    'animais_tipos', fazenda_cache_ler('animais_tipos'),
+    'animais_tipos', case when not v_omite then fazenda_cache_ler('animais_tipos') end,
     'construcoes', coalesce((
       select jsonb_agg(jsonb_build_object('x', x, 'y', y, 'tipo', tipo, 'colhido_em', colhido_em, 'iniciado_em', iniciado_em,
                                           'estoque', estoque, 'prontos', prontos, 'pago', pago,   -- fase 72: pago
@@ -1666,7 +1683,7 @@ begin
                    'ate', j.seq_em + interval '10 minutes') end),
     'oficina_niveis', jsonb_build_object('regras', fazenda_oficina_niveis(),
                         'tem', coalesce((select jsonb_object_agg(tipo, nivel) from fazenda_oficina_nivel where jogador_id = p_jogador), '{}'::jsonb)),
-    'itens', fazenda_cache_itens(v_nivel),   -- fase 57: o limite que vale para o nível de agora (fase 71: pronto, um por nível)
+    'itens', case when not v_omite then fazenda_cache_itens(v_nivel) end,   -- fase 57: o limite que vale para o nível de agora (fase 71: pronto, um por nível)
     'melhorias', coalesce((select jsonb_object_agg(id, nivel) from fazenda_melhorias where jogador_id = p_jogador), '{}'::jsonb),
     'camas', jsonb_build_object('total', fazenda_camas(p_jogador), 'ocupadas', fazenda_camas_ocupadas(p_jogador)),   -- fase 59
     'pier', jsonb_build_object('pronto', j.pier_em is not null, 'receita', fazenda_pier_receita()),   -- fase 61
@@ -1709,13 +1726,13 @@ begin
                            from fazenda_semana_premios where jogador_id = p_jogador and not visto), '[]'::jsonb),
       'trofeus', fazenda_trofeus(p_jogador),
       'regras', fazenda_evento_regras()),
-    'melhorias_tipos', fazenda_cache_ler('melhorias_tipos'),
+    'melhorias_tipos', case when not v_omite then fazenda_cache_ler('melhorias_tipos') end,
     'estatisticas', (select to_jsonb(e) - 'jogador_id' || jsonb_build_object('energia', e.energia + floor(j.energia_gasta)::int)
                        from fazenda_estatisticas e where e.jogador_id = p_jogador),
     'conquistas', coalesce((
       select jsonb_agg(jsonb_build_object('id', conquista, 'em', obtida_em) order by obtida_em)
         from fazenda_conquistas where jogador_id = p_jogador), '[]'::jsonb),
-    'conquistas_tipos', fazenda_cache_ler('conquistas_tipos'),
+    'conquistas_tipos', case when not v_omite then fazenda_cache_ler('conquistas_tipos') end,
     'criado_em', j.criado_em,
     'missoes', coalesce((
       select jsonb_agg(jsonb_build_object(
@@ -1730,7 +1747,7 @@ begin
                'hoje', coalesce((select f.feito from fazenda_ajudantes_feito f where f.jogador_id = p_jogador and f.tipo = h.tipo and f.dia = fazenda_hoje()), '{}'::jsonb),
                'ontem', coalesce((select f.feito from fazenda_ajudantes_feito f where f.jogador_id = p_jogador and f.tipo = h.tipo and f.dia = fazenda_hoje() - 1), '{}'::jsonb)))
         from fazenda_ajudantes h where h.jogador_id = p_jogador), '[]'::jsonb),
-    'ajudantes_tipos', fazenda_cache_ler('ajudantes_tipos')
+    'ajudantes_tipos', case when not v_omite then fazenda_cache_ler('ajudantes_tipos') end
   );
   -- o relatório (o que fizeram enquanto você estava fora) aparece uma vez só
   update fazenda_ajudantes set relatorio = 0 where jogador_id = p_jogador and relatorio > 0;
@@ -1741,7 +1758,18 @@ begin
   update fazenda_feira set reserva_vista = true where reservado_para = p_jogador and not reserva_vista;   -- e o que separaram no chat (fase 67)
   update fazenda_radiacao set visto = true where jogador_id = p_jogador and not visto;   -- e a radiação do reator (fase 68)
   update fazenda_clima_eventos set visto = true where jogador_id = p_jogador and not visto;   -- e o raio e o furacão (fase 77)
-  return v_json;
+  -- fase 89: sem os catálogos que o jogo já tem; mandou tudo para a sessão leve: guarda a versão que ela tem agora
+  if v_omite then
+    v_json := v_json - array['zonas_venda', 'culturas', 'animais_tipos', 'itens', 'melhorias_tipos', 'conquistas_tipos', 'ajudantes_tipos'];
+    v_ver := current_setting('fazenda.cat_ver', true);
+  else
+    v_ver := fazenda_catalogos_ver(v_nivel);
+    if v_leve then
+      update fazenda_sessoes set cat_ver = v_ver where token_hash = current_setting('fazenda.sessao', true) and cat_ver is distinct from v_ver;
+      perform set_config('fazenda.cat_ver', v_ver, true);
+    end if;
+  end if;
+  return v_json || jsonb_build_object('cat_ver', v_ver);
 end;
 $$;
 
@@ -3187,7 +3215,9 @@ begin
 end;
 $$;
 
-create or replace function public.fazenda_carregar(p_token text)
+-- fase 89: p_cat = a versão dos catálogos que o jogo já tem ('' = acabou de abrir, não tem nenhum); o jogo
+-- velho não manda e recebe sempre tudo
+create or replace function public.fazenda_carregar(p_token text, p_cat text default null)
 returns jsonb
 language plpgsql security definer
 set search_path = public, extensions
@@ -3195,6 +3225,13 @@ as $$
 declare
   v_id    uuid := fazenda_auth(p_token);
 begin
+  perform set_config('fazenda.carregar', '1', true);
+  if p_cat is not null then
+    update fazenda_sessoes set leve = true, cat_ver = nullif(p_cat, '')
+     where token_hash = current_setting('fazenda.sessao', true)
+       and (leve is not true or cat_ver is distinct from nullif(p_cat, ''));
+    perform set_config('fazenda.leve', '1', true), set_config('fazenda.cat_ver', p_cat, true);
+  end if;
   -- carregado_antes = o carregar anterior: se foi há menos de 2 minutos, a fazenda está aberta (a Dona Rosa descansa)
   update fazenda_jogadores set carregado_antes = carregado_em, carregado_em = now() where id = v_id;
   perform fazenda_tick(v_id);
@@ -9232,6 +9269,28 @@ alter table public.fazenda_visitas add column if not exists xp int;
 -- ------------------------------------------------------------
 
 -- ------------------------------------------------------------
+-- Fase 89: respostas pequenas. Toda ação devolvia a fazenda inteira (~125 kB), e 2/3 disso eram catálogos
+-- que quase nunca mudam (itens, culturas, conquistas, melhorias, ajudantes, bichos, terrenos): com o banco
+-- pequeno, isso derrubava o jogo nos picos. Agora o jogo novo diz no carregar a versão que já tem
+-- (fazenda_sessoes.leve e cat_ver) e as respostas vêm sem os catálogos enquanto a versão for a mesma (muda
+-- com o nível ou numa fase nova). As conquistas ficam para o carregar. O jogo velho recebe tudo, como antes.
+-- ------------------------------------------------------------
+alter table public.fazenda_sessoes add column if not exists leve boolean not null default false;
+alter table public.fazenda_sessoes add column if not exists cat_ver text;
+drop function if exists public.fazenda_carregar(text);
+
+-- a versão dos catálogos para um nível: muda numa fase nova (fazenda_cache_montar) ou com outro nível
+create or replace function public.fazenda_catalogos_ver(p_nivel int)
+returns text language plpgsql stable security definer set search_path = public as $$
+begin
+  return p_nivel || ':' || md5(coalesce((select string_agg(chave || '@' || extract(epoch from em)::bigint, ',' order by chave)
+                                           from fazenda_cache
+                                          where chave in ('culturas', 'animais_tipos', 'conquistas_tipos', 'ajudantes_tipos',
+                                                          'melhorias_tipos', 'itens:' || p_nivel)), ''));
+end;
+$$;
+
+-- ------------------------------------------------------------
 -- Permissões: só a API pública fica executável pela chave anon
 -- ------------------------------------------------------------
 revoke execute on function
@@ -9276,7 +9335,7 @@ revoke execute on function
   public.fazenda_trabalhar(uuid),
   public.fazenda_criar(text, text),
   public.fazenda_recuperar(text),
-  public.fazenda_carregar(text),
+  public.fazenda_carregar(text, text),
   public.fazenda_acao(text, text, int[], text),
   public.fazenda_vender(text, text, int, text[]),
   public.fazenda_limite_roubo(int),
@@ -9447,13 +9506,14 @@ revoke execute on function
   public.fazenda_vizinho_bicho_um(uuid, uuid, bigint),
   public.fazenda_vizinho_coletar_um(uuid, uuid, bigint),
   public.fazenda_missao_ajuda(uuid, int),
-  public.fazenda_lote_gastar(uuid, int)
+  public.fazenda_lote_gastar(uuid, int),
+  public.fazenda_catalogos_ver(int)
 from public, anon, authenticated;
 
 grant execute on function
   public.fazenda_criar(text, text),
   public.fazenda_recuperar(text),
-  public.fazenda_carregar(text),
+  public.fazenda_carregar(text, text),
   public.fazenda_acao(text, text, int[], text),
   public.fazenda_vender(text, text, int, text[]),
   public.fazenda_ranking(text),
