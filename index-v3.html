@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Carlos Jessé — Desenvolvedor Full-Stack</title>
+    <meta name="description" content="Carlos Jessé, desenvolvedor full-stack e analista de sistemas no Hospital Regional Sul de Minas. Sites, sistemas e um jogo online, feitos para não cair.">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Carlos Jessé — Desenvolvedor Full-Stack">
+    <meta property="og:description" content="Sites, sistemas e um jogo online, feitos por quem trabalha onde sistema fora do ar é atendimento parado.">
+    <meta property="og:image" content="https://carlosjessecoelho.vercel.app/assets/img/og-image.jpg">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta name="theme-color" content="#0d0608">
+    <link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg">
+    <link rel="icon" type="image/x-icon" href="assets/img/favicon.ico">
+    <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
+    <link rel="manifest" href="assets/img/site.webmanifest">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* A marca de sempre (fundo quase preto, vermelho, Playfair e Montserrat) numa direção nova:
+           o nome fica parado e o que muda por baixo é o trabalho. */
+        :root {
+            --bg: #0d0608;
+            --surface: #1a0a0d;
+            --field: #2a0f13;
+            --ink: #ece8e6;
+            --muted: #c9b8b1;
+            --accent: #b52828;           /* o vermelho da marca, um passo mais escuro para o texto do botão ler (5:1) */
+            --accent-press: #8b1a1a;
+            --stone: #e7e3e1;
+            --display: 'Playfair Display', Georgia, serif;
+            --text: 'Montserrat', system-ui, sans-serif;
+            --m: clamp(16px, 3vw, 32px);           /* a margem da página, igual dos dois lados */
+            --gap: clamp(120px, 16vw, 200px);       /* entre seções */
+            --s-title: clamp(64px, 11vw, 176px);    /* 1: o nome e os títulos de seção grandes */
+            --s-big: clamp(30px, 4vw, 56px);        /* 2: títulos de projeto, preço */
+            --s-statement: clamp(22px, 2.4vw, 34px);/* 3: frases e destaques */
+            --s-body: clamp(16px, 1.15vw, 18px);    /* 4: texto */
+            --s-small: 14px;                        /* 5: legendas */
+            --ease: cubic-bezier(.2, .7, .2, 1);
+        }
+        *, *::before, *::after { box-sizing: border-box; }
+        html { -webkit-text-size-adjust: 100%; }
+        body {
+            margin: 0; background: var(--bg); color: var(--ink);
+            font: 400 var(--s-body)/1.55 var(--text);
+            -webkit-font-smoothing: antialiased;
+        }
+        img { display: block; max-width: 100%; height: auto; }
+        a { color: inherit; }
+        :focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+        ::selection { background: var(--accent); color: var(--ink); }
+        h1, h2, h3 { margin: 0; font-family: var(--display); font-weight: 900; letter-spacing: -0.03em; line-height: .95; }
+        p { margin: 0; }
+        .pular { position: absolute; left: -9999px; }
+        .pular:focus { left: var(--m); top: var(--m); z-index: 100; background: var(--ink); color: var(--bg); padding: 12px 16px; }
+
+        /* botões: um formato só, canto reto, cor chapada */
+        .botao {
+            display: inline-flex; align-items: center; justify-content: center; gap: .5em;
+            min-height: 52px; padding: 0 28px; border: 0; border-radius: 0;
+            background: var(--accent); color: var(--ink); font: 700 16px/1 var(--text);
+            text-decoration: none; cursor: pointer;
+            transition: transform .18s var(--ease), background-color .18s var(--ease);
+        }
+        .botao:hover { background: var(--accent-press); transform: translateY(-2px); }
+        .botao:active { transform: translateY(1px) scale(.98); }
+        .link { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 5px; transition: color .18s; }
+        .link:hover { color: var(--accent); }
+
+        /* navegação: nome, poucos links, uma ação */
+        .nav {
+            position: fixed; inset: 0 0 auto 0; z-index: 50;
+            display: flex; align-items: center; justify-content: space-between; gap: 24px;
+            padding: 18px var(--m); background: var(--bg);
+            font-weight: 700; font-size: 16px;
+        }
+        .nav a { text-decoration: none; transition: color .18s; }
+        .nav a:hover { color: var(--accent); }
+        .nav ul { display: flex; gap: 28px; margin: 0; padding: 0; list-style: none; }
+        .nav .botao { min-height: 42px; padding: 0 18px; font-size: 16px; }
+
+        /* ---------- abertura: o nome parado, os retratos trocam por baixo ---------- */
+        .abertura { position: relative; height: 200svh; }
+        .abertura-palco { position: sticky; top: 0; height: 100svh; overflow: hidden; transition: background-color .6s var(--ease); background: var(--surface); }
+        .retratos { position: absolute; left: 50%; top: calc(140px + var(--s-title) * 1.1 + 56px); bottom: 0; width: min(37vw, 560px); transform: translateX(-50%); }
+        .retratos img {
+            position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+            opacity: 0; transition: opacity .7s var(--ease), transform 1.4s var(--ease);
+            transform: scale(1.04);
+        }
+        .retratos img.ativo { opacity: 1; transform: scale(1); }
+        .abertura h1 {
+            position: absolute; left: var(--m); right: var(--m); top: 120px; z-index: 2;
+            font-size: var(--s-title); text-align: center; text-transform: uppercase; white-space: nowrap;
+            color: var(--ink);
+        }
+        .subtitulo { position: absolute; left: var(--m); right: var(--m); top: calc(130px + var(--s-title) * 0.95); z-index: 2; text-align: center; font-size: var(--s-statement); font-weight: 600; }
+        .abertura-texto {
+            position: absolute; left: var(--m); bottom: 32px; z-index: 2; max-width: 30ch;
+            font-weight: 700; font-size: var(--s-body);
+        }
+        .abertura-acao { position: absolute; right: var(--m); bottom: 32px; z-index: 2; display: flex; gap: 16px; align-items: center; }
+        .abertura-acao .link { font-weight: 700; }
+        .legenda-retrato { position: absolute; right: var(--m); top: 50%; z-index: 2; max-width: 22ch; font-size: var(--s-small); color: var(--muted); text-align: right; }
+
+        /* ---------- a frase ---------- */
+        .frase {
+            display: grid; grid-template-columns: repeat(12, 1fr); gap: 24px; align-items: start;
+            padding: var(--gap) var(--m) 0;
+        }
+        .frase h2 { grid-column: 1 / 8; grid-row: 1; font-size: var(--s-big); max-width: 18ch; }
+        .frase p.destaque { grid-column: 1 / 8; grid-row: 2; font-size: var(--s-statement); line-height: 1.25; max-width: 30ch; margin-top: 40px; }
+        .frase figure { grid-column: 8 / -1; grid-row: 1 / span 3; margin: 0; }
+        .frase figure img { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; }
+        .frase figcaption, .legenda { margin-top: 12px; font-size: var(--s-small); color: var(--muted); }
+        .frase .numeros { grid-column: 1 / 8; grid-row: 3; display: flex; flex-wrap: wrap; gap: 40px 64px; margin-top: 56px; }
+        .numeros b { display: block; font: 900 var(--s-big)/1 var(--display); letter-spacing: -0.03em; }
+        .numeros span { font-size: var(--s-small); color: var(--muted); }
+
+        /* ---------- projetos: um quadro por projeto, o print emoldurado e a faixa embaixo ---------- */
+        .projetos { margin-top: var(--gap); }
+        .projetos-topo { display: flex; justify-content: space-between; align-items: end; gap: 24px; flex-wrap: wrap; padding: 0 var(--m) 40px; }
+        .projetos-topo h2 { font-size: var(--s-title); }
+        .tela-troca { display: flex; gap: 0; background: var(--field); }
+        .tela-troca button {
+            min-height: 48px; padding: 0 20px; border: 0; border-radius: 0; background: transparent; color: var(--ink);
+            font: 700 16px/1 var(--text); cursor: pointer; transition: background-color .18s;
+        }
+        .tela-troca button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+        .tela-troca button:hover:not([aria-pressed="true"]) { background: var(--surface); }
+        .quadro { position: relative; display: grid; justify-items: center; gap: 24px; padding: 80px var(--m); background: var(--surface); }
+        .quadros { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; padding: 0 var(--m); }
+        .quadro:first-child { grid-column: 1 / -1; }
+        .arraste { display: none; }
+        .quadro:not(:first-child) { padding: 40px; }
+        .quadro:not(:first-child) .faixa { grid-template-columns: 1fr; gap: 6px; }
+        .quadro:not(:first-child) .faixa h3 { order: -1; font-size: var(--s-statement); }
+        .quadro:not(:first-child) .faixa .fato { order: -1; text-align: left; font-size: 16px; }
+        .quadro .foto { display: block; width: min(100%, 1040px); aspect-ratio: 16 / 10; height: auto; object-fit: cover; background: var(--field); transform: scale(.96); transition: transform 1.2s var(--ease); }
+        .quadro.visto .foto { transform: none; }
+        .celular .quadro .foto { width: min(100%, 420px); aspect-ratio: 4 / 5; }
+        .faixa {
+            width: min(100%, 1040px);
+            display: grid; grid-template-columns: 1fr 3fr 2fr; align-items: center; gap: 24px;
+        }
+        .faixa .ano { font-size: var(--s-small); color: var(--muted); }
+        .faixa h3 { font-size: var(--s-big); text-transform: uppercase; }
+        .faixa .fato { font-size: var(--s-small); text-align: right; }
+        .faixa .fato a { display: inline-block; margin-top: 6px; font-weight: 700; font-size: 16px; }
+
+        /* ---------- trajetória: o título parado, as fases passam ---------- */
+        .trajetoria { position: relative; margin-top: var(--gap); }
+        .trajetoria-titulo { padding: 0 var(--m); }
+        .trajetoria-titulo h2 { font-size: var(--s-title); line-height: .9; }
+        .fases { position: relative; display: grid; grid-template-columns: repeat(12, 1fr); gap: 0 24px; padding: 96px var(--m) 0; row-gap: 120px; align-items: start; }
+        .fase { grid-column: 2 / span 4; }
+        .fase:nth-child(even) { grid-column: 8 / span 4; }
+        .fase img { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; }
+        .fase .quando { margin-top: 16px; font-weight: 700; }
+        .fase .onde { font-size: var(--s-small); color: var(--muted); }
+        .fase p.sobre { margin-top: 10px; max-width: 34ch; }
+        .lema { grid-column: 3 / span 8; text-align: center; }
+        .lema blockquote { margin: 0; font: 900 var(--s-statement)/1.2 var(--display); }
+        .lema p { margin-top: 12px; font-size: var(--s-small); color: var(--muted); }
+
+        /* ---------- planos: o bilhete ---------- */
+        .planos { margin-top: var(--gap); padding: 120px var(--m); background: var(--field); }
+        .planos h2 { font-size: var(--s-title); margin-bottom: 64px; }
+        .planos > p.intro { max-width: 46ch; margin: -32px 0 64px; }
+        .bilhete {
+            position: relative; display: grid; grid-template-columns: 7fr 3fr; width: min(100%, 1100px); margin: 0 auto 40px;
+            background: var(--stone); color: var(--bg);
+        }
+        .bilhete::before, .bilhete::after {
+            content: ''; position: absolute; left: 70%; width: 28px; height: 28px; margin-left: -14px; border-radius: 50%; background: var(--field);
+        }
+        .bilhete::before { top: -14px; } .bilhete::after { bottom: -14px; }
+        .bilhete-corpo { padding: 40px; display: flex; flex-direction: column; gap: 32px; }
+        .bilhete-corpo h3 { font-size: var(--s-big); }
+        .bilhete-corpo p { max-width: 44ch; }
+        .bilhete-corpo ul { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 32px; margin: 0; padding: 0; list-style: none; font-size: 16px; }
+        .bilhete-corpo li::before { content: '+ '; font-weight: 700; color: var(--accent-press); }
+        .bilhete-canhoto {
+            position: relative; display: flex; flex-direction: column; justify-content: center; align-items: stretch; gap: 20px; padding: 40px 32px;
+            text-align: center;
+        }
+        .furos { position: absolute; left: -3px; top: 24px; bottom: 24px; display: flex; flex-direction: column; justify-content: space-between; }
+        .furos i { display: block; width: 6px; height: 6px; border-radius: 50%; background: var(--field); }
+        .bilhete-canhoto .preco { font: 900 var(--s-big)/1 var(--display); letter-spacing: -0.03em; }
+        .bilhete-canhoto .preco-nota { font-size: var(--s-small); }
+        .bilhete-canhoto .botao { width: 100%; min-height: 56px; }
+
+        /* ---------- contato: o WhatsApp em letra grande ---------- */
+        .contato { position: relative; min-height: 100svh; display: flex; flex-direction: column; justify-content: space-between; gap: 48px; padding: 120px var(--m) 32px; background: var(--stone); color: var(--bg); }
+        .contato h2 { font-size: var(--s-big); max-width: 16ch; }
+        .contato .chamada { margin-top: 16px; max-width: 40ch; font-size: var(--s-statement); line-height: 1.25; font-family: var(--text); font-weight: 600; }
+        .numero {
+            display: block; font: 900 clamp(52px, 10.4vw, 190px)/1 var(--display); letter-spacing: -0.04em;
+            text-decoration: none; white-space: nowrap; transition: color .25s var(--ease);
+        }
+        .numero:hover { color: var(--accent-press); }
+        .contato-pe { display: flex; justify-content: space-between; gap: 24px; flex-wrap: wrap; font-size: var(--s-small); }
+        .contato-pe ul { display: flex; gap: 24px; margin: 0; padding: 0; list-style: none; font-weight: 700; }
+        .email-form summary { cursor: pointer; font-weight: 700; font-size: 16px; text-decoration: underline; text-underline-offset: 5px; }
+        .email-form form { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; max-width: 720px; margin-top: 20px; }
+        .email-form label { display: grid; gap: 6px; font-size: var(--s-small); font-weight: 600; }
+        .email-form .largo { grid-column: 1 / -1; }
+        .email-form input, .email-form textarea {
+            width: 100%; padding: 14px; border: 2px solid var(--bg); border-radius: 0; background: transparent; color: var(--bg); font: 400 16px/1.4 var(--text);
+        }
+        .email-form textarea { min-height: 120px; resize: vertical; }
+        .email-form .ok { grid-column: 1 / -1; font-weight: 700; }
+
+        /* ---------- rodapé: uma linha ---------- */
+        .rodape { display: grid; grid-template-columns: 1fr auto 1fr; gap: 24px; align-items: end; padding: 64px var(--m) 32px; font-size: 14px; color: var(--muted); }
+        .rodape nav { display: flex; gap: 24px; flex-wrap: wrap; justify-content: center; }
+        .rodape nav a { color: var(--ink); text-decoration: none; font-weight: 600; }
+        .rodape nav a:hover { color: var(--accent); }
+        .rodape .fim { text-align: right; }
+
+        /* ---------- entradas (só com script; sem ele, tudo aparece) ---------- */
+        .js .sobe { opacity: 0; transform: translateY(24px); transition: opacity .7s var(--ease), transform .7s var(--ease); }
+        .js .sobe.visto { opacity: 1; transform: none; }
+
+        /* ---------- celular: uma composição própria ---------- */
+        @media (max-width: 760px) {
+            :root { --s-title: 15vw; --s-big: 30px; --s-statement: 22px; --s-body: 16px; }
+            .nav ul { display: none; }
+            .abertura { height: 220svh; }
+            .abertura h1 { top: 84px; white-space: normal; line-height: .9; }
+            .subtitulo { top: calc(96px + 30vw); }
+            .retratos { left: var(--m); right: var(--m); width: auto; transform: none; top: calc(200px + 30vw); bottom: 196px; }
+            .legenda-retrato { display: none; }
+            .abertura-texto { bottom: 88px; max-width: none; right: var(--m); }
+            .abertura-acao { left: var(--m); right: var(--m); bottom: 20px; justify-content: space-between; }
+            .frase { grid-template-columns: 1fr; }
+            .contato { min-height: 0; gap: 40px; padding: 96px var(--m) 32px; }
+            .frase h2, .frase p.destaque, .frase figure, .frase .numeros { grid-column: 1; grid-row: auto; }
+            .quadro { padding: 48px var(--m); gap: 16px; }
+            .faixa { grid-template-columns: 1fr 1fr; gap: 6px 16px; }
+            .faixa h3 { grid-column: 1 / -1; order: -1; }
+            .fases { grid-template-columns: 1fr; row-gap: 56px; padding: 56px var(--m) 0; }
+            .fase, .fase:nth-child(even) { grid-column: 1; width: 72%; }
+            .arraste { display: block; padding: 0 var(--m) 12px; font-size: var(--s-small); color: var(--muted); }
+            .quadros { display: flex; gap: 12px; padding: 0 var(--m) 8px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding: 0 var(--m); }
+            .quadro, .quadro:not(:first-child) { flex: 0 0 86%; padding: 24px 20px; scroll-snap-align: start; align-content: start; }
+            .fase:nth-child(even) { justify-self: end; }
+            .lema { grid-column: 1; }
+            .bilhete { grid-template-columns: 1fr; }
+            .bilhete::before, .bilhete::after { left: auto; top: 62%; margin: -14px 0 0; }
+            .bilhete::before { left: -14px; } .bilhete::after { right: -14px; bottom: auto; }
+            .bilhete-corpo { padding: 28px 24px; }
+            .bilhete-corpo ul { grid-template-columns: 1fr; }
+            .bilhete-canhoto { padding: 32px 24px; }
+            .furos { left: 20px; right: 20px; top: -3px; bottom: auto; flex-direction: row; }
+            .numero { font-size: 15vw; white-space: normal; }
+            .email-form form { grid-template-columns: 1fr; }
+            .rodape { grid-template-columns: 1fr; padding-top: 48px; }
+            .rodape nav { justify-content: flex-start; }
+            .rodape .fim { text-align: left; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; }
+            .js .sobe { opacity: 1; transform: none; }
+            .quadro .foto, .quadro.visto .foto { transform: none; }
+        }
+    </style>
+</head>
+<body>
+<a class="pular" href="#conteudo">Pular para o conteúdo</a>
+
+<header class="nav">
+    <a href="#topo">Carlos Jessé</a>
+    <ul>
+        <li><a href="#projetos">Projetos</a></li>
+        <li><a href="#trajetoria">Trajetória</a></li>
+        <li><a href="#planos">Planos</a></li>
+        <li><a href="#contato">Contato</a></li>
+    </ul>
+    <a class="botao" href="https://wa.me/5535998594066?text=Ol%C3%A1%2C%20Carlos!%20Vim%20pelo%20seu%20portf%C3%B3lio." target="_blank" rel="noopener">WhatsApp</a>
+</header>
+
+<main id="conteudo">
+    <!-- abertura: o nome não sai do lugar; os retratos trocam por baixo -->
+    <section class="abertura" id="topo" aria-label="Apresentação">
+        <div class="abertura-palco">
+            <div class="retratos" aria-hidden="false">
+                <img class="ativo" src="assets/img/jessedev-retrato.webp" width="900" height="1350" alt="Carlos Jessé de perfil, de camiseta preta">
+                <img src="assets/img/jessedev.webp" width="720" height="1185" alt="Carlos Jessé">
+                <img src="assets/img/jessedev2.webp" width="682" height="948" alt="Carlos Jessé">
+            </div>
+            <h1>Carlos Jessé</h1>
+            <p class="subtitulo">Desenvolvedor full-stack e analista de sistemas</p>
+            <p class="legenda-retrato">Analista de Sistemas no Hospital Regional Sul de Minas</p>
+            <p class="abertura-texto">Sites, sistemas e até um jogo online, feitos por quem trabalha onde sistema fora do ar é atendimento parado.</p>
+            <div class="abertura-acao">
+                <a class="link" href="assets/cv-carlos-jesse.pdf" target="_blank" rel="noopener">Currículo</a>
+                <a class="botao" href="#projetos">Ver projetos</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- a frase: quem é, com a prova -->
+    <section class="frase" id="sobre">
+        <h2 class="sobe">Do quartel ao hospital, sem deixar cair.</h2>
+        <p class="destaque sobe">Cinco anos de telecom no Exército e dois hospitais: entrego rápido e sem erro onde não pode.</p>
+        <figure class="sobe">
+            <img src="assets/img/exercito-1.webp" width="831" height="865" alt="Carlos Jessé fardado, no Exército Brasileiro" loading="lazy" style="aspect-ratio: 16/10">
+            <figcaption>No Exército, na Divisão de Tecnologia da Informação e Comunicações (2020 a 2025).</figcaption>
+        </figure>
+        <div class="numeros sobe">
+            <div><b>5 anos</b><span>de Exército, nas telecomunicações</span></div>
+            <div><b>2</b><span>hospitais: São Sebastião e HRSM</span></div>
+            <div><b>7</b><span>projetos no ar, um deles um jogo</span></div>
+        </div>
+    </section>
+
+    <!-- projetos: um quadro por projeto; o print no tamanho em que fica nítido -->
+    <section class="projetos" id="projetos">
+        <div class="projetos-topo">
+            <h2 class="sobe">Projetos</h2>
+            <div class="tela-troca" role="group" aria-label="Ver os projetos no">
+                <button type="button" data-tela="pc" aria-pressed="true">Computador</button>
+                <button type="button" data-tela="celular" aria-pressed="false">Celular</button>
+            </div>
+        </div>
+        <p class="arraste">Arraste para o lado para ver os 7 projetos</p>
+        <div class="quadros">
+            <article class="quadro">
+                <video class="foto" muted loop playsinline autoplay preload="metadata" poster="assets/img/projeto-fazendinha.webp" data-pc="assets/img/projeto-fazendinha.mp4" data-celular-poster="assets/img/projeto-fazendinha-mobile.webp" width="1280" height="800" aria-label="A Fazendinha Secreta rodando: chuva, canteiros, galinhas e os ajudantes trabalhando">
+                    <source src="assets/img/projeto-fazendinha.mp4" type="video/mp4">
+                </video>
+                <div class="faixa">
+                    <span class="ano">2026</span>
+                    <h3>Fazendinha Secreta</h3>
+                    <span class="fato">Jogo online com ranking, chat e eventos semanais<br><a class="link" href="fazenda.html">Jogar agora</a></span>
+                </div>
+            </article>
+            <article class="quadro">
+                <img class="foto" src="assets/img/projeto-rabbitfin.webp" data-pc="assets/img/projeto-rabbitfin.webp" data-celular="assets/img/projeto-rabbitfin-mobile.webp" width="800" height="500" alt="Tela do RabbitFin, controle financeiro" loading="lazy">
+                <div class="faixa">
+                    <span class="ano">Next.js · React</span>
+                    <h3>RabbitFin</h3>
+                    <span class="fato">Controle financeiro para você e seu par, com login Google<br><a class="link" href="https://rabbitfin.jessecoelho.com.br/" target="_blank" rel="noopener">Ver projeto</a></span>
+                </div>
+            </article>
+            <article class="quadro">
+                <img class="foto" src="assets/img/projeto-rara.webp" data-pc="assets/img/projeto-rara.webp" data-celular="assets/img/projeto-rara-mobile.webp" width="800" height="500" alt="Tela da loja Rara Moda Íntima" loading="lazy">
+                <div class="faixa">
+                    <span class="ano">Supabase · WhatsApp</span>
+                    <h3>Rara Moda Íntima</h3>
+                    <span class="fato">Loja com catálogo, coleções e carrinho<br><a class="link" href="https://raramodaintima.vercel.app/" target="_blank" rel="noopener">Ver projeto</a></span>
+                </div>
+            </article>
+            <article class="quadro">
+                <img class="foto" src="assets/img/projeto-fortcar.webp" data-pc="assets/img/projeto-fortcar.webp" data-celular="assets/img/projeto-fortcar-mobile.webp" width="800" height="500" alt="Tela do site da Fort Car Multimarcas" loading="lazy">
+                <div class="faixa">
+                    <span class="ano">Sul de Minas</span>
+                    <h3>Fort Car</h3>
+                    <span class="fato">Revenda multimarcas com estoque e filtro por preço<br><a class="link" href="https://gcar-mult-marcas.vercel.app/" target="_blank" rel="noopener">Ver projeto</a></span>
+                </div>
+            </article>
+            <article class="quadro">
+                <img class="foto" src="assets/img/projeto-motomundi.webp" data-pc="assets/img/projeto-motomundi.webp" data-celular="assets/img/projeto-motomundi-mobile.webp" width="800" height="500" alt="Tela do diário MotoMundi" loading="lazy">
+                <div class="faixa">
+                    <span class="ano">Interior de Minas</span>
+                    <h3>MotoMundi</h3>
+                    <span class="fato">Diário das rotas de moto pelo interior<br><a class="link" href="https://moto-mundi.vercel.app/" target="_blank" rel="noopener">Ver projeto</a></span>
+                </div>
+            </article>
+            <article class="quadro">
+                <img class="foto" src="assets/img/projeto-coelhocast.webp" data-pc="assets/img/projeto-coelhocast.webp" data-celular="assets/img/projeto-coelhocast-mobile.webp" width="800" height="500" alt="Tela da página do CoelhoCast" loading="lazy">
+                <div class="faixa">
+                    <span class="ano">HTML · CSS</span>
+                    <h3>CoelhoCast</h3>
+                    <span class="fato">Página de entrada leve, feita para o celular<br><a class="link" href="https://paginadeentradacoelhocast.vercel.app/" target="_blank" rel="noopener">Ver projeto</a></span>
+                </div>
+            </article>
+            <article class="quadro">
+                <img class="foto" src="assets/img/projeto-portfolio-v2.webp" data-pc="assets/img/projeto-portfolio-v2.webp" data-celular="assets/img/projeto-portfolio-v2-mobile.webp" width="800" height="500" alt="Tela da versão 2 deste portfólio" loading="lazy">
+                <div class="faixa">
+                    <span class="ano">Versão anterior</span>
+                    <h3>Portfólio V2</h3>
+                    <span class="fato">A versão anterior deste site<br><a class="link" href="indexversao2.html">Ver projeto</a></span>
+                </div>
+            </article>
+        </div>
+    </section>
+
+    <!-- trajetória: o título parado; as fases passam por cima dele -->
+    <section class="trajetoria" id="trajetoria">
+        <div class="trajetoria-titulo"><h2>Da fileira<br>ao teclado</h2></div>
+        <div class="fases">
+            <div class="fase sobe">
+                <img src="assets/img/code-1076536_1280.jpg" width="1280" height="719" alt="Código numa tela de computador" loading="lazy">
+                <p class="quando">2018 a 2019 · SENAI</p>
+                <p class="onde">Redes de Computadores e Eletroeletrônica</p>
+                <p class="sobre">A base técnica: cabo, placa, rede e o primeiro código.</p>
+            </div>
+            <div class="fase sobe">
+                <img src="assets/img/exercito-2.webp" width="761" height="835" alt="Carlos Jessé na formatura do Exército" loading="lazy">
+                <p class="quando">2020 a 2025 · Exército Brasileiro</p>
+                <p class="onde">Soldado de Telecomunicações, Divisão de T.I. e Comunicações</p>
+                <p class="sobre">Reconhecido na triagem pela formação técnica. Cinco anos entre formaturas, instruções e o suporte de T.I. da unidade: disciplina, pressão e nenhum atalho.</p>
+            </div>
+            <div class="fase sobe">
+                <img src="assets/img/jessedev2.webp" width="682" height="948" alt="Carlos Jessé" loading="lazy">
+                <p class="quando">2025 · Hospital São Sebastião</p>
+                <p class="onde">T.I. em Três Corações</p>
+                <p class="sobre">O primeiro contato com sistemas de missão crítica: se o sistema cai, o atendimento para.</p>
+            </div>
+            <div class="fase sobe">
+                <img src="assets/img/jessedev-perfil.webp" width="900" height="1634" alt="Carlos Jessé" loading="lazy">
+                <p class="quando">Desde out. 2025 · HRSM</p>
+                <p class="onde">Analista de Sistemas, Hospital Regional Sul de Minas</p>
+                <p class="sobre">Cuido do SPData e dos bancos SQL de um hospital de referência na região. Graduado em ADS.</p>
+            </div>
+            <div class="lema sobe">
+                <blockquote>“Braço Forte, Mão Amiga.”</blockquote>
+                <p>O lema do Exército, que levo para o trabalho: firme na entrega, solícito com quem precisa.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- planos: o bilhete -->
+    <section class="planos" id="planos">
+        <h2 class="sobe">Planos</h2>
+        <p class="intro sobe">Os dois incluem banco de dados, painel com gráficos, domínio .com.br no primeiro ano e um ano de suporte. O valor depende do seu projeto.</p>
+        <div class="bilhete sobe">
+            <div class="bilhete-corpo">
+                <h3>Plano Conexão</h3>
+                <p>Para quem vende conversando: o site qualifica o cliente e leva direto para o seu WhatsApp.</p>
+                <ul>
+                    <li>Banco de dados profissional</li>
+                    <li>Painel admin com gráficos</li>
+                    <li>Domínio .com.br (1º ano)</li>
+                    <li>Captação de leads</li>
+                    <li>Atalho direto para o WhatsApp</li>
+                    <li>Suporte técnico por 1 ano</li>
+                </ul>
+            </div>
+            <div class="bilhete-canhoto">
+                <span class="furos" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+                <p class="preco">Sob consulta</p>
+                <p class="preco-nota">de acordo com o seu projeto</p>
+                <a class="botao" href="https://wa.me/5535998594066?text=Ol%C3%A1!%20Tenho%20interesse%20no%20plano%20Conex%C3%A3o.%20Poderia%20me%20passar%20mais%20informa%C3%A7%C3%B5es%3F" target="_blank" rel="noopener">Pedir orçamento</a>
+            </div>
+        </div>
+        <div class="bilhete sobe">
+            <div class="bilhete-corpo">
+                <h3>Plano Checkout Pro</h3>
+                <p>Para vender no próprio site: cartão, PIX e boleto, com relatórios em tempo real.</p>
+                <ul>
+                    <li>Tudo do plano Conexão</li>
+                    <li>Pagamento: cartão, PIX, boleto</li>
+                    <li>Relatórios financeiros ao vivo</li>
+                    <li>WhatsApp junto com a venda</li>
+                </ul>
+            </div>
+            <div class="bilhete-canhoto">
+                <span class="furos" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+                <p class="preco">Sob consulta</p>
+                <p class="preco-nota">de acordo com o seu projeto</p>
+                <a class="botao" href="https://wa.me/5535998594066?text=Ol%C3%A1!%20Tenho%20interesse%20no%20plano%20Checkout%20Pro.%20Poderia%20me%20passar%20mais%20informa%C3%A7%C3%B5es%3F" target="_blank" rel="noopener">Pedir orçamento</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- contato: o número em letra grande -->
+    <section class="contato" id="contato">
+        <div>
+            <h2 class="sobe">Vamos construir juntos?</h2>
+            <p class="chamada sobe">Conte o que você precisa: um site, um sistema, uma loja. Respondo no mesmo dia.</p>
+        </div>
+        <a class="numero sobe" href="https://wa.me/5535998594066?text=Ol%C3%A1%2C%20Carlos!%20Vim%20pelo%20seu%20portf%C3%B3lio." target="_blank" rel="noopener" aria-label="Falar no WhatsApp: (35) 99859-4066">(35) <span style="white-space:nowrap">99859-4066</span></a>
+        <details class="email-form">
+            <summary>Prefere escrever um e-mail?</summary>
+            <form id="contactForm" action="https://formspree.io/f/maqakjkg" method="POST">
+                <label>Nome<input name="nome" required autocomplete="name"></label>
+                <label>E-mail<input type="email" name="email" required autocomplete="email"></label>
+                <label class="largo">Assunto<input name="assunto"></label>
+                <label class="largo">Mensagem<textarea name="mensagem" required></textarea></label>
+                <button class="botao" type="submit">Enviar mensagem</button>
+                <p class="ok" id="formOk" hidden>Mensagem enviada. Obrigado! Respondo o mais breve possível.</p>
+            </form>
+        </details>
+        <div class="contato-pe">
+            <span>Três Corações · Sul de Minas Gerais</span>
+            <ul>
+                <li><a class="link" href="https://www.linkedin.com/in/carlos-jess%C3%A9-coelho-da-silva-5b375a206/" target="_blank" rel="noopener">LinkedIn</a></li>
+                <li><a class="link" href="https://github.com/reccoelho" target="_blank" rel="noopener">GitHub</a></li>
+                <li><a class="link" href="https://linktr.ee/CarlosJesse" target="_blank" rel="noopener">Linktree</a></li>
+            </ul>
+        </div>
+    </section>
+</main>
+
+<footer class="rodape">
+    <span>Carlos Jessé, desenvolvedor full-stack</span>
+    <nav aria-label="Rodapé">
+        <a href="#projetos">Projetos</a>
+        <a href="#trajetoria">Trajetória</a>
+        <a href="#planos">Planos</a>
+        <a href="index.html">Versão atual</a>
+    </nav>
+    <span class="fim">© 2026 · <a href="privacidade.html">Privacidade</a></span>
+</footer>
+
+<script>
+(() => {
+    document.documentElement.classList.add('js');
+    const calmo = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // abertura: o nome fica; os retratos trocam conforme a rolagem, cada um com o seu fundo
+    const abertura = document.querySelector('.abertura');
+    const palco = document.querySelector('.abertura-palco');
+    const retratos = [...document.querySelectorAll('.retratos img')];
+    const fundos = ['#1a0a0d', '#2a0f13', '#0d0608'];
+    let atual = 0;
+    const trocar = () => {
+        const r = abertura.getBoundingClientRect();
+        const total = abertura.offsetHeight - innerHeight;
+        const p = Math.min(.999, Math.max(0, -r.top / Math.max(1, total)));
+        const i = Math.floor(p * retratos.length);
+        if (i !== atual) {
+            retratos[atual].classList.remove('ativo');
+            retratos[i].classList.add('ativo');
+            palco.style.backgroundColor = fundos[i];
+            atual = i;
+        }
+    };
+    addEventListener('scroll', trocar, { passive: true });
+
+    // a coisa viva: ver todos os projetos no computador ou no celular (prints reais dos dois)
+    const quadros = document.querySelector('.quadros');
+    document.querySelectorAll('[data-tela]').forEach((b) => b.addEventListener('click', () => {
+        const tela = b.dataset.tela;
+        document.querySelectorAll('[data-tela]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+        quadros.classList.toggle('celular', tela === 'celular');
+        quadros.querySelectorAll('img.foto').forEach((img) => { img.src = img.dataset[tela]; });
+        quadros.querySelectorAll('video.foto').forEach((v) => {   // o jogo: no celular, o print do celular
+            const fonte = v.querySelector('source');
+            if (tela === 'celular') { v.pause(); fonte.removeAttribute('src'); v.poster = v.dataset.celularPoster; v.load(); }
+            else { v.poster = 'assets/img/projeto-fazendinha.webp'; fonte.src = v.dataset.pc; v.load(); if (!calmo) v.play().catch(() => {}); }
+        });
+    }));
+
+    // entradas: cada parte de cada seção sobe uma vez, uma depois da outra
+    const ver = new IntersectionObserver((itens) => itens.forEach((e) => {
+        if (!e.isIntersecting) return;
+        e.target.classList.add('visto');
+        ver.unobserve(e.target);
+    }), { rootMargin: '0px 0px -8% 0px', threshold: 0 });
+    document.querySelectorAll('section').forEach((s) => s.querySelectorAll('.sobe').forEach((el, n) => {
+        el.style.transitionDelay = calmo ? '0ms' : `${Math.min(n, 4) * 80}ms`;
+        ver.observe(el);
+    }));
+    document.querySelectorAll('.quadro').forEach((q) => ver.observe(q));
+    if (calmo) document.querySelectorAll('video.foto').forEach((v) => { v.pause(); v.removeAttribute('autoplay'); });
+
+    // o e-mail (Formspree), como no site de hoje
+    const form = document.getElementById('contactForm');
+    form.addEventListener('submit', async (ev) => {
+        ev.preventDefault();
+        const botao = form.querySelector('button');
+        botao.disabled = true;
+        try {
+            const r = await fetch(form.action, { method: 'POST', body: new FormData(form), headers: { Accept: 'application/json' } });
+            if (!r.ok) throw new Error();
+            form.reset();
+            document.getElementById('formOk').hidden = false;
+        } catch {
+            botao.textContent = 'Não foi. Tente o WhatsApp';
+        } finally {
+            botao.disabled = false;
+        }
+    });
+})();
+</script>
+</body>
+</html>
