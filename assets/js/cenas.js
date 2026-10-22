@@ -7,6 +7,8 @@ const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const calmo = document.documentElement.classList.contains('calmo');
 const leve = matchMedia('(max-width: 760px)').matches || (navigator.hardwareConcurrency || 8) <= 4;
+const toque = matchMedia('(pointer: coarse)').matches;
+if (toque && $('#dica')) $('#dica').innerHTML = '<b>Segure o crachá</b> e puxe. Toque para virar.';
 const WHATSAPP = 'https://wa.me/5535998594066?text=Ol%C3%A1%2C%20Carlos!%20Vi%20seu%20crach%C3%A1%20no%20portf%C3%B3lio.';
 
 // ---------- a trilha: começa desligada, o botão liga ----------
@@ -33,7 +35,7 @@ montarCracha($('#cracha'), { leve, calmo, aoTocarQr: () => window.open(WHATSAPP,
         console.warn('Crachá 3D indisponível:', erro);
         $('#cracha').remove(); $('#dica').remove();
         const img = new Image();
-        img.src = 'assets/img/cenas/sorriso-recorte.webp'; img.alt = ''; img.className = 'cracha-sem-3d';
+        img.src = 'assets/img/cenas/familia-recorte.webp'; img.alt = ''; img.className = 'cracha-sem-3d';
         $('.c0').append(img);
     });
 
@@ -75,10 +77,12 @@ if (calmo || !window.gsap || !window.ScrollTrigger) {
 function montarTeatro() {
     const { gsap, ScrollTrigger } = window;
     gsap.registerPlugin(ScrollTrigger);
+    // a barra de endereço do celular aparece e some: isso não pode recalcular as cenas no meio da rolagem
+    ScrollTrigger.config({ ignoreMobileResize: true });
 
     // rolagem macia (Lenis) ligada ao relógio do GSAP
     let lenis = null;
-    if (window.Lenis) {
+    if (window.Lenis && !toque) { // no toque, a rolagem nativa do aparelho é mais leve
         lenis = new window.Lenis({ lerp: 0.085, wheelMultiplier: 0.9 });
         lenis.on('scroll', ScrollTrigger.update);
         gsap.ticker.add((t) => lenis.raf(t * 1000));
@@ -91,8 +95,9 @@ function montarTeatro() {
         if (lenis) lenis.scrollTo(alvo, { duration: 1.8 }); else alvo.scrollIntoView({ behavior: 'smooth' });
     }));
 
-    const fundo = montarFundo($('#fundo3d'), { leve });
-    ScrollTrigger.create({ trigger: '.teatro', start: 'top bottom', end: 'bottom top', onToggle: (s) => fundo.ligar(s.isActive) });
+    // o pó 3D só no computador: no celular é um segundo WebGL em tela cheia que pesa demais
+    const fundo = leve ? { forma() {}, ligar() {} } : montarFundo($('#fundo3d'), { leve });
+    if (!leve) ScrollTrigger.create({ trigger: '.teatro', start: 'top bottom', end: 'bottom top', onToggle: (s) => fundo.ligar(s.isActive) });
 
     // a máscara "CJ": as letras crescem até a cena do SENAI tomar a tela (como o "VI" do GTA 6)
     const c1 = $('.c1');
@@ -150,10 +155,14 @@ function montarTeatro() {
 
     // 3 → hospitais: entra da direita, o batimento se desenha
     // a passagem 2020 → 2025 é um batimento: a tela pulsa duas vezes, a linha atravessa e, no pico, um flash
-    tl.to('.c2 .miolo', { scale: 1.05, filter: 'brightness(.7)', duration: 0.07, ease: 'power2.out' }, 3.95);
-    tl.to('.c2 .miolo', { scale: 1, filter: 'brightness(1)', duration: 0.1, ease: 'power2.in' }, 4.02);
-    tl.to('.c2 .miolo', { scale: 1.09, filter: 'brightness(.55)', duration: 0.07, ease: 'power2.out' }, 4.17);
-    tl.to('.c2 .miolo', { scale: 1.02, filter: 'brightness(.4)', duration: 0.12, ease: 'power2.in' }, 4.24);
+    tl.to('.c2 .miolo', { scale: 1.05, duration: 0.07, ease: 'power2.out' }, 3.95);
+    tl.to('.c2 .escurece', { opacity: 0.3, duration: 0.07, ease: 'power2.out' }, 3.95);
+    tl.to('.c2 .miolo', { scale: 1, duration: 0.1, ease: 'power2.in' }, 4.02);
+    tl.to('.c2 .escurece', { opacity: 0, duration: 0.1, ease: 'power2.in' }, 4.02);
+    tl.to('.c2 .miolo', { scale: 1.09, duration: 0.07, ease: 'power2.out' }, 4.17);
+    tl.to('.c2 .escurece', { opacity: 0.45, duration: 0.07, ease: 'power2.out' }, 4.17);
+    tl.to('.c2 .miolo', { scale: 1.02, duration: 0.12, ease: 'power2.in' }, 4.24);
+    tl.to('.c2 .escurece', { opacity: 0.6, duration: 0.12, ease: 'power2.in' }, 4.24);
     gsap.set('.ecg-passagem path', { strokeDasharray: 1 });
     tl.set('.ecg-passagem', { opacity: 1 }, 4.0);
     tl.fromTo('.ecg-passagem path', { strokeDashoffset: 1 }, { strokeDashoffset: 0, duration: 0.45 }, 4.0);
@@ -187,7 +196,7 @@ function montarTeatro() {
         return 4;
     };
     const cenaDe = (t) => (t < 1.1 ? 0 : t < 2.8 ? 1 : t < 4.46 ? 2 : t < 5.9 ? 3 : 4);
-    let tocando = false, anterior = 0;
+    let tocando = false, anterior = 0, crachaNaTela = true;
     tl.eventCallback('onUpdate', () => {
         const t = tl.time();
         fundo.forma(forma(t));
@@ -196,6 +205,8 @@ function montarTeatro() {
         if (anterior < 3.93 && t >= 3.93) trilha.coracao();
         anterior = t;
         if (cracha) cracha.ligar(t < 1.5);
+        const crachaVisivel = t < 1.55;
+        if (crachaVisivel !== crachaNaTela) { crachaNaTela = crachaVisivel; const c = $('#cracha'); if (c) c.style.visibility = crachaVisivel ? '' : 'hidden'; }
         const deveTocar = t > 5.8 && t < 7.4;
         if (deveTocar !== tocando) { tocando = deveTocar; if (deveTocar) video.play().catch(() => {}); else video.pause(); }
     });

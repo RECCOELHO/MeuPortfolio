@@ -39,9 +39,9 @@ function desenharFrente(foto, qr) {
     // a foto recortada sobre o vermelho escuro
     ctx.fillStyle = '#2a0f13'; ctx.fillRect(48, 178, 544, 452);
     ctx.save(); ctx.beginPath(); ctx.rect(48, 178, 544, 452); ctx.clip();
-    // zoom no rosto e no peito: a cabeça perto do topo da janela, a cintura fica fora
-    const escala = 452 * 1.75 / foto.height, w = foto.width * escala;
-    ctx.drawImage(foto, 48 + (544 - w) / 2, 178 + 14, w, foto.height * escala);
+    // a foto com a filha: os dois rostos no alto da janela, o resto do corpo fica fora
+    const escala = 544 * 1.06 / foto.width, w = foto.width * escala;
+    ctx.drawImage(foto, 48 + (544 - w) / 2, 178 + 18, w, foto.height * escala);
     ctx.restore();
     ctx.fillStyle = '#0d0608'; ctx.font = '900 66px "Playfair Display", serif';
     ctx.fillText('CARLOS JESSÉ', 46, 700);
@@ -108,7 +108,7 @@ export async function montarCracha(canvas, { leve = false, calmo = false, aoToca
         document.fonts.load('900 66px "Playfair Display"'), document.fonts.load('italic 900 52px "Playfair Display"'),
         document.fonts.load('700 28px Montserrat'), document.fonts.load('600 26px Montserrat'),
     ]).catch(() => {});
-    const [foto, qr] = await Promise.all([carregarImagem('assets/img/cenas/sorriso-recorte.webp'), carregarImagem('assets/img/cenas/qr-whatsapp.png')]);
+    const [foto, qr] = await Promise.all([carregarImagem('assets/img/cenas/familia-recorte.webp'), carregarImagem('assets/img/cenas/qr-whatsapp.png')]);
 
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: !leve, alpha: true });
     renderer.setPixelRatio(Math.min(devicePixelRatio, leve ? 1.5 : 2));
@@ -200,8 +200,22 @@ export async function montarCracha(canvas, { leve = false, calmo = false, aoToca
         const p = new THREE.Vector3();
         return raio.ray.intersectPlane(plano, p) ? p : null;
     }
-    canvas.addEventListener('touchstart', (ev) => { if (mirar(ev.touches[0])) ev.preventDefault(); }, { passive: false });
-    canvas.addEventListener('touchmove', (ev) => { if (pegando) ev.preventDefault(); }, { passive: false });
+    // no toque, o dedo só "pega" o crachá se ficar parado nele um instante ou se puxar para o lado;
+    // um deslize rápido para cima ou para baixo rola a página normalmente
+    let dedo = null;
+    canvas.addEventListener('touchstart', (ev) => {
+        const t = ev.touches[0];
+        dedo = mirar(t) ? { x: t.clientX, y: t.clientY, quando: performance.now(), decidido: false, pega: false } : null;
+    }, { passive: true });
+    canvas.addEventListener('touchmove', (ev) => {
+        if (!dedo) return;
+        if (!dedo.decidido) {
+            const t = ev.touches[0], dx = Math.abs(t.clientX - dedo.x), dy = Math.abs(t.clientY - dedo.y);
+            dedo.decidido = true;
+            dedo.pega = performance.now() - dedo.quando > 150 || dx > dy;
+        }
+        if (dedo.pega) ev.preventDefault();
+    }, { passive: false });
     canvas.addEventListener('pointerdown', (ev) => {
         const acerto = mirar(ev);
         if (!acerto) return;
@@ -223,7 +237,8 @@ export async function montarCracha(canvas, { leve = false, calmo = false, aoToca
     });
     function soltar(ev) {
         if (!pegando) return;
-        const toque = performance.now() - pegando.quando < 280 && Math.hypot(ev.clientX - pegando.x, ev.clientY - pegando.y) < 8;
+        // pointercancel = o navegador decidiu rolar a página: só solta, sem contar como toque
+        const toque = ev.type !== 'pointercancel' && performance.now() - pegando.quando < 280 && Math.hypot(ev.clientX - pegando.x, ev.clientY - pegando.y) < 8;
         fisCartao.setBodyType(RAPIER.RigidBodyType.Dynamic, true);
         if (rastro.length > 1) {
             const a = rastro[0], b = rastro[rastro.length - 1], dt = Math.max(16, b.t - a.t) / 1000;
