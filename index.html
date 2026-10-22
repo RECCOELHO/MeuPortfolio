@@ -100,7 +100,8 @@
         .js:not(.calmo) .palco { position: sticky; top: 0; height: 100svh; overflow: hidden; }
         .js:not(.calmo) .cena { position: absolute; inset: 0; min-height: 0; }
         .js:not(.calmo) .c1 { visibility: hidden; }
-        .js:not(.calmo) .c2, .js:not(.calmo) .c3, .js:not(.calmo) .c4 { clip-path: inset(100% 0 0 0); }
+        .js:not(.calmo) .c2, .js:not(.calmo) .c4 { clip-path: inset(100% 0 0 0); }
+        .js:not(.calmo) .c3 { opacity: 0; }
         .miolo { position: absolute; inset: 0; }
         #fundo3d { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 20; pointer-events: none; mix-blend-mode: screen; }
         .calmo #fundo3d, html:not(.js) #fundo3d { display: none; }
@@ -117,6 +118,8 @@
         }
         .pessoa { position: absolute; bottom: 0; z-index: 2; pointer-events: none; }
         .pessoa img { width: 100%; height: auto; }
+        /* a base do recorte some num degradê: nenhum braço ou ombro termina numa linha reta */
+        .pessoa img { -webkit-mask-image: linear-gradient(to bottom, #000 74%, transparent 99%); mask-image: linear-gradient(to bottom, #000 74%, transparent 99%); }
         .legenda {
             position: absolute; z-index: 3; max-width: 30rem;
         }
@@ -140,7 +143,8 @@
 
         /* cena 1: SENAI */
         .c1 { background: var(--surface); }
-        .c1 .pessoa { right: 6vw; width: min(40vw, 620px); transform-origin: 50% 100%; }
+        .c1 .pessoa { right: 8vw; height: 94svh; transform-origin: 50% 100%; }
+        .c1 .pessoa img { width: auto; height: 100%; }
         .c1 .legenda { left: var(--m); bottom: 14svh; }
 
         /* cena 2: Exército */
@@ -154,8 +158,13 @@
 
         /* cena 3: hospitais */
         .c3 { background: var(--bg); }
-        .c3 .pessoa { left: 0; right: 0; margin: 0 auto; width: min(36vw, 520px); }
+        .c3 .pessoa { left: 0; right: 0; margin: 0 auto; width: fit-content; height: 82svh; }
+        .c3 .pessoa img { width: auto; height: 100%; }
         .ecg { position: absolute; left: 0; right: 0; top: 34%; width: 100%; height: 30%; z-index: 1; overflow: visible; }
+        /* a passagem 2020 → 2025: a linha do batimento atravessa e um flash vira a página */
+        .ecg-passagem, .flash { display: none; }
+        .js:not(.calmo) .ecg-passagem { display: block; z-index: 18; opacity: 0; pointer-events: none; }
+        .js:not(.calmo) .flash { display: block; position: absolute; inset: 0; z-index: 19; background: #ffd9d4; opacity: 0; pointer-events: none; }
         .ecg path { fill: none; stroke: var(--red); stroke-width: 3; stroke-linejoin: round; filter: drop-shadow(0 0 6px rgba(217, 64, 64, .9)); }
         .c3 .legenda.um { left: var(--m); top: 16svh; }
         .c3 .legenda.um h2 { font-size: clamp(40px, 4.6vw, 76px); }
@@ -234,13 +243,13 @@
             .dica { left: auto; right: var(--m); bottom: auto; top: 76px; }
             .legenda { right: var(--m); }
             .legenda p.sobre { font-size: 17px; }
-            .c1 .pessoa { right: -8vw; width: 92vw; opacity: .9; }
+            .c1 .pessoa { right: 2vw; height: 60svh; }
             .c1 .legenda { bottom: 9svh; }
             .c2 .pessoa { width: 130vw; margin-left: -15vw; }
             .c2 .legenda { top: 12svh; }
             .c2 .legenda .sobre { display: none; }
             .lema { top: auto; bottom: 46svh; left: var(--m); text-align: left; }
-            .c3 .pessoa { width: 78vw; }
+            .c3 .pessoa { height: 62svh; }
             .c3 .legenda.um { top: 11svh; }
             .c3 .legenda.dois { bottom: 6svh; left: var(--m); }
             .c3 .legenda .sobre { display: none; }
@@ -297,6 +306,8 @@
         <span class="marco" id="projetos" style="top:640svh"></span>
         <div class="palco">
             <canvas id="fundo3d" aria-hidden="true"></canvas>
+            <svg class="ecg ecg-passagem" viewBox="0 0 1200 200" preserveAspectRatio="none" aria-hidden="true"><path pathLength="1" d="M0 120 H250 L280 105 L305 120 H330 L350 20 L372 190 L392 120 H430 L470 95 L510 120 H720 L750 105 L775 120 H800 L820 20 L842 190 L862 120 H900 L940 95 L980 120 H1200"/></svg>
+            <div class="flash" aria-hidden="true"></div>
 
             <div class="cena c0">
                 <div class="titulo">
@@ -315,7 +326,7 @@
                 <div class="miolo">
                     <div class="foto-fundo"><img src="assets/img/code-1076536_1280.jpg" alt="" width="1280" height="853"></div>
                     <span class="ano" aria-hidden="true">2018</span>
-                    <div class="pessoa"><img src="assets/img/cenas/retrato-recorte.webp" alt="Carlos Jessé de perfil" width="852" height="1200"></div>
+                    <div class="pessoa"><img src="assets/img/cenas/bracos-recorte.webp" alt="Carlos Jessé de braços cruzados, camiseta vermelha" width="658" height="1300"></div>
                     <div class="legenda">
                         <p class="quando">2018 a 2019 · SENAI</p>
                         <h2 id="t-senai">Onde começou</h2>

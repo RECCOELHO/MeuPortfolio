@@ -27,7 +27,7 @@ montarCracha($('#cracha'), { leve, calmo, aoTocarQr: () => window.open(WHATSAPP,
         console.warn('Crachá 3D indisponível:', erro);
         $('#cracha').remove(); $('#dica').remove();
         const img = new Image();
-        img.src = 'assets/img/cenas/retrato-recorte.webp'; img.alt = ''; img.className = 'cracha-sem-3d';
+        img.src = 'assets/img/cenas/sorriso-recorte.webp'; img.alt = ''; img.className = 'cracha-sem-3d';
         $('.c0').append(img);
     });
 
@@ -143,11 +143,21 @@ function montarTeatro() {
     sai('.c2 .lema', 4.05);
 
     // 3 → hospitais: entra da direita, o batimento se desenha
-    tl.fromTo('.c3', { clipPath: 'inset(0% 0% 0% 100%)' }, { clipPath: 'inset(0% 0% 0% 0%)', duration: 0.6, ease: 'power2.inOut' }, 4.1);
-    gsap.set('.ecg path', { strokeDasharray: 1 });
-    tl.fromTo('.ecg path', { strokeDashoffset: 1 }, { strokeDashoffset: 0, duration: 1.1 }, 4.45);
+    // a passagem 2020 → 2025 é um batimento: a tela pulsa duas vezes, a linha atravessa e, no pico, um flash
+    tl.to('.c2 .miolo', { scale: 1.05, filter: 'brightness(.7)', duration: 0.07, ease: 'power2.out' }, 3.95);
+    tl.to('.c2 .miolo', { scale: 1, filter: 'brightness(1)', duration: 0.1, ease: 'power2.in' }, 4.02);
+    tl.to('.c2 .miolo', { scale: 1.09, filter: 'brightness(.55)', duration: 0.07, ease: 'power2.out' }, 4.17);
+    tl.to('.c2 .miolo', { scale: 1.02, filter: 'brightness(.4)', duration: 0.12, ease: 'power2.in' }, 4.24);
+    gsap.set('.ecg-passagem path', { strokeDasharray: 1 });
+    tl.set('.ecg-passagem', { opacity: 1 }, 4.0);
+    tl.fromTo('.ecg-passagem path', { strokeDashoffset: 1 }, { strokeDashoffset: 0, duration: 0.45 }, 4.0);
+    tl.fromTo('.flash', { opacity: 0 }, { opacity: 0.95, duration: 0.05, ease: 'power3.in' }, 4.43);
+    tl.set('.c3', { opacity: 1 }, 4.48);
+    tl.set('.ecg-passagem', { opacity: 0 }, 4.48);
+    tl.to('.flash', { opacity: 0, duration: 0.3, ease: 'power2.out' }, 4.48);
+    tl.fromTo('.c3 .miolo', { scale: 1.12 }, { scale: 1, duration: 0.5, ease: 'power2.out' }, 4.48);
     tl.fromTo('.c3 .ano', { y: () => innerHeight * 0.15 }, { y: () => -innerHeight * 0.15, duration: 1.8 }, 4.1);
-    tl.fromTo('.c3 .pessoa', { yPercent: 22, opacity: 0 }, { yPercent: 0, opacity: 1, duration: 0.8, ease: 'power2.out' }, 4.45);
+    tl.fromTo('.c3 .pessoa', { yPercent: 22, opacity: 0 }, { yPercent: 0, opacity: 1, duration: 0.7, ease: 'power2.out' }, 4.5);
     entra('.c3 .legenda.um', 4.7);
     sai('.c3 .legenda.um', 5.25);
     entra('.c3 .legenda.dois', 5.2);
@@ -170,12 +180,15 @@ function montarTeatro() {
         for (const [a, b, n] of trechos) { if (t < a) return n; if (t < b) return n + (t - a) / (b - a); }
         return 4;
     };
-    const cenaDe = (t) => (t < 1.1 ? 0 : t < 2.8 ? 1 : t < 4.4 ? 2 : t < 5.9 ? 3 : 4);
-    let tocando = false;
+    const cenaDe = (t) => (t < 1.1 ? 0 : t < 2.8 ? 1 : t < 4.46 ? 2 : t < 5.9 ? 3 : 4);
+    let tocando = false, anterior = 0;
     tl.eventCallback('onUpdate', () => {
         const t = tl.time();
         fundo.forma(forma(t));
         trilha.cena(cenaDe(t));
+        // descendo pela passagem 2020 → 2025, a música toca o coração junto com o pulso da tela
+        if (anterior < 3.93 && t >= 3.93) trilha.coracao();
+        anterior = t;
         if (cracha) cracha.ligar(t < 1.5);
         const deveTocar = t > 5.8 && t < 7.4;
         if (deveTocar !== tocando) { tocando = deveTocar; if (deveTocar) video.play().catch(() => {}); else video.pause(); }

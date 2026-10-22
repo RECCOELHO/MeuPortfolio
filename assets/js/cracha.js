@@ -39,8 +39,9 @@ function desenharFrente(foto, qr) {
     // a foto recortada sobre o vermelho escuro
     ctx.fillStyle = '#2a0f13'; ctx.fillRect(48, 178, 544, 452);
     ctx.save(); ctx.beginPath(); ctx.rect(48, 178, 544, 452); ctx.clip();
-    const escala = 452 * 1.06 / foto.height, w = foto.width * escala;
-    ctx.drawImage(foto, 48 + (544 - w) / 2, 178 + 452 - foto.height * escala, w, foto.height * escala);
+    // zoom no rosto e no peito: a cabeça perto do topo da janela, a cintura fica fora
+    const escala = 452 * 1.75 / foto.height, w = foto.width * escala;
+    ctx.drawImage(foto, 48 + (544 - w) / 2, 178 + 14, w, foto.height * escala);
     ctx.restore();
     ctx.fillStyle = '#0d0608'; ctx.font = '900 66px "Playfair Display", serif';
     ctx.fillText('CARLOS JESSÉ', 46, 700);
@@ -107,7 +108,7 @@ export async function montarCracha(canvas, { leve = false, calmo = false, aoToca
         document.fonts.load('900 66px "Playfair Display"'), document.fonts.load('italic 900 52px "Playfair Display"'),
         document.fonts.load('700 28px Montserrat'), document.fonts.load('600 26px Montserrat'),
     ]).catch(() => {});
-    const [foto, qr] = await Promise.all([carregarImagem('assets/img/cenas/retrato-recorte.webp'), carregarImagem('assets/img/cenas/qr-whatsapp.png')]);
+    const [foto, qr] = await Promise.all([carregarImagem('assets/img/cenas/sorriso-recorte.webp'), carregarImagem('assets/img/cenas/qr-whatsapp.png')]);
 
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: !leve, alpha: true });
     renderer.setPixelRatio(Math.min(devicePixelRatio, leve ? 1.5 : 2));
