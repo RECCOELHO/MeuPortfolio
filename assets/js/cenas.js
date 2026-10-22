@@ -17,6 +17,12 @@ $('#som').addEventListener('click', () => {
     $('#som').setAttribute('aria-pressed', String(ligar));
     $('#somEstado').textContent = ligar ? 'ligado' : 'desligado';
 });
+// saiu da página (outra aba, app minimizado): a música pausa; voltou: continua de onde estava
+let pausadaAoSair = false;
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden && trilha.ligada) { trilha.desligar(); pausadaAoSair = true; }
+    else if (!document.hidden && pausadaAoSair) { trilha.ligar(); pausadaAoSair = false; }
+});
 
 // ---------- o crachá ----------
 let cracha = null;
