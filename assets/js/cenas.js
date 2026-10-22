@@ -8,7 +8,7 @@ const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const calmo = document.documentElement.classList.contains('calmo');
 const leve = matchMedia('(max-width: 760px)').matches || (navigator.hardwareConcurrency || 8) <= 4;
 const toque = matchMedia('(pointer: coarse)').matches;
-// celular de verdade (tela pequena ou dedo): aqui o pó 3D fica desligado; em computador fraco ele só fica mais leve
+// celular de verdade (tela pequena ou dedo): o pó 3D fica no modo leve (poucos pontos, 30 quadros por segundo)
 const celular = matchMedia('(max-width: 760px)').matches || toque;
 if (toque && $('#dica')) $('#dica').innerHTML = '<b>Segure o crachá</b> e puxe. Toque para virar.';
 const WHATSAPP = 'https://wa.me/5535998594066?text=Ol%C3%A1%2C%20Carlos!%20Vi%20seu%20crach%C3%A1%20no%20portf%C3%B3lio.';
@@ -97,9 +97,8 @@ function montarTeatro() {
         if (lenis) lenis.scrollTo(alvo, { duration: 1.8 }); else alvo.scrollIntoView({ behavior: 'smooth' });
     }));
 
-    // o pó 3D só no computador: no celular é um segundo WebGL em tela cheia que pesa demais
-    const fundo = celular ? { forma() {}, ligar() {} } : montarFundo($('#fundo3d'), { leve });
-    if (!celular) ScrollTrigger.create({ trigger: '.teatro', start: 'top bottom', end: 'bottom top', onToggle: (s) => fundo.ligar(s.isActive) });
+    const fundo = montarFundo($('#fundo3d'), { leve: leve || celular, celular });
+    ScrollTrigger.create({ trigger: '.teatro', start: 'top bottom', end: 'bottom top', onToggle: (s) => fundo.ligar(s.isActive) });
 
     // a máscara "CJ": as letras crescem até a cena do SENAI tomar a tela (como o "VI" do GTA 6)
     const c1 = $('.c1');

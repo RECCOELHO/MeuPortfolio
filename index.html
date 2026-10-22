@@ -238,9 +238,8 @@
         .js .sobe:not(.visto) { opacity: 0; transform: translateY(32px); }
 
         @media (max-width: 760px) {
-            /* celular: teatro mais curto, sem o pó 3D e sem brilho filtrado na linha do batimento */
+            /* celular: teatro mais curto e sem brilho filtrado na linha do batimento (o pó 3D roda no modo leve) */
             .js:not(.calmo) .teatro { height: 720svh; }
-            #fundo3d { display: none; }
             .ecg path { filter: none; stroke-width: 4; }
             body { font-size: 17px; }
             .nav ul { display: none; }
