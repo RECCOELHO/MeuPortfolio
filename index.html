@@ -104,6 +104,8 @@
         .js:not(.calmo) .c3 { opacity: 0; }
         .miolo { position: absolute; inset: 0; }
         #fundo3d { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 20; pointer-events: none; }
+        /* no computador, o pó clareia o que está embaixo, como poeira de luz (no celular ele nem existe) */
+        @media (min-width: 761px) { #fundo3d { mix-blend-mode: screen; } }
         .calmo #fundo3d, html:not(.js) #fundo3d { display: none; }
 
         /* foto de fundo em vermelho e preto */
