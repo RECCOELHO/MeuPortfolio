@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Carlos Jessé — Desenvolvedor Full-Stack</title>
+    <meta name="description" content="Carlos Jessé, desenvolvedor full-stack e analista de sistemas no Hospital Regional Sul de Minas. Do SENAI ao Exército e aos hospitais: sites, sistemas e um jogo online.">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Carlos Jessé — Desenvolvedor Full-Stack">
+    <meta property="og:description" content="Pegue o crachá e desça: do SENAI ao Exército, dos hospitais aos projetos.">
+    <meta property="og:image" content="https://carlosjessecoelho.vercel.app/assets/img/og-image.jpg">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta name="theme-color" content="#0d0608">
+    <link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg">
+    <link rel="icon" type="image/x-icon" href="assets/img/favicon.ico">
+    <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
+    <link rel="manifest" href="assets/img/site.webmanifest">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,900&family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet">
+    <script>
+        // as cenas presas na rolagem só valem com script e sem "reduzir movimento"; sem isso a página vira uma rolagem comum
+        document.documentElement.classList.add('js');
+        if (matchMedia('(prefers-reduced-motion: reduce)').matches) document.documentElement.classList.add('calmo');
+    </script>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js",
+            "rapier": "https://cdn.jsdelivr.net/npm/@dimforge/rapier3d-compat@0.14.0/rapier.es.js"
+        }
+    }
+    </script>
+    <style>
+        :root {
+            --bg: #0d0608;
+            --surface: #1a0a0d;
+            --field: #2a0f13;
+            --ink: #ece8e6;
+            --muted: #c9b8b1;
+            --red: #d94040;
+            --accent: #b52828;
+            --accent-press: #8b1a1a;
+            --stone: #e7e3e1;
+            --display: 'Playfair Display', Georgia, serif;
+            --text: 'Montserrat', system-ui, sans-serif;
+            --m: clamp(16px, 4vw, 56px);
+            --ease: cubic-bezier(.2, .7, .2, 1);
+        }
+        *, *::before, *::after { box-sizing: border-box; }
+        html { background: var(--bg); }
+        body { margin: 0; background: var(--bg); color: var(--ink); font: 400 18px/1.6 var(--text); overflow-x: clip; }
+        img, video { display: block; max-width: 100%; }
+        h1, h2, h3, p { margin: 0; }
+        h1, h2, h3 { font-family: var(--display); font-weight: 900; line-height: .95; letter-spacing: -0.02em; }
+        a { color: inherit; }
+        ::selection { background: var(--accent); color: var(--ink); }
+        .pular { position: absolute; left: -999px; }
+        .pular:focus { left: var(--m); top: var(--m); z-index: 100; background: var(--ink); color: var(--bg); padding: 12px 16px; }
+        .botao {
+            display: inline-flex; align-items: center; justify-content: center; min-height: 52px; padding: 0 28px; border: 0;
+            background: var(--accent); color: var(--ink); font: 700 16px/1 var(--text); text-decoration: none; cursor: pointer;
+            transition: background-color .2s, transform .2s var(--ease);
+        }
+        .botao:hover { background: var(--accent-press); }
+        .botao:active { transform: scale(.97); }
+        .botao.claro { background: transparent; box-shadow: inset 0 0 0 2px var(--ink); }
+        .botao.claro:hover { background: var(--ink); color: var(--bg); }
+        .link { font-weight: 700; text-decoration: underline; text-underline-offset: 5px; text-decoration-thickness: 2px; }
+        .link:hover { color: var(--red); }
+
+        /* ---------- topo fixo e botão de som ---------- */
+        .nav { position: fixed; inset: 0 0 auto; z-index: 50; display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 16px var(--m); }
+        .marca { display: flex; align-items: center; gap: 10px; font-weight: 700; text-decoration: none; }
+        .marca svg { width: 36px; height: 36px; }
+        .nav ul { display: flex; gap: 28px; margin: 0; padding: 0; list-style: none; }
+        .nav ul a { font-size: 15px; font-weight: 600; text-decoration: none; }
+        .nav ul a:hover { color: var(--red); }
+        .nav .botao { min-height: 42px; padding: 0 18px; font-size: 15px; }
+        .som {
+            position: fixed; left: var(--m); bottom: 20px; z-index: 50; display: flex; align-items: center; gap: 10px;
+            min-height: 44px; padding: 0 16px; border: 0; background: rgba(13, 6, 8, .78); color: var(--ink);
+            font: 700 14px/1 var(--text); cursor: pointer; box-shadow: inset 0 0 0 1px rgba(236, 232, 230, .35);
+        }
+        .som:hover { box-shadow: inset 0 0 0 1px var(--ink); }
+        .barras { display: flex; align-items: flex-end; gap: 3px; height: 16px; }
+        .barras i { width: 3px; height: 4px; background: var(--red); transition: height .3s; }
+        .som[aria-pressed="true"] .barras i { animation: barra .9s var(--ease) infinite alternate; }
+        .som[aria-pressed="true"] .barras i:nth-child(2) { animation-delay: -.3s; }
+        .som[aria-pressed="true"] .barras i:nth-child(3) { animation-delay: -.6s; }
+        @keyframes barra { from { height: 3px; } to { height: 16px; } }
+
+        /* ---------- o teatro: um palco preso, as cenas trocando por cima ---------- */
+        .teatro { position: relative; }
+        .marco { position: absolute; left: 0; width: 1px; height: 1px; }
+        .palco { position: relative; }
+        .cena { position: relative; min-height: 100svh; overflow: hidden; background: var(--bg); }
+        .js:not(.calmo) .teatro { height: 900svh; }
+        .js:not(.calmo) .palco { position: sticky; top: 0; height: 100svh; overflow: hidden; }
+        .js:not(.calmo) .cena { position: absolute; inset: 0; min-height: 0; }
+        .js:not(.calmo) .c1 { visibility: hidden; }
+        .js:not(.calmo) .c2, .js:not(.calmo) .c3, .js:not(.calmo) .c4 { clip-path: inset(100% 0 0 0); }
+        .miolo { position: absolute; inset: 0; }
+        #fundo3d { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 20; pointer-events: none; mix-blend-mode: screen; }
+        .calmo #fundo3d, html:not(.js) #fundo3d { display: none; }
+
+        /* foto de fundo em vermelho e preto */
+        .foto-fundo { position: absolute; inset: -6%; }
+        .foto-fundo img { width: 100%; height: 100%; object-fit: cover; filter: grayscale(1) contrast(1.2) brightness(.42); }
+        .foto-fundo::after { content: ''; position: absolute; inset: 0; background: var(--accent-press); mix-blend-mode: color; opacity: .9; }
+        .foto-fundo::before { content: ''; position: absolute; inset: 0; z-index: 1; background: rgba(13, 6, 8, .35); }
+        .ano {
+            position: absolute; left: 0; right: 0; top: 50%; margin-top: -.4em; text-align: center; z-index: 1;
+            font: 900 clamp(160px, 34vw, 560px)/.8 var(--display); letter-spacing: -0.04em; color: transparent;
+            -webkit-text-stroke: 2px rgba(236, 232, 230, .28); white-space: nowrap; pointer-events: none;
+        }
+        .pessoa { position: absolute; bottom: 0; z-index: 2; pointer-events: none; }
+        .pessoa img { width: 100%; height: auto; }
+        .legenda {
+            position: absolute; z-index: 3; max-width: 30rem;
+        }
+        .legenda .quando { font-size: 15px; font-weight: 700; color: var(--red); letter-spacing: .02em; }
+        .legenda h2 { margin-top: 10px; font-size: clamp(44px, 6.4vw, 104px); }
+        .legenda .onde { margin-top: 12px; font-size: 16px; font-weight: 600; color: var(--muted); }
+        .legenda p.sobre { margin-top: 14px; font-size: 19px; }
+
+        /* cena 0: o nome e o crachá */
+        .c0 { background: var(--bg); }
+        .c0 .titulo { position: absolute; left: var(--m); bottom: 15svh; z-index: 1; max-width: 54vw; }
+        .c0 h1 { font-size: clamp(64px, 10.5vw, 184px); line-height: .86; text-transform: uppercase; }
+        .c0 h1 span { display: block; }
+        .c0 h1 span + span { color: var(--red); }
+        .c0 .subtitulo { margin-top: 22px; font-size: clamp(18px, 1.6vw, 24px); font-weight: 600; max-width: 30ch; }
+        .c0 .acoes { display: flex; gap: 16px; align-items: center; margin-top: 28px; flex-wrap: wrap; }
+        #cracha { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 2; touch-action: pan-y; }
+        .dica { position: absolute; right: var(--m); bottom: 28px; z-index: 3; font-size: 14px; font-weight: 600; color: var(--muted); pointer-events: none; }
+        .dica b { color: var(--ink); }
+        .cracha-sem-3d { position: absolute; right: 8vw; bottom: 0; z-index: 2; width: min(34vw, 460px); }
+
+        /* cena 1: SENAI */
+        .c1 { background: var(--surface); }
+        .c1 .pessoa { right: 6vw; width: min(40vw, 620px); transform-origin: 50% 100%; }
+        .c1 .legenda { left: var(--m); bottom: 14svh; }
+
+        /* cena 2: Exército */
+        .c2 { background: #110709; }
+        .c2 .foto-fundo img { object-position: 50% 30%; }
+        .c2 .pessoa { left: 0; right: 0; margin: 0 auto; width: min(62vw, 980px); bottom: -4svh; transform-origin: 50% 100%; }
+        .c2 .legenda { left: var(--m); top: 18svh; }
+        .lema { position: absolute; right: var(--m); top: 22svh; z-index: 3; text-align: right; }
+        .lema blockquote { margin: 0; font: italic 900 clamp(34px, 4.4vw, 72px)/1 var(--display); }
+        .lema p { margin-top: 10px; font-size: 15px; color: var(--muted); }
+
+        /* cena 3: hospitais */
+        .c3 { background: var(--bg); }
+        .c3 .pessoa { left: 0; right: 0; margin: 0 auto; width: min(36vw, 520px); }
+        .ecg { position: absolute; left: 0; right: 0; top: 34%; width: 100%; height: 30%; z-index: 1; overflow: visible; }
+        .ecg path { fill: none; stroke: var(--red); stroke-width: 3; stroke-linejoin: round; filter: drop-shadow(0 0 6px rgba(217, 64, 64, .9)); }
+        .c3 .legenda.um { left: var(--m); top: 16svh; }
+        .c3 .legenda.um h2 { font-size: clamp(40px, 4.6vw, 76px); }
+        .c3 .legenda.dois { right: var(--m); bottom: 14svh; text-align: right; }
+        .c3 .legenda.dois p.sobre { margin-left: auto; }
+
+        /* cena 4: projetos */
+        .c4 { background: var(--surface); }
+        .c4 .cabeca { position: absolute; left: var(--m); top: 13svh; z-index: 3; }
+        .c4 .cabeca h2 { font-size: clamp(56px, 9vw, 150px); }
+        .monitor-cena { position: absolute; inset: 0; z-index: 2; perspective: 1400px; display: grid; place-items: center; pointer-events: none; }
+        .monitor { width: min(50vw, 820px); transform-style: preserve-3d; pointer-events: auto; }
+        .tela-monitor { padding: 14px; background: #050203; box-shadow: 0 0 0 2px var(--field), 0 40px 120px rgba(217, 64, 64, .25); }
+        .tela-monitor video { width: 100%; height: auto; aspect-ratio: 16 / 10; object-fit: cover; }
+        .pe-monitor { width: 18%; height: 34px; margin: 0 auto; background: var(--field); }
+        .monitor-texto { display: flex; justify-content: space-between; align-items: end; gap: 24px; margin-top: 22px; }
+        .monitor-texto h3 { font-size: clamp(34px, 4vw, 64px); }
+        .monitor-texto p { font-size: 16px; color: var(--muted); margin-top: 8px; }
+        .trilho-cena { position: absolute; inset: 0; z-index: 2; perspective: 1200px; display: flex; align-items: center; pointer-events: none; }
+        .trilho { display: flex; gap: 4vw; padding-left: 100vw; transform-style: preserve-3d; }
+        .tela { flex: 0 0 min(36vw, 560px); transform: rotateY(-16deg); transform-style: preserve-3d; pointer-events: auto; }
+        .tela img { width: 100%; height: auto; aspect-ratio: 16 / 10; object-fit: cover; object-position: top; box-shadow: 0 0 0 2px var(--field); }
+        .tela h3 { margin-top: 18px; font-size: clamp(26px, 2.6vw, 40px); }
+        .tela p { margin-top: 6px; font-size: 16px; color: var(--muted); }
+        .tela .link { display: inline-block; margin-top: 8px; font-size: 16px; }
+
+        /* sem cenas presas (sem script ou com "reduzir movimento"): tudo em sequência e legível */
+        .calmo .cena, html:not(.js) .cena { min-height: 100svh; }
+        .calmo .monitor-cena, html:not(.js) .monitor-cena { position: relative; padding: 40svh var(--m) 10svh; }
+        .calmo .trilho-cena, html:not(.js) .trilho-cena { position: relative; padding: 0 0 12svh; overflow-x: auto; }
+        .calmo .trilho, html:not(.js) .trilho { padding: 0 var(--m); }
+        .calmo .tela, html:not(.js) .tela { transform: none; }
+
+        /* ---------- planos e contato: a parte de ler com calma ---------- */
+        .planos { padding: 160px var(--m) 140px; background: var(--field); }
+        .planos h2 { font-size: clamp(56px, 9vw, 150px); }
+        .planos > p.intro { max-width: 46ch; margin: 24px 0 64px; }
+        .bilhete { position: relative; display: grid; grid-template-columns: 7fr 3fr; width: min(100%, 1100px); margin: 0 auto 40px; background: var(--stone); color: var(--bg); }
+        .bilhete::before, .bilhete::after { content: ''; position: absolute; left: 70%; width: 28px; height: 28px; margin-left: -14px; border-radius: 50%; background: var(--field); }
+        .bilhete::before { top: -14px; } .bilhete::after { bottom: -14px; }
+        .bilhete-corpo { padding: 40px; display: flex; flex-direction: column; gap: 24px; }
+        .bilhete-corpo h3 { font-size: clamp(34px, 3.6vw, 56px); }
+        .bilhete-corpo ul { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 32px; margin: 0; padding: 0; list-style: none; font-size: 16px; }
+        .bilhete-corpo li::before { content: '+ '; font-weight: 700; color: var(--accent-press); }
+        .bilhete-canhoto { position: relative; display: flex; flex-direction: column; justify-content: center; gap: 16px; padding: 40px 32px; text-align: center; }
+        .furos { position: absolute; left: -3px; top: 24px; bottom: 24px; display: flex; flex-direction: column; justify-content: space-between; }
+        .furos i { display: block; width: 6px; height: 6px; border-radius: 50%; background: var(--field); }
+        .preco { font: 900 clamp(34px, 3.6vw, 56px)/1 var(--display); }
+        .preco-nota { font-size: 14px; }
+        .contato { display: flex; flex-direction: column; gap: 48px; padding: 140px var(--m) 40px; background: var(--stone); color: var(--bg); }
+        .contato h2 { font-size: clamp(44px, 6.4vw, 104px); }
+        .contato .chamada { margin-top: 18px; font-size: 22px; font-weight: 600; max-width: 34ch; }
+        .numero { font: 900 clamp(52px, 11vw, 184px)/.9 var(--display); letter-spacing: -0.03em; text-decoration: none; }
+        .numero:hover { color: var(--accent); }
+        .email-form summary { cursor: pointer; font-weight: 700; text-decoration: underline; text-underline-offset: 5px; }
+        .email-form form { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 24px; max-width: 820px; margin-top: 24px; }
+        .email-form label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 700; }
+        .email-form .largo { grid-column: 1 / -1; }
+        .email-form input, .email-form textarea { min-height: 52px; padding: 12px 14px; border: 0; background: #fff; color: var(--bg); font: 400 17px var(--text); }
+        .email-form textarea { min-height: 120px; resize: vertical; }
+        .email-form input:focus, .email-form textarea:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+        .contato-pe { display: flex; justify-content: space-between; gap: 24px; flex-wrap: wrap; font-size: 14px; }
+        .contato-pe ul { display: flex; gap: 24px; margin: 0; padding: 0; list-style: none; }
+        .rodape { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 16px; padding: 32px var(--m) 84px; font-size: 14px; color: var(--muted); }
+        .rodape a { color: var(--ink); }
+        .sobe { transition: opacity .8s var(--ease), transform .8s var(--ease); }
+        .js .sobe:not(.visto) { opacity: 0; transform: translateY(32px); }
+
+        @media (max-width: 760px) {
+            body { font-size: 17px; }
+            .nav ul { display: none; }
+            .c0 .titulo { bottom: 12svh; max-width: none; right: var(--m); }
+            .c0 h1 { font-size: 15vw; }
+            .c0 .subtitulo { margin-top: 14px; }
+            .c0 .acoes { margin-top: 18px; }
+            .dica { left: auto; right: var(--m); bottom: auto; top: 76px; }
+            .legenda { right: var(--m); }
+            .legenda p.sobre { font-size: 17px; }
+            .c1 .pessoa { right: -8vw; width: 92vw; opacity: .9; }
+            .c1 .legenda { bottom: 9svh; }
+            .c2 .pessoa { width: 130vw; margin-left: -15vw; }
+            .c2 .legenda { top: 12svh; }
+            .c2 .legenda .sobre { display: none; }
+            .lema { top: auto; bottom: 46svh; left: var(--m); text-align: left; }
+            .c3 .pessoa { width: 78vw; }
+            .c3 .legenda.um { top: 11svh; }
+            .c3 .legenda.dois { bottom: 6svh; left: var(--m); }
+            .c3 .legenda .sobre { display: none; }
+            .ecg { top: 30%; }
+            .c4 .cabeca { top: 11svh; }
+            .monitor { width: 90vw; }
+            .monitor-texto { flex-direction: column; align-items: start; gap: 12px; }
+            .tela { flex-basis: 76vw; }
+            .bilhete { grid-template-columns: 1fr; }
+            .bilhete::before, .bilhete::after { display: none; }
+            .bilhete-corpo { padding: 28px 22px; }
+            .bilhete-corpo ul { grid-template-columns: 1fr; }
+            .bilhete-canhoto { padding: 24px 22px 28px; border-top: 2px dotted var(--field); }
+            .furos { display: none; }
+            .email-form form { grid-template-columns: 1fr; }
+            .som { bottom: 14px; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+        }
+    </style>
+</head>
+<body>
+<a class="pular" href="#conteudo">Pular para o conteúdo</a>
+
+<header class="nav">
+    <a class="marca" href="#inicio" aria-label="Carlos Jessé, início">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" fill="#0d0608" rx="4"/><rect width="32" height="32" fill="none" stroke="#d94040" stroke-width="1.5" rx="4"/><text x="4" y="23" font-family="Georgia, serif" font-size="18" font-weight="700" font-style="italic" fill="#ece8e6">C</text><text x="16" y="23" font-family="Georgia, serif" font-size="18" font-weight="700" font-style="italic" fill="#d94040">J</text></svg>
+        <span>Carlos Jessé</span>
+    </a>
+    <nav aria-label="Principal">
+        <ul>
+            <li><a href="#senai">História</a></li>
+            <li><a href="#projetos">Projetos</a></li>
+            <li><a href="#planos">Planos</a></li>
+            <li><a href="#contato">Contato</a></li>
+        </ul>
+    </nav>
+    <a class="botao" href="https://wa.me/5535998594066?text=Ol%C3%A1%2C%20Carlos!%20Vim%20pelo%20seu%20portf%C3%B3lio." target="_blank" rel="noopener">WhatsApp</a>
+</header>
+
+<button class="som" type="button" aria-pressed="false" id="som">
+    <span class="barras" aria-hidden="true"><i></i><i></i><i></i></span>
+    <span>Som: <span id="somEstado">desligado</span></span>
+</button>
+
+<main id="conteudo">
+    <!-- a história: um palco preso na tela e as cenas trocando enquanto se desce -->
+    <section class="teatro" id="historia" aria-label="A história de Carlos Jessé">
+        <span class="marco" id="inicio" style="top:0"></span>
+        <span class="marco" id="senai" style="top:190svh"></span>
+        <span class="marco" id="exercito" style="top:330svh"></span>
+        <span class="marco" id="hospitais" style="top:500svh"></span>
+        <span class="marco" id="projetos" style="top:640svh"></span>
+        <div class="palco">
+            <canvas id="fundo3d" aria-hidden="true"></canvas>
+
+            <div class="cena c0">
+                <div class="titulo">
+                    <h1><span>Carlos</span><span>Jessé</span></h1>
+                    <p class="subtitulo">Desenvolvedor full-stack e analista de sistemas no Hospital Regional Sul de Minas.</p>
+                    <div class="acoes">
+                        <a class="botao" href="#senai">Ver minha história</a>
+                        <a class="link" href="assets/cv-carlos-jesse.pdf" target="_blank" rel="noopener">Currículo</a>
+                    </div>
+                </div>
+                <canvas id="cracha" aria-label="Crachá 3D de Carlos Jessé: arraste para puxar, toque para virar" role="img"></canvas>
+                <p class="dica" id="dica"><b>Pegue o crachá</b> e puxe. Toque para virar.</p>
+            </div>
+
+            <div class="cena c1" aria-labelledby="t-senai">
+                <div class="miolo">
+                    <div class="foto-fundo"><img src="assets/img/code-1076536_1280.jpg" alt="" width="1280" height="853"></div>
+                    <span class="ano" aria-hidden="true">2018</span>
+                    <div class="pessoa"><img src="assets/img/cenas/retrato-recorte.webp" alt="Carlos Jessé de perfil" width="852" height="1200"></div>
+                    <div class="legenda">
+                        <p class="quando">2018 a 2019 · SENAI</p>
+                        <h2 id="t-senai">Onde começou</h2>
+                        <p class="onde">Redes de Computadores e Eletroeletrônica</p>
+                        <p class="sobre">A base técnica: cabo, placa, rede e o primeiro código.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="cena c2" aria-labelledby="t-exercito">
+                <div class="miolo">
+                    <div class="foto-fundo"><img src="assets/img/exercito-2.webp" alt="" width="761" height="835"></div>
+                    <span class="ano" aria-hidden="true">2020</span>
+                    <div class="pessoa"><img src="assets/img/cenas/exercito-1-recorte.webp" alt="Carlos Jessé no treinamento do Exército, com o capacete 1187" width="831" height="851"></div>
+                    <div class="legenda">
+                        <p class="quando">2020 a 2025 · Exército Brasileiro</p>
+                        <h2 id="t-exercito">Cinco anos de farda</h2>
+                        <p class="onde">Soldado de Telecomunicações, Divisão de T.I. e Comunicações</p>
+                        <p class="sobre">Formaturas, instruções e o suporte de T.I. da unidade: disciplina, pressão e nenhum atalho.</p>
+                    </div>
+                    <div class="lema">
+                        <blockquote>“Braço Forte,<br>Mão Amiga.”</blockquote>
+                        <p>O lema que levo para o trabalho.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="cena c3" aria-labelledby="t-hospitais">
+                <div class="miolo">
+                    <span class="ano" aria-hidden="true">2025</span>
+                    <svg class="ecg" viewBox="0 0 1200 200" preserveAspectRatio="none" aria-hidden="true">
+                        <path pathLength="1" d="M0 120 H250 L280 105 L305 120 H330 L350 20 L372 190 L392 120 H430 L470 95 L510 120 H720 L750 105 L775 120 H800 L820 20 L842 190 L862 120 H900 L940 95 L980 120 H1200"/>
+                    </svg>
+                    <div class="pessoa"><img src="assets/img/cenas/hospital-recorte.webp" alt="Carlos Jessé de camiseta vermelha" width="682" height="948"></div>
+                    <div class="legenda um">
+                        <p class="quando">2025 · Hospital São Sebastião</p>
+                        <h2 id="t-hospitais">Sistema fora do ar é atendimento parado</h2>
+                        <p class="onde">T.I. em Três Corações</p>
+                        <p class="sobre">O primeiro contato com sistemas de missão crítica.</p>
+                    </div>
+                    <div class="legenda dois">
+                        <p class="quando">Desde out. 2025 · HRSM</p>
+                        <h2>Analista de Sistemas</h2>
+                        <p class="onde">Hospital Regional Sul de Minas</p>
+                        <p class="sobre">Cuido do SPData e dos bancos SQL de um hospital de referência na região. Graduado em ADS.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="cena c4" aria-labelledby="t-projetos">
+                <div class="miolo">
+                    <div class="cabeca"><h2 id="t-projetos">Projetos</h2></div>
+                    <div class="monitor-cena">
+                        <div class="monitor">
+                            <div class="tela-monitor">
+                                <video muted loop playsinline preload="metadata" poster="assets/img/projeto-fazendinha.webp" width="1280" height="800" aria-label="A Fazendinha Secreta rodando: canteiros, bichos e ajudantes trabalhando">
+                                    <source src="assets/img/projeto-fazendinha.mp4" type="video/mp4">
+                                </video>
+                            </div>
+                            <div class="monitor-texto">
+                                <div>
+                                    <h3>Fazendinha Secreta</h3>
+                                    <p>Jogo online com ranking, chat e eventos semanais. 2026.</p>
+                                </div>
+                                <a class="botao" href="fazenda.html">Jogar agora</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="trilho-cena">
+                        <div class="trilho">
+                            <article class="tela">
+                                <img src="assets/img/projeto-rabbitfin.webp" alt="Tela do RabbitFin" width="800" height="500" loading="lazy">
+                                <h3>RabbitFin</h3>
+                                <p>Controle financeiro para você e seu par. Next.js e React.</p>
+                                <a class="link" href="https://rabbitfin.jessecoelho.com.br/" target="_blank" rel="noopener">Ver projeto</a>
+                            </article>
+                            <article class="tela">
+                                <img src="assets/img/projeto-rara.webp" alt="Tela da Rara Moda Íntima" width="800" height="500" loading="lazy">
+                                <h3>Rara Moda Íntima</h3>
+                                <p>Loja com catálogo, coleções e carrinho. Supabase e WhatsApp.</p>
+                                <a class="link" href="https://raramodaintima.vercel.app/" target="_blank" rel="noopener">Ver projeto</a>
+                            </article>
+                            <article class="tela">
+                                <img src="assets/img/projeto-fortcar.webp" alt="Tela da Fort Car" width="800" height="500" loading="lazy">
+                                <h3>Fort Car</h3>
+                                <p>Revenda multimarcas com estoque e filtro por preço.</p>
+                                <a class="link" href="https://gcar-mult-marcas.vercel.app/" target="_blank" rel="noopener">Ver projeto</a>
+                            </article>
+                            <article class="tela">
+                                <img src="assets/img/projeto-motomundi.webp" alt="Tela do MotoMundi" width="800" height="500" loading="lazy">
+                                <h3>MotoMundi</h3>
+                                <p>Diário das rotas de moto pelo interior.</p>
+                                <a class="link" href="https://moto-mundi.vercel.app/" target="_blank" rel="noopener">Ver projeto</a>
+                            </article>
+                            <article class="tela">
+                                <img src="assets/img/projeto-coelhocast.webp" alt="Tela do CoelhoCast" width="800" height="500" loading="lazy">
+                                <h3>CoelhoCast</h3>
+                                <p>Página de entrada leve, feita para o celular.</p>
+                                <a class="link" href="https://paginadeentradacoelhocast.vercel.app/" target="_blank" rel="noopener">Ver projeto</a>
+                            </article>
+                            <article class="tela">
+                                <img src="assets/img/projeto-portfolio-v2.webp" alt="Tela do Portfólio V2" width="800" height="500" loading="lazy">
+                                <h3>Portfólio V2</h3>
+                                <p>A versão anterior deste site.</p>
+                                <a class="link" href="indexversao2.html">Ver projeto</a>
+                            </article>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="planos" id="planos">
+        <h2 class="sobe">Planos</h2>
+        <p class="intro sobe">Os dois incluem banco de dados, painel com gráficos, domínio .com.br no primeiro ano e um ano de suporte. O valor depende do seu projeto.</p>
+        <div class="bilhete sobe">
+            <div class="bilhete-corpo">
+                <h3>Plano Conexão</h3>
+                <p>Para quem vende conversando: o site qualifica o cliente e leva direto para o seu WhatsApp.</p>
+                <ul>
+                    <li>Banco de dados profissional</li>
+                    <li>Painel admin com gráficos</li>
+                    <li>Domínio .com.br (1º ano)</li>
+                    <li>Captação de leads</li>
+                    <li>Atalho direto para o WhatsApp</li>
+                    <li>Suporte técnico por 1 ano</li>
+                </ul>
+            </div>
+            <div class="bilhete-canhoto">
+                <span class="furos" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+                <p class="preco">Sob consulta</p>
+                <p class="preco-nota">de acordo com o seu projeto</p>
+                <a class="botao" href="https://wa.me/5535998594066?text=Ol%C3%A1!%20Tenho%20interesse%20no%20plano%20Conex%C3%A3o.%20Poderia%20me%20passar%20mais%20informa%C3%A7%C3%B5es%3F" target="_blank" rel="noopener">Pedir orçamento</a>
+            </div>
+        </div>
+        <div class="bilhete sobe">
+            <div class="bilhete-corpo">
+                <h3>Plano Checkout Pro</h3>
+                <p>Para vender no próprio site: cartão, PIX e boleto, com relatórios em tempo real.</p>
+                <ul>
+                    <li>Tudo do plano Conexão</li>
+                    <li>Pagamento: cartão, PIX, boleto</li>
+                    <li>Relatórios financeiros ao vivo</li>
+                    <li>WhatsApp junto com a venda</li>
+                </ul>
+            </div>
+            <div class="bilhete-canhoto">
+                <span class="furos" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+                <p class="preco">Sob consulta</p>
+                <p class="preco-nota">de acordo com o seu projeto</p>
+                <a class="botao" href="https://wa.me/5535998594066?text=Ol%C3%A1!%20Tenho%20interesse%20no%20plano%20Checkout%20Pro.%20Poderia%20me%20passar%20mais%20informa%C3%A7%C3%B5es%3F" target="_blank" rel="noopener">Pedir orçamento</a>
+            </div>
+        </div>
+    </section>
+
+    <section class="contato" id="contato">
+        <div>
+            <h2 class="sobe">Vamos construir juntos?</h2>
+            <p class="chamada sobe">Conte o que você precisa: um site, um sistema, uma loja. Respondo no mesmo dia.</p>
+        </div>
+        <a class="numero sobe" href="https://wa.me/5535998594066?text=Ol%C3%A1%2C%20Carlos!%20Vim%20pelo%20seu%20portf%C3%B3lio." target="_blank" rel="noopener" aria-label="Falar no WhatsApp: (35) 99859-4066">(35) <span style="white-space:nowrap">99859-4066</span></a>
+        <details class="email-form">
+            <summary>Prefere escrever um e-mail?</summary>
+            <form id="contactForm" action="https://formspree.io/f/maqakjkg" method="POST">
+                <label>Nome<input name="nome" required autocomplete="name"></label>
+                <label>E-mail<input type="email" name="email" required autocomplete="email"></label>
+                <label class="largo">Assunto<input name="assunto"></label>
+                <label class="largo">Mensagem<textarea name="mensagem" required></textarea></label>
+                <button class="botao" type="submit">Enviar mensagem</button>
+                <p class="ok" id="formOk" hidden>Mensagem enviada. Obrigado! Respondo o mais breve possível.</p>
+            </form>
+        </details>
+        <div class="contato-pe">
+            <span>Três Corações · Sul de Minas Gerais</span>
+            <ul>
+                <li><a class="link" href="https://www.linkedin.com/in/carlos-jess%C3%A9-coelho-da-silva-5b375a206/" target="_blank" rel="noopener">LinkedIn</a></li>
+                <li><a class="link" href="https://github.com/reccoelho" target="_blank" rel="noopener">GitHub</a></li>
+                <li><a class="link" href="https://linktr.ee/CarlosJesse" target="_blank" rel="noopener">Linktree</a></li>
+            </ul>
+        </div>
+    </section>
+</main>
+
+<footer class="rodape">
+    <span>Carlos Jessé, desenvolvedor full-stack</span>
+    <span>© 2026 · <a href="privacidade.html">Privacidade</a> · <a href="index.html">Versão atual</a></span>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/gsap.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/ScrollTrigger.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/lenis@1.3.26/dist/lenis.min.js" defer></script>
+<script type="module" src="assets/js/cenas.js"></script>
+</body>
+</html>
