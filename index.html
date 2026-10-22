@@ -103,14 +103,14 @@
         .js:not(.calmo) .c2, .js:not(.calmo) .c4 { clip-path: inset(100% 0 0 0); }
         .js:not(.calmo) .c3 { opacity: 0; }
         .miolo { position: absolute; inset: 0; }
-        #fundo3d { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 20; pointer-events: none; mix-blend-mode: screen; }
+        #fundo3d { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 20; pointer-events: none; }
         .calmo #fundo3d, html:not(.js) #fundo3d { display: none; }
 
         /* foto de fundo em vermelho e preto */
         .foto-fundo { position: absolute; inset: -6%; }
-        .foto-fundo img { width: 100%; height: 100%; object-fit: cover; filter: grayscale(1) contrast(1.2) brightness(.42); }
-        .foto-fundo::after { content: ''; position: absolute; inset: 0; background: var(--accent-press); mix-blend-mode: color; opacity: .9; }
-        .foto-fundo::before { content: ''; position: absolute; inset: 0; z-index: 1; background: rgba(13, 6, 8, .35); }
+        /* o tom vermelho e escuro já vem pronto na imagem: nada de filtro nem mistura em tempo real */
+        .foto-fundo img { width: 100%; height: 100%; object-fit: cover; }
+        .escurece { position: absolute; inset: 0; z-index: 4; background: #000; opacity: 0; pointer-events: none; }
         .ano {
             position: absolute; left: 0; right: 0; top: 50%; margin-top: -.4em; text-align: center; z-index: 1;
             font: 900 clamp(160px, 34vw, 560px)/.8 var(--display); letter-spacing: -0.04em; color: transparent;
@@ -143,7 +143,9 @@
 
         /* cena 1: SENAI */
         .c1 { background: var(--surface); }
-        .c1 .pessoa { right: 8vw; height: 94svh; transform-origin: 50% 100%; }
+        /* 2018: a foto em preto e branco fica atrás do ano */
+        .c1 .pessoa { right: 10vw; height: 90svh; transform-origin: 50% 100%; z-index: 1; }
+        .c1 .ano { z-index: 2; -webkit-text-stroke-color: rgba(236, 232, 230, .5); }
         .c1 .pessoa img { width: auto; height: 100%; }
         .c1 .legenda { left: var(--m); bottom: 14svh; }
 
@@ -234,6 +236,10 @@
         .js .sobe:not(.visto) { opacity: 0; transform: translateY(32px); }
 
         @media (max-width: 760px) {
+            /* celular: teatro mais curto, sem o pó 3D e sem brilho filtrado na linha do batimento */
+            .js:not(.calmo) .teatro { height: 720svh; }
+            #fundo3d { display: none; }
+            .ecg path { filter: none; stroke-width: 4; }
             body { font-size: 17px; }
             .nav ul { display: none; }
             .c0 .titulo { bottom: 12svh; max-width: none; right: var(--m); }
@@ -300,10 +306,10 @@
     <!-- a história: um palco preso na tela e as cenas trocando enquanto se desce -->
     <section class="teatro" id="historia" aria-label="A história de Carlos Jessé">
         <span class="marco" id="inicio" style="top:0"></span>
-        <span class="marco" id="senai" style="top:190svh"></span>
-        <span class="marco" id="exercito" style="top:330svh"></span>
-        <span class="marco" id="hospitais" style="top:500svh"></span>
-        <span class="marco" id="projetos" style="top:640svh"></span>
+        <span class="marco" id="senai" style="top:21%"></span>
+        <span class="marco" id="exercito" style="top:37%"></span>
+        <span class="marco" id="hospitais" style="top:55.5%"></span>
+        <span class="marco" id="projetos" style="top:71%"></span>
         <div class="palco">
             <canvas id="fundo3d" aria-hidden="true"></canvas>
             <svg class="ecg ecg-passagem" viewBox="0 0 1200 200" preserveAspectRatio="none" aria-hidden="true"><path pathLength="1" d="M0 120 H250 L280 105 L305 120 H330 L350 20 L372 190 L392 120 H430 L470 95 L510 120 H720 L750 105 L775 120 H800 L820 20 L842 190 L862 120 H900 L940 95 L980 120 H1200"/></svg>
@@ -324,9 +330,9 @@
 
             <div class="cena c1" aria-labelledby="t-senai">
                 <div class="miolo">
-                    <div class="foto-fundo"><img src="assets/img/code-1076536_1280.jpg" alt="" width="1280" height="853"></div>
+                    <div class="foto-fundo"><img src="assets/img/cenas/fundo-senai.webp" srcset="assets/img/cenas/fundo-senai-cel.webp 720w, assets/img/cenas/fundo-senai.webp 1280w" sizes="100vw" alt="" width="1280" height="719" decoding="async"></div>
                     <span class="ano" aria-hidden="true">2018</span>
-                    <div class="pessoa"><img src="assets/img/cenas/bracos-recorte.webp" alt="Carlos Jessé de braços cruzados, camiseta vermelha" width="889" height="1215"></div>
+                    <div class="pessoa"><img src="assets/img/cenas/sorriso-pb-recorte.webp" alt="Carlos Jessé sorrindo, em preto e branco" width="848" height="1300" decoding="async"></div>
                     <div class="legenda">
                         <p class="quando">2018 a 2019 · SENAI</p>
                         <h2 id="t-senai">Onde começou</h2>
@@ -338,7 +344,8 @@
 
             <div class="cena c2" aria-labelledby="t-exercito">
                 <div class="miolo">
-                    <div class="foto-fundo"><img src="assets/img/exercito-2.webp" alt="" width="761" height="835"></div>
+                    <div class="escurece" aria-hidden="true"></div>
+                    <div class="foto-fundo"><img src="assets/img/cenas/fundo-exercito.webp" srcset="assets/img/cenas/fundo-exercito-cel.webp 720w, assets/img/cenas/fundo-exercito.webp 761w" sizes="100vw" alt="" width="761" height="835" decoding="async"></div>
                     <span class="ano" aria-hidden="true">2020</span>
                     <div class="pessoa"><img src="assets/img/cenas/exercito-1-recorte.webp" alt="Carlos Jessé no treinamento do Exército, com o capacete 1187" width="831" height="851"></div>
                     <div class="legenda">
