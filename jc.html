@@ -226,9 +226,15 @@
         /* o menu ganha um fundo para continuar legível por cima da parte clara do contato */
         .nav { background: rgba(17, 10, 25, .86); }
         .marca-mascote { width: 40px; height: 40px; border-radius: 50%; box-shadow: 0 0 0 2px var(--accent); }
-        .contato-topo { display: flex; justify-content: space-between; align-items: end; gap: 32px; }
-        .contato-topo .mascote { width: clamp(150px, 20vw, 280px); height: auto; margin-bottom: -40px; }
-        @media (max-width: 760px) { .contato-topo { flex-direction: column-reverse; align-items: start; } .contato-topo .mascote { width: 150px; margin: 0; } }
+        /* o mascote fica apoiado na base do contato: o corte do moletom encosta no rodapé */
+        .contato { position: relative; }
+        .contato .mascote { position: absolute; right: var(--m); bottom: 0; width: clamp(150px, 14vw, 220px); height: auto; pointer-events: none; }
+        .contato .contato-pe { padding-right: calc(clamp(150px, 14vw, 220px) + 32px); }
+        @media (max-width: 760px) {
+            .contato.contato { padding-bottom: 0; }
+            .contato .mascote { position: static; align-self: center; width: 190px; margin-top: 8px; }
+            .contato .contato-pe { padding-right: 0; }
+        }
         .contato { display: flex; flex-direction: column; gap: 48px; padding: 140px var(--m) 40px; background: var(--stone); color: var(--bg); }
         .contato h2 { font-size: clamp(44px, 6.4vw, 104px); }
         .contato .chamada { margin-top: 18px; font-size: 22px; font-weight: 600; max-width: 34ch; }
@@ -359,7 +365,7 @@
                     <div class="escurece" aria-hidden="true"></div>
                     <div class="foto-fundo"><img src="assets/img/jc/fundo-exercito-roxo.webp" srcset="assets/img/jc/fundo-exercito-roxo-cel.webp 720w, assets/img/jc/fundo-exercito-roxo.webp 761w" sizes="100vw" alt="" width="761" height="835" decoding="async"></div>
                     <span class="ano" aria-hidden="true">2020</span>
-                    <div class="pessoa"><img src="assets/img/cenas/exercito-1-recorte.webp" alt="Jessé Coelho no treinamento do Exército, com o capacete 1187" width="831" height="851"></div>
+                    <div class="pessoa"><img src="assets/img/cenas/exercito-1-recorte.webp?v=2" alt="Jessé Coelho no treinamento do Exército, com o capacete 1187" width="831" height="851"></div>
                     <div class="legenda">
                         <p class="quando">2020 a 2025 · Exército Brasileiro</p>
                         <h2 id="t-exercito">Cinco anos de farda</h2>
@@ -379,7 +385,7 @@
                     <svg class="ecg" viewBox="0 0 1200 200" preserveAspectRatio="none" aria-hidden="true">
                         <path pathLength="1" d="M0 120 H250 L280 105 L305 120 H330 L350 20 L372 190 L392 120 H430 L470 95 L510 120 H720 L750 105 L775 120 H800 L820 20 L842 190 L862 120 H900 L940 95 L980 120 H1200"/>
                     </svg>
-                    <div class="pessoa"><img src="assets/img/cenas/hospital-recorte.webp" alt="Jessé Coelho de camiseta vermelha" width="682" height="948"></div>
+                    <div class="pessoa"><img src="assets/img/jc/hospital-roxo.webp" alt="Jessé Coelho de camiseta roxa" width="682" height="948"></div>
                     <div class="legenda um">
                         <p class="quando">2025 · Hospital São Sebastião</p>
                         <h2 id="t-hospitais">Sistema fora do ar é atendimento parado</h2>
@@ -503,12 +509,9 @@
     </section>
 
     <section class="contato" id="contato">
-        <div class="contato-topo">
-            <div>
-                <h2 class="sobe">Vamos construir juntos?</h2>
-                <p class="chamada sobe">Conte o que você precisa: um site, um sistema, uma loja. Respondo no mesmo dia.</p>
-            </div>
-            <img class="mascote sobe" src="assets/img/jc/mascote.webp" alt="O mascote da comunidade: um coelho de óculos, fone e moletom roxo" width="643" height="638" loading="lazy">
+        <div>
+            <h2 class="sobe">Vamos construir juntos?</h2>
+            <p class="chamada sobe">Conte o que você precisa: um site, um sistema, uma loja. Respondo no mesmo dia.</p>
         </div>
         <a class="numero sobe" href="https://wa.me/5535998594066?text=Ol%C3%A1%2C%20Jess%C3%A9!%20Vim%20pelo%20seu%20portf%C3%B3lio." target="_blank" rel="noopener" aria-label="Falar no WhatsApp: (35) 99859-4066">(35) <span style="white-space:nowrap">99859-4066</span></a>
         <details class="email-form">
@@ -530,6 +533,7 @@
                 <li><a class="link" href="https://linktr.ee/CarlosJesse" target="_blank" rel="noopener">Linktree</a></li>
             </ul>
         </div>
+        <img class="mascote" src="assets/img/jc/mascote.webp" alt="O mascote da comunidade: um coelho de óculos, fone e moletom roxo" width="643" height="638" loading="lazy">
     </section>
 </main>
 
@@ -541,6 +545,7 @@
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/gsap.min.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/ScrollTrigger.min.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/lenis@1.3.26/dist/lenis.min.js" defer></script>
-<script type="module" src="assets/js/cenas.js"></script>
+<!-- o ?v= muda a cada atualização dos scripts, para o navegador não usar a versão guardada -->
+<script type="module" src="assets/js/cenas.js?v=20261023"></script>
 </body>
 </html>
