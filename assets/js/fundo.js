@@ -55,7 +55,9 @@ export function montarFundo(canvas, { leve = false, celular = false } = {}) {
 
     const F = formacoes(n);
     const posicoes = new Float32Array(F[0]);
-    const cores = new Float32Array(n * 3), vermelho = new THREE.Color('#d94040'), claro = new THREE.Color('#ece8e6');
+    const cores = new Float32Array(n * 3), css = getComputedStyle(document.documentElement);
+    // as cores do pó seguem o tema da página (vermelho e claro no site, roxo e lilás no teste JC)
+    const vermelho = new THREE.Color(css.getPropertyValue('--red').trim() || '#d94040'), claro = new THREE.Color(css.getPropertyValue('--po-claro').trim() || css.getPropertyValue('--ink').trim() || '#ece8e6');
     const r = aleatorio(3);
     for (let i = 0; i < n; i++) cores.set((r() < 0.72 ? vermelho : claro).toArray(), i * 3);
     const geo = new THREE.BufferGeometry();

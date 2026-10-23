@@ -7,6 +7,21 @@ const LARGURA = 1.6, ALTURA = 2.25, CANTO = 0.09, ESPESSURA = 0.03;
 const TECNOLOGIAS = ['JavaScript', 'React', 'Next.js', 'Node.js', 'Supabase', 'PostgreSQL', 'SQL e SPData', 'PHP', 'HTML e CSS', 'Git e GitHub'];
 const QR_AREA = { x0: 48 / 640, x1: 188 / 640, y0: 1 - 888 / 900, y1: 1 - 748 / 900 }; // onde o QR fica na frente (uv)
 
+// o tema vem da página: cores das variáveis CSS do :root e textos dos data-* do <html>.
+// Sem nada definido, fica o crachá vermelho "CARLOS JESSÉ" de sempre.
+function lerTema() {
+    const css = getComputedStyle(document.documentElement), d = document.documentElement.dataset;
+    const cor = (nome, padrao) => (css.getPropertyValue(nome).trim() || padrao);
+    return {
+        faixa: cor('--accent', '#b52828'), faixaVerso: cor('--accent-press', '#8b1a1a'), vivo: cor('--red', '#d94040'),
+        campo: cor('--field', '#2a0f13'), superficie: cor('--surface', '#1a0a0d'), papel: cor('--ink', '#ece8e6'),
+        tinta: cor('--bg', '#0d0608'), apagado: cor('--muted', '#c9b8b1'), cinza: cor('--cracha-cinza', '#5c4744'),
+        nome: d.nome || 'CARLOS JESSÉ', nomeCompleto: d.nomeCompleto || '', cordao: d.cordao || 'CARLOS JESSÉ · DEV',
+        logo: d.logo || 'cj', foto: d.fotoCracha || 'assets/img/cenas/familia-recorte.webp', qr: d.qr || 'assets/img/cenas/qr-whatsapp.png',
+    };
+}
+let T = null;
+
 const carregarImagem = (src) => new Promise((ok, erro) => { const i = new Image(); i.onload = () => ok(i); i.onerror = erro; i.src = src; });
 
 function retanguloRedondo(ctx, x, y, w, h, r) {
@@ -15,64 +30,94 @@ function retanguloRedondo(ctx, x, y, w, h, r) {
     ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
 }
 
-// o logo CJ do favicon: C claro, J vermelho
-function logo(ctx, x, y, tam, corC, corJ) {
+// o logo na faixa do crachá: "cj" (C claro, J escuro), "orelhas" (JC com orelhas de coelho no J)
+// ou "coelho" (um coelhinho ao lado de JC)
+function logo(ctx, x, y, tam, corClara, corEscura) {
     ctx.font = `italic 700 ${tam}px Georgia, serif`;
     ctx.textBaseline = 'alphabetic';
-    ctx.fillStyle = corC; ctx.fillText('C', x, y);
-    ctx.fillStyle = corJ; ctx.fillText('J', x + tam * 0.62, y);
+    if (T.logo === 'cj') {
+        ctx.fillStyle = corClara; ctx.fillText('C', x, y);
+        ctx.fillStyle = corEscura; ctx.fillText('J', x + tam * 0.62, y);
+        return;
+    }
+    let xl = x;
+    if (T.logo === 'coelho') {
+        // a silhueta: cabeça redonda, duas orelhas compridas e um olhinho
+        const cx = x + tam * 0.32, cy = y - tam * 0.3, r = tam * 0.26;
+        ctx.fillStyle = corClara;
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+        [[-0.38, -0.12], [0.38, 0.12]].forEach(([dx, giro]) => {
+            ctx.save(); ctx.translate(cx + dx * r, cy - r * 1.55); ctx.rotate(giro);
+            ctx.beginPath(); ctx.ellipse(0, 0, r * 0.3, r * 0.95, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+        });
+        ctx.fillStyle = corEscura; ctx.beginPath(); ctx.arc(cx + r * 0.38, cy - r * 0.1, r * 0.13, 0, Math.PI * 2); ctx.fill();
+        xl = x + tam * 0.78;
+    }
+    ctx.fillStyle = corClara; ctx.fillText('J', xl, y);
+    ctx.fillStyle = corEscura; ctx.fillText('C', xl + tam * 0.42, y);
+    if (T.logo === 'orelhas') {
+        // duas orelhas pequenas saindo do alto do J
+        ctx.fillStyle = corClara;
+        [[0.3, -0.25], [0.56, 0.22]].forEach(([dx, giro]) => {
+            ctx.save(); ctx.translate(xl + tam * dx, y - tam * 0.86); ctx.rotate(giro);
+            ctx.beginPath(); ctx.ellipse(0, 0, tam * 0.07, tam * 0.2, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+        });
+    }
 }
 
 function faixaDoTopo(ctx, cor) {
     ctx.fillStyle = cor; ctx.fillRect(0, 0, 640, 150);
-    ctx.fillStyle = '#0d0608'; retanguloRedondo(ctx, 260, 34, 120, 24, 12); ctx.fill(); // o furo do clipe
+    ctx.fillStyle = T.tinta; retanguloRedondo(ctx, 260, 34, 120, 24, 12); ctx.fill(); // o furo do clipe
 }
 
 function desenharFrente(foto, qr) {
     const c = document.createElement('canvas'); c.width = 640; c.height = 900;
     const ctx = c.getContext('2d');
-    ctx.fillStyle = '#ece8e6'; ctx.fillRect(0, 0, 640, 900);
-    faixaDoTopo(ctx, '#b52828');
-    logo(ctx, 48, 128, 60, '#ece8e6', '#0d0608');
-    ctx.fillStyle = '#ece8e6'; ctx.font = '700 28px Montserrat, sans-serif'; ctx.textAlign = 'right';
+    ctx.fillStyle = T.papel; ctx.fillRect(0, 0, 640, 900);
+    faixaDoTopo(ctx, T.faixa);
+    logo(ctx, 48, 128, 60, T.papel, T.tinta);
+    ctx.fillStyle = T.papel; ctx.font = '700 28px Montserrat, sans-serif'; ctx.textAlign = 'right';
     ctx.fillText('DEV', 592, 122); ctx.textAlign = 'left';
     // a foto recortada sobre o vermelho escuro
-    ctx.fillStyle = '#2a0f13'; ctx.fillRect(48, 178, 544, 452);
+    ctx.fillStyle = T.campo; ctx.fillRect(48, 178, 544, 452);
     ctx.save(); ctx.beginPath(); ctx.rect(48, 178, 544, 452); ctx.clip();
     // a foto com a filha: os dois rostos no alto da janela, o resto do corpo fica fora
     const escala = 544 * 1.06 / foto.width, w = foto.width * escala;
     ctx.drawImage(foto, 48 + (544 - w) / 2, 178 + 18, w, foto.height * escala);
     ctx.restore();
-    ctx.fillStyle = '#0d0608'; ctx.font = '900 66px "Playfair Display", serif';
-    ctx.fillText('CARLOS JESSÉ', 46, 700);
-    ctx.fillStyle = '#5c4744'; ctx.font = '600 26px Montserrat, sans-serif';
-    ctx.fillText('Desenvolvedor full-stack', 48, 738);
+    // o nome encolhe se precisar para caber na largura do crachá
+    let tamNome = 66;
+    do { ctx.font = `900 ${tamNome}px "Playfair Display", serif`; } while (ctx.measureText(T.nome).width > 548 && --tamNome > 40);
+    ctx.fillStyle = T.tinta; ctx.fillText(T.nome, 46, 700);
+    ctx.fillStyle = T.cinza;
+    if (T.nomeCompleto) { ctx.font = '600 22px Montserrat, sans-serif'; ctx.fillText(`${T.nomeCompleto} · Desenvolvedor full-stack`, 48, 736); }
+    else { ctx.font = '600 26px Montserrat, sans-serif'; ctx.fillText('Desenvolvedor full-stack', 48, 738); }
     ctx.drawImage(qr, 48, 760, 128, 128);
-    ctx.fillStyle = '#0d0608'; ctx.font = '700 28px Montserrat, sans-serif'; ctx.fillText('Fale comigo', 204, 800);
-    ctx.fillStyle = '#5c4744'; ctx.font = '600 20px Montserrat, sans-serif';
+    ctx.fillStyle = T.tinta; ctx.font = '700 28px Montserrat, sans-serif'; ctx.fillText('Fale comigo', 204, 800);
+    ctx.fillStyle = T.cinza; ctx.font = '600 20px Montserrat, sans-serif';
     ctx.fillText('Aponte a câmera ou toque no QR', 204, 834);
-    ctx.fillStyle = '#b52828'; ctx.font = '700 26px Montserrat, sans-serif'; ctx.fillText('(35) 99859-4066', 204, 872);
+    ctx.fillStyle = T.faixa; ctx.font = '700 26px Montserrat, sans-serif'; ctx.fillText('(35) 99859-4066', 204, 872);
     return c;
 }
 
 function desenharVerso() {
     const c = document.createElement('canvas'); c.width = 640; c.height = 900;
     const ctx = c.getContext('2d');
-    ctx.fillStyle = '#1a0a0d'; ctx.fillRect(0, 0, 640, 900);
-    faixaDoTopo(ctx, '#8b1a1a');
-    logo(ctx, 48, 128, 60, '#ece8e6', '#0d0608');
-    ctx.fillStyle = '#ece8e6'; ctx.font = '900 54px "Playfair Display", serif';
+    ctx.fillStyle = T.superficie; ctx.fillRect(0, 0, 640, 900);
+    faixaDoTopo(ctx, T.faixaVerso);
+    logo(ctx, 48, 128, 60, T.papel, T.tinta);
+    ctx.fillStyle = T.papel; ctx.font = '900 54px "Playfair Display", serif';
     ctx.fillText('Tecnologias', 48, 236);
     ctx.font = '600 27px Montserrat, sans-serif';
     TECNOLOGIAS.forEach((t, i) => {
         const x = 48 + (i % 2) * 284, y = 300 + Math.floor(i / 2) * 58;
-        ctx.fillStyle = '#d94040'; ctx.fillText('+', x, y);
-        ctx.fillStyle = '#ece8e6'; ctx.fillText(t, x + 28, y);
+        ctx.fillStyle = T.vivo; ctx.fillText('+', x, y);
+        ctx.fillStyle = T.papel; ctx.fillText(t, x + 28, y);
     });
-    ctx.fillStyle = '#d94040'; ctx.fillRect(48, 620, 72, 6);
-    ctx.fillStyle = '#ece8e6'; ctx.font = 'italic 900 52px "Playfair Display", serif';
+    ctx.fillStyle = T.vivo; ctx.fillRect(48, 620, 72, 6);
+    ctx.fillStyle = T.papel; ctx.font = 'italic 900 52px "Playfair Display", serif';
     ctx.fillText('Braço Forte,', 48, 704); ctx.fillText('Mão Amiga.', 48, 764);
-    ctx.fillStyle = '#c9b8b1'; ctx.font = '600 22px Montserrat, sans-serif';
+    ctx.fillStyle = T.apagado; ctx.font = '600 22px Montserrat, sans-serif';
     ctx.fillText('Exército Brasileiro · 2020 a 2025', 48, 820);
     ctx.fillText('Toque para virar', 48, 862);
     return c;
@@ -81,9 +126,12 @@ function desenharVerso() {
 function desenharCordao() {
     const c = document.createElement('canvas'); c.width = 1024; c.height = 64;
     const ctx = c.getContext('2d');
-    ctx.fillStyle = '#b52828'; ctx.fillRect(0, 0, 1024, 64);
-    ctx.fillStyle = '#ece8e6'; ctx.font = '700 30px Montserrat, sans-serif'; ctx.textBaseline = 'middle';
-    ctx.fillText('CARLOS JESSÉ · DEV · CARLOS JESSÉ · DEV ·', 12, 34);
+    ctx.fillStyle = T.faixa; ctx.fillRect(0, 0, 1024, 64);
+    ctx.fillStyle = T.papel; ctx.font = '700 30px Montserrat, sans-serif'; ctx.textBaseline = 'middle';
+    // repete o texto até encher a fita
+    const pedaco = `${T.cordao} · `; let texto = pedaco;
+    while (ctx.measureText(texto + pedaco).width < 1010) texto += pedaco;
+    ctx.fillText(texto, 12, 34);
     return c;
 }
 
@@ -103,12 +151,13 @@ function faceDoCartao(forma, textura) {
 }
 
 export async function montarCracha(canvas, { leve = false, calmo = false, aoTocarQr = () => {} } = {}) {
+    T = lerTema();
     await RAPIER.init();
     await Promise.all([
         document.fonts.load('900 66px "Playfair Display"'), document.fonts.load('italic 900 52px "Playfair Display"'),
         document.fonts.load('700 28px Montserrat'), document.fonts.load('600 26px Montserrat'),
     ]).catch(() => {});
-    const [foto, qr] = await Promise.all([carregarImagem('assets/img/cenas/familia-recorte.webp'), carregarImagem('assets/img/cenas/qr-whatsapp.png')]);
+    const [foto, qr] = await Promise.all([carregarImagem(T.foto), carregarImagem(T.qr)]);
 
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: !leve, alpha: true });
     renderer.setPixelRatio(Math.min(devicePixelRatio, leve ? 1.5 : 2));
@@ -117,14 +166,14 @@ export async function montarCracha(canvas, { leve = false, calmo = false, aoToca
     const camera = new THREE.PerspectiveCamera(25, 1, 0.1, 100);
     cena.add(new THREE.AmbientLight(0xffffff, 1.1));
     const luz = new THREE.DirectionalLight(0xffffff, 2.2); luz.position.set(2, 3, 6); cena.add(luz);
-    const luzVermelha = new THREE.PointLight(0xd94040, 18, 14); luzVermelha.position.set(-3, -1, 3); cena.add(luzVermelha);
+    const luzVermelha = new THREE.PointLight(new THREE.Color(T.vivo), 18, 14); luzVermelha.position.set(-3, -1, 3); cena.add(luzVermelha);
 
     const textura = (c) => { const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = renderer.capabilities.getMaxAnisotropy(); return t; };
 
     // o cartão: a borda grossa, a frente, o verso e o clipe de metal
     const forma = formaArredondada();
     const cartao = new THREE.Group();
-    const borda = new THREE.Mesh(new THREE.ExtrudeGeometry(forma, { depth: ESPESSURA, bevelEnabled: false, curveSegments: 6 }), new THREE.MeshStandardMaterial({ color: 0x2a0f13, roughness: 0.6 }));
+    const borda = new THREE.Mesh(new THREE.ExtrudeGeometry(forma, { depth: ESPESSURA, bevelEnabled: false, curveSegments: 6 }), new THREE.MeshStandardMaterial({ color: new THREE.Color(T.campo), roughness: 0.6 }));
     borda.position.z = -ESPESSURA / 2;
     const frente = faceDoCartao(forma, textura(desenharFrente(foto, qr))); frente.position.z = ESPESSURA / 2 + 0.001;
     const verso = faceDoCartao(forma, textura(desenharVerso())); verso.rotation.y = Math.PI; verso.position.z = -ESPESSURA / 2 - 0.001;
