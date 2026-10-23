@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-BR" data-nome="JESSÉ COELHO" data-nome-completo="Carlos Jessé Coelho" data-cordao="JESSÉ COELHO · DEV" data-logo="orelhas" data-foto-cracha="assets/img/jc/familia-roxo.webp" data-qr="assets/img/jc/qr-whatsapp-roxo.png">
+<html lang="pt-BR" data-nome="JESSÉ COELHO" data-nome-completo="Carlos Jessé Coelho" data-cordao="JESSÉ COELHO · DEV" data-logo="mascote" data-logo-img="assets/img/jc/mascote-logo.png" data-foto-cracha="assets/img/jc/familia-roxo.webp" data-qr="assets/img/jc/qr-whatsapp-roxo.png">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -12,10 +12,10 @@
     <meta property="og:image" content="https://carlosjessecoelho.vercel.app/assets/img/og-image.jpg">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta name="theme-color" content="#0e0a14">
-    <link rel="icon" type="image/svg+xml" href="assets/img/jc/favicon-orelhas.svg" id="favicon">
-    <link rel="icon" type="image/x-icon" href="assets/img/favicon.ico">
-    <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
+    <meta name="theme-color" content="#110a19">
+    <link rel="icon" type="image/png" sizes="64x64" href="assets/img/jc/mascote-64.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="assets/img/jc/mascote-32.png">
+    <link rel="apple-touch-icon" href="assets/img/jc/mascote-apple.png">
     <link rel="manifest" href="assets/img/site.webmanifest">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -23,15 +23,6 @@
     <script>
         // as cenas presas na rolagem só valem com script e sem "reduzir movimento"; sem isso a página vira uma rolagem comum
         document.documentElement.classList.add('js');
-        // página de teste: ?logo=orelhas (padrão) ou ?logo=coelho troca o logo do menu, o favicon e o crachá
-        const logoTeste = new URLSearchParams(location.search).get('logo') === 'coelho' ? 'coelho' : 'orelhas';
-        document.documentElement.dataset.logo = logoTeste;
-        document.addEventListener('DOMContentLoaded', () => {
-            const arquivo = `assets/img/jc/favicon-${logoTeste}.svg`;
-            document.getElementById('favicon').href = arquivo;
-            document.getElementById('marcaLogo').src = arquivo;
-            document.querySelectorAll('.teste-logo a').forEach((a) => a.setAttribute('aria-current', a.dataset.logo === logoTeste ? 'true' : 'false'));
-        });
         if (matchMedia('(prefers-reduced-motion: reduce)').matches) document.documentElement.classList.add('calmo');
     </script>
     <script type="importmap">
@@ -44,19 +35,19 @@
     </script>
     <style>
         :root {
-            /* teste JC: a "noite roxa" da família Coelho Roxo no lugar do vermelho */
-            --bg: #0e0a14;
-            --surface: #1a1226;
-            --field: #241634;
-            --ink: #efeaf7;
-            --muted: #bdb3cc;
-            --red: #8b5cf6;
-            --accent: #7c3aed;
-            --accent-press: #5b21b6;
-            --stone: #ece7f5;
-            --pastel: #c4b5fd;
-            --po-claro: #c4b5fd;
-            --cracha-cinza: #54496a;
+            /* teste JC: o roxo do mascote da comunidade (o coelho de fone e óculos) no lugar do vermelho */
+            --bg: #110a19;
+            --surface: #1d1029;
+            --field: #2a173d;
+            --ink: #f1ecf6;
+            --muted: #bcaed0;
+            --red: #9c6fd3;
+            --accent: #6a35a0;
+            --accent-press: #552982;
+            --stone: #ede7f4;
+            --pastel: #c9b3e6;
+            --po-claro: #c9b3e6;
+            --cracha-cinza: #5a4a6e;
             --display: 'Playfair Display', Georgia, serif;
             --text: 'Montserrat', system-ui, sans-serif;
             --m: clamp(16px, 4vw, 56px);
@@ -94,14 +85,9 @@
         .nav .botao { min-height: 42px; padding: 0 18px; font-size: 15px; }
         .som {
             position: fixed; left: var(--m); bottom: 20px; z-index: 50; display: flex; align-items: center; gap: 10px;
-            min-height: 44px; padding: 0 16px; border: 0; background: rgba(14, 10, 20, .78); color: var(--ink);
+            min-height: 44px; padding: 0 16px; border: 0; background: rgba(17, 10, 25, .78); color: var(--ink);
             font: 700 14px/1 var(--text); cursor: pointer; box-shadow: inset 0 0 0 1px rgba(236, 232, 230, .35);
         }
-        .teste-logo { position: fixed; right: var(--m); top: 84px; z-index: 50; display: flex; align-items: center; gap: 4px; padding: 6px; background: rgba(14, 10, 20, .85); box-shadow: inset 0 0 0 1px rgba(196, 181, 253, .35); font: 700 13px/1 var(--text); }
-        .teste-logo span { padding: 0 8px; color: var(--muted); }
-        .teste-logo a { padding: 8px 12px; text-decoration: none; }
-        .teste-logo a[aria-current="true"] { background: var(--accent); }
-        @media (max-width: 760px) { .teste-logo { top: 104px; } }
         .som:hover { box-shadow: inset 0 0 0 1px var(--ink); }
         .barras { display: flex; align-items: flex-end; gap: 3px; height: 16px; }
         .barras i { width: 3px; height: 4px; background: var(--red); transition: height .3s; }
@@ -171,7 +157,7 @@
         .c1 .legenda { left: var(--m); bottom: 14svh; }
 
         /* cena 2: Exército */
-        .c2 { background: #120c1c; }
+        .c2 { background: #140c1f; }
         .c2 .foto-fundo img { object-position: 50% 30%; }
         .c2 .pessoa { left: 0; right: 0; margin: 0 auto; width: min(62vw, 980px); bottom: -4svh; transform-origin: 50% 100%; }
         .c2 .legenda { left: var(--m); top: 18svh; }
@@ -187,8 +173,8 @@
         /* a passagem 2020 → 2025: a linha do batimento atravessa e um flash vira a página */
         .ecg-passagem, .flash { display: none; }
         .js:not(.calmo) .ecg-passagem { display: block; z-index: 18; opacity: 0; pointer-events: none; }
-        .js:not(.calmo) .flash { display: block; position: absolute; inset: 0; z-index: 19; background: #e9ddff; opacity: 0; pointer-events: none; }
-        .ecg path { fill: none; stroke: var(--red); stroke-width: 3; stroke-linejoin: round; filter: drop-shadow(0 0 6px rgba(139, 92, 246, .9)); }
+        .js:not(.calmo) .flash { display: block; position: absolute; inset: 0; z-index: 19; background: #ecdff9; opacity: 0; pointer-events: none; }
+        .ecg path { fill: none; stroke: var(--red); stroke-width: 3; stroke-linejoin: round; filter: drop-shadow(0 0 6px rgba(156, 111, 211, .9)); }
         .c3 .legenda.um { left: var(--m); top: 16svh; }
         .c3 .legenda.um h2 { font-size: clamp(40px, 4.6vw, 76px); }
         .c3 .legenda.dois { right: var(--m); bottom: 14svh; text-align: right; }
@@ -200,7 +186,7 @@
         .c4 .cabeca h2 { font-size: clamp(56px, 9vw, 150px); }
         .monitor-cena { position: absolute; inset: 0; z-index: 2; perspective: 1400px; display: grid; place-items: center; pointer-events: none; }
         .monitor { width: min(50vw, 820px); transform-style: preserve-3d; pointer-events: auto; }
-        .tela-monitor { padding: 14px; background: #06040a; box-shadow: 0 0 0 2px var(--field), 0 40px 120px rgba(139, 92, 246, .25); }
+        .tela-monitor { padding: 14px; background: #06040a; box-shadow: 0 0 0 2px var(--field), 0 40px 120px rgba(106, 53, 160, .3); }
         .tela-monitor video { width: 100%; height: auto; aspect-ratio: 16 / 10; object-fit: cover; }
         .pe-monitor { width: 18%; height: 34px; margin: 0 auto; background: var(--field); }
         .monitor-texto { display: flex; justify-content: space-between; align-items: end; gap: 24px; margin-top: 22px; }
@@ -237,6 +223,12 @@
         .furos i { display: block; width: 6px; height: 6px; border-radius: 50%; background: var(--field); }
         .preco { font: 900 clamp(34px, 3.6vw, 56px)/1 var(--display); }
         .preco-nota { font-size: 14px; }
+        /* o menu ganha um fundo para continuar legível por cima da parte clara do contato */
+        .nav { background: rgba(17, 10, 25, .86); }
+        .marca-mascote { width: 40px; height: 40px; border-radius: 50%; box-shadow: 0 0 0 2px var(--accent); }
+        .contato-topo { display: flex; justify-content: space-between; align-items: end; gap: 32px; }
+        .contato-topo .mascote { width: clamp(150px, 20vw, 280px); height: auto; margin-bottom: -40px; }
+        @media (max-width: 760px) { .contato-topo { flex-direction: column-reverse; align-items: start; } .contato-topo .mascote { width: 150px; margin: 0; } }
         .contato { display: flex; flex-direction: column; gap: 48px; padding: 140px var(--m) 40px; background: var(--stone); color: var(--bg); }
         .contato h2 { font-size: clamp(44px, 6.4vw, 104px); }
         .contato .chamada { margin-top: 18px; font-size: 22px; font-weight: 600; max-width: 34ch; }
@@ -303,7 +295,7 @@
 
 <header class="nav">
     <a class="marca" href="#inicio" aria-label="Jessé Coelho, início">
-        <img id="marcaLogo" src="assets/img/jc/favicon-orelhas.svg" alt="" width="36" height="36">
+        <img class="marca-mascote" src="assets/img/jc/mascote-logo.png" alt="" width="40" height="40">
         <span>Jessé Coelho</span>
     </a>
     <nav aria-label="Principal">
@@ -321,8 +313,6 @@
     <span class="barras" aria-hidden="true"><i></i><i></i><i></i></span>
     <span>Som: <span id="somEstado">desligado</span></span>
 </button>
-
-<nav class="teste-logo" aria-label="Teste de logo"><span>Logo:</span><a href="?logo=orelhas" data-logo="orelhas">Orelhas</a><a href="?logo=coelho" data-logo="coelho">Coelho</a></nav>
 
 <main id="conteudo">
     <!-- a história: um palco preso na tela e as cenas trocando enquanto se desce -->
@@ -513,9 +503,12 @@
     </section>
 
     <section class="contato" id="contato">
-        <div>
-            <h2 class="sobe">Vamos construir juntos?</h2>
-            <p class="chamada sobe">Conte o que você precisa: um site, um sistema, uma loja. Respondo no mesmo dia.</p>
+        <div class="contato-topo">
+            <div>
+                <h2 class="sobe">Vamos construir juntos?</h2>
+                <p class="chamada sobe">Conte o que você precisa: um site, um sistema, uma loja. Respondo no mesmo dia.</p>
+            </div>
+            <img class="mascote sobe" src="assets/img/jc/mascote.webp" alt="O mascote da comunidade: um coelho de óculos, fone e moletom roxo" width="643" height="638" loading="lazy">
         </div>
         <a class="numero sobe" href="https://wa.me/5535998594066?text=Ol%C3%A1%2C%20Jess%C3%A9!%20Vim%20pelo%20seu%20portf%C3%B3lio." target="_blank" rel="noopener" aria-label="Falar no WhatsApp: (35) 99859-4066">(35) <span style="white-space:nowrap">99859-4066</span></a>
         <details class="email-form">

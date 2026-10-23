@@ -17,7 +17,7 @@ function lerTema() {
         campo: cor('--field', '#2a0f13'), superficie: cor('--surface', '#1a0a0d'), papel: cor('--ink', '#ece8e6'),
         tinta: cor('--bg', '#0d0608'), apagado: cor('--muted', '#c9b8b1'), cinza: cor('--cracha-cinza', '#5c4744'),
         nome: d.nome || 'CARLOS JESSÉ', nomeCompleto: d.nomeCompleto || '', cordao: d.cordao || 'CARLOS JESSÉ · DEV',
-        logo: d.logo || 'cj', foto: d.fotoCracha || 'assets/img/cenas/familia-recorte.webp', qr: d.qr || 'assets/img/cenas/qr-whatsapp.png',
+        logo: d.logo || 'cj', logoImg: d.logoImg || '', foto: d.fotoCracha || 'assets/img/cenas/familia-recorte.webp', qr: d.qr || 'assets/img/cenas/qr-whatsapp.png',
     };
 }
 let T = null;
@@ -30,14 +30,24 @@ function retanguloRedondo(ctx, x, y, w, h, r) {
     ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
 }
 
-// o logo na faixa do crachá: "cj" (C claro, J escuro), "orelhas" (JC com orelhas de coelho no J)
-// ou "coelho" (um coelhinho ao lado de JC)
+// o logo na faixa do crachá: "cj" (C claro, J escuro), "orelhas" (JC com orelhas de coelho no J),
+// "coelho" (um coelhinho ao lado de JC) ou "mascote" (a imagem do data-logo-img num círculo)
 function logo(ctx, x, y, tam, corClara, corEscura) {
     ctx.font = `italic 700 ${tam}px Georgia, serif`;
     ctx.textBaseline = 'alphabetic';
     if (T.logo === 'cj') {
         ctx.fillStyle = corClara; ctx.fillText('C', x, y);
         ctx.fillStyle = corEscura; ctx.fillText('J', x + tam * 0.62, y);
+        return;
+    }
+    if (T.logo === 'mascote' && T.logoImagem) {
+        // o mascote da comunidade num círculo, com uma borda clara
+        const d = tam * 1.55, cx = x + d / 2, cy = y - tam * 0.62;
+        ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, d / 2, 0, Math.PI * 2); ctx.closePath();
+        ctx.fillStyle = corClara; ctx.fill();
+        ctx.beginPath(); ctx.arc(cx, cy, d / 2 - 4, 0, Math.PI * 2); ctx.clip();
+        ctx.drawImage(T.logoImagem, cx - d / 2 + 4, cy - d / 2 + 4, d - 8, d - 8);
+        ctx.restore();
         return;
     }
     let xl = x;
@@ -157,7 +167,8 @@ export async function montarCracha(canvas, { leve = false, calmo = false, aoToca
         document.fonts.load('900 66px "Playfair Display"'), document.fonts.load('italic 900 52px "Playfair Display"'),
         document.fonts.load('700 28px Montserrat'), document.fonts.load('600 26px Montserrat'),
     ]).catch(() => {});
-    const [foto, qr] = await Promise.all([carregarImagem(T.foto), carregarImagem(T.qr)]);
+    const [foto, qr, logoImagem] = await Promise.all([carregarImagem(T.foto), carregarImagem(T.qr), T.logoImg ? carregarImagem(T.logoImg).catch(() => null) : null]);
+    T.logoImagem = logoImagem;
 
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: !leve, alpha: true });
     renderer.setPixelRatio(Math.min(devicePixelRatio, leve ? 1.5 : 2));
