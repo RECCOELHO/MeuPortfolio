@@ -37,7 +37,7 @@ montarCracha($('#cracha'), { leve, calmo, aoTocarQr: () => window.open(WHATSAPP,
         console.warn('Crachá 3D indisponível:', erro);
         $('#cracha').remove(); $('#dica').remove();
         const img = new Image();
-        img.src = 'assets/img/cenas/familia-recorte.webp'; img.alt = ''; img.className = 'cracha-sem-3d';
+        img.src = document.documentElement.dataset.fotoCracha || 'assets/img/cenas/familia-recorte.webp'; img.alt = ''; img.className = 'cracha-sem-3d';
         $('.c0').append(img);
     });
 
