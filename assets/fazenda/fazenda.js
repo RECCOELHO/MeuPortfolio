@@ -178,6 +178,7 @@
         limite_terreno: 'Já tem o máximo dessa árvore: cada fruta tem 1 pé, +1 a cada 2 terrenos comprados (até 4).',
         alarme: 'O alarme disparou! Esse canteiro está protegido.',
         item_invalido: 'Item inválido.',
+        sem_item: 'Esse prêmio não está mais no celeiro.',   // fase 93
         lugar_reservado: 'Esse lugar é reservado (celeiro, casa, pasto, galinheiro) ou fica na mata fora do seu terreno.',
         lugar_ocupado: 'Já tem algo nesse lugar.',
         so_na_areia: 'Isso é da praia: só vai na areia do Litoral.',
@@ -1345,6 +1346,10 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-10-25-premios', data: '25/10', titulo: 'Os prêmios do evento agora têm uso', itens: [
+            'No celeiro, os prêmios do evento da semana ganharam o botão <b>Usar</b>: o prêmio é gasto e liga um bônus. <b>Troféu de ouro</b>: 24 h de XP em dobro e plantas 2x mais rápidas. <b>Troféu de prata</b>: 24 h de XP em dobro. <b>Troféu de bronze</b>: 12 h de XP em dobro.',
+            '<b>Ampulheta dourada</b>: 24 h de plantas 2x mais rápidas (o que plantar nasce com metade do tempo pronto). <b>Cofrinho de ouro</b>: 24 h de +50% nas vendas do celeiro (menos no que veio da feira). <b>Balança de ouro</b>: 24 h de +50% na colheita. <b>Sacola de ouro</b>: 24 h de ajudantes em dobro.',
+            'Usar outro igual com o bônus ligado soma o tempo, e bônus diferentes valem juntos. O que está ligado aparece no alto do celeiro. Se preferir, ainda dá para vender o prêmio na feira.'] },
         { id: '2026-10-24-feira-celular', data: '24/10', titulo: 'A feira cabe no celular', itens: [
             'Na feira, os anúncios com preço alto ou com nome de vendedor comprido saíam da tela no celular e o botão <b>Comprar</b> ficava cortado. Agora tudo cabe, e os preços grandes aparecem com ponto (240.000).',
             'O mesmo acerto vale para o valor total do celeiro e para a tela do evento da semana.'] },
@@ -1678,6 +1683,7 @@
     function origemRaro(id) {
         if (id === 'perola_negra') return 'Do alto-mar: 1 em cada 200 peixes vem com uma.';
         if (id === 'leme_dourado') return 'Peça do píer e prêmio do evento da semana (para quem mais convidou).';
+        if (PREMIO_EFEITO[id]) return `Prêmio do evento da semana. <b>Usar</b> liga ${textoPremio(id)}.`;   // fase 93
         if (ITENS_EVENTO.includes(id)) return 'Prêmio do evento da semana: só sai de lá.';
         return 'Material do píer (nível 31, no terreno do litoral).';
     }
@@ -1686,9 +1692,11 @@
             <span class="ico">${spr(A.cultura(k.id).item, 44)}</span>
             <span>
                 <span class="nome">${esc(k.nome)} × ${naCeleiro(k.id)} <small class="tag-raro">raro</small></span>
-                <span class="det"><span class="txt">${origemRaro(k.id)} Não vende no celeiro: na feira, de ${moeda(k.venda)} a ${moeda(k.venda * 3)} cada.</span></span>
+                <span class="det"><span class="txt">${origemRaro(k.id)} ${PREMIO_EFEITO[k.id] ? 'Ou venda' : 'Não vende no celeiro:'} na feira, de ${moeda(numero(k.venda))} a ${moeda(numero(k.venda * 3))} cada.</span></span>
             </span>
-            <button type="button" class="botao pequeno creme" data-raro-feira="${esc(k.id)}">Na feira</button>
+            ${PREMIO_EFEITO[k.id] ? `<span class="botoes-raro"><button type="button" class="botao pequeno verde" data-usar-premio="${esc(k.id)}">Usar</button>
+                <button type="button" class="botao pequeno creme" data-raro-feira="${esc(k.id)}">Na feira</button></span>`
+                : `<button type="button" class="botao pequeno creme" data-raro-feira="${esc(k.id)}">Na feira</button>`}
         </div>`;
     }
 
@@ -1967,6 +1975,27 @@
     let eventoDados = null, eventoPremios = [];
     const CAT_ICONE = { ranking: 'trofeu_ouro', niveis: 'ampulheta_dourada', moedas: 'cofrinho_ouro', vendeu: 'balanca_ouro', comprou: 'sacola_ouro', convites: 'leme_dourado' };
     const ITENS_EVENTO = ['trofeu_ouro', 'trofeu_prata', 'trofeu_bronze', 'ampulheta_dourada', 'cofrinho_ouro', 'balanca_ouro', 'sacola_ouro'];
+    // fase 93: usar o prêmio liga um bônus (horas; igual a fazenda_premios_efeitos no servidor)
+    const PREMIO_EFEITO = {
+        trofeu_ouro: { xp2: 24, crescer: 24 }, trofeu_prata: { xp2: 24 }, trofeu_bronze: { xp2: 12 },
+        ampulheta_dourada: { crescer: 24 }, cofrinho_ouro: { venda: 24 }, balanca_ouro: { colheita: 24 }, sacola_ouro: { cafe: 24 }
+    };
+    const NOME_BONUS = { xp2: 'XP em dobro', crescer: 'plantas 2x mais rápidas', venda: '+50% nas vendas do celeiro', colheita: '+50% na colheita', cafe: 'ajudantes em dobro' };
+    const ICONE_BONUS = { crescer: 'ampulheta_dourada', venda: 'cofrinho_ouro', colheita: 'balanca_ouro', cafe: 'sacola_ouro' };
+    const textoPremio = (id) => Object.entries(PREMIO_EFEITO[id] || {}).map(([b, h]) => `${h} h de ${NOME_BONUS[b]}`).join(' e ');
+    const premiosJ = () => (S && S.jogador && S.jogador.premios) || {};
+    // o que está ligado agora (dos prêmios e dos diamantes: o XP em dobro e o café são os mesmos)
+    function bonusLigados() {
+        if (!S) return [];
+        const j = S.jogador, p = premiosJ();
+        return [['xp2', j.xp2_ate], ['crescer', p.crescer_ate], ['venda', p.venda50_ate], ['colheita', p.colheita50_ate], ['cafe', j.cafe_ate]]
+            .filter(([, ate]) => ate && Date.parse(ate) > agora()).map(([b, ate]) => ({ b, ate }));
+    }
+    function htmlBonusLigados() {
+        const l = bonusLigados();
+        if (!l.length) return '';
+        return `<div class="chips bonus-ligados">${l.map(({ b, ate }) => `<span class="chip">${b === 'xp2' ? ico('xp', 16) : itemDe(culturas[ICONE_BONUS[b]] || { id: ICONE_BONUS[b] }, 16)}<span>${NOME_BONUS[b]}: mais ${fmtTempo(Date.parse(ate) - agora())}</span></span>`).join('')}</div>`;
+    }
     const LUGAR = ['1º', '2º', '3º'];
     const regrasEvento = () => (S && S.evento && S.evento.regras) || { categorias: [], diamantes: [30, 18, 10], convite_nivel: 10 };
     const fimEvento = () => (S && S.evento && S.evento.fim ? Date.parse(S.evento.fim) : 0);
@@ -2018,7 +2047,7 @@
                     <span class="det">${ps.map((x) => `<span>${LUGAR[x.posicao - 1]} ${esc(x.apelido)}${x.eu ? ' (você)' : ''}</span>`).join('')}</span></span></div>`;
             }).join('') + '</div>';
         }
-        return html + `<p class="aviso">Convite só conta quando o amigo chega ao nível ${reg.convite_nivel || 10}. Nas moedas, gastar não desconta, e o que entra pela barraca fica só em "vendeu". O XP comprado com diamantes (pacote de XP, trilha dourada e a metade a mais do XP em dobro) não conta no ranking nem em níveis. Na barraca, uma mesma pessoa do outro lado vale no máximo 25% do seu total. ${chance < 100 ? `Cada lugar do pódio tira a sorte: com ${chance}% de chance vem o item (o material do píer é sorteado). ` : ''}Os itens do evento não vendem no celeiro: na feira valem de 60 mil para cima. Quem mais convidou pode levar o <b>leme dourado</b>, a peça do píer. As conquistas do evento aparecem no seu perfil.</p>`;
+        return html + `<p class="aviso">Convite só conta quando o amigo chega ao nível ${reg.convite_nivel || 10}. Nas moedas, gastar não desconta, e o que entra pela barraca fica só em "vendeu". O XP comprado com diamantes (pacote de XP, trilha dourada e a metade a mais do XP em dobro) não conta no ranking nem em níveis. Na barraca, uma mesma pessoa do outro lado vale no máximo 25% do seu total. ${chance < 100 ? `Cada lugar do pódio tira a sorte: com ${chance}% de chance vem o item (o material do píer é sorteado). ` : ''}Os prêmios do evento não vendem no celeiro: lá, tocando em <b>Usar</b>, cada um liga um bônus (XP em dobro, plantas 2x mais rápidas, +50% na venda ou na colheita, ajudantes em dobro); ou venda na feira, de 60 mil para cima. Quem mais convidou pode levar o <b>leme dourado</b>, a peça do píer. As conquistas do evento aparecem no seu perfil.</p>`;
     }
     function htmlEventoPremio() {
         const reg = regrasEvento(), nomeCat = (id) => (reg.categorias.find((c) => c.id === id) || { nome: id }).nome;
@@ -2026,7 +2055,7 @@
             const k = p.item && (culturas[p.item] || { id: p.item, nome: p.item });
             return `<div class="item"><span class="ico">${k ? itemDe(k, 40) : iconeCat(p.categoria, 40)}</span><span>
                 <span class="nome">${LUGAR[p.posicao - 1]} lugar: ${esc(nomeCat(p.categoria))}</span>
-                <span class="det"><span class="txt">${valorEvento(p.categoria, p.valor)} · +${p.diamantes} ${ico('diamante', 12)}${k ? ` e <b>${esc(k.nome)}</b> (está no celeiro)` : ''}</span></span></span></div>`;
+                <span class="det"><span class="txt">${valorEvento(p.categoria, p.valor)} · +${p.diamantes} ${ico('diamante', 12)}${k ? ` e <b>${esc(k.nome)}</b> (está no celeiro${PREMIO_EFEITO[k.id] ? `: toque em <b>Usar</b> para ligar ${textoPremio(k.id)}` : ''})` : ''}</span></span></span></div>`;
         }).join('') + `</div><div class="rodape-painel"><button type="button" class="botao creme" data-painel-ir="evento">Ver o evento</button><button type="button" class="botao verde" data-fechar>Oba!</button></div>`;
     }
     // no perfil (o seu e o dos vizinhos): quantas vezes ficou em 1º, 2º e 3º em cada categoria
@@ -3671,9 +3700,17 @@
         });
     }
     // vender no celeiro: escolhe quantos (começa em tudo o que está livre); devolve o número ou null no cancelar
+    // fase 93: com o cofrinho de ouro ligado, +50% do preço de venda no que não veio da feira (o servidor
+    // vende primeiro o que veio de lá); lista = [[cultura, quantos], ...]
+    function extraCofrinho(lista) {
+        const p = premiosJ();
+        if (!(p.venda50_ate && Date.parse(p.venda50_ate) > agora())) return 0;
+        const feira = p.da_feira || {};
+        return Math.floor(lista.reduce((a, [k, n]) => a + Math.max(0, n - (feira[k.id] || 0)) * k.venda, 0) / 2);
+    }
     function escolherQuantidade(k, max) {
         const bonus = S.jogador.bonus_venda || 0;
-        const valor = (n) => Math.floor(n * k.venda * (100 + bonus) / 100);
+        const valor = (n) => Math.floor(n * k.venda * (100 + bonus) / 100) + extraCofrinho([[k, n]]);
         return new Promise((ok) => {
             const fundo = document.createElement('div');
             fundo.className = 'pergunta-fundo';
@@ -3698,7 +3735,8 @@
                 n = Math.max(1, Math.min(max, Math.floor(Number(v)) || 1));
                 if (deOnde !== campo) campo.value = n;
                 if (barra && deOnde !== barra) barra.value = n;
-                total.innerHTML = `${n} × ${moeda(k.venda)}${bonus ? ` + ${bonus}%` : ''} = ${ico('moeda', 18)} <b>${valor(n).toLocaleString('pt-BR')}</b>`;
+                const cofre = extraCofrinho([[k, n]]);
+                total.innerHTML = `${n} × ${moeda(k.venda)}${bonus ? ` + ${bonus}%` : ''}${cofre ? ` + ${itemDe(culturas.cofrinho_ouro || { id: 'cofrinho_ouro' }, 16)} ${cofre}` : ''} = ${ico('moeda', 18)} <b>${valor(n).toLocaleString('pt-BR')}</b>`;
                 sim.textContent = `Vender ${n}`;
             };
             const fim = (v) => { fundo.remove(); document.removeEventListener('keydown', tecla, true); ok(v); };
@@ -4328,9 +4366,10 @@
                 const bonusVenda = S.jogador.bonus_venda || 0;
                 const livreDe = (k) => Math.max(0, naCeleiro(k.id) - reservaDe(k.id));
                 const vende = itens.filter((k) => k.tipo !== 'raro');   // fase 60: material raro só vende na feira
-                const total = Math.floor(vende.reduce((a, k) => a + livreDe(k) * k.venda, 0) * (100 + bonusVenda) / 100);
+                const cofre = extraCofrinho(vende.map((k) => [k, livreDe(k)]));   // fase 93
+                const total = Math.floor(vende.reduce((a, k) => a + livreDe(k) * k.venda, 0) * (100 + bonusVenda) / 100) + cofre;
                 const xpTotal = Math.floor(vende.reduce((a, k) => a + livreDe(k) * k.venda * xpVendaDe(k), 0) / XP_VENDA);
-                corpo.innerHTML = abas + '<div class="lista">' + itens.map((k) => {
+                corpo.innerHTML = abas + htmlBonusLigados() + '<div class="lista">' + itens.map((k) => {
                     const livre = livreDe(k), come = quemCome(k.id);
                     if (k.tipo === 'raro') return htmlRaroCeleiro(k);
                     return `<div class="item">
@@ -4346,7 +4385,7 @@
                     </div>`;
                 }).join('') + `</div>
                     <div class="rodape-painel">
-                        <span class="preco">Valor total: ${ico('moeda', 16)} ${total}${bonusVenda ? ` <small class="bonus-txt">(+${bonusVenda}% de bônus)</small>` : ''}${xpTotal ? ` · +${xpTotal} ${ico('xp', 14)}` : ''}</span>
+                        <span class="preco">Valor total: ${ico('moeda', 16)} ${total}${bonusVenda || cofre ? ` <small class="bonus-txt">(${[bonusVenda && `+${bonusVenda}% de bônus`, cofre && `+${cofre} do cofrinho`].filter(Boolean).join(' e ')})</small>` : ''}${xpTotal ? ` · +${xpTotal} ${ico('xp', 14)}` : ''}</span>
                         <button type="button" class="botao verde" data-vender="${soFinais ? 'finais' : '*'}"${total ? '' : ' disabled'}>${soFinais ? 'Vender produtos finais' : 'Vender tudo'}</button>
                     </div>`;
             }
@@ -5755,18 +5794,19 @@
             const lista = qual === 'finais' ? produtosFinais().filter((id) => naCeleiro(id) > reservaDe(id))
                 : [qual === '*' ? null : qual];
             enfileirar([], async () => {
-                let ganho = 0, xp = 0, semXp = 0, estado = null;
+                let ganho = 0, xp = 0, semXp = 0, estado = null, cofrinho = 0;
                 // fase 74b: os produtos todos numa chamada só (um por vez travava o jogo uns segundos)
                 if (lista.length) {
                     const r = await rpc('fazenda_vender', qual === 'finais'
                         ? { p_token: token, p_item: null, p_quantidade: null, p_itens: lista }
                         : { p_token: token, p_item: lista[0], p_quantidade: qtd });
-                    ganho = r.ganho; xp = r.xp || 0; semXp = r.sem_xp || 0; estado = r.estado;
+                    ganho = r.ganho; xp = r.xp || 0; semXp = r.sem_xp || 0; estado = r.estado; cofrinho = r.cofrinho || 0;
                 }
                 const guardou = qual !== 'finais' && Object.keys(S.reservas || {}).length ? ' A ração dos animais ficou guardada.' : '';
                 // fase 56: o que veio da feira vende pelas moedas de sempre, mas sem XP
                 const daFeira = semXp ? ` ${semXp} ${semXp === 1 ? 'item veio' : 'itens vieram'} da feira: esses não dão XP.` : '';
-                if (ganho > 0) { toast(`Vendeu por ${ico('moeda', 16)} ${ganho}${xp ? ` e ganhou +${xp} ${ico('xp', 16)}` : ''}!${guardou}${daFeira}`); som.tocar('moeda'); tutorialEvento('vender'); }
+                const doCofre = cofrinho ? ` (${itemDe(culturas.cofrinho_ouro || { id: 'cofrinho_ouro' }, 16)} +${cofrinho} do cofrinho de ouro)` : '';   // fase 93
+                if (ganho > 0) { toast(`Vendeu por ${ico('moeda', 16)} ${ganho}${doCofre}${xp ? ` e ganhou +${xp} ${ico('xp', 16)}` : ''}!${guardou}${daFeira}`); som.tocar('moeda'); tutorialEvento('vender'); }
                 if (estado) aplicarEstado(estado);
             }).finally(() => { vend.disabled = false; });
             return;
@@ -5835,6 +5875,19 @@
                 aplicarEstado(r.estado);
                 toast(`${itemDe(culturas[id] || { id }, 18)} Guardado para o píer: não vai mais no "Vender tudo".`);
             });
+            return;
+        }
+        const up = e.target.closest('[data-usar-premio]');   // fase 93: o prêmio do evento vira bônus
+        if (up) {
+            const id = up.dataset.usarPremio, k = culturas[id] || { id, nome: id };
+            if (!await perguntar(`Usar 1 ${k.nome.toLowerCase()}? Liga ${textoPremio(id)} (se já estiver ligado, soma o tempo). O prêmio sai do celeiro.`, 'Usar')) return;
+            up.disabled = true;
+            enfileirar([], async () => {
+                const r = await rpc('fazenda_usar_premio', { p_token: token, p_item: id });
+                aplicarEstado(r.estado);
+                toast(`${itemDe(k, 20)} ${esc(k.nome)}: ${textoPremio(id)}!`, 'festa');
+                som.tocar('festa');
+            }).finally(() => { up.disabled = false; });
             return;
         }
         const rf = e.target.closest('[data-raro-feira]');   // fase 60: do celeiro direto para vender na feira
