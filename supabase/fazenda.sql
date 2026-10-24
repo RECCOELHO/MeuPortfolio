@@ -3673,8 +3673,13 @@ begin
   v_base := round(v_un * fazenda_premio_ajuda(p_ator) * (1 + fazenda_sequencia_bonus(cardinality(v_seq)))
                   * case when fazenda_abandonada(p_dono) then 1.25 else 1 end)::int;   -- fazenda abandonada: +25% (fase 85; era +50%)
   -- fase 85: até 1 nível de XP de ajuda por dia vale cheio; o que passar disso vale 1/4
-  v_dia := case when v_lote is not null then (v_lote->>'dia')::int
-                when j.ajuda_dia = fazenda_hoje() then coalesce(j.ajuda_xp_dia, 0) else 0 end;
+  -- (fase 93: em if separado. Dentro do Ajudar tudo o j não é lido do banco, e citar j.ajuda_dia na mesma
+  -- expressão, mesmo no ramo que não roda, dava "record j is not assigned yet" em todo canteiro)
+  if v_lote is not null then
+    v_dia := (v_lote->>'dia')::int;
+  else
+    v_dia := case when j.ajuda_dia = fazenda_hoje() then coalesce(j.ajuda_xp_dia, 0) else 0 end;
+  end if;
   v_cheio := greatest(0, coalesce((v_lote->>'teto')::int, fazenda_ajuda_teto(p_ator)) - v_dia);
   v_xp := least(v_base, v_cheio) + (v_base - least(v_base, v_cheio)) / 4;
   if v_lote is not null then
@@ -9472,6 +9477,8 @@ $$;
 -- jogo: "2x mais rápido" corta pela metade o que falta da planta na hora de plantar (somado à estufa e
 -- ao adubo, nunca fica pronta na hora); o +50% da venda não vale para o que veio da feira; o XP em dobro
 -- é o mesmo dos diamantes (não conta no ranking). O leme dourado continua peça do píer.
+-- Junto, a correção do Ajudar tudo: desde a fase 87, todo canteiro dava "record j is not assigned yet"
+-- (fazenda_premiar_ajuda) e nada era feito na fazenda do vizinho; os toques um a um funcionavam.
 -- ------------------------------------------------------------
 alter table public.fazenda_jogadores add column if not exists crescer_ate timestamptz;
 alter table public.fazenda_jogadores add column if not exists venda50_ate timestamptz;

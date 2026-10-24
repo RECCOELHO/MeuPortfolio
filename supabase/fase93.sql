@@ -1,5 +1,5 @@
 -- ============================================================
--- FAZENDINHA — Fase 93 (os prêmios do evento viram bônus de usar),
+-- FAZENDINHA — Fase 93 (os prêmios do evento viram bônus de usar, e o Ajudar tudo volta a funcionar),
 -- só o que mudou.
 -- Para o banco que já está no ar (com a fase 92): Supabase > SQL Editor > colar este arquivo > Run.
 -- (O supabase/fazenda.sql inteiro já tem tudo isto; este arquivo é o atalho.)
@@ -22,6 +22,8 @@ end $$;
 -- jogo: "2x mais rápido" corta pela metade o que falta da planta na hora de plantar (somado à estufa e
 -- ao adubo, nunca fica pronta na hora); o +50% da venda não vale para o que veio da feira; o XP em dobro
 -- é o mesmo dos diamantes (não conta no ranking). O leme dourado continua peça do píer.
+-- Junto, a correção do Ajudar tudo: desde a fase 87, todo canteiro dava "record j is not assigned yet"
+-- (fazenda_premiar_ajuda) e nada era feito na fazenda do vizinho; os toques um a um funcionavam.
 -- ------------------------------------------------------------
 alter table public.fazenda_jogadores add column if not exists crescer_ate timestamptz;
 alter table public.fazenda_jogadores add column if not exists venda50_ate timestamptz;
@@ -687,12 +689,68 @@ begin
 end;
 $$;
 
+-- Dá o prêmio de p_unidades ajudas; devolve o XP. Fase 83: sem o limite de 30 por dia, e com a
+-- sequência de vizinhos: cada vizinho diferente ajudado em até 10 min do anterior dá +10% (até +100%);
+-- 10 min sem ajudar, ela zera. O XP em dobro e os bônus de nível somam por cima (gatilho do XP).
+create or replace function public.fazenda_premiar_ajuda(p_ator uuid, p_unidades int, p_dono uuid)
+returns int
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  j      record;
+  v_seq  uuid[];
+  v_xp   int;
+  v_base int;
+  v_un   int;
+  v_cheio int;
+  v_dia  int;
+  v_lote jsonb;
+begin
+  if coalesce(p_unidades, 0) <= 0 then return 0; end if;
+  -- fase 87: dentro do Ajudar tudo (fazenda_ajudar_tudo) a conta é a mesma, mas o XP e as moedas somam no
+  -- lote e gravam uma vez só no fim (antes, cada item regravava a linha inteira do jogador)
+  v_lote := nullif(current_setting('fazenda.ajuda_lote', true), '')::jsonb;
+  if v_lote is not null then
+    v_seq := array(select jsonb_array_elements_text(v_lote->'seq'))::uuid[];
+  else
+    select seq_donos, seq_em, xp, ajuda_dia, ajuda_xp_dia into j from fazenda_jogadores where id = p_ator for update;
+    v_seq := case when j.seq_em is null or j.seq_em < now() - interval '10 minutes' then '{}'::uuid[] else coalesce(j.seq_donos, '{}') end;
+  end if;
+  if p_dono is not null and not (p_dono = any(v_seq)) then v_seq := v_seq || p_dono; end if;
+  -- fase 86: sem o limite de 30 por vizinho (fase 85); quem segura é o canteiro (fazenda_roca_um) e o teto do dia
+  v_un := p_unidades;
+  v_base := round(v_un * fazenda_premio_ajuda(p_ator) * (1 + fazenda_sequencia_bonus(cardinality(v_seq)))
+                  * case when fazenda_abandonada(p_dono) then 1.25 else 1 end)::int;   -- fazenda abandonada: +25% (fase 85; era +50%)
+  -- fase 85: até 1 nível de XP de ajuda por dia vale cheio; o que passar disso vale 1/4
+  -- (fase 93: em if separado. Dentro do Ajudar tudo o j não é lido do banco, e citar j.ajuda_dia na mesma
+  -- expressão, mesmo no ramo que não roda, dava "record j is not assigned yet" em todo canteiro)
+  if v_lote is not null then
+    v_dia := (v_lote->>'dia')::int;
+  else
+    v_dia := case when j.ajuda_dia = fazenda_hoje() then coalesce(j.ajuda_xp_dia, 0) else 0 end;
+  end if;
+  v_cheio := greatest(0, coalesce((v_lote->>'teto')::int, fazenda_ajuda_teto(p_ator)) - v_dia);
+  v_xp := least(v_base, v_cheio) + (v_base - least(v_base, v_cheio)) / 4;
+  if v_lote is not null then
+    perform set_config('fazenda.ajuda_lote', (v_lote || jsonb_build_object('seq', to_jsonb(v_seq), 'dia', v_dia + v_xp,
+      'xp', (v_lote->>'xp')::int + v_xp, 'moedas', (v_lote->>'moedas')::int + p_unidades))::text, true);
+    return v_xp;
+  end if;
+  update fazenda_jogadores set xp = xp + v_xp, moedas = moedas + p_unidades, seq_donos = v_seq, seq_em = now(),
+         ajuda_dia = fazenda_hoje(), ajuda_xp_dia = v_dia + v_xp
+   where id = p_ator;
+  return v_xp;
+end;
+$$;
+
 -- permissões
 revoke execute on function
   public.fazenda_premios_efeitos(),
   public.fazenda_adiantar(double precision, timestamptz),
   public.fazenda_estado(uuid),
-  public.fazenda_aplicar(uuid, text, int, text, boolean)
+  public.fazenda_aplicar(uuid, text, int, text, boolean),
+  public.fazenda_premiar_ajuda(uuid, int, uuid)
 from public, anon, authenticated;
 
 grant execute on function
@@ -706,7 +764,8 @@ select public.fazenda_cache_montar();
 -- a média dos geradores já pronta (as chamadas do jogo não montam mais na hora)
 select public.fazenda_energia_medias_refazer() is not null as energia_medias_pronta;
 
--- conferência: as 3 funções novas e as 3 colunas novas
+-- conferência: as 3 funções novas, as 3 colunas novas e o Ajudar tudo corrigido
 select (select count(*) from pg_proc where proname in ('fazenda_usar_premio', 'fazenda_adiantar', 'fazenda_premios_efeitos')) as funcoes_novas,
        (select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'fazenda_jogadores'
-          and column_name in ('crescer_ate', 'venda50_ate', 'colheita50_ate')) as colunas_novas;
+          and column_name in ('crescer_ate', 'venda50_ate', 'colheita50_ate')) as colunas_novas,
+       (select prosrc like '%v_dia := (v_lote->>''dia'')::int;%' from pg_proc where proname = 'fazenda_premiar_ajuda') as ajudar_tudo_corrigido;
