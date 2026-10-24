@@ -3142,6 +3142,10 @@ body.construindo .status {
 }
 .pergunta-botoes .botao { flex: 1; }
 
+/* fase 93: os botões do prêmio do evento (Usar e Na feira) e os bônus ligados no alto do celeiro */
+.botoes-raro { display: grid; gap: 8px; }
+.bonus-ligados { margin: 0 0 12px; }
+
 /* vender no celeiro: quantos (− número +, a barra e os atalhos) */
 .vender-qtd p small { font-size: 13px; color: var(--texto-suave); }
 .qtd-linha { display: flex; gap: 8px; justify-content: center; align-items: center; margin-bottom: 10px; }

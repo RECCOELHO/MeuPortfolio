@@ -1543,6 +1543,15 @@ begin
       -- fase 43: o que os diamantes ligaram (até quando) e quantos pacotes de XP saíram hoje
       'xp2_ate', case when j.xp2_ate > now() then j.xp2_ate end,
       'cafe_ate', case when j.cafe_ate > now() then j.cafe_ate end,
+      -- fase 93: os bônus dos prêmios do evento (plantas 2x mais rápidas, +50% na venda, +50% na colheita) e
+      -- quanto de cada item do celeiro veio da feira (sem o +50% do cofrinho). Num objeto só: o estado
+      -- está no limite de 100 argumentos do jsonb_build_object
+      'premios', jsonb_build_object(
+        'crescer_ate', case when j.crescer_ate > now() then j.crescer_ate end,
+        'venda50_ate', case when j.venda50_ate > now() then j.venda50_ate end,
+        'colheita50_ate', case when j.colheita50_ate > now() then j.colheita50_ate end,
+        'da_feira', coalesce((select jsonb_object_agg(item, least(da_feira, quantidade))
+                                from fazenda_celeiro where jogador_id = p_jogador and quantidade > 0 and da_feira > 0), '{}'::jsonb)),
       'xp_compras_hoje', fazenda_diamantes_hoje(p_jogador, 'xp'),
       -- conta Google ligada (só aparece para o dono; null = não ligada)
       'google', case when j.google_sub is not null then coalesce(j.google_email, 'sua conta Google') end,
@@ -1916,9 +1925,9 @@ begin
     update fazenda_canteiros
        -- pé de girassol, tora, árvore de outono por perto: começa 10% adiantada; estufa: 25%
        set estado = 'plantado', cultura = k.id,
-           plantado_em = now() - make_interval(secs => k.tempo_seg *
-                           (0.1 * fazenda_protegido(p_jogador, 'crescer', c.x, c.y)::int + 0.25 * v_estufa::int
-                            + fazenda_melhoria(p_jogador, 'adubo'))),   -- fase 57: adubo premium
+           plantado_em = now() - make_interval(secs => k.tempo_seg * fazenda_adiantar(
+                           0.1 * fazenda_protegido(p_jogador, 'crescer', c.x, c.y)::int + 0.25 * v_estufa::int
+                            + fazenda_melhoria(p_jogador, 'adubo'), j.crescer_ate)),   -- fase 57: adubo premium; fase 93: ampulheta
            erva = false, praga = false, seco = false, roubado = 0, adubado = false,
            prox_evento = now() + make_interval(secs => k.tempo_seg * (0.15 + random() * 0.35))
      where jogador_id = p_jogador and posicao = p_posicao;
@@ -1961,6 +1970,9 @@ begin
              + c.adubado::int;                                          -- adubo do Seu Zé
     if fazenda_protegido(p_jogador, 'sorte', c.x, c.y) and random() < 0.15 then
       v_qtd := v_qtd * 2;                                               -- alvo
+    end if;
+    if j.colheita50_ate > now() then
+      v_qtd := v_qtd + ceil(v_qtd / 2.0)::int;                          -- fase 93: balança de ouro (+50%)
     end if;
     insert into fazenda_celeiro (jogador_id, item, quantidade)
     values (p_jogador, k.id, v_qtd)
@@ -3361,6 +3373,8 @@ declare
   v_xp    int;
   v_feira int;
   v_sem_xp int := 0;      -- fase 56: quantos itens comprados na feira foram vendidos (sem XP)
+  v_cofre boolean;        -- fase 93: cofrinho de ouro ligado (+50%, menos no que veio da feira)
+  v_extra int := 0;
 begin
   if p_quantidade is not null and p_quantidade <= 0 then
     raise exception 'quantidade_invalida';
@@ -3389,9 +3403,15 @@ begin
     -- XP da venda: só os produtos (oficinas, bichos, lago, pomar); a planta já deu XP na colheita (fase 41)
     v_valor := v_valor + case when r.tipo <> 'cultura' then (v_qtd - v_feira) * r.venda else 0 end;
     v_sem_xp := v_sem_xp + case when r.tipo <> 'cultura' then v_feira else 0 end;
+    v_extra := v_extra + (v_qtd - v_feira) * r.venda;
   end loop;
 
   v_ganho := (v_ganho * (100 + fazenda_bonus_venda(v_id))) / 100;   -- beleza e caixote
+  -- fase 93: cofrinho de ouro: +50% do preço de venda, só no que não veio da feira (comprar barato
+  -- de outro jogador e revender ao jogo não rende o bônus)
+  select venda50_ate > now() into v_cofre from fazenda_jogadores where id = v_id;
+  v_extra := case when v_cofre then v_extra / 2 else 0 end;
+  v_ganho := v_ganho + v_extra;
   -- 1 XP a cada 25 moedas do valor; o que sobra fica para a próxima venda
   select floor((venda_resto + v_valor) / 25)::int into v_xp from fazenda_jogadores where id = v_id;
   update fazenda_jogadores
@@ -3401,7 +3421,7 @@ begin
     perform fazenda_missao(v_id, 'vender', v_ganho);
   end if;
 
-  return jsonb_build_object('ganho', v_ganho, 'xp', v_xp, 'sem_xp', v_sem_xp, 'estado', fazenda_estado(v_id));
+  return jsonb_build_object('ganho', v_ganho, 'xp', v_xp, 'sem_xp', v_sem_xp, 'cofrinho', v_extra, 'estado', fazenda_estado(v_id));
 end;
 $$;
 
@@ -9443,9 +9463,75 @@ returns jsonb language sql immutable as $$
 $$;
 
 -- ------------------------------------------------------------
+-- Fase 93: os prêmios do evento da semana viram bônus de usar. No celeiro, "Usar" gasta 1 e liga:
+--   troféu de ouro: 24 h de XP em dobro e plantas 2x mais rápidas · troféu de prata: 24 h de XP em dobro
+--   troféu de bronze: 12 h de XP em dobro · ampulheta dourada: 24 h de plantas 2x mais rápidas
+--   cofrinho de ouro: 24 h de +50% nas vendas do celeiro · balança de ouro: 24 h de +50% na colheita
+--   sacola de ouro: 24 h de ajudantes em dobro (o mesmo café dos diamantes)
+-- Usar outro igual com o bônus ligado soma o tempo; bônus diferentes valem juntos. Para não quebrar o
+-- jogo: "2x mais rápido" corta pela metade o que falta da planta na hora de plantar (somado à estufa e
+-- ao adubo, nunca fica pronta na hora); o +50% da venda não vale para o que veio da feira; o XP em dobro
+-- é o mesmo dos diamantes (não conta no ranking). O leme dourado continua peça do píer.
+-- ------------------------------------------------------------
+alter table public.fazenda_jogadores add column if not exists crescer_ate timestamptz;
+alter table public.fazenda_jogadores add column if not exists venda50_ate timestamptz;
+alter table public.fazenda_jogadores add column if not exists colheita50_ate timestamptz;
+
+-- quantas horas de cada bônus cada prêmio liga (igual a PREMIO_EFEITO em assets/fazenda/fazenda.js)
+create or replace function public.fazenda_premios_efeitos()
+returns jsonb language sql immutable as $$
+  select '{"trofeu_ouro": {"xp2": 24, "crescer": 24}, "trofeu_prata": {"xp2": 24}, "trofeu_bronze": {"xp2": 12},
+           "ampulheta_dourada": {"crescer": 24}, "cofrinho_ouro": {"venda": 24}, "balanca_ouro": {"colheita": 24},
+           "sacola_ouro": {"cafe": 24}}'::jsonb;
+$$;
+
+-- quanto a planta nasce adiantada (0 a 1 do tempo dela): com as plantas 2x mais rápidas, o que falta cai
+-- pela metade (0,75 da estufa + adubo vira 0,875: nunca chega a 1, que seria pronta na hora)
+create or replace function public.fazenda_adiantar(p_base double precision, p_rapido_ate timestamptz)
+returns double precision language sql stable as $$
+  select case when p_rapido_ate > now() then least(p_base, 1) + (1 - least(p_base, 1)) / 2 else p_base end;
+$$;
+
+create or replace function public.fazenda_usar_premio(p_token text, p_item text)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id  uuid := fazenda_auth(p_token);
+  v_e   jsonb := fazenda_premios_efeitos()->p_item;
+  v_tem int;
+begin
+  if v_e is null then raise exception 'item_invalido'; end if;
+  if v_e ? 'cafe' and not exists (select 1 from fazenda_ajudantes where jogador_id = v_id) then raise exception 'sem_ajudantes'; end if;
+  select ce.quantidade - coalesce(rs.quantidade, 0) into v_tem
+    from fazenda_celeiro ce left join fazenda_reservas rs on rs.jogador_id = ce.jogador_id and rs.item = ce.item
+   where ce.jogador_id = v_id and ce.item = p_item
+     for update of ce;
+  if coalesce(v_tem, 0) < 1 then raise exception 'sem_item'; end if;
+  update fazenda_celeiro set quantidade = quantidade - 1, da_feira = least(da_feira, quantidade - 1)
+   where jogador_id = v_id and item = p_item;
+  -- cada bônus soma as horas a partir de agora ou do fim do que já está ligado
+  update fazenda_jogadores set
+         xp2_ate = case when v_e ? 'xp2' then greatest(coalesce(xp2_ate, now()), now()) + make_interval(hours => (v_e->>'xp2')::int) else xp2_ate end,
+         crescer_ate = case when v_e ? 'crescer' then greatest(coalesce(crescer_ate, now()), now()) + make_interval(hours => (v_e->>'crescer')::int) else crescer_ate end,
+         venda50_ate = case when v_e ? 'venda' then greatest(coalesce(venda50_ate, now()), now()) + make_interval(hours => (v_e->>'venda')::int) else venda50_ate end,
+         colheita50_ate = case when v_e ? 'colheita' then greatest(coalesce(colheita50_ate, now()), now()) + make_interval(hours => (v_e->>'colheita')::int) else colheita50_ate end,
+         -- o café: mesma conta do café dos diamantes (cafe_de marca quando começou)
+         cafe_de = case when v_e ? 'cafe' and not coalesce(cafe_ate > now(), false) then now() else cafe_de end,
+         cafe_ate = case when v_e ? 'cafe' then greatest(coalesce(cafe_ate, now()), now()) + make_interval(hours => (v_e->>'cafe')::int) else cafe_ate end
+   where id = v_id;
+  return jsonb_build_object('item', p_item, 'estado', fazenda_estado(v_id));
+end;
+$$;
+
+-- ------------------------------------------------------------
 -- Permissões: só a API pública fica executável pela chave anon
 -- ------------------------------------------------------------
 revoke execute on function
+  public.fazenda_usar_premio(text, text),
+  public.fazenda_premios_efeitos(),
+  public.fazenda_adiantar(double precision, timestamptz),
   public.fazenda_contar_erro(jsonb, text),
   public.fazenda_nivel(int),
   public.fazenda_xp_nivel(int),
@@ -9705,6 +9791,7 @@ grant execute on function
   public.fazenda_ajudar_tudo(text, uuid, jsonb),
   public.fazenda_comprar_raro(text, text),
   public.fazenda_usar_vale(text, bigint),
+  public.fazenda_usar_premio(text, text),
   public.fazenda_feira_anunciar(text, text, int, int),
   public.fazenda_feira_cancelar(text, bigint),
   public.fazenda_feira_comprar(text, bigint),
