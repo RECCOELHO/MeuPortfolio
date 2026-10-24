@@ -1345,6 +1345,9 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-10-24-feira-celular', data: '24/10', titulo: 'A feira cabe no celular', itens: [
+            'Na feira, os anúncios com preço alto ou com nome de vendedor comprido saíam da tela no celular e o botão <b>Comprar</b> ficava cortado. Agora tudo cabe, e os preços grandes aparecem com ponto (240.000).',
+            'O mesmo acerto vale para o valor total do celeiro e para a tela do evento da semana.'] },
         { id: '2026-10-24-vender-qtd', data: '24/10', titulo: 'Escolha quanto vender no celeiro', itens: [
             'No celeiro, o botão <b>Vender</b> de cada item agora pergunta <b>quantos</b>: digite o número, use o − e o +, arraste a barra ou toque em 1, 10, Metade ou Tudo. O valor em moedas aparece antes de vender.',
             'Começa em tudo, então para vender tudo é só confirmar. O "Vender tudo" lá embaixo continua igual.'] },
@@ -5023,8 +5026,8 @@
                     const total = o.qtd * o.preco, k = culturas[o.item] || { id: o.item, nome: o.item, venda: 0 };
                     return `<div class="item"><span class="ico">${itemDe(k, 36)}</span>
                         <span><span class="nome">${o.qtd} × ${nomeK(o.item)}</span>
-                            <span class="det"><span>${moeda(o.preco)} cada (na venda normal, ${k.venda})</span><span>de ${A.htmlAvatar(o.avatar, 16)} ${esc(o.vendedor)}</span><span>acaba em ${resta(o.ate)}</span>${o.reservado_ate ? `<span class="feira-reservado">separado pra você até ${hora(o.reservado_ate)}</span>` : ''}</span></span>
-                        <button type="button" class="botao pequeno verde" data-feira-comprar="${o.id}"${S.jogador.moedas >= total ? '' : ' disabled'}>Comprar<br>${ico('moeda', 14)} ${total}</button></div>`;
+                            <span class="det"><span>${moeda(numero(o.preco))} cada (na venda normal, ${numero(k.venda)})</span><span>de ${A.htmlAvatar(o.avatar, 16)} <span class="feira-vendedor">${esc(o.vendedor)}</span></span><span>acaba em ${resta(o.ate)}</span>${o.reservado_ate ? `<span class="feira-reservado">separado pra você até ${hora(o.reservado_ate)}</span>` : ''}</span></span>
+                        <button type="button" class="botao pequeno verde" data-feira-comprar="${o.id}"${S.jogador.moedas >= total ? '' : ' disabled'}>Comprar<br>${ico('moeda', 14)} ${numero(total)}</button></div>`;
                 }).join('') + '</div>' : '<p class="vazio-msg">Ninguém está vendendo isso agora. Volte daqui a pouco!</p>');
             }
         } else if (abaFeira === 'vender') {
@@ -5048,7 +5051,7 @@
         } else {
             const meus = (S.feira && S.feira.meus) || [], vendidos = (S.feira && S.feira.vendidos) || [];
             corpo = meus.length ? '<div class="lista">' + meus.map((a) => `<div class="item"><span class="ico">${itemDe(culturas[a.item] || { id: a.item }, 36)}</span>
-                <span><span class="nome">${a.qtd} × ${nomeK(a.item)}</span><span class="det"><span>${moeda(a.preco)} cada · total ${a.qtd * a.preco}</span><span>acaba em ${resta(a.ate)}</span>${a.para ? `<span class="feira-reservado">separado para ${esc(a.para)} até ${hora(a.reservado_ate)}</span>` : ''}</span></span>
+                <span><span class="nome">${a.qtd} × ${nomeK(a.item)}</span><span class="det"><span>${moeda(numero(a.preco))} cada · total ${numero(a.qtd * a.preco)}</span><span>acaba em ${resta(a.ate)}</span>${a.para ? `<span class="feira-reservado">separado para ${esc(a.para)} até ${hora(a.reservado_ate)}</span>` : ''}</span></span>
                 <button type="button" class="botao pequeno creme" data-feira-cancelar="${a.id}">Cancelar</button></div>`).join('') + '</div>'
                 : '<p class="vazio-msg">Nenhum anúncio aberto. Na aba Vender você coloca um lote do celeiro à venda.</p>';
             corpo += dicaBarraca();
