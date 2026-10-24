@@ -746,6 +746,7 @@ input:focus {
 /* ---------- Listas (loja, celeiro, ranking, diário) ---------- */
 .lista {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);   /* a coluna não cresce além da tela (o celular tinha rolagem para o lado) */
     gap: 12px;
     padding: 3px;
 }
@@ -765,7 +766,19 @@ input:focus {
 }
 
 .item {
-    grid-template-columns: 48px 1fr auto;
+    grid-template-columns: 48px minmax(0, 1fr) auto;
+}
+/* o texto do meio encolhe e quebra (nome comprido de vendedor, preço grande) em vez de empurrar o botão
+   para fora da tela no celular */
+.item > span {
+    min-width: 0;
+    overflow-wrap: break-word;
+}
+/* botão de duas linhas ("Comprar" e o preço embaixo): o <br> não quebra dentro do inline-flex */
+.botao:has(br) {
+    display: inline-block;
+    text-align: center;
+    line-height: 1.25;
 }
 
 button.item:hover {
@@ -813,6 +826,10 @@ button.item:hover {
     gap: 3px;
 }
 
+/* cada pedaço do detalhe cabe na linha (no celular estreito, o nome do vendedor termina em …) */
+.det > span { min-width: 0; max-width: 100%; }
+.det span.feira-vendedor { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 /* texto corrido (com negrito no meio) dentro de .det */
 .det span.txt {
     display: block;
@@ -846,6 +863,7 @@ button.item:hover {
     margin-top: 20px;
     flex-wrap: wrap;
 }
+.rodape-painel .preco { white-space: normal; flex-wrap: wrap; }   /* "Valor total ... (+40% de bônus)" quebra no celular */
 
 .rank {
     grid-template-columns: 34px 1fr auto;
@@ -1108,7 +1126,7 @@ button.item:hover {
 /* ---------- Fase 3: missões e enfeites ---------- */
 .missao {
     display: grid;
-    grid-template-columns: 40px 1fr auto;
+    grid-template-columns: 40px minmax(0, 1fr) auto;
     align-items: center;
     gap: 12px;
     padding: 10px 12px;
@@ -2670,6 +2688,7 @@ body.construindo .status {
 /* fase 63: o evento da semana */
 .evento-cats {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 12px;
 }
 
