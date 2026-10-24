@@ -3123,6 +3123,16 @@ body.construindo .status {
 }
 .pergunta-botoes .botao { flex: 1; }
 
+/* vender no celeiro: quantos (− número +, a barra e os atalhos) */
+.vender-qtd p small { font-size: 13px; color: var(--texto-suave); }
+.qtd-linha { display: flex; gap: 8px; justify-content: center; align-items: center; margin-bottom: 10px; }
+.qtd-linha input { width: 96px; text-align: center; font-size: 20px; font-weight: 700; }
+.qtd-linha .botao { min-width: 44px; min-height: 40px; font-size: 20px; }
+.vender-qtd input[type="range"] { width: 100%; accent-color: var(--grama); margin: 0 0 10px; height: 8px; }
+.qtd-atalhos { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin-bottom: 14px; }
+.qtd-atalhos .botao { min-width: 52px; }
+.pergunta p.qtd-total { margin: 0 0 14px; font-size: 18px; }
+
 /* fase 83: na faixa da visita, a fazenda abandonada e a sequência de vizinhos */
 .faixa-extra { display: inline-flex; gap: 4px; flex-wrap: wrap; margin-left: 4px; }
 .chip-abandonada, .chip-sequencia { font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 3px; white-space: nowrap; }

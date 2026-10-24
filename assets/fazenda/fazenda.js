@@ -1345,6 +1345,9 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-10-24-vender-qtd', data: '24/10', titulo: 'Escolha quanto vender no celeiro', itens: [
+            'No celeiro, o botão <b>Vender</b> de cada item agora pergunta <b>quantos</b>: digite o número, use o − e o +, arraste a barra ou toque em 1, 10, Metade ou Tudo. O valor em moedas aparece antes de vender.',
+            'Começa em tudo, então para vender tudo é só confirmar. O "Vender tudo" lá embaixo continua igual.'] },
         { id: '2026-10-24-lotes', data: '24/10', titulo: 'Plantar tudo com mais de 100 canteiros', itens: [
             'Quem tem <b>mais de 100 canteiros</b> não conseguia plantar, arar ou colher tudo de uma vez: os canteiros piscavam e vinha "Ação inválida". Agora o jogo manda em partes, uma depois da outra, e faz todos.',
             'O mesmo vale para pegar ou ajudar em muitos canteiros do vizinho e para cuidar de mais de 20 bichos de uma vez.'] },
@@ -3664,6 +3667,55 @@
             fundo.querySelector('[data-r="1"]').focus();
         });
     }
+    // vender no celeiro: escolhe quantos (começa em tudo o que está livre); devolve o número ou null no cancelar
+    function escolherQuantidade(k, max) {
+        const bonus = S.jogador.bonus_venda || 0;
+        const valor = (n) => Math.floor(n * k.venda * (100 + bonus) / 100);
+        return new Promise((ok) => {
+            const fundo = document.createElement('div');
+            fundo.className = 'pergunta-fundo';
+            fundo.innerHTML = `<div class="cartao pergunta vender-qtd" role="dialog" aria-modal="true" aria-label="Quanto vender">
+                <p>${spr(A.cultura(k.id).item, 32)} Quantas unidades de <b>${esc(k.nome.toLowerCase())}</b> vender?<br><small>${max} para vender · ${moeda(k.venda)} cada${bonus ? ` (+${bonus}% de bônus)` : ''}</small></p>
+                <div class="qtd-linha">
+                    <button type="button" class="botao mini creme" data-q="-1" aria-label="Menos">−</button>
+                    <input type="number" inputmode="numeric" min="1" max="${max}" value="${max}" aria-label="Quantidade">
+                    <button type="button" class="botao mini creme" data-q="+1" aria-label="Mais">+</button>
+                </div>
+                ${max > 2 ? `<input type="range" min="1" max="${max}" value="${max}" aria-label="Quantidade">` : ''}
+                <div class="qtd-atalhos">
+                    ${[[1, '1'], [10, '10'], [Math.ceil(max / 2), 'Metade'], [max, 'Tudo']].filter(([n], i, l) => n <= max && l.findIndex(([m]) => m === n) === i)
+                        .map(([n, t]) => `<button type="button" class="botao pequeno creme" data-q="${n}">${t}</button>`).join('')}
+                </div>
+                <p class="qtd-total"></p>
+                <div class="pergunta-botoes"><button type="button" class="botao creme" data-r="0">Cancelar</button><button type="button" class="botao verde" data-r="1"></button></div>
+            </div>`;
+            const campo = fundo.querySelector('input[type="number"]'), barra = fundo.querySelector('input[type="range"]'), sim = fundo.querySelector('[data-r="1"]'), total = fundo.querySelector('.qtd-total');
+            let n = max;
+            const mostrar = (v, deOnde) => {
+                n = Math.max(1, Math.min(max, Math.floor(Number(v)) || 1));
+                if (deOnde !== campo) campo.value = n;
+                if (barra && deOnde !== barra) barra.value = n;
+                total.innerHTML = `${n} × ${moeda(k.venda)}${bonus ? ` + ${bonus}%` : ''} = ${ico('moeda', 18)} <b>${valor(n).toLocaleString('pt-BR')}</b>`;
+                sim.textContent = `Vender ${n}`;
+            };
+            const fim = (v) => { fundo.remove(); document.removeEventListener('keydown', tecla, true); ok(v); };
+            const tecla = (e) => { if (e.key === 'Escape') { e.stopPropagation(); fim(null); } else if (e.key === 'Enter') { e.preventDefault(); mostrar(campo.value); fim(n); } };
+            campo.addEventListener('input', () => { if (campo.value !== '') mostrar(campo.value, campo); });
+            campo.addEventListener('blur', () => mostrar(campo.value));
+            campo.addEventListener('focus', () => campo.select());
+            if (barra) barra.addEventListener('input', () => mostrar(barra.value, barra));
+            fundo.addEventListener('click', (e) => {
+                const q = e.target.closest('[data-q]'), r = e.target.closest('[data-r]');
+                if (q) mostrar(/^[+-]/.test(q.dataset.q) ? n + Number(q.dataset.q) : q.dataset.q);
+                else if (r) { mostrar(campo.value); fim(r.dataset.r === '1' ? n : null); }
+                else if (e.target === fundo) fim(null);
+            });
+            document.addEventListener('keydown', tecla, true);
+            mostrar(max);
+            document.body.appendChild(fundo);
+            sim.focus();
+        });
+    }
     async function clicarCanteiro(p) {
         if (!S || painelAtual) return;
         descrever(p);
@@ -5685,8 +5737,17 @@
         }
         const vend = e.target.closest('[data-vender]');
         if (vend) {
-            vend.disabled = true;
             const qual = vend.dataset.vender;
+            // um item só: escolhe a quantidade antes (com 1 no celeiro vende direto)
+            let qtd = null;
+            if (qual !== '*' && qual !== 'finais') {
+                const k = culturas[qual], livre = Math.max(0, naCeleiro(qual) - reservaDe(qual));
+                if (k && livre > 1) {
+                    qtd = await escolherQuantidade(k, livre);
+                    if (!qtd) return;
+                }
+            }
+            vend.disabled = true;
             // "finais" vende só o que saiu das oficinas, um produto por vez
             const lista = qual === 'finais' ? produtosFinais().filter((id) => naCeleiro(id) > reservaDe(id))
                 : [qual === '*' ? null : qual];
@@ -5696,7 +5757,7 @@
                 if (lista.length) {
                     const r = await rpc('fazenda_vender', qual === 'finais'
                         ? { p_token: token, p_item: null, p_quantidade: null, p_itens: lista }
-                        : { p_token: token, p_item: lista[0], p_quantidade: null });
+                        : { p_token: token, p_item: lista[0], p_quantidade: qtd });
                     ganho = r.ganho; xp = r.xp || 0; semXp = r.sem_xp || 0; estado = r.estado;
                 }
                 const guardou = qual !== 'finais' && Object.keys(S.reservas || {}).length ? ' A ração dos animais ficou guardada.' : '';
