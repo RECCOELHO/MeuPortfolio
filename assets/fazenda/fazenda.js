@@ -215,7 +215,8 @@
         if (!res.ok) {
             let code = data && data.message;
             if (res.status >= 500 && !ERROS[code]) code = 'servidor';   // banco sobrecarregado, tempo esgotado...
-            throw Object.assign(new Error(ERROS[code] || 'Algo deu errado na fazenda.'), { code });
+            // fase 92: o código vai junto no aviso genérico, para o print já dizer a causa
+            throw Object.assign(new Error(ERROS[code] || `Algo deu errado na fazenda (código: ${String(code || res.status).slice(0, 60)}).`), { code });
         }
         return data;
     }
@@ -1344,6 +1345,10 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-10-24-motivo', data: '24/10', titulo: 'O jogo diz por que não deu', itens: [
+            'Ao plantar, arar ou ajudar vários canteiros de uma vez, se algum não der, aparece o <b>motivo</b> (por exemplo: "Are o canteiro antes de plantar", "Moedas insuficientes" ou "Sem energia") e em quantos canteiros. Antes os canteiros só piscavam e nada acontecia.',
+            'Na fazenda do vizinho, se a erva, a praga ou a seca já tiverem sido cuidadas pelos ajudantes ou pelas máquinas dele, o jogo avisa e atualiza a fazenda na hora.',
+            'Quando aparecer "Algo deu errado", agora vem um <b>código</b> no fim. Mande o print para o dono do jogo que ele descobre a causa.'] },
         { id: '2026-10-20-demitir', data: '20/10', titulo: 'Dá para demitir o ajudante', itens: [
             'Na tela do ajudante (Loja → Ajudantes → Ver), o botão <b>Demitir</b>: o ajudante sai da fazenda com os níveis que tinha, e as moedas pagas não voltam.',
             'Cada demissão deixa contratar e evoluir aquele ajudante <b>50% mais caro</b>, e soma: 1,5x, depois 2,25x... Os outros ajudantes não mudam.'] },
@@ -3742,6 +3747,9 @@
             if (r.feitos > 0 || Object.keys(r.colhido || {}).length) som.tocar(SOM_DA_ACAO[acao]);
             aplicarEstado(r.estado);
             tutorialEvento(acao);
+            if (posicoes.length > 1 && r.erros && Object.keys(r.erros).length) {
+                toast((r.feitos ? 'Alguns não deram: ' : 'Nada feito: ') + motivoErros(r.erros), r.feitos ? undefined : 'erro');
+            }
             if (posicoes.length > 1) resumoMassa(acao, r, k, perdas);
             else {
                 descrever(posicoes[0]);
@@ -3782,6 +3790,16 @@
         } else if (acao === 'arar') {
             toast(`${spr(86, 22)} Arou ${r.feitos} canteiro(s)`);
         }
+    }
+
+    // fase 92: nas ações em massa o servidor conta o motivo de cada canteiro que não deu ({codigo: quantos});
+    // vira um aviso com o motivo mais comum
+    function motivoErros(erros) {
+        const lista = Object.entries(erros || {}).sort((a, b) => b[1] - a[1]);
+        if (!lista.length) return '';
+        const [codigo, n] = lista[0];
+        const outros = lista.slice(1).reduce((t, [, q]) => t + q, 0);
+        return `${esc(ERROS[codigo] || `Algo deu errado (código: ${codigo})`)} (${n === 1 ? '1 canteiro' : `${n} canteiros`}${outros ? `; mais ${outros} por outro motivo` : ''})`;
     }
 
     function posicoesOnde(filtro) {
@@ -3934,6 +3952,14 @@
         });
     }
 
+    // fase 92: atualiza a fazenda do vizinho que está aberta (sem passar pela fila de ações)
+    async function recarregarVisita(dono) {
+        try {
+            const v = await rpc('fazenda_visitar', { p_token: token, p_vizinho: dono });
+            if (visita && visita.id === dono) mostrarVisita(v);
+        } catch { /* a próxima busca acerta */ }
+    }
+
     function voltarCasa() {
         visita = null;
         atualizarTerreno();
@@ -3953,9 +3979,21 @@
     function executarVisita(acao, posicoes) {
         const dono = visita.id;
         return enfileirar(posicoes, async () => {
-            const r = await rpc('fazenda_acao_vizinho', {
-                p_token: token, p_vizinho: dono, p_acao: acao, p_posicoes: posicoes
-            });
+            let r;
+            try {
+                r = await rpc('fazenda_acao_vizinho', {
+                    p_token: token, p_vizinho: dono, p_acao: acao, p_posicoes: posicoes
+                });
+            } catch (e) {
+                // fase 92: o canteiro mostrava erva/praga/seca, mas os ajudantes ou as máquinas do vizinho já
+                // tinham cuidado dele: diz isso e atualiza a fazenda do vizinho na hora
+                if (e.code === 'nada_a_fazer' && acao === 'ajudar') {
+                    recarregarVisita(dono);
+                    throw Object.assign(new Error('Esse canteiro já foi cuidado (pelos ajudantes ou pelas máquinas do vizinho). A fazenda dele foi atualizada.'), { code: e.code });
+                }
+                throw e;
+            }
+            if (posicoes.length > 1 && !r.feitos && r.erros && Object.keys(r.erros).length) toast('Nada feito: ' + motivoErros(r.erros), 'erro');
             const pegando = acao === 'pegar' || acao === 'pegar_luva';   // fase 66: com a luva é pegar também
             if (r.feitos) som.tocar(pegando ? 'colher' : 'cuidar');
             if (acao === 'pegar_luva' && r.feitos) toast(`${itemDe(culturas.luva_perks || { id: 'luva_perks' }, 18)} Passou pelo alarme com ${r.feitos === 1 ? '1 luva' : `${r.feitos} luvas`} do Perks!`);
@@ -4016,6 +4054,8 @@
             if (feitos.length) {
                 toast(`${ico('coracao', 16)} No vizinho: ${feitos.map(([a, q]) => TEXTO_AJUDA[a](q)).join(', ')}. +${total} ${ico('xp', 14)}`
                     + (semXp ? ` (${semXp} canteiro(s) já tinham dado XP hoje)` : ''));
+            } else if (r.erros && Object.keys(r.erros).length) {
+                toast('Não deu para ajudar: ' + motivoErros(r.erros), undefined, 'leve');   // fase 92
             } else {
                 toast('Não deu para ajudar agora: a fazenda do vizinho mudou. Tente de novo.', undefined, 'leve');
             }

@@ -3305,6 +3305,7 @@ declare
   v_qtd     int;
   v_colhido jsonb := '{}'::jsonb;
   v_feitos  int := 0;
+  v_erros   jsonb := '{}'::jsonb;   -- fase 92: o motivo de cada canteiro que não deu (antes sumia)
 begin
   if p_posicoes is null or array_length(p_posicoes, 1) is null then
     raise exception 'nada_a_fazer';
@@ -3325,6 +3326,7 @@ begin
         v_feitos := v_feitos + 1;
       exception when others then
         v_qtd := 0;
+        v_erros := fazenda_contar_erro(v_erros, sqlerrm);
       end;
     end if;
     if v_qtd > 0 then
@@ -3335,6 +3337,7 @@ begin
   return jsonb_build_object(
     'feitos', v_feitos,
     'colhido', v_colhido,
+    'erros', v_erros,
     'estado', fazenda_estado(v_id)
   );
 end;
@@ -3921,6 +3924,7 @@ declare
   v_qtd    int;
   v_result jsonb := '{}'::jsonb;
   v_feitos int := 0;
+  v_erros  jsonb := '{}'::jsonb;   -- fase 92
 begin
   if p_vizinho is null or p_vizinho = v_id then
     raise exception 'propria_fazenda';
@@ -3959,6 +3963,7 @@ begin
       if array_length(p_posicoes, 1) = 1 then
         raise;
       end if;
+      v_erros := fazenda_contar_erro(v_erros, sqlerrm);
     end;
   end loop;
 
@@ -3966,6 +3971,7 @@ begin
   return jsonb_build_object(
     'feitos', v_feitos,
     'resultado', v_result,
+    'erros', v_erros,
     'vizinho', fazenda_vizinho(p_vizinho, v_id),
     'estado', fazenda_estado(v_id)
   );
@@ -4114,6 +4120,7 @@ declare
   v_result jsonb := '{}'::jsonb;
   v_lote   jsonb;
   j        record;
+  v_erros  jsonb := '{}'::jsonb;   -- fase 92
 begin
   if p_vizinho is null or p_vizinho = v_id then raise exception 'propria_fazenda'; end if;
   if not exists (select 1 from fazenda_jogadores where id = p_vizinho and banido_em is null) then raise exception 'vizinho_invalido'; end if;
@@ -4147,7 +4154,7 @@ begin
         v_n := v_n + 1;
         v_soma := v_soma + v_xp;
       exception when others then
-        null;   -- pula o que não deu (já feito, sem ração, sem moedas...)
+        v_erros := fazenda_contar_erro(v_erros, sqlerrm);   -- pula o que não deu (já feito, sem ração, sem moedas...)
       end;
     end loop;
     if v_n > 0 then
@@ -4169,7 +4176,7 @@ begin
   end if;
   if (v_lote->>'missao')::int + v_bichos > 0 then perform fazenda_missao(v_id, 'ajudar', (v_lote->>'missao')::int + v_bichos); end if;
   perform fazenda_bot_xp_gravar();   -- a metade do XP da colheita que vai para o dono
-  return jsonb_build_object('feitos', v_feitos, 'xp', v_total, 'resultado', v_result,
+  return jsonb_build_object('feitos', v_feitos, 'xp', v_total, 'resultado', v_result, 'erros', v_erros,
                             'vizinho', fazenda_vizinho(p_vizinho, v_id), 'estado', fazenda_estado(v_id));
 end;
 $$;
@@ -9423,9 +9430,23 @@ end;
 $$;
 
 -- ------------------------------------------------------------
+-- Fase 92: o erro que sumia. Nas ações em massa (plantar tudo, arar tudo, ajudar tudo no vizinho), cada
+-- canteiro que não dava era pulado em silêncio e a resposta vinha só com "feitos: 0": no jogo, os
+-- canteiros piscavam e nada acontecia, sem aviso nenhum. Agora a resposta traz "erros" com o motivo de
+-- cada um ({"precisa_arar": 12, "moedas_insuficientes": 3}) e o jogo mostra o motivo mais comum.
+-- ------------------------------------------------------------
+-- soma +1 no motivo (o código do erro; um erro de verdade do banco entra com o começo da mensagem)
+create or replace function public.fazenda_contar_erro(p_erros jsonb, p_msg text)
+returns jsonb language sql immutable as $$
+  select coalesce(p_erros, '{}'::jsonb)
+         || jsonb_build_object(left(coalesce(p_msg, 'erro'), 80), coalesce((p_erros->>left(coalesce(p_msg, 'erro'), 80))::int, 0) + 1);
+$$;
+
+-- ------------------------------------------------------------
 -- Permissões: só a API pública fica executável pela chave anon
 -- ------------------------------------------------------------
 revoke execute on function
+  public.fazenda_contar_erro(jsonb, text),
   public.fazenda_nivel(int),
   public.fazenda_xp_nivel(int),
   public.fazenda_minuto_semana(timestamptz),
