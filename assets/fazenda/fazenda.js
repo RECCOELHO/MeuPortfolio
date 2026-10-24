@@ -1345,6 +1345,9 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-10-24-lotes', data: '24/10', titulo: 'Plantar tudo com mais de 100 canteiros', itens: [
+            'Quem tem <b>mais de 100 canteiros</b> não conseguia plantar, arar ou colher tudo de uma vez: os canteiros piscavam e vinha "Ação inválida". Agora o jogo manda em partes, uma depois da outra, e faz todos.',
+            'O mesmo vale para pegar ou ajudar em muitos canteiros do vizinho e para cuidar de mais de 20 bichos de uma vez.'] },
         { id: '2026-10-24-motivo', data: '24/10', titulo: 'O jogo diz por que não deu', itens: [
             'Ao plantar, arar ou ajudar vários canteiros de uma vez, se algum não der, aparece o <b>motivo</b> (por exemplo: "Are o canteiro antes de plantar", "Moedas insuficientes" ou "Sem energia") e em quantos canteiros. Antes os canteiros só piscavam e nada acontecia.',
             'Na fazenda do vizinho, se a erva, a praga ou a seca já tiverem sido cuidadas pelos ajudantes ou pelas máquinas dele, o jogo avisa e atualiza a fazenda na hora.',
@@ -3289,7 +3292,7 @@
         const antes = {};
         ids.forEach((id) => { antes[id] = S.animais.find((x) => x.id === id); });
         return enfileirar([], async () => {
-            const r = await rpc('fazenda_animal', { p_token: token, p_acao: acao, p_ids: ids });
+            const r = await emLotes(ids, LOTE_BICHOS, (lote) => rpc('fazenda_animal', { p_token: token, p_acao: acao, p_ids: lote }));
             if (r.feitos) som.tocar(acao === 'coletar' ? 'colher' : 'cuidar');
             ids.forEach((id, n) => {
                 const a = antes[id], t = a && tipoAnimal(a.tipo);
@@ -3715,17 +3718,46 @@
         executar('arrancar', [p]).then(() => executar('plantar', [p], nova));
     }
 
+    // O servidor aceita até 100 canteiros (e 20 bichos) por chamada. Com mais que isso (130 canteiros
+    // arados, por exemplo), a ação em massa voltava "Ação inválida": os canteiros piscavam e nada era
+    // feito. Agora vai em lotes do mesmo tamanho, um depois do outro, e as respostas viram uma só.
+    // (Lotes iguais, nunca um de 1: com um canteiro só o servidor devolve o erro em vez de pular.)
+    const LOTE_CANTEIROS = 100, LOTE_BICHOS = 20;
+    async function emLotes(lista, tam, chamar) {
+        if (lista.length <= tam) return chamar(lista);
+        const cada = Math.ceil(lista.length / Math.ceil(lista.length / tam));
+        let r = null;
+        for (let n = 0; n < lista.length; n += cada) {
+            let parte;
+            try { parte = await chamar(lista.slice(n, n + cada)); }
+            catch (e) { if (r) aplicarEstado(r.estado); throw e; }   // os lotes que já foram continuam valendo
+            r = r ? juntarLotes(r, parte) : parte;
+        }
+        return r;
+    }
+    // soma os números (feitos, coletado, erros por motivo) e junta os por canteiro; estado e vizinho: o do último
+    function juntarLotes(a, b) {
+        const j = { ...a };
+        for (const [chave, v] of Object.entries(b)) {
+            if (typeof v === 'number' && typeof a[chave] === 'number') j[chave] = a[chave] + v;
+            else if (chave !== 'estado' && chave !== 'vizinho' && v && typeof v === 'object' && !Array.isArray(v)
+                && a[chave] && typeof a[chave] === 'object') j[chave] = juntarLotes(a[chave], v);
+            else j[chave] = v;
+        }
+        return j;
+    }
+
     function executar(acao, posicoes, k) {
         const colhe = acao === 'colher' || acao === 'agora';   // agora = colher na hora com diamante
         return enfileirar(posicoes, async () => {
             const antes = colhe ? Object.fromEntries(posicoes.map((p) => [p, { ...canteiro(p) }])) : null;
             let perdas = '';
-            const r = await rpc('fazenda_acao', {
+            const r = await emLotes(posicoes, LOTE_CANTEIROS, (lote) => rpc('fazenda_acao', {
                 p_token: token,
                 p_acao: acao,
-                p_posicoes: posicoes,
+                p_posicoes: lote,
                 p_cultura: acao === 'plantar' ? k.id : null
-            });
+            }));
             if (colhe) {
                 const sol = climaAgora() === 'sol';
                 Object.entries(r.colhido).forEach(([pos, qtd], n) => {
@@ -3839,8 +3871,7 @@
         const p = planoColherTudo();
         fecharPainel();
         if (!p.da) return;
-        const todas = [...p.escolhidos, ...p.maduros];
-        for (let n = 0; n < todas.length; n += 100) executar('agora', todas.slice(n, n + 100));   // (o servidor aceita até 100 por vez)
+        executar('agora', [...p.escolhidos, ...p.maduros]);   // (mais de 100 vai em lotes: emLotes)
     }
 
     async function acaoEmMassa(tipo) {
@@ -3981,9 +4012,9 @@
         return enfileirar(posicoes, async () => {
             let r;
             try {
-                r = await rpc('fazenda_acao_vizinho', {
-                    p_token: token, p_vizinho: dono, p_acao: acao, p_posicoes: posicoes
-                });
+                r = await emLotes(posicoes, LOTE_CANTEIROS, (lote) => rpc('fazenda_acao_vizinho', {
+                    p_token: token, p_vizinho: dono, p_acao: acao, p_posicoes: lote
+                }));
             } catch (e) {
                 // fase 92: o canteiro mostrava erva/praga/seca, mas os ajudantes ou as máquinas do vizinho já
                 // tinham cuidado dele: diz isso e atualiza a fazenda do vizinho na hora
