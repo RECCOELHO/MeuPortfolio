@@ -1,7 +1,8 @@
 // O site v4: o crachá no topo, o pó 3D, a trilha e as cenas que trocam enquanto se desce (estilo GTA 6).
-import { montarCracha } from './cracha.js';
-import { montarFundo } from './fundo.js';
-import { criarTrilha } from './trilha.js';
+// ao mudar cracha.js, fundo.js ou trilha.js, troque o ?v= daqui e o do <script> em index.html e jc.html
+import { montarCracha } from './cracha.js?v=20261023';
+import { montarFundo } from './fundo.js?v=20261023';
+import { criarTrilha } from './trilha.js?v=20261023';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -102,7 +103,14 @@ function montarTeatro() {
 
     // a máscara "CJ": as letras crescem até a cena do SENAI tomar a tela (como o "VI" do GTA 6)
     const c1 = $('.c1');
-    const svgCJ = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 120'><g fill='none' stroke='#fff' stroke-width='26' stroke-linecap='round'><path d='M92 28 A40 40 0 1 0 92 92'/><path d='M150 16 V74 A28 28 0 0 1 100 92'/></g></svg>";
+    // as letras seguem a página: "CJ" no site, "JC" no teste Jessé Coelho (data-logo diferente de "cj").
+    // haste = onde fica a haste do J no desenho (0 a 1), para onde o zoom vai
+    const jc = (document.documentElement.dataset.logo || 'cj') !== 'cj';
+    const letras = jc
+        ? "<path d='M50 16 V74 A28 28 0 0 1 0 92'/><path d='M168 28 A40 40 0 1 0 168 92'/>"
+        : "<path d='M92 28 A40 40 0 1 0 92 92'/><path d='M150 16 V74 A28 28 0 0 1 100 92'/>";
+    const haste = jc ? 0.25 : 0.75;
+    const svgCJ = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 120'><g fill='none' stroke='#fff' stroke-width='26' stroke-linecap='round'>${letras}</g></svg>`;
     const urlCJ = `url("data:image/svg+xml,${encodeURIComponent(svgCJ)}")`;
     function mascarar(m) {
         if (m <= 0.001) { c1.style.visibility = 'hidden'; return; }
@@ -111,7 +119,7 @@ function montarTeatro() {
         const W = innerWidth, H = innerHeight;
         const S0 = Math.min(W * 0.42, H * 1.1), S1 = Math.max(10 * W, 4 * H);
         const S = S0 * Math.pow(S1 / S0, m);
-        const f = Math.min(1, m * 1.5), u = 0.5 + 0.25 * f, v = 0.5 - 0.125 * f; // vai do meio do "CJ" para a haste do J
+        const f = Math.min(1, m * 1.5), u = 0.5 + (haste - 0.5) * f, v = 0.5 - 0.125 * f; // vai do meio das letras para a haste do J
         Object.assign(c1.style, {
             maskImage: urlCJ, webkitMaskImage: urlCJ, maskRepeat: 'no-repeat', webkitMaskRepeat: 'no-repeat',
             maskSize: `${S}px ${S * 0.6}px`, webkitMaskSize: `${S}px ${S * 0.6}px`,
