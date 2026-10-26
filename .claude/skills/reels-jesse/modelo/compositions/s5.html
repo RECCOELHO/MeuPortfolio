@@ -44,6 +44,7 @@
     const tl = gsap.timeline({ paused: true });
     // passo 1: o topo do site e o endereço
     tl.fromTo('#s5-topo', { scale: 1.08 }, { scale: 1, duration: 0.5, ease: 'expo.out' }, 0);
+    tl.to('#s5-topo', { y: -60, duration: 2.9, ease: 'none' }, 0.55);
     tl.fromTo('#s5-p1', { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.35, ease: 'back.out(1.6)' }, 0.4);
     // passo 2: rola até Projetos (chicote pelo currículo) e a câmera vai até o botão
     tl.to('#s5-p1', { opacity: 0, duration: 0.12 }, 3.5);
@@ -60,10 +61,12 @@
     tl.to('#s5-p2', { opacity: 0, duration: 0.12 }, 6.5);
     tl.fromTo('#s5-campo', { opacity: 0, scale: 1.1 }, { opacity: 1, scale: 1, duration: 0.4, ease: 'expo.out' }, 6.55);
     tl.fromTo('#s5-p3', { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.35, ease: 'back.out(1.6)' }, 6.95);
+    tl.to(['#s5-campo', '#s5-b', '#s5-bi', '#s5-bia'], { y: -36, duration: 1.95, ease: 'none' }, 6.6);
     tl.set('#s5-b', { opacity: 1 }, 7.4);
     tl.set('#s5-bi', { opacity: 1 }, 7.65);
     tl.set('#s5-bia', { opacity: 1 }, 7.9);
     tl.fromTo('#s5-codcam', { opacity: 0, scale: 1.12 }, { opacity: 1, scale: 1, duration: 0.45, ease: 'expo.out' }, 8.5);
+    tl.to('#s5-codcam', { scale: 1.045, duration: 1.5, ease: 'none' }, 8.96);
     tl.fromTo('#s5-moldura', { opacity: 0, scale: 1.15 }, { opacity: 1, scale: 1, duration: 0.3, ease: 'back.out(1.6)' }, 8.7);
     // saída: o verde da grama sobe e o final entra
     tl.to('#s5-p3', { opacity: 0, duration: 0.15 }, 10.3);

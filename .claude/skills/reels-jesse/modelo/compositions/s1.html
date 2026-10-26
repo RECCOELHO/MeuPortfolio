@@ -24,6 +24,7 @@
   <script>
     const tl = gsap.timeline({ paused: true });
     // o frame 0 já é o gancho: o título está na tela. Soco de câmera no crachá aos 1,2 s
+    tl.fromTo('#s1-topo', { y: 0 }, { y: -70, duration: 2.75, ease: 'sine.inOut' }, 0);
     tl.fromTo('#s1-cam', { scale: 1 }, { scale: 1.12, duration: 0.4, ease: 'expo.out' }, 1.2);
     tl.fromTo('#s1-titulo', { scale: 1 }, { scale: 1.04, duration: 0.12, ease: 'power2.out', yoyo: true, repeat: 1 }, 1.2);
     // saída: chicote para cima (a página rola)
