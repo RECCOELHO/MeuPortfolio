@@ -1,0 +1,136 @@
+<template>
+  <style>
+      #root { position: absolute; inset: 0; pointer-events: none; }
+      .grupo { position: absolute; left: 0; width: 1080px; top: 1010px; text-align: center; }
+      .placa-leg { display: inline-block; max-width: 860px; background: #fde6c9; color: #3f2631; border: 6px solid #3f2631;
+                    box-shadow: 0 8px 0 #3f2631, inset 0 -6px 0 #fec99c; padding: 10px 28px 14px;
+                    font: 900 60px/1.12 'Nunito', sans-serif; }
+      .acento { color: #3b7a3a; font-weight: 900; }
+  </style>
+  <div id="root" data-composition-id="legendas" data-width="1080" data-height="1920">
+    <div id="lg0" class="grupo" style="opacity:0;visibility:hidden"><span class="placa-leg">POV: você abre</span></div>
+    <div id="lg1" class="grupo" style="opacity:0;visibility:hidden"><span class="placa-leg">o portfólio de um dev.</span></div>
+    <div id="lg2" class="grupo" style="opacity:0;visibility:hidden"><span class="placa-leg">Rola o currículo…</span></div>
+    <div id="lg3" class="grupo" style="opacity:0;visibility:hidden"><span class="placa-leg">E no fim tem</span></div>
+    <div id="lg4" class="grupo" style="opacity:0;visibility:hidden"><span class="placa-leg">uma <b class="acento">fazenda</b> inteira</span></div>
+    <div id="lg5" class="grupo" style="opacity:0;visibility:hidden"><span class="placa-leg">escondida!</span></div>
+    <div id="lg6" class="grupo" style="opacity:0;visibility:hidden"><span class="placa-leg">Planta tudo</span></div>
+    <div id="lg7" class="grupo" style="opacity:0;visibility:hidden"><span class="placa-leg">de uma vez,</span></div>
+    <div id="lg8" class="grupo" style="opacity:0;visibility:hidden"><span class="placa-leg">colhe,</span></div>
+    <div id="lg9" class="grupo" style="opacity:0;visibility:hidden"><span class="placa-leg">ajuda os <b class="acento">vizinhos</b>,</span></div>
+    <div id="lg10" class="grupo" style="opacity:0;visibility:hidden"><span class="placa-leg">vende na <b class="acento">feira</b></span></div>
+    <div id="lg11" class="grupo" style="opacity:0;visibility:hidden"><span class="placa-leg">e ainda pesca</span></div>
+    <div id="lg12" class="grupo" style="opacity:0;visibility:hidden"><span class="placa-leg">no <b class="acento">alto-mar</b>.</span></div>
+    <div id="lg13" class="grupo" style="opacity:0;visibility:hidden"><span class="placa-leg">Pra entrar:</span></div>
+    <div id="lg14" class="grupo" style="opacity:0;visibility:hidden"><span class="placa-leg"><b class="acento">jessecoelho.com.br</b></span></div>
+    <div id="lg15" class="grupo" style="opacity:0;visibility:hidden"><span class="placa-leg">Desce até</span></div>
+    <div id="lg16" class="grupo" style="opacity:0;visibility:hidden"><span class="placa-leg"><b class="acento">Projetos</b></span></div>
+    <div id="lg17" class="grupo" style="opacity:0;visibility:hidden"><span class="placa-leg">e toca em</span></div>
+    <div id="lg18" class="grupo" style="opacity:0;visibility:hidden"><span class="placa-leg"><b class="acento">Jogar agora</b>.</span></div>
+    <div id="lg19" class="grupo" style="opacity:0;visibility:hidden"><span class="placa-leg">Escolhe um</span></div>
+    <div id="lg20" class="grupo" style="opacity:0;visibility:hidden"><span class="placa-leg"><b class="acento">apelido</b></span></div>
+    <div id="lg21" class="grupo" style="opacity:0;visibility:hidden"><span class="placa-leg">e guarda</span></div>
+    <div id="lg22" class="grupo" style="opacity:0;visibility:hidden"><span class="placa-leg">o seu <b class="acento">código</b>.</span></div>
+    <div id="lg23" class="grupo" style="opacity:0;visibility:hidden"><span class="placa-leg">Bora plantar!</span></div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    tl.set('#lg0', { visibility: 'visible' }, 0.267);
+    tl.fromTo('#lg0', { opacity: 0, filter: 'blur(6px)' }, { opacity: 1, filter: 'blur(0px)', duration: 0.13, ease: 'power4.out' }, 0.267);
+    tl.to('#lg0', { opacity: 0, duration: 0.12, ease: 'power2.in' }, 1.112);
+    tl.set('#lg0', { opacity: 0, visibility: 'hidden' }, 1.232);
+    tl.set('#lg1', { visibility: 'visible' }, 1.252);
+    tl.fromTo('#lg1', { opacity: 0, filter: 'blur(6px)' }, { opacity: 1, filter: 'blur(0px)', duration: 0.13, ease: 'power4.out' }, 1.252);
+    tl.to('#lg1', { opacity: 0, duration: 0.12, ease: 'power2.in' }, 2.927);
+    tl.set('#lg1', { opacity: 0, visibility: 'hidden' }, 3.047);
+    tl.set('#lg2', { visibility: 'visible' }, 3.067);
+    tl.fromTo('#lg2', { opacity: 0, filter: 'blur(6px)' }, { opacity: 1, filter: 'blur(0px)', duration: 0.13, ease: 'power4.out' }, 3.067);
+    tl.to('#lg2', { opacity: 0, duration: 0.12, ease: 'power2.in' }, 4.380);
+    tl.set('#lg2', { opacity: 0, visibility: 'hidden' }, 4.500);
+    tl.set('#lg3', { visibility: 'visible' }, 6.100);
+    tl.fromTo('#lg3', { opacity: 0, filter: 'blur(6px)' }, { opacity: 1, filter: 'blur(0px)', duration: 0.13, ease: 'power4.out' }, 6.100);
+    tl.to('#lg3', { opacity: 0, duration: 0.12, ease: 'power2.in' }, 6.721);
+    tl.set('#lg3', { opacity: 0, visibility: 'hidden' }, 6.841);
+    tl.set('#lg4', { visibility: 'visible' }, 6.861);
+    tl.fromTo('#lg4', { opacity: 0, filter: 'blur(6px)' }, { opacity: 1, filter: 'blur(0px)', duration: 0.13, ease: 'power4.out' }, 6.861);
+    tl.to('#lg4', { opacity: 0, duration: 0.12, ease: 'power2.in' }, 7.926);
+    tl.set('#lg4', { opacity: 0, visibility: 'hidden' }, 8.046);
+    tl.set('#lg5', { visibility: 'visible' }, 8.066);
+    tl.fromTo('#lg5', { opacity: 0, filter: 'blur(6px)' }, { opacity: 1, filter: 'blur(0px)', duration: 0.13, ease: 'power4.out' }, 8.066);
+    tl.to('#lg5', { opacity: 0, duration: 0.12, ease: 'power2.in' }, 8.860);
+    tl.set('#lg5', { opacity: 0, visibility: 'hidden' }, 8.980);
+    tl.set('#lg6', { visibility: 'visible' }, 9.000);
+    tl.fromTo('#lg6', { opacity: 0, filter: 'blur(6px)' }, { opacity: 1, filter: 'blur(0px)', duration: 0.13, ease: 'power4.out' }, 9.000);
+    tl.to('#lg6', { opacity: 0, duration: 0.12, ease: 'power2.in' }, 9.527);
+    tl.set('#lg6', { opacity: 0, visibility: 'hidden' }, 9.647);
+    tl.set('#lg7', { visibility: 'visible' }, 9.667);
+    tl.fromTo('#lg7', { opacity: 0, filter: 'blur(6px)' }, { opacity: 1, filter: 'blur(0px)', duration: 0.13, ease: 'power4.out' }, 9.667);
+    tl.to('#lg7', { opacity: 0, duration: 0.12, ease: 'power2.in' }, 10.513);
+    tl.set('#lg7', { opacity: 0, visibility: 'hidden' }, 10.633);
+    tl.set('#lg8', { visibility: 'visible' }, 10.967);
+    tl.fromTo('#lg8', { opacity: 0, filter: 'blur(6px)' }, { opacity: 1, filter: 'blur(0px)', duration: 0.13, ease: 'power4.out' }, 10.967);
+    tl.to('#lg8', { opacity: 0, duration: 0.12, ease: 'power2.in' }, 11.547);
+    tl.set('#lg8', { opacity: 0, visibility: 'hidden' }, 11.667);
+    tl.set('#lg9', { visibility: 'visible' }, 12.367);
+    tl.fromTo('#lg9', { opacity: 0, filter: 'blur(6px)' }, { opacity: 1, filter: 'blur(0px)', duration: 0.13, ease: 'power4.out' }, 12.367);
+    tl.to('#lg9', { opacity: 0, duration: 0.12, ease: 'power2.in' }, 13.547);
+    tl.set('#lg9', { opacity: 0, visibility: 'hidden' }, 13.667);
+    tl.set('#lg10', { visibility: 'visible' }, 13.967);
+    tl.fromTo('#lg10', { opacity: 0, filter: 'blur(6px)' }, { opacity: 1, filter: 'blur(0px)', duration: 0.13, ease: 'power4.out' }, 13.967);
+    tl.to('#lg10', { opacity: 0, duration: 0.12, ease: 'power2.in' }, 15.010);
+    tl.set('#lg10', { opacity: 0, visibility: 'hidden' }, 15.130);
+    tl.set('#lg11', { visibility: 'visible' }, 15.150);
+    tl.fromTo('#lg11', { opacity: 0, filter: 'blur(6px)' }, { opacity: 1, filter: 'blur(0px)', duration: 0.13, ease: 'power4.out' }, 15.150);
+    tl.to('#lg11', { opacity: 0, duration: 0.12, ease: 'power2.in' }, 15.773);
+    tl.set('#lg11', { opacity: 0, visibility: 'hidden' }, 15.893);
+    tl.set('#lg12', { visibility: 'visible' }, 15.913);
+    tl.fromTo('#lg12', { opacity: 0, filter: 'blur(6px)' }, { opacity: 1, filter: 'blur(0px)', duration: 0.13, ease: 'power4.out' }, 15.913);
+    tl.to('#lg12', { opacity: 0, duration: 0.12, ease: 'power2.in' }, 16.797);
+    tl.set('#lg12', { opacity: 0, visibility: 'hidden' }, 16.917);
+    tl.set('#lg13', { visibility: 'visible' }, 16.950);
+    tl.fromTo('#lg13', { opacity: 0, filter: 'blur(6px)' }, { opacity: 1, filter: 'blur(0px)', duration: 0.13, ease: 'power4.out' }, 16.950);
+    tl.to('#lg13', { opacity: 0, duration: 0.12, ease: 'power2.in' }, 17.597);
+    tl.set('#lg13', { opacity: 0, visibility: 'hidden' }, 17.717);
+    tl.set('#lg14', { visibility: 'visible' }, 18.067);
+    tl.fromTo('#lg14', { opacity: 0, filter: 'blur(6px)' }, { opacity: 1, filter: 'blur(0px)', duration: 0.13, ease: 'power4.out' }, 18.067);
+    tl.to('#lg14', { opacity: 0, duration: 0.12, ease: 'power2.in' }, 20.247);
+    tl.set('#lg14', { opacity: 0, visibility: 'hidden' }, 20.367);
+    tl.set('#lg15', { visibility: 'visible' }, 20.567);
+    tl.fromTo('#lg15', { opacity: 0, filter: 'blur(6px)' }, { opacity: 1, filter: 'blur(0px)', duration: 0.13, ease: 'power4.out' }, 20.567);
+    tl.to('#lg15', { opacity: 0, duration: 0.12, ease: 'power2.in' }, 21.027);
+    tl.set('#lg15', { opacity: 0, visibility: 'hidden' }, 21.147);
+    tl.set('#lg16', { visibility: 'visible' }, 21.167);
+    tl.fromTo('#lg16', { opacity: 0, filter: 'blur(6px)' }, { opacity: 1, filter: 'blur(0px)', duration: 0.13, ease: 'power4.out' }, 21.167);
+    tl.to('#lg16', { opacity: 0, duration: 0.12, ease: 'power2.in' }, 21.860);
+    tl.set('#lg16', { opacity: 0, visibility: 'hidden' }, 21.980);
+    tl.set('#lg17', { visibility: 'visible' }, 22.000);
+    tl.fromTo('#lg17', { opacity: 0, filter: 'blur(6px)' }, { opacity: 1, filter: 'blur(0px)', duration: 0.13, ease: 'power4.out' }, 22.000);
+    tl.to('#lg17', { opacity: 0, duration: 0.12, ease: 'power2.in' }, 22.460);
+    tl.set('#lg17', { opacity: 0, visibility: 'hidden' }, 22.580);
+    tl.set('#lg18', { visibility: 'visible' }, 22.600);
+    tl.fromTo('#lg18', { opacity: 0, filter: 'blur(6px)' }, { opacity: 1, filter: 'blur(0px)', duration: 0.13, ease: 'power4.out' }, 22.600);
+    tl.to('#lg18', { opacity: 0, duration: 0.12, ease: 'power2.in' }, 23.580);
+    tl.set('#lg18', { opacity: 0, visibility: 'hidden' }, 23.700);
+    tl.set('#lg19', { visibility: 'visible' }, 23.900);
+    tl.fromTo('#lg19', { opacity: 0, filter: 'blur(6px)' }, { opacity: 1, filter: 'blur(0px)', duration: 0.13, ease: 'power4.out' }, 23.900);
+    tl.to('#lg19', { opacity: 0, duration: 0.12, ease: 'power2.in' }, 24.348);
+    tl.set('#lg19', { opacity: 0, visibility: 'hidden' }, 24.468);
+    tl.set('#lg20', { visibility: 'visible' }, 24.488);
+    tl.fromTo('#lg20', { opacity: 0, filter: 'blur(6px)' }, { opacity: 1, filter: 'blur(0px)', duration: 0.13, ease: 'power4.out' }, 24.488);
+    tl.to('#lg20', { opacity: 0, duration: 0.12, ease: 'power2.in' }, 25.080);
+    tl.set('#lg20', { opacity: 0, visibility: 'hidden' }, 25.200);
+    tl.set('#lg21', { visibility: 'visible' }, 25.300);
+    tl.fromTo('#lg21', { opacity: 0, filter: 'blur(6px)' }, { opacity: 1, filter: 'blur(0px)', duration: 0.13, ease: 'power4.out' }, 25.300);
+    tl.to('#lg21', { opacity: 0, duration: 0.12, ease: 'power2.in' }, 25.516);
+    tl.set('#lg21', { opacity: 0, visibility: 'hidden' }, 25.636);
+    tl.set('#lg22', { visibility: 'visible' }, 25.656);
+    tl.fromTo('#lg22', { opacity: 0, filter: 'blur(6px)' }, { opacity: 1, filter: 'blur(0px)', duration: 0.13, ease: 'power4.out' }, 25.656);
+    tl.to('#lg22', { opacity: 0, duration: 0.12, ease: 'power2.in' }, 26.413);
+    tl.set('#lg22', { opacity: 0, visibility: 'hidden' }, 26.533);
+    tl.set('#lg23', { visibility: 'visible' }, 27.617);
+    tl.fromTo('#lg23', { opacity: 0, filter: 'blur(6px)' }, { opacity: 1, filter: 'blur(0px)', duration: 0.13, ease: 'power4.out' }, 27.617);
+    tl.to('#lg23', { opacity: 0, duration: 0.12, ease: 'power2.in' }, 28.463);
+    tl.set('#lg23', { opacity: 0, visibility: 'hidden' }, 28.583);
+    window.__timelines["legendas"] = tl;
+  </script>
+</template>

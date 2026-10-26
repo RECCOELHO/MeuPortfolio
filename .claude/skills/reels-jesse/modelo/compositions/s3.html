@@ -1,0 +1,44 @@
+<template>
+  <style>
+      @font-face { font-family: 'Jersey 10'; src: url('assets/fonts/jersey10-latin.woff2') format('woff2'); font-weight: 400; font-style: normal; }
+      #root { position: absolute; inset: 0; overflow: hidden; background: #1a0a0d; font-family: 'Nunito', sans-serif; }
+
+      .placa { position: absolute; background: #fde6c9; color: #3f2631; border: 6px solid #3f2631;
+               box-shadow: 0 8px 0 #3f2631, inset 0 -6px 0 #fec99c; padding: 14px 30px 18px; }
+      .pixel { font-family: 'Jersey 10', 'Nunito', monospace; font-weight: 400; letter-spacing: 0.01em; line-height: 0.95; }
+      .acento { color: #3b7a3a; font-weight: inherit; }
+      .tela { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; object-fit: cover; }
+      .mao { position: absolute; width: 156px; height: 156px; image-rendering: pixelated; }
+
+
+  </style>
+  <div id="root" data-composition-id="s3" data-width="1080" data-height="1920">
+    <div id="s3-cam" style="position:absolute;inset:0;transform-origin:0 0">
+      <img id="s3-proj" class="tela" src="assets/telas/port-projetos.jpg" alt="Projetos: Fazendinha Secreta, Jogar agora" />
+      <div id="s3-botao" style="position:absolute;left:35px;top:1518px;width:386px;height:130px;background:#b52a2a;opacity:0;transform-origin:50% 50%"></div>
+    </div>
+    <img id="s3-porteira" class="tela" src="assets/telas/ent-porteira.jpg" alt="A porteira da Fazendinha Secreta" style="z-index:3;opacity:0" />
+    <img id="s3-mao" class="mao" src="assets/img/ico-mao.png" alt="" style="z-index:6;left:0;top:0;opacity:0" data-layout-allow-overflow />
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    // a página chega rolando
+    tl.fromTo('#s3-cam', { y: 480, filter: 'blur(18px)' }, { y: 0, filter: 'blur(0px)', duration: 0.22, ease: 'power3.out' }, 0);
+    // a câmera vai até o botão
+    tl.to('#s3-cam', { x: 152.4, y: -1891.1, scale: 1.7, duration: 0.55, ease: 'power2.inOut' }, 0.23);
+    // a mão entra de fora (embaixo à direita) e para em cima do botão: o botão está em (540, 980) na tela
+    tl.fromTo('#s3-mao', { x: 1000, y: 1500, opacity: 1 }, { x: 500, y: 780, opacity: 1, duration: 0.4, ease: 'expo.out', immediateRender: false }, 0.7);
+    tl.to('#s3-mao', { scale: 0.85, duration: 0.1, ease: 'power2.in' }, 1.0);
+    tl.to('#s3-mao', { scale: 1, duration: 0.12, ease: 'power2.out' }, 1.1);
+    // o clique (6,5 s no filme = 1,1 s aqui) faz o botão crescer até virar a próxima tela
+    tl.set('#s3-botao', { opacity: 1 }, 1.12);
+    tl.to('#s3-mao', { opacity: 0, duration: 0.08 }, 1.15);
+    tl.fromTo('#s3-botao', { scale: 1 }, { scale: 9, duration: 0.35, ease: 'power3.in' }, 1.15);
+    // a porteira chega um pouco grande e assenta
+    tl.fromTo('#s3-porteira', { opacity: 0 }, { opacity: 1, duration: 0.08, ease: 'none' }, 1.46);
+    tl.fromTo('#s3-porteira', { scale: 1.12 }, { scale: 1, duration: 0.5, ease: 'expo.out', immediateRender: false }, 1.46);
+    // saída: a porteira cresce e vira a fazenda (o mundo novo entra por ela)
+    tl.to('#s3-porteira', { scale: 2.4, opacity: 0, duration: 0.5, ease: 'power3.in' }, 3.1);
+    window.__timelines["s3"] = tl;
+  </script>
+</template>

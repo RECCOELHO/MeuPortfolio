@@ -1,0 +1,34 @@
+<template>
+  <style>
+      @font-face { font-family: 'Jersey 10'; src: url('assets/fonts/jersey10-latin.woff2') format('woff2'); font-weight: 400; font-style: normal; }
+      #root { position: absolute; inset: 0; overflow: hidden; background: #1a0a0d; font-family: 'Nunito', sans-serif; }
+
+      .placa { position: absolute; background: #fde6c9; color: #3f2631; border: 6px solid #3f2631;
+               box-shadow: 0 8px 0 #3f2631, inset 0 -6px 0 #fec99c; padding: 14px 30px 18px; }
+      .pixel { font-family: 'Jersey 10', 'Nunito', monospace; font-weight: 400; letter-spacing: 0.01em; line-height: 0.95; }
+      .acento { color: #3b7a3a; font-weight: inherit; }
+      .tela { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; object-fit: cover; }
+      .mao { position: absolute; width: 156px; height: 156px; image-rendering: pixelated; }
+
+
+  </style>
+  <div id="root" data-composition-id="s1" data-width="1080" data-height="1920">
+    <div id="s1-cam" style="position:absolute;inset:0;transform-origin:540px 700px">
+      <img id="s1-topo" class="tela" src="assets/telas/port-topo.jpg" alt="Topo do portfólio com o crachá" />
+    </div>
+    <div id="s1-titulo" class="placa pixel" style="left:70px;top:190px;width:940px;text-align:center;z-index:5">
+      <div style="font-size:84px" class="acento">POV:</div>
+      <div style="font-size:112px">era só um portfólio…</div>
+    </div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    // o frame 0 já é o gancho: o título está na tela. Soco de câmera no crachá aos 1,2 s
+    tl.fromTo('#s1-cam', { scale: 1 }, { scale: 1.12, duration: 0.4, ease: 'expo.out' }, 1.2);
+    tl.fromTo('#s1-titulo', { scale: 1 }, { scale: 1.04, duration: 0.12, ease: 'power2.out', yoyo: true, repeat: 1 }, 1.2);
+    // saída: chicote para cima (a página rola)
+    tl.to('#s1-cam', { y: -700, filter: 'blur(18px)', duration: 0.2, ease: 'power3.in' }, 2.8);
+    tl.to('#s1-titulo', { y: -500, opacity: 0, duration: 0.2, ease: 'power3.in' }, 2.8);
+    window.__timelines["s1"] = tl;
+  </script>
+</template>

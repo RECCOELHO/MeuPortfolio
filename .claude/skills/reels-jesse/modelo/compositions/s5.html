@@ -1,0 +1,72 @@
+<template>
+  <style>
+      @font-face { font-family: 'Jersey 10'; src: url('assets/fonts/jersey10-latin.woff2') format('woff2'); font-weight: 400; font-style: normal; }
+      #root { position: absolute; inset: 0; overflow: hidden; background: #1a0a0d; font-family: 'Nunito', sans-serif; }
+
+      .placa { position: absolute; background: #fde6c9; color: #3f2631; border: 6px solid #3f2631;
+               box-shadow: 0 8px 0 #3f2631, inset 0 -6px 0 #fec99c; padding: 14px 30px 18px; }
+      .pixel { font-family: 'Jersey 10', 'Nunito', monospace; font-weight: 400; letter-spacing: 0.01em; line-height: 0.95; }
+      .acento { color: #3b7a3a; font-weight: inherit; }
+      .tela { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; object-fit: cover; }
+      .mao { position: absolute; width: 156px; height: 156px; image-rendering: pixelated; }
+
+
+  </style>
+  <div id="root" data-composition-id="s5" data-width="1080" data-height="1920">
+    <img id="s5-topo" class="tela" src="assets/telas/port-topo.jpg" alt="" style="z-index:1" />
+    <img id="s5-senai" class="tela" src="assets/telas/port-senai.jpg" alt="" style="z-index:2;opacity:0" data-layout-allow-overflow />
+    <div id="s5-cam" style="position:absolute;inset:0;transform-origin:0 0;z-index:3;opacity:0">
+      <img class="tela" src="assets/telas/port-projetos.jpg" alt="" />
+    </div>
+    <img id="s5-campo" class="tela" src="assets/telas/ent-campo.jpg" alt="" style="z-index:4;opacity:0" />
+    <img id="s5-b" class="tela" src="assets/telas/ent-b.jpg" alt="" style="z-index:5;opacity:0" />
+    <img id="s5-bi" class="tela" src="assets/telas/ent-bi.jpg" alt="" style="z-index:6;opacity:0" />
+    <img id="s5-bia" class="tela" src="assets/telas/ent-bia.jpg" alt="" style="z-index:7;opacity:0" />
+    <div id="s5-codcam" style="position:absolute;inset:0;transform-origin:540px 690px;z-index:8;opacity:0">
+      <img class="tela" src="assets/telas/ent-codigo.jpg" alt="O código de recuperação" />
+      <div id="s5-moldura" style="position:absolute;left:96px;top:566px;width:888px;height:248px;border:10px solid #3b7a3a;opacity:0"></div>
+    </div>
+    <img id="s5-mao" class="mao" src="assets/img/ico-mao.png" alt="" style="z-index:12;left:0;top:0;opacity:0" data-layout-allow-overflow />
+    <div id="s5-p1" class="placa" style="left:70px;top:200px;width:940px;z-index:10;opacity:0;display:flex;align-items:center;gap:26px">
+      <span class="pixel acento" style="font-size:150px">1</span>
+      <span class="pixel" style="font-size:96px">jessecoelho.com.br</span>
+    </div>
+    <div id="s5-p2" class="placa" style="left:70px;top:200px;width:940px;z-index:10;opacity:0;display:flex;align-items:center;gap:26px">
+      <span class="pixel acento" style="font-size:150px">2</span>
+      <span class="pixel" style="font-size:88px">Projetos → Jogar agora</span>
+    </div>
+    <div id="s5-p3" class="placa" style="left:70px;top:200px;width:940px;z-index:10;opacity:0;display:flex;align-items:center;gap:26px">
+      <span class="pixel acento" style="font-size:150px">3</span>
+      <span class="pixel" style="font-size:92px">apelido + código</span>
+    </div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    // passo 1: o topo do site e o endereço
+    tl.fromTo('#s5-topo', { scale: 1.08 }, { scale: 1, duration: 0.5, ease: 'expo.out' }, 0);
+    tl.fromTo('#s5-p1', { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.35, ease: 'back.out(1.6)' }, 0.4);
+    // passo 2: rola até Projetos (chicote pelo currículo) e a câmera vai até o botão
+    tl.to('#s5-p1', { opacity: 0, duration: 0.12 }, 3.5);
+    tl.fromTo('#s5-senai', { opacity: 1, y: 1920, filter: 'blur(18px)' }, { opacity: 1, y: -1920, duration: 0.4, ease: 'none', immediateRender: false }, 3.55);
+    tl.fromTo('#s5-cam', { opacity: 1, y: 1920, filter: 'blur(18px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.25, ease: 'power3.out', immediateRender: false }, 3.7);
+    tl.set('#s5-topo', { opacity: 0 }, 3.96);
+    tl.fromTo('#s5-p2', { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.35, ease: 'back.out(1.6)' }, 3.95);
+    tl.to('#s5-cam', { x: 152.4, y: -1891.1, scale: 1.7, duration: 0.6, ease: 'power2.inOut' }, 5.0);
+    tl.fromTo('#s5-mao', { x: 1000, y: 1500, opacity: 1 }, { x: 500, y: 780, opacity: 1, duration: 0.4, ease: 'expo.out', immediateRender: false }, 5.7);
+    tl.to('#s5-mao', { scale: 0.85, duration: 0.1, ease: 'power2.in' }, 6.1);
+    tl.to('#s5-mao', { scale: 1, duration: 0.12, ease: 'power2.out' }, 6.2);
+    tl.to('#s5-mao', { opacity: 0, duration: 0.1 }, 6.4);
+    // passo 3: a porteira, o apelido letra por letra e o código
+    tl.to('#s5-p2', { opacity: 0, duration: 0.12 }, 6.5);
+    tl.fromTo('#s5-campo', { opacity: 0, scale: 1.1 }, { opacity: 1, scale: 1, duration: 0.4, ease: 'expo.out' }, 6.55);
+    tl.fromTo('#s5-p3', { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.35, ease: 'back.out(1.6)' }, 6.95);
+    tl.set('#s5-b', { opacity: 1 }, 7.4);
+    tl.set('#s5-bi', { opacity: 1 }, 7.65);
+    tl.set('#s5-bia', { opacity: 1 }, 7.9);
+    tl.fromTo('#s5-codcam', { opacity: 0, scale: 1.12 }, { opacity: 1, scale: 1, duration: 0.45, ease: 'expo.out' }, 8.5);
+    tl.fromTo('#s5-moldura', { opacity: 0, scale: 1.15 }, { opacity: 1, scale: 1, duration: 0.3, ease: 'back.out(1.6)' }, 8.7);
+    // saída: o verde da grama sobe e o final entra
+    tl.to('#s5-p3', { opacity: 0, duration: 0.15 }, 10.3);
+    window.__timelines["s5"] = tl;
+  </script>
+</template>

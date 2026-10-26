@@ -1,0 +1,68 @@
+<template>
+  <style>
+      @font-face { font-family: 'Jersey 10'; src: url('assets/fonts/jersey10-latin.woff2') format('woff2'); font-weight: 400; font-style: normal; }
+      #root { position: absolute; inset: 0; overflow: hidden; background: #1a0a0d; font-family: 'Nunito', sans-serif; }
+
+      .placa { position: absolute; background: #fde6c9; color: #3f2631; border: 6px solid #3f2631;
+               box-shadow: 0 8px 0 #3f2631, inset 0 -6px 0 #fec99c; padding: 14px 30px 18px; }
+      .pixel { font-family: 'Jersey 10', 'Nunito', monospace; font-weight: 400; letter-spacing: 0.01em; line-height: 0.95; }
+      .acento { color: #3b7a3a; font-weight: inherit; }
+      .tela { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; object-fit: cover; }
+      .mao { position: absolute; width: 156px; height: 156px; image-rendering: pixelated; }
+
+
+  </style>
+  <div id="root" data-composition-id="s4" data-width="1080" data-height="1920">
+    <div id="s4-cam" style="position:absolute;inset:0;transform-origin:540px 760px">
+      <img id="s4-arados" class="tela" src="assets/telas/jogo-arados.jpg" alt="" style="z-index:1;opacity:0" />
+      <img id="s4-plantando" class="tela" src="assets/telas/jogo-plantando.jpg" alt="" style="z-index:2;opacity:0" />
+      <img id="s4-plantou" class="tela" src="assets/telas/jogo-plantou.jpg" alt="" style="z-index:3;opacity:0" />
+      <img id="s4-maduros" class="tela" src="assets/telas/jogo-maduros.jpg" alt="" style="z-index:4;opacity:0" />
+      <img id="s4-colheu" class="tela" src="assets/telas/jogo-colheu.jpg" alt="" style="z-index:5;opacity:0" />
+      <img id="s4-vizinho" class="tela" src="assets/telas/jogo-vizinho.jpg" alt="" style="z-index:6;opacity:0" />
+      <img id="s4-ajudou" class="tela" src="assets/telas/jogo-ajudou.jpg" alt="" style="z-index:7;opacity:0" />
+      <img id="s4-feira" class="tela" src="assets/telas/jogo-feira.jpg" alt="" style="z-index:8;opacity:0" />
+      <img id="s4-mar" class="tela" src="assets/telas/jogo-mar.jpg" alt="" style="z-index:9;opacity:0" />
+    </div>
+    <div id="s4-azul" style="position:absolute;inset:0;background:#2f7fd1;opacity:0;z-index:20"></div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    // entra pela porteira: a fazenda chega grande e assenta
+    tl.set('#s4-cam', { scale: 1.25, opacity: 1 }, 0);
+    tl.to('#s4-cam', { scale: 1, duration: 0.6, ease: 'expo.out' }, 0.001);
+    tl.set('#s4-arados', { opacity: 1 }, 0.0);
+    tl.set('#s4-plantando', { opacity: 1 }, 0.6);
+    tl.set('#s4-arados', { opacity: 0 }, 0.610);
+    tl.set('#s4-plantou', { opacity: 1 }, 0.9);
+    tl.set('#s4-plantando', { opacity: 0 }, 0.910);
+    tl.set('#s4-maduros', { opacity: 1 }, 1.9);
+    tl.set('#s4-plantou', { opacity: 0 }, 1.910);
+    tl.set('#s4-colheu', { opacity: 1 }, 2.3);
+    tl.set('#s4-maduros', { opacity: 0 }, 2.310);
+    tl.set('#s4-vizinho', { opacity: 1 }, 3.3);
+    tl.set('#s4-colheu', { opacity: 0 }, 3.310);
+    tl.set('#s4-ajudou', { opacity: 1 }, 3.9);
+    tl.set('#s4-vizinho', { opacity: 0 }, 3.910);
+    tl.set('#s4-feira', { opacity: 1 }, 4.9);
+    tl.set('#s4-ajudou', { opacity: 0 }, 4.910);
+    tl.set('#s4-mar', { opacity: 1 }, 6.1);
+    tl.set('#s4-feira', { opacity: 0 }, 6.110);
+    tl.set('#s4-cam', { scale: 1, transformOrigin: '540px 520px' }, 0.9);
+    tl.to('#s4-cam', { scale: 1.14, duration: 0.45, ease: 'expo.out' }, 0.901);
+    tl.set('#s4-cam', { scale: 1 }, 1.890);
+    tl.set('#s4-cam', { scale: 1, transformOrigin: '420px 640px' }, 2.3);
+    tl.to('#s4-cam', { scale: 1.14, duration: 0.45, ease: 'expo.out' }, 2.301);
+    tl.set('#s4-cam', { scale: 1 }, 3.290);
+    tl.set('#s4-cam', { scale: 1, transformOrigin: '600px 700px' }, 3.9);
+    tl.to('#s4-cam', { scale: 1.14, duration: 0.45, ease: 'expo.out' }, 3.901);
+    tl.set('#s4-cam', { scale: 1 }, 4.890);
+    tl.set('#s4-cam', { scale: 1, transformOrigin: '540px 760px' }, 5.9);
+    tl.fromTo('#s4-azul', { opacity: 0 }, { opacity: 1, duration: 0.18, ease: 'power2.in' }, 5.95);
+    tl.to('#s4-azul', { opacity: 0, duration: 0.3, ease: 'power2.out' }, 6.13);
+    tl.set('#s4-mar', { transformOrigin: '200px 1900px', scale: 1.32 }, 6.1);
+    tl.to('#s4-mar', { scale: 1.25, duration: 0.6, ease: 'expo.out' }, 6.101);
+    tl.to('#s4-cam', { opacity: 0.6, duration: 0.1, ease: 'none' }, 7.8);
+    window.__timelines["s4"] = tl;
+  </script>
+</template>

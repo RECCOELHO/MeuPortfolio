@@ -1,0 +1,619 @@
+{
+  "ok": false,
+  "strict": false,
+  "browserSkipped": true,
+  "lint": {
+    "ok": false,
+    "errorCount": 4,
+    "warningCount": 30,
+    "infoCount": 0,
+    "findings": [
+      {
+        "code": "duplicate_audio_track",
+        "severity": "warning",
+        "message": "Multiple audible <audio>/<video> elements on track 30 overlap (assets/sfx/whoosh.mp3 at 5.35-5.87s, assets/sfx/riser.mp3 at 5.6-6.9s). This causes layered audio playback.",
+        "selector": "[data-composition-id]",
+        "dataAttributes": {},
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Use non-overlapping time windows or different track indices."
+      },
+      {
+        "code": "duplicate_audio_track",
+        "severity": "warning",
+        "message": "Multiple audible <audio>/<video> elements on track 30 overlap (assets/sfx/riser.mp3 at 5.6-6.9s, assets/sfx/click.mp3 at 6.5-6.87s). This causes layered audio playback.",
+        "selector": "[data-composition-id]",
+        "dataAttributes": {},
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Use non-overlapping time windows or different track indices."
+      },
+      {
+        "code": "duplicate_audio_track",
+        "severity": "warning",
+        "message": "Multiple audible <audio>/<video> elements on track 30 overlap (assets/sfx/impact-bass-1.mp3 at 6.9-9.02s, assets/sfx/whoosh.mp3 at 8.95-9.59s). This causes layered audio playback.",
+        "selector": "[data-composition-id]",
+        "dataAttributes": {},
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Use non-overlapping time windows or different track indices."
+      },
+      {
+        "code": "duplicate_audio_track",
+        "severity": "warning",
+        "message": "Multiple audible <audio>/<video> elements on track 30 overlap (assets/sfx/whoosh.mp3 at 16.85-17.33s, assets/sfx/pop.mp3 at 17.3-17.99s). This causes layered audio playback.",
+        "selector": "[data-composition-id]",
+        "dataAttributes": {},
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Use non-overlapping time windows or different track indices."
+      },
+      {
+        "code": "duplicate_audio_track",
+        "severity": "warning",
+        "message": "Multiple audible <audio>/<video> elements on track 30 overlap (assets/sfx/whoosh.mp3 at 20.45-21.02s, assets/sfx/pop.mp3 at 20.85-21.61s). This causes layered audio playback.",
+        "selector": "[data-composition-id]",
+        "dataAttributes": {},
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Use non-overlapping time windows or different track indices."
+      },
+      {
+        "code": "duplicate_audio_track",
+        "severity": "warning",
+        "message": "Multiple audible <audio>/<video> elements on track 30 overlap (assets/sfx/pop.mp3 at 23.85-24.51s, assets/sfx/key-press.mp3 at 24.3-24.73s). This causes layered audio playback.",
+        "selector": "[data-composition-id]",
+        "dataAttributes": {},
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Use non-overlapping time windows or different track indices."
+      },
+      {
+        "code": "duplicate_audio_track",
+        "severity": "warning",
+        "message": "Multiple audible <audio>/<video> elements on track 30 overlap (assets/sfx/key-press.mp3 at 24.3-24.73s, assets/sfx/key-press.mp3 at 24.55-24.93s). This causes layered audio playback.",
+        "selector": "[data-composition-id]",
+        "dataAttributes": {},
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Use non-overlapping time windows or different track indices."
+      },
+      {
+        "code": "duplicate_audio_track",
+        "severity": "warning",
+        "message": "Multiple audible <audio>/<video> elements on track 30 overlap (assets/sfx/key-press.mp3 at 24.55-24.93s, assets/sfx/key-press.mp3 at 24.8-25.28s). This causes layered audio playback.",
+        "selector": "[data-composition-id]",
+        "dataAttributes": {},
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Use non-overlapping time windows or different track indices."
+      },
+      {
+        "code": "overlapping_gsap_tweens",
+        "severity": "warning",
+        "message": "GSAP tweens overlap on \"#ps-corpo\" for y, scaleY, rotation between 3.05s and 3.10s.",
+        "selector": "#ps-corpo",
+        "dataAttributes": {},
+        "sourceFile": "/tmp/claude-0/-home-user-meuportfolio/af33bee6-9c31-5209-a92a-299062f0cf29/scratchpad/reels-fazenda/compositions/personagem.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Shorten the earlier tween, move the later tween, or add `overwrite: \"auto\"`."
+      },
+      {
+        "code": "overlapping_gsap_tweens",
+        "severity": "warning",
+        "message": "GSAP tweens overlap on \"#ps-corpo\" for y, scaleY, rotation between 9.05s and 9.06s.",
+        "selector": "#ps-corpo",
+        "dataAttributes": {},
+        "sourceFile": "/tmp/claude-0/-home-user-meuportfolio/af33bee6-9c31-5209-a92a-299062f0cf29/scratchpad/reels-fazenda/compositions/personagem.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Shorten the earlier tween, move the later tween, or add `overwrite: \"auto\"`."
+      },
+      {
+        "code": "overlapping_gsap_tweens",
+        "severity": "warning",
+        "message": "GSAP tweens overlap on \"#ps-corpo\" for y, scaleY, rotation between 13.95s and 14.02s.",
+        "selector": "#ps-corpo",
+        "dataAttributes": {},
+        "sourceFile": "/tmp/claude-0/-home-user-meuportfolio/af33bee6-9c31-5209-a92a-299062f0cf29/scratchpad/reels-fazenda/compositions/personagem.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Shorten the earlier tween, move the later tween, or add `overwrite: \"auto\"`."
+      },
+      {
+        "code": "overlapping_gsap_tweens",
+        "severity": "warning",
+        "message": "GSAP tweens overlap on \"#ps-corpo\" for y, scaleY, rotation between 14.02s and 14.06s.",
+        "selector": "#ps-corpo",
+        "dataAttributes": {},
+        "sourceFile": "/tmp/claude-0/-home-user-meuportfolio/af33bee6-9c31-5209-a92a-299062f0cf29/scratchpad/reels-fazenda/compositions/personagem.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Shorten the earlier tween, move the later tween, or add `overwrite: \"auto\"`."
+      },
+      {
+        "code": "overlapping_gsap_tweens",
+        "severity": "warning",
+        "message": "GSAP tweens overlap on \"#ps-corpo\" for y, scaleY, rotation between 15.20s and 15.27s.",
+        "selector": "#ps-corpo",
+        "dataAttributes": {},
+        "sourceFile": "/tmp/claude-0/-home-user-meuportfolio/af33bee6-9c31-5209-a92a-299062f0cf29/scratchpad/reels-fazenda/compositions/personagem.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Shorten the earlier tween, move the later tween, or add `overwrite: \"auto\"`."
+      },
+      {
+        "code": "overlapping_gsap_tweens",
+        "severity": "warning",
+        "message": "GSAP tweens overlap on \"#ps-corpo\" for y, scaleY, rotation between 15.27s and 15.33s.",
+        "selector": "#ps-corpo",
+        "dataAttributes": {},
+        "sourceFile": "/tmp/claude-0/-home-user-meuportfolio/af33bee6-9c31-5209-a92a-299062f0cf29/scratchpad/reels-fazenda/compositions/personagem.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Shorten the earlier tween, move the later tween, or add `overwrite: \"auto\"`."
+      },
+      {
+        "code": "overlapping_gsap_tweens",
+        "severity": "warning",
+        "message": "GSAP tweens overlap on \"#ps-corpo\" for y, scaleY, rotation between 17.00s and 17.07s.",
+        "selector": "#ps-corpo",
+        "dataAttributes": {},
+        "sourceFile": "/tmp/claude-0/-home-user-meuportfolio/af33bee6-9c31-5209-a92a-299062f0cf29/scratchpad/reels-fazenda/compositions/personagem.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Shorten the earlier tween, move the later tween, or add `overwrite: \"auto\"`."
+      },
+      {
+        "code": "overlapping_gsap_tweens",
+        "severity": "warning",
+        "message": "GSAP tweens overlap on \"#ps-corpo\" for y, scaleY, rotation between 17.07s and 17.13s.",
+        "selector": "#ps-corpo",
+        "dataAttributes": {},
+        "sourceFile": "/tmp/claude-0/-home-user-meuportfolio/af33bee6-9c31-5209-a92a-299062f0cf29/scratchpad/reels-fazenda/compositions/personagem.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Shorten the earlier tween, move the later tween, or add `overwrite: \"auto\"`."
+      },
+      {
+        "code": "overlapping_gsap_tweens",
+        "severity": "warning",
+        "message": "GSAP tweens overlap on \"#ps-corpo\" for y, scaleY, rotation between 17.13s and 17.18s.",
+        "selector": "#ps-corpo",
+        "dataAttributes": {},
+        "sourceFile": "/tmp/claude-0/-home-user-meuportfolio/af33bee6-9c31-5209-a92a-299062f0cf29/scratchpad/reels-fazenda/compositions/personagem.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Shorten the earlier tween, move the later tween, or add `overwrite: \"auto\"`."
+      },
+      {
+        "code": "overlapping_gsap_tweens",
+        "severity": "warning",
+        "message": "GSAP tweens overlap on \"#ps-corpo\" for y, scaleY, rotation between 18.05s and 18.12s.",
+        "selector": "#ps-corpo",
+        "dataAttributes": {},
+        "sourceFile": "/tmp/claude-0/-home-user-meuportfolio/af33bee6-9c31-5209-a92a-299062f0cf29/scratchpad/reels-fazenda/compositions/personagem.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Shorten the earlier tween, move the later tween, or add `overwrite: \"auto\"`."
+      },
+      {
+        "code": "overlapping_gsap_tweens",
+        "severity": "warning",
+        "message": "GSAP tweens overlap on \"#ps-corpo\" for y, scaleY, rotation between 18.12s and 18.18s.",
+        "selector": "#ps-corpo",
+        "dataAttributes": {},
+        "sourceFile": "/tmp/claude-0/-home-user-meuportfolio/af33bee6-9c31-5209-a92a-299062f0cf29/scratchpad/reels-fazenda/compositions/personagem.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Shorten the earlier tween, move the later tween, or add `overwrite: \"auto\"`."
+      },
+      {
+        "code": "overlapping_gsap_tweens",
+        "severity": "warning",
+        "message": "GSAP tweens overlap on \"#ps-corpo\" for y, scaleY, rotation between 20.55s and 20.62s.",
+        "selector": "#ps-corpo",
+        "dataAttributes": {},
+        "sourceFile": "/tmp/claude-0/-home-user-meuportfolio/af33bee6-9c31-5209-a92a-299062f0cf29/scratchpad/reels-fazenda/compositions/personagem.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Shorten the earlier tween, move the later tween, or add `overwrite: \"auto\"`."
+      },
+      {
+        "code": "overlapping_gsap_tweens",
+        "severity": "warning",
+        "message": "GSAP tweens overlap on \"#ps-corpo\" for y, scaleY, rotation between 20.62s and 20.63s.",
+        "selector": "#ps-corpo",
+        "dataAttributes": {},
+        "sourceFile": "/tmp/claude-0/-home-user-meuportfolio/af33bee6-9c31-5209-a92a-299062f0cf29/scratchpad/reels-fazenda/compositions/personagem.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Shorten the earlier tween, move the later tween, or add `overwrite: \"auto\"`."
+      },
+      {
+        "code": "overlapping_gsap_tweens",
+        "severity": "warning",
+        "message": "GSAP tweens overlap on \"#ps-corpo\" for y, scaleY, rotation between 22.05s and 22.12s.",
+        "selector": "#ps-corpo",
+        "dataAttributes": {},
+        "sourceFile": "/tmp/claude-0/-home-user-meuportfolio/af33bee6-9c31-5209-a92a-299062f0cf29/scratchpad/reels-fazenda/compositions/personagem.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Shorten the earlier tween, move the later tween, or add `overwrite: \"auto\"`."
+      },
+      {
+        "code": "overlapping_gsap_tweens",
+        "severity": "warning",
+        "message": "GSAP tweens overlap on \"#ps-corpo\" for y, scaleY, rotation between 22.12s and 22.18s.",
+        "selector": "#ps-corpo",
+        "dataAttributes": {},
+        "sourceFile": "/tmp/claude-0/-home-user-meuportfolio/af33bee6-9c31-5209-a92a-299062f0cf29/scratchpad/reels-fazenda/compositions/personagem.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Shorten the earlier tween, move the later tween, or add `overwrite: \"auto\"`."
+      },
+      {
+        "code": "overlapping_gsap_tweens",
+        "severity": "warning",
+        "message": "GSAP tweens overlap on \"#ps-corpo\" for y, scaleY, rotation between 22.18s and 22.20s.",
+        "selector": "#ps-corpo",
+        "dataAttributes": {},
+        "sourceFile": "/tmp/claude-0/-home-user-meuportfolio/af33bee6-9c31-5209-a92a-299062f0cf29/scratchpad/reels-fazenda/compositions/personagem.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Shorten the earlier tween, move the later tween, or add `overwrite: \"auto\"`."
+      },
+      {
+        "code": "overlapping_gsap_tweens",
+        "severity": "warning",
+        "message": "GSAP tweens overlap on \"#ps-corpo\" for y, scaleY, rotation between 23.95s and 24.02s.",
+        "selector": "#ps-corpo",
+        "dataAttributes": {},
+        "sourceFile": "/tmp/claude-0/-home-user-meuportfolio/af33bee6-9c31-5209-a92a-299062f0cf29/scratchpad/reels-fazenda/compositions/personagem.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Shorten the earlier tween, move the later tween, or add `overwrite: \"auto\"`."
+      },
+      {
+        "code": "overlapping_gsap_tweens",
+        "severity": "warning",
+        "message": "GSAP tweens overlap on \"#ps-corpo\" for y, scaleY, rotation between 24.02s and 24.03s.",
+        "selector": "#ps-corpo",
+        "dataAttributes": {},
+        "sourceFile": "/tmp/claude-0/-home-user-meuportfolio/af33bee6-9c31-5209-a92a-299062f0cf29/scratchpad/reels-fazenda/compositions/personagem.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Shorten the earlier tween, move the later tween, or add `overwrite: \"auto\"`."
+      },
+      {
+        "code": "overlapping_gsap_tweens",
+        "severity": "warning",
+        "message": "GSAP tweens overlap on \"#ps-corpo\" for y, scaleY, rotation between 25.35s and 25.40s.",
+        "selector": "#ps-corpo",
+        "dataAttributes": {},
+        "sourceFile": "/tmp/claude-0/-home-user-meuportfolio/af33bee6-9c31-5209-a92a-299062f0cf29/scratchpad/reels-fazenda/compositions/personagem.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Shorten the earlier tween, move the later tween, or add `overwrite: \"auto\"`."
+      },
+      {
+        "code": "composition_file_too_large",
+        "severity": "warning",
+        "message": "This HTML composition file has 396 lines. Smaller sub-compositions are easier to read, iterate on, and diff.",
+        "selector": "[data-composition-id]",
+        "dataAttributes": {},
+        "sourceFile": "/tmp/claude-0/-home-user-meuportfolio/af33bee6-9c31-5209-a92a-299062f0cf29/scratchpad/reels-fazenda/compositions/personagem.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Split this sub-composition further into smaller .html files, then mount them from the parent with data-composition-src so each file stays small enough to inspect, revise, and validate independently."
+      },
+      {
+        "code": "overlapping_gsap_tweens",
+        "severity": "warning",
+        "message": "GSAP tweens overlap on \"#s3-cam\" for y between 0.10s and 0.22s.",
+        "selector": "#s3-cam",
+        "dataAttributes": {},
+        "sourceFile": "/tmp/claude-0/-home-user-meuportfolio/af33bee6-9c31-5209-a92a-299062f0cf29/scratchpad/reels-fazenda/compositions/s3.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Shorten the earlier tween, move the later tween, or add `overwrite: \"auto\"`."
+      },
+      {
+        "code": "gsap_cold_seek_hidden_fromto_missing_reveal",
+        "severity": "error",
+        "message": "\"#s3-mao\" starts hidden, but its gsap.fromTo() makes it visible only in the from-vars and omits opacity/autoAlpha from the destination. Cold render workers restore the hidden authored state, so the encoded element can stay invisible even when sequential snapshots look correct.",
+        "selector": "#s3-mao",
+        "dataAttributes": {},
+        "sourceFile": "/tmp/claude-0/-home-user-meuportfolio/af33bee6-9c31-5209-a92a-299062f0cf29/scratchpad/reels-fazenda/compositions/s3.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Add `opacity: 1` (or `autoAlpha: 1`) to the destination vars for \"#s3-mao\" so every seek path establishes the visible end state explicitly."
+      },
+      {
+        "code": "gsap_repeated_fromto_without_baseline",
+        "severity": "warning",
+        "message": "4 tl.fromTo() calls target \"#s4-cam\" with no stable baseline. The last-authored fromTo \"from\" values become the element's resting state for any seek before the first tween actually runs, because GSAP applies fromTo from-values at authoring time (immediateRender), not at tween position.",
+        "selector": "#s4-cam",
+        "dataAttributes": {},
+        "sourceFile": "/tmp/claude-0/-home-user-meuportfolio/af33bee6-9c31-5209-a92a-299062f0cf29/scratchpad/reels-fazenda/compositions/s4.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Add `immediateRender: false` to every fromTo except the earliest-positioned one (at 0s), so pre-first-tween seeks keep its \"from\" values. A hiding `tl.set(..., 0)` baseline trips gsap_timeline_set_initial_hide, and a `gsap.set` authored before the fromTo calls is overwritten by them."
+      },
+      {
+        "code": "gsap_cold_seek_hidden_fromto_missing_reveal",
+        "severity": "error",
+        "message": "\"#s5-senai\" starts hidden, but its gsap.fromTo() makes it visible only in the from-vars and omits opacity/autoAlpha from the destination. Cold render workers restore the hidden authored state, so the encoded element can stay invisible even when sequential snapshots look correct.",
+        "selector": "#s5-senai",
+        "dataAttributes": {},
+        "sourceFile": "/tmp/claude-0/-home-user-meuportfolio/af33bee6-9c31-5209-a92a-299062f0cf29/scratchpad/reels-fazenda/compositions/s5.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Add `opacity: 1` (or `autoAlpha: 1`) to the destination vars for \"#s5-senai\" so every seek path establishes the visible end state explicitly."
+      },
+      {
+        "code": "gsap_cold_seek_hidden_fromto_missing_reveal",
+        "severity": "error",
+        "message": "\"#s5-cam\" starts hidden, but its gsap.fromTo() makes it visible only in the from-vars and omits opacity/autoAlpha from the destination. Cold render workers restore the hidden authored state, so the encoded element can stay invisible even when sequential snapshots look correct.",
+        "selector": "#s5-cam",
+        "dataAttributes": {},
+        "sourceFile": "/tmp/claude-0/-home-user-meuportfolio/af33bee6-9c31-5209-a92a-299062f0cf29/scratchpad/reels-fazenda/compositions/s5.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Add `opacity: 1` (or `autoAlpha: 1`) to the destination vars for \"#s5-cam\" so every seek path establishes the visible end state explicitly."
+      },
+      {
+        "code": "gsap_cold_seek_hidden_fromto_missing_reveal",
+        "severity": "error",
+        "message": "\"#s5-mao\" starts hidden, but its gsap.fromTo() makes it visible only in the from-vars and omits opacity/autoAlpha from the destination. Cold render workers restore the hidden authored state, so the encoded element can stay invisible even when sequential snapshots look correct.",
+        "selector": "#s5-mao",
+        "dataAttributes": {},
+        "sourceFile": "/tmp/claude-0/-home-user-meuportfolio/af33bee6-9c31-5209-a92a-299062f0cf29/scratchpad/reels-fazenda/compositions/s5.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Add `opacity: 1` (or `autoAlpha: 1`) to the destination vars for \"#s5-mao\" so every seek path establishes the visible end state explicitly."
+      }
+    ],
+    "filesScanned": 9
+  },
+  "runtime": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": []
+  },
+  "layout": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": [],
+    "duration": 0,
+    "samples": [],
+    "transitionSamples": [],
+    "transitionSamplesDropped": 0,
+    "tolerance": 2,
+    "totalIssueCount": 0,
+    "truncated": false
+  },
+  "motion": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": [],
+    "enabled": false,
+    "samples": 0
+  },
+  "contrast": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": [],
+    "enabled": true,
+    "samples": [],
+    "checked": 0,
+    "passed": 0
+  },
+  "craft": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": [],
+    "enabled": false,
+    "step": 0,
+    "samples": 0
+  },
+  "hdr": {
+    "autoPromotion": null,
+    "inspection": "available"
+  },
+  "snapshots": {
+    "enabled": false,
+    "files": [],
+    "times": [],
+    "findingFiles": []
+  }
+}

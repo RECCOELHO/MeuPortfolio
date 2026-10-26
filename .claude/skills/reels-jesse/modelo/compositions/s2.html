@@ -1,0 +1,28 @@
+<template>
+  <style>
+      @font-face { font-family: 'Jersey 10'; src: url('assets/fonts/jersey10-latin.woff2') format('woff2'); font-weight: 400; font-style: normal; }
+      #root { position: absolute; inset: 0; overflow: hidden; background: #1a0a0d; font-family: 'Nunito', sans-serif; }
+
+      .placa { position: absolute; background: #fde6c9; color: #3f2631; border: 6px solid #3f2631;
+               box-shadow: 0 8px 0 #3f2631, inset 0 -6px 0 #fec99c; padding: 14px 30px 18px; }
+      .pixel { font-family: 'Jersey 10', 'Nunito', monospace; font-weight: 400; letter-spacing: 0.01em; line-height: 0.95; }
+      .acento { color: #3b7a3a; font-weight: inherit; }
+      .tela { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; object-fit: cover; }
+      .mao { position: absolute; width: 156px; height: 156px; image-rendering: pixelated; }
+
+
+  </style>
+  <div id="root" data-composition-id="s2" data-width="1080" data-height="1920">
+    <img id="s2-senai" class="tela" src="assets/telas/port-senai.jpg" alt="" style="z-index:1" />
+    <img id="s2-exer" class="tela" src="assets/telas/port-exercito.jpg" alt="" style="z-index:2" />
+    <img id="s2-hosp" class="tela" src="assets/telas/port-hospital.jpg" alt="" style="z-index:3" />
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo('#s2-senai', { y: 480, filter: 'blur(18px)' }, { y: 0, filter: 'blur(0px)', duration: 0.22, ease: 'power3.out' }, 0.0);
+    tl.fromTo('#s2-exer', { y: 1920, filter: 'blur(18px)' }, { y: 0, filter: 'blur(0px)', duration: 0.22, ease: 'power3.out' }, 0.8);
+    tl.fromTo('#s2-hosp', { y: 1920, filter: 'blur(18px)' }, { y: 0, filter: 'blur(0px)', duration: 0.22, ease: 'power3.out' }, 1.6);
+    tl.to('#s2-hosp', { y: -1920, filter: 'blur(18px)', duration: 0.2, ease: 'power3.in' }, 2.2);
+    window.__timelines["s2"] = tl;
+  </script>
+</template>
