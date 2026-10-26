@@ -131,6 +131,7 @@ def s1():
       <div style="font-size:112px">era só um portfólio…</div>
     </div>"""
     js = """    // o frame 0 já é o gancho: o título está na tela. Soco de câmera no crachá aos 1,2 s
+    tl.fromTo('#s1-topo', { y: 0 }, { y: -70, duration: 2.75, ease: 'sine.inOut' }, 0);
     tl.fromTo('#s1-cam', { scale: 1 }, { scale: 1.12, duration: 0.4, ease: 'expo.out' }, 1.2);
     tl.fromTo('#s1-titulo', { scale: 1 }, { scale: 1.04, duration: 0.12, ease: 'power2.out', yoyo: true, repeat: 1 }, 1.2);
     // saída: chicote para cima (a página rola)
@@ -147,6 +148,7 @@ def s2():
     for k, (i, s, t) in enumerate(telas):
         # entra subindo de baixo com o borrão do chicote, assenta em 0,2 s
         js.append(f"    tl.fromTo('#{i}', {{ y: {480 if k == 0 else 1920}, filter: 'blur(18px)' }}, {{ y: 0, filter: 'blur(0px)', duration: 0.22, ease: 'power3.out' }}, {t});")
+        js.append(f"    tl.fromTo('#{i}', {{ scale: 1 }}, {{ scale: 1.06, duration: 1.0, ease: 'none' }}, {t});")
     js.append("    tl.to('#s2-hosp', { y: -1920, filter: 'blur(18px)', duration: 0.2, ease: 'power3.in' }, 2.2);")
     return cena('s2', corpo, '\n'.join(js))
 
@@ -178,6 +180,7 @@ def s3():
     tl.fromTo('#s3-porteira', {{ opacity: 0 }}, {{ opacity: 1, duration: 0.08, ease: 'none' }}, 1.46);
     tl.fromTo('#s3-porteira', {{ scale: 1.12 }}, {{ scale: 1, duration: 0.5, ease: 'expo.out', immediateRender: false }}, 1.46);
     // saída: a porteira cresce e vira a fazenda (o mundo novo entra por ela)
+    tl.to('#s3-porteira', {{ scale: 1.045, duration: 1.12, ease: 'none' }}, 1.97);
     tl.to('#s3-porteira', {{ scale: 2.4, opacity: 0, duration: 0.5, ease: 'power3.in' }}, 3.1);"""
     return cena('s3', corpo, js)
 
@@ -192,16 +195,29 @@ def s4():
         ('s4-vizinho', 'jogo-vizinho.jpg', t(12.3)), ('s4-ajudou', 'jogo-ajudou.jpg', t(12.9)),
         ('s4-feira', 'jogo-feira.jpg', t(13.9)), ('s4-mar', 'jogo-mar.jpg', t(15.1)),
     ]
-    corpo = '    <div id="s4-cam" style="position:absolute;inset:0;transform-origin:540px 760px">\n'
+    corpo = '    <div id="s4-cam" style="position:absolute;inset:0;transform-origin:540px 760px">\n      <div id="s4-deriva" style="position:absolute;inset:0;transform-origin:540px 900px">\n'
     corpo += '\n'.join(f'      <img id="{i}" class="tela" src="assets/telas/{s}" alt="" style="z-index:{k + 1};opacity:0" />' for k, (i, s, _) in enumerate(telas))
-    corpo += '\n    </div>\n    <div id="s4-azul" style="position:absolute;inset:0;background:#2f7fd1;opacity:0;z-index:20"></div>'
+    corpo += '\n      </div>\n    </div>\n    <div id="s4-azul" style="position:absolute;inset:0;background:#2f7fd1;opacity:0;z-index:20"></div>'
     js = ["    // entra pela porteira: a fazenda chega grande e assenta",
           "    tl.set('#s4-cam', { scale: 1.25, opacity: 1 }, 0);",
           "    tl.to('#s4-cam', { scale: 1, duration: 0.6, ease: 'expo.out' }, 0.001);"]
-    for k, (i, s, ti) in enumerate(telas):
-        js.append(f"    tl.set('#{i}', {{ opacity: 1 }}, {ti});")
-        if k:
-            js.append(f"    tl.set('#{telas[k - 1][0]}', {{ opacity: 0 }}, {ti + 0.01:.3f});")
+    novos = {'s4-vizinho', 's4-feira'}          # lugar novo: empurra; mesmo lugar: funde
+    js.append(f"    tl.set('#{telas[0][0]}', {{ opacity: 1 }}, 0);")
+    for k, (i, s, ti) in enumerate(telas[1:], 1):
+        ant = telas[k - 1][0]
+        if i in novos:
+            js.append(f"    tl.fromTo('#{i}', {{ opacity: 1, x: 1080, filter: 'blur(14px)' }}, {{ opacity: 1, x: 0, filter: 'blur(0px)', duration: 0.32, ease: 'power3.out', immediateRender: false }}, {ti});")
+            js.append(f"    tl.to('#{ant}', {{ x: -320, duration: 0.32, ease: 'power3.out' }}, {ti});")
+            js.append(f"    tl.set('#{ant}', {{ opacity: 0 }}, {ti + 0.33:.3f});")
+        elif i == 's4-mar':
+            js.append(f"    tl.set('#{i}', {{ opacity: 1 }}, {ti});")
+            js.append(f"    tl.set('#{ant}', {{ opacity: 0 }}, {ti + 0.01:.3f});")
+        else:
+            js.append(f"    tl.to('#{i}', {{ opacity: 1, duration: 0.16, ease: 'power1.inOut' }}, {ti - 0.08:.3f});")
+            js.append(f"    tl.set('#{ant}', {{ opacity: 0 }}, {ti + 0.1:.3f});")
+    for ini, fim in [(0, 3.3), (3.3, 4.9), (4.9, 6.1), (6.1, 7.9)]:
+        js.append(f"    tl.set('#s4-deriva', {{ scale: 1, y: 0 }}, {ini});")
+        js.append(f"    tl.to('#s4-deriva', {{ scale: 1.06, y: -26, duration: {fim - ini - 0.02:.2f}, ease: 'none' }}, {ini + 0.001:.3f});")
     # socos de câmera nos resultados (o aviso e os números subindo)
     for alvo, ti, orig in [('plantou', t(9.9), '540px 520px'), ('colheu', t(11.3), '420px 640px'), ('ajudou', t(12.9), '600px 700px')]:
         js.append(f"    tl.set('#s4-cam', {{ scale: 1, transformOrigin: '{orig}' }}, {ti});")
@@ -251,6 +267,7 @@ def s5():
     </div>"""
     js = f"""    // passo 1: o topo do site e o endereço
     tl.fromTo('#s5-topo', {{ scale: 1.08 }}, {{ scale: 1, duration: 0.5, ease: 'expo.out' }}, 0);
+    tl.to('#s5-topo', {{ y: -60, duration: 2.9, ease: 'none' }}, {t(17.45)});
     tl.fromTo('#s5-p1', {{ opacity: 0, scale: 0.6 }}, {{ opacity: 1, scale: 1, duration: 0.35, ease: 'back.out(1.6)' }}, {t(17.3)});
     // passo 2: rola até Projetos (chicote pelo currículo) e a câmera vai até o botão
     tl.to('#s5-p1', {{ opacity: 0, duration: 0.12 }}, {t(20.4)});
@@ -267,10 +284,12 @@ def s5():
     tl.to('#s5-p2', {{ opacity: 0, duration: 0.12 }}, {t(23.4)});
     tl.fromTo('#s5-campo', {{ opacity: 0, scale: 1.1 }}, {{ opacity: 1, scale: 1, duration: 0.4, ease: 'expo.out' }}, {t(23.45)});
     tl.fromTo('#s5-p3', {{ opacity: 0, scale: 0.6 }}, {{ opacity: 1, scale: 1, duration: 0.35, ease: 'back.out(1.6)' }}, {t(23.85)});
+    tl.to(['#s5-campo', '#s5-b', '#s5-bi', '#s5-bia'], {{ y: -36, duration: 1.95, ease: 'none' }}, {t(23.5)});
     tl.set('#s5-b', {{ opacity: 1 }}, {t(24.3)});
     tl.set('#s5-bi', {{ opacity: 1 }}, {t(24.55)});
     tl.set('#s5-bia', {{ opacity: 1 }}, {t(24.8)});
     tl.fromTo('#s5-codcam', {{ opacity: 0, scale: 1.12 }}, {{ opacity: 1, scale: 1, duration: 0.45, ease: 'expo.out' }}, {t(25.4)});
+    tl.to('#s5-codcam', {{ scale: 1.045, duration: 1.5, ease: 'none' }}, {t(25.86)});
     tl.fromTo('#s5-moldura', {{ opacity: 0, scale: 1.15 }}, {{ opacity: 1, scale: 1, duration: 0.3, ease: 'back.out(1.6)' }}, {t(25.6)});
     // saída: o verde da grama sobe e o final entra
     tl.to('#s5-p3', {{ opacity: 0, duration: 0.15 }}, {t(27.2)});"""
@@ -298,72 +317,53 @@ def s6():
     return cena('s6', corpo, js, '      #root { background: transparent; }')
 
 
-# ---------- o personagem: o Jessé desenhado fala mexendo o corpo e troca de cara a cada frase ----------
-# as caras saem da folha de personagem (assets/img/personagem, montadas por scratchpad/personagem/compor.py):
-# corpo da folha + a cabeça de cada expressão, espelhado; 836 x 1400 em 2x, mostrado em 418 x 700.
-# O braço cortado da folha fica na borda direita do quadro, sempre para fora.
-CARAS = ['sorriso', 'desconfiado', 'surpreso', 'sorriso_aberto', 'rindo', 'falando', 'piscando']
-EXPRESSOES = [  # momento, cara (presa nas legendas)
-    (0.0, 'sorriso'), (3.0, 'desconfiado'), (6.1, 'surpreso'), (8.05, 'sorriso_aberto'), (10.9, 'rindo'),
-    (12.3, 'sorriso'), (13.9, 'falando'), (15.15, 'surpreso'), (16.95, 'falando'), (18.0, 'sorriso'),
-    (20.5, 'falando'), (22.0, 'sorriso_aberto'), (23.9, 'falando'), (25.3, 'sorriso'), (27.5, 'rindo'), (28.9, 'piscando'),
+# ---------- o personagem: o Jessé de corpo inteiro, uma pose por frase ----------
+# as poses saem da folha-poses (assets/img/poses, recortadas por personagem/poses.py da skill reels-jesse).
+# Cada pose é alinhada pelo pé e igualada em altura; o pé fica abaixo do quadro, aparece do joelho para cima.
+POSES_INFO = json.load(open(os.path.join(RAIZ, 'assets/img/poses/poses.json')))
+ALTURA = 1130                      # altura de referência (2x) para igualar as poses
+POSES_T = [  # momento, pose (presa no início dos grupos de legenda)
+    (0.0, 'sorriso'), (3.0, 'cabelo'), (6.1, 'surpreso'), (9.0, 'rindo'), (10.9, 'afirmativo'),
+    (12.3, 'sorriso'), (13.9, 'pensativo'), (15.15, 'surpreso'), (16.95, 'neutro'), (18.0, 'afirmativo'),
+    (20.5, 'foto'), (22.0, 'rindo'), (23.9, 'pensativo'), (25.3, 'sorriso'), (27.5, 'rindo'), (28.85, 'afirmativo'),
 ]
-# o gesto: no "Rola o currículo…" a mão sai do bolso e vai ao queixo (pensativo); no "E no fim tem…" volta.
-# O antebraço gira no cotovelo (36, 470) e leva a mão junto (scratchpad/personagem/gesto.py).
-GESTO = dict(ini=3.35, sobe=0.42, giro=-143.8, volta=6.1, desce=0.3, antes='desconfiado', meio='pensativo', depois='surpreso')
-
-
-def estado(s):
-    # o corte do braço (x 388 de 418) fica em x 1105; a linha y 640 da imagem fica no pé do quadro
-    bx, by = 1105 - 179 * s, 1920 + 60 * s
-    return dict(x=round(bx - 209, 2), y=round(by - 700, 2), s=s)
+TROCA = 0.1                       # fusão entre uma pose e a outra
+G = dict(x=820, y=2308, s=2.05)    # grande: gancho e final (cabeça em y ~ 1150)
+P = dict(x=905, y=2106, s=1.25)    # pequeno: o meio (cabeça em y ~ 1400)
 
 
 def personagem(falas):
-    G, P = estado(1.25), estado(0.85)
     passo = 1 / 15
-    # cada fala: [início, energias de 0 a 99 a cada 1/15 s, fim do descanso]
     dados = []
     for k, (nome, ini, e) in enumerate(falas):
         prox = falas[k + 1][1] if k + 1 < len(falas) else DUR
         fim = ini + len(e) * passo
         dados.append([round(ini, 3), [round(v * 99) for v in e], round(min(0.18, max(0.02, prox - fim - 0.01)), 3)])
+    usadas = list(dict.fromkeys(p for _, p in POSES_T))
+    imgs = []
+    for p in usadas:
+        d = POSES_INFO[p]; k = ALTURA / d['altura'] / 2          # 2x -> css, igualando a altura
+        imgs.append(f'          <img id="ps-{p}" src="assets/img/poses/{p}.webp" alt="Jessé desenhado ({p})" '
+                    f'style="position:absolute;left:{-d["pe_x"] * k:.1f}px;top:{-d["pe_y"] * k:.1f}px;'
+                    f'width:{d["largura"] * k:.1f}px;height:{d["altura"] * k:.1f}px;opacity:{1 if p == POSES_T[0][1] else 0}" />')
     trocas = []
-    g = GESTO
-    for k, (t, cara) in enumerate(EXPRESSOES):
-        if k == 0 or t == g['volta']:
-            continue
-        antes = EXPRESSOES[k - 1][1]
-        trocas.append(f"    tl.set('#ps-{antes}', {{ opacity: 0 }}, {t});")
-        trocas.append(f"    tl.set('#ps-{cara}', {{ opacity: 1 }}, {t});")
-        trocas.append(f"    tl.set('#ps-cara', {{ scaleX: 1.03, scaleY: 0.96 }}, {t});")
-        trocas.append(f"    tl.to('#ps-cara', {{ scaleX: 1, scaleY: 1, duration: 0.16, ease: 'back.out(2)' }}, {t});")
-    sobe_fim, desce_fim = round(g['ini'] + g['sobe'], 3), round(g['volta'] + g['desce'], 3)
-    gesto = f"""    // a mão sai do bolso: troca a figura inteira pelas camadas do gesto e gira o antebraço até o queixo
-    tl.set('#ps-g-braco', {{ transformOrigin: '36px 470px', rotation: 0 }}, 0);
-    tl.set('#ps-{g['antes']}', {{ opacity: 0 }}, {g['ini']});
-    tl.set('#ps-gesto', {{ opacity: 1 }}, {g['ini']});
-    tl.to('#ps-g-braco', {{ rotation: {g['giro']}, duration: {g['sobe']}, ease: 'power2.inOut' }}, {g['ini']});
-    tl.set('#ps-g-{g['antes']}', {{ opacity: 0 }}, {sobe_fim});
-    tl.set('#ps-g-{g['meio']}', {{ opacity: 1 }}, {sobe_fim});
-    tl.set('#ps-cara', {{ scaleX: 1.03, scaleY: 0.96 }}, {sobe_fim});
-    tl.to('#ps-cara', {{ scaleX: 1, scaleY: 1, duration: 0.16, ease: 'back.out(2)' }}, {sobe_fim});
-    // e volta para o bolso na surpresa
-    tl.set('#ps-g-{g['meio']}', {{ opacity: 0 }}, {g['volta']});
-    tl.set('#ps-g-{g['depois']}', {{ opacity: 1 }}, {g['volta']});
-    tl.set('#ps-cara', {{ scaleX: 1.03, scaleY: 0.96 }}, {g['volta']});
-    tl.to('#ps-cara', {{ scaleX: 1, scaleY: 1, duration: 0.16, ease: 'back.out(2)' }}, {g['volta']});
-    tl.to('#ps-g-braco', {{ rotation: 0, duration: {g['desce']}, ease: 'power2.in' }}, {g['volta']});
-    tl.set('#ps-gesto', {{ opacity: 0 }}, {desce_fim});
-    tl.set('#ps-{g['depois']}', {{ opacity: 1 }}, {desce_fim});"""
-    js = f"""    tl.set('#ps-pos', {{ x: {G['x']}, y: {G['y']}, scale: {G['s']} }}, 0);
-    tl.to('#ps-pos', {{ x: {P['x']}, y: {P['y']}, scale: {P['s']}, duration: 0.5, ease: 'back.out(1.3)' }}, 2.85);
-    tl.to('#ps-pos', {{ x: {G['x']}, y: {G['y']}, scale: {G['s']}, duration: 0.55, ease: 'back.out(1.3)' }}, 27.35);
-    // a cara muda a cada frase, com um amassadinho de 0,16 s
+    for n, (t, p) in enumerate(POSES_T[1:], 1):
+        antes = POSES_T[n - 1][1]
+        if antes == p: continue
+        trocas += [f"    tl.to('#ps-{antes}', {{ opacity: 0, duration: {TROCA}, ease: 'power1.inOut' }}, {t});",
+                   f"    tl.to('#ps-{p}', {{ opacity: 1, duration: {TROCA}, ease: 'power1.inOut' }}, {t});",
+                   f"    tl.set('#ps-troca', {{ scaleX: 1.025, scaleY: 0.955, y: 10 }}, {t});",
+                   f"    tl.to('#ps-troca', {{ scaleX: 1, scaleY: 1, y: 0, duration: 0.34, ease: 'back.out(2.4)' }}, {round(t + 0.001, 3)});"]
+    # respiração e balanço contínuos (finitos): ele nunca fica parado como um print
+    ciclos = int(DUR / 1.6) + 1
+    js = f"""    tl.set('#ps-pos', {{ x: {G['x']}, y: {G['y']}, scale: {G['s']}, transformOrigin: '0 0' }}, 0);
+    tl.to('#ps-pos', {{ x: {P['x']}, y: {P['y']}, scale: {P['s']}, duration: 0.55, ease: 'back.out(1.2)' }}, 2.85);
+    tl.to('#ps-pos', {{ x: {G['x']}, y: {G['y']}, scale: {G['s']}, duration: 0.6, ease: 'back.out(1.2)' }}, 27.35);
+    tl.set(['#ps-resp', '#ps-corpo', '#ps-troca'], {{ transformOrigin: '0 0' }}, 0);
+    tl.fromTo('#ps-resp', {{ scaleY: 1, rotation: -0.6 }}, {{ scaleY: 1.014, rotation: 0.6, duration: 0.8, ease: 'sine.inOut', yoyo: true, repeat: {ciclos * 2 - 1} }}, 0);
+    // a pose muda a cada frase: fusão curta e um amassado com quique
 {chr(10).join(trocas)}
-{gesto}
-    // a fala: cada 1/15 s da voz vira um pulo, um esticão e um giro que troca de lado nas sílabas fortes
-    // (gerado por gerar.py a partir da energia de cada arquivo em assets/vo)
+    // a fala: cada 1/15 s da voz vira um pulo, um esticão e um giro leve que troca de lado nas sílabas fortes
     const FALAS = {json.dumps(dados, separators=(',', ':'))};
     const PASSO = 1 / 15;
     let lado = 1;
@@ -372,30 +372,18 @@ def personagem(falas):
       e.forEach((n, k) => {{
         const v = n / 99, t = ini + k * PASSO;
         if (v > 0.55 && v >= ult && k % 3 === 0) lado = -lado;
-        tl.to('#ps-corpo', {{ y: -16 * v, scaleY: 1 + 0.035 * v, rotation: lado * 2.5 * v, duration: PASSO - 0.002, ease: 'none' }}, t);
+        tl.to('#ps-corpo', {{ y: -9 * v, scaleY: 1 + 0.02 * v, rotation: lado * 1.1 * v, duration: PASSO - 0.002, ease: 'sine.inOut' }}, t);
         ult = v;
       }});
       tl.to('#ps-corpo', {{ y: 0, scaleY: 1, rotation: 0, duration: descanso, ease: 'power2.out' }}, ini + e.length * PASSO);
     }}"""
-    imgs = '\n'.join(
-        f'          <img id="ps-{c}" src="assets/img/personagem/jesse-{c}.webp" alt="Jessé desenhado ({c.replace("_", " ")})" '
-        f'style="position:absolute;inset:0;width:418px;height:700px;opacity:{1 if c == EXPRESSOES[0][1] else 0}" />' for c in CARAS)
-    def gimg(i, arq, op, alt=700, extra=''):
-        return (f'            <img id="ps-g-{i}" src="assets/img/personagem/gesto-{arq}.webp" alt="" '
-                f'style="position:absolute;left:0;top:0;width:418px;height:{alt}px;opacity:{op}{extra}" />')
-    camadas = '\n'.join([gimg('base', 'base', 1)] + [gimg(c, f'cara-{c}', 1 if c == g['antes'] else 0) for c in (g['antes'], g['meio'], g['depois'])])
-    corpo = f"""    <div id="ps-pos" style="position:absolute;left:0;top:0;width:418px;height:700px;transform-origin:50% 100%">
-      <div id="ps-corpo" style="position:absolute;inset:0;transform-origin:50% 100%">
-        <div id="ps-cara" style="position:absolute;inset:0;transform-origin:50% 100%">
-{imgs}
-          <div id="ps-gesto" style="position:absolute;inset:0;opacity:0" data-layout-allow-overflow>
-{camadas}
-            <div id="ps-g-braco" style="position:absolute;left:0;top:0;width:418px;height:780px">
-{gimg('antebraco', 'antebraco', 1, 780)}
-{gimg('mao', 'mao', 1, 780, f';transform-origin:36px 470px;transform:rotate({-g["giro"]}deg)')}
-            </div>
-          </div>
+    corpo = f"""    <div id="ps-pos" style="position:absolute;left:0;top:0;width:1px;height:1px" data-layout-allow-overflow>
+      <div id="ps-resp" style="position:absolute;left:0;top:0;width:1px;height:1px">
+      <div id="ps-corpo" style="position:absolute;left:0;top:0;width:1px;height:1px">
+        <div id="ps-troca" style="position:absolute;left:0;top:0;width:1px;height:1px">
+{chr(10).join(imgs)}
         </div>
+      </div>
       </div>
     </div>"""
     return f"""<template>
@@ -451,7 +439,7 @@ def main():
     for nome, ini, texto in VOZ:
         e, dur, f0, f1 = energia(os.path.join(RAIZ, 'assets/vo', nome + '.wav'))
         falas.append((nome, ini, e))
-        audios.append((f'a-{nome}', f'assets/vo/{nome}.wav', ini, dur, 1.2, 1.0, 20))
+        audios.append((f'a-{nome}', f'assets/vo/{nome}.wav', ini, dur, 1.0, 1.0, 20))
         # legendas: os grupos dividem o tempo de fala pelo tamanho do texto
         partes = [p.strip() for p in texto.split('/')]
         tam = [len(p.replace('*', '')) for p in partes]

@@ -14,6 +14,7 @@
   </style>
   <div id="root" data-composition-id="s4" data-width="1080" data-height="1920">
     <div id="s4-cam" style="position:absolute;inset:0;transform-origin:540px 760px">
+      <div id="s4-deriva" style="position:absolute;inset:0;transform-origin:540px 900px">
       <img id="s4-arados" class="tela" src="assets/telas/jogo-arados.jpg" alt="" style="z-index:1;opacity:0" />
       <img id="s4-plantando" class="tela" src="assets/telas/jogo-plantando.jpg" alt="" style="z-index:2;opacity:0" />
       <img id="s4-plantou" class="tela" src="assets/telas/jogo-plantou.jpg" alt="" style="z-index:3;opacity:0" />
@@ -23,6 +24,7 @@
       <img id="s4-ajudou" class="tela" src="assets/telas/jogo-ajudou.jpg" alt="" style="z-index:7;opacity:0" />
       <img id="s4-feira" class="tela" src="assets/telas/jogo-feira.jpg" alt="" style="z-index:8;opacity:0" />
       <img id="s4-mar" class="tela" src="assets/telas/jogo-mar.jpg" alt="" style="z-index:9;opacity:0" />
+      </div>
     </div>
     <div id="s4-azul" style="position:absolute;inset:0;background:#2f7fd1;opacity:0;z-index:20"></div>
   </div>
@@ -31,23 +33,33 @@
     // entra pela porteira: a fazenda chega grande e assenta
     tl.set('#s4-cam', { scale: 1.25, opacity: 1 }, 0);
     tl.to('#s4-cam', { scale: 1, duration: 0.6, ease: 'expo.out' }, 0.001);
-    tl.set('#s4-arados', { opacity: 1 }, 0.0);
-    tl.set('#s4-plantando', { opacity: 1 }, 0.6);
-    tl.set('#s4-arados', { opacity: 0 }, 0.610);
-    tl.set('#s4-plantou', { opacity: 1 }, 0.9);
-    tl.set('#s4-plantando', { opacity: 0 }, 0.910);
-    tl.set('#s4-maduros', { opacity: 1 }, 1.9);
-    tl.set('#s4-plantou', { opacity: 0 }, 1.910);
-    tl.set('#s4-colheu', { opacity: 1 }, 2.3);
-    tl.set('#s4-maduros', { opacity: 0 }, 2.310);
-    tl.set('#s4-vizinho', { opacity: 1 }, 3.3);
-    tl.set('#s4-colheu', { opacity: 0 }, 3.310);
-    tl.set('#s4-ajudou', { opacity: 1 }, 3.9);
-    tl.set('#s4-vizinho', { opacity: 0 }, 3.910);
-    tl.set('#s4-feira', { opacity: 1 }, 4.9);
-    tl.set('#s4-ajudou', { opacity: 0 }, 4.910);
+    tl.set('#s4-arados', { opacity: 1 }, 0);
+    tl.to('#s4-plantando', { opacity: 1, duration: 0.16, ease: 'power1.inOut' }, 0.520);
+    tl.set('#s4-arados', { opacity: 0 }, 0.700);
+    tl.to('#s4-plantou', { opacity: 1, duration: 0.16, ease: 'power1.inOut' }, 0.820);
+    tl.set('#s4-plantando', { opacity: 0 }, 1.000);
+    tl.to('#s4-maduros', { opacity: 1, duration: 0.16, ease: 'power1.inOut' }, 1.820);
+    tl.set('#s4-plantou', { opacity: 0 }, 2.000);
+    tl.to('#s4-colheu', { opacity: 1, duration: 0.16, ease: 'power1.inOut' }, 2.220);
+    tl.set('#s4-maduros', { opacity: 0 }, 2.400);
+    tl.fromTo('#s4-vizinho', { opacity: 1, x: 1080, filter: 'blur(14px)' }, { opacity: 1, x: 0, filter: 'blur(0px)', duration: 0.32, ease: 'power3.out', immediateRender: false }, 3.3);
+    tl.to('#s4-colheu', { x: -320, duration: 0.32, ease: 'power3.out' }, 3.3);
+    tl.set('#s4-colheu', { opacity: 0 }, 3.630);
+    tl.to('#s4-ajudou', { opacity: 1, duration: 0.16, ease: 'power1.inOut' }, 3.820);
+    tl.set('#s4-vizinho', { opacity: 0 }, 4.000);
+    tl.fromTo('#s4-feira', { opacity: 1, x: 1080, filter: 'blur(14px)' }, { opacity: 1, x: 0, filter: 'blur(0px)', duration: 0.32, ease: 'power3.out', immediateRender: false }, 4.9);
+    tl.to('#s4-ajudou', { x: -320, duration: 0.32, ease: 'power3.out' }, 4.9);
+    tl.set('#s4-ajudou', { opacity: 0 }, 5.230);
     tl.set('#s4-mar', { opacity: 1 }, 6.1);
     tl.set('#s4-feira', { opacity: 0 }, 6.110);
+    tl.set('#s4-deriva', { scale: 1, y: 0 }, 0);
+    tl.to('#s4-deriva', { scale: 1.06, y: -26, duration: 3.28, ease: 'none' }, 0.001);
+    tl.set('#s4-deriva', { scale: 1, y: 0 }, 3.3);
+    tl.to('#s4-deriva', { scale: 1.06, y: -26, duration: 1.58, ease: 'none' }, 3.301);
+    tl.set('#s4-deriva', { scale: 1, y: 0 }, 4.9);
+    tl.to('#s4-deriva', { scale: 1.06, y: -26, duration: 1.18, ease: 'none' }, 4.901);
+    tl.set('#s4-deriva', { scale: 1, y: 0 }, 6.1);
+    tl.to('#s4-deriva', { scale: 1.06, y: -26, duration: 1.78, ease: 'none' }, 6.101);
     tl.set('#s4-cam', { scale: 1, transformOrigin: '540px 520px' }, 0.9);
     tl.to('#s4-cam', { scale: 1.14, duration: 0.45, ease: 'expo.out' }, 0.901);
     tl.set('#s4-cam', { scale: 1 }, 1.890);

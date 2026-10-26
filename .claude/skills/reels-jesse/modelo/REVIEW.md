@@ -1,24 +1,29 @@
-# REVIEW — Reels "POV: era só um portfólio" (rascunho)
+# REVIEW — Reels "POV: era só um portfólio" (versão final)
 
 ## Decisões de criação
-- Roteiro A ("O segredo no fim do portfólio"), escolhido pelo Jessé. Os roteiros B e C de `STORYLINES.md` não foram feitos.
-- Voz do ElevenLabs ("Lendário — Cheerful, Vibrant and Fun"), que o Jessé gerou e mandou; cortada em 15 falas (`../ferramentas/cortes-fazenda.txt`), cada uma no mesmo início da fala antiga do Kokoro. A primeira versão usava pm_alex (Kokoro, local). Legendas em placas creme do jogo, um grupo por vez, uma palavra de acento verde.
-- Sem música: o áudio em alta entra no próprio Instagram. Os efeitos marcam cada ação: whoosh nos chicotes, clique e impacto no "Jogar agora", pop nos avisos do jogo e teclas no apelido.
-- Todas as telas são capturas reais do site e do jogo (banco de teste local, primavera, fazenda de vitrine do Jessé no nível 35).
-- O Jessé agora é o personagem desenhado da folha que ele mandou: o corpo da folha com a cabeça de cada expressão encaixada pela gola (`scratchpad/personagem/compor.py`), espelhado para o braço cortado da folha ficar fora do quadro, na borda direita. Fala mexendo o corpo, guiado pela energia da voz, e troca de cara a cada frase, sem abrir e fechar a boca. Usa 7 das 12 expressões; bravo, bravo de boca aberta, triste e pensativo ficaram de fora como cara solta. No "Rola o currículo…" (3,35 s) a mão sai do bolso e vai ao queixo (pensativo), e volta na surpresa (6,1 s).
+- **Roteiro:** A, "O segredo no fim do portfólio", escolhido pelo Jessé. Os roteiros B e C de `STORYLINES.md` não foram feitos.
+- **Voz:** do ElevenLabs ("Lendário — Cheerful, Vibrant and Fun"). O Jessé gerou e mandou.
+  - Cortada em 15 falas (`../ferramentas/cortes-fazenda.txt`), com ganho de +3 dB nos arquivos.
+  - O `volume` do `<audio>` fica em 1.0, porque acima de 1 ele não aumenta o som.
+- **Personagem:** as poses de corpo inteiro da `folha-poses`, uma por frase, de `POSES_T` no `gerar.py`.
+  - Cada pose é alinhada pelo pé, com a mesma altura, e aparece do joelho para cima.
+  - A troca de pose tem uma fusão de 0,1 s, um amassado e um quique.
+  - Ele respira e balança o tempo todo, e o corpo mexe com a energia da voz. A boca nunca abre e fecha.
+- **Telas sem cara de print:**
+  - a câmera nunca para: a página rola e o jogo vai chegando perto (`#s4-deriva`);
+  - estados do mesmo lugar do jogo se fundem;
+  - um lugar novo (vizinho, feira) entra empurrando a tela anterior.
+- **Som:** sem música, porque o áudio em alta entra no Instagram. Cada ação tem um efeito sonoro.
 
 ## O que foi medido e o que foi só olhado
-- `check --json`: ok, sem erros.
-- Áudio do rascunho com a voz antiga: −16,3 LUFS integrado, LRA 6,8 LU, pico verdadeiro −1,5 dBFS, 30,0 s. Com a voz do ElevenLabs e o gesto, o rascunho ainda não foi renderizado nem medido. **O som foi medido, não ouvido.**
-- Só olhado: as folhas `snapshot --review` (beats, celular a 360 px e os seis cortes) e os quadros do QA do SPEC.
-- Corrigido nesta passada: um quadro preto inteiro nos cortes de 3,0 s e 5,4 s. A primeira tela agora entra já a 1/4 do quadro, borrada. Conferido com snapshot em 3,0 / 3,05 / 5,4 / 5,45.
+- `check --json`: ok.
+- Final (`render -q delivery`): −16,5 LUFS integrado e pico de −1,4 dBFS em 30,0 s. **O som foi medido, não ouvido.**
+- Só olhado: uma folha de 14 quadros-chave, as trocas de pose e os empurrões.
 
 ## Plano mais fraco
-- 13,9–15,1 s, a feira: é um formulário cheio de texto miúdo. Lê como "tela do jogo", mas não mostra nada acontecendo.
-- Com mais tempo: trocaria por uma venda saindo, com o toast de moedas, ou cortaria direto para o alto-mar.
+- A feira (13,9–15,1 s) ainda é um formulário parado; só a câmera anda.
+- As poses foram ampliadas cerca de 2× da folha e ficam um pouco moles. Uma folha em resolução maior resolve.
 
 ## Avisos mantidos de propósito
-- No tamanho pequeno, a orelha do personagem fica perto da coluna de botões do Instagram (x > 975). Para afastar, o braço cortado apareceria.
-- A placa "POV: era só um portfólio…" e a legenda "POV: você abre…" dizem quase o mesmo nos 3 primeiros segundos. É o gancho: a placa é o título fixo, e a legenda é a voz.
-- O código de recuperação aparece quebrado em duas linhas ("…Z8X / S"). É assim que o jogo mostra em telas de 432 px; não foi editado porque a tela é real.
-- Aos 27,6 s, o girassol do final aparece um instante antes de o verde cobrir o cartão da cena 5. É P2.
+- O código de recuperação aparece quebrado em duas linhas, porque a tela do jogo é real.
+- Na troca de pose, as duas poses ficam sobrepostas por 3 quadros. Isso faz a vez de um borrão de movimento.

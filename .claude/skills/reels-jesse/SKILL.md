@@ -21,7 +21,12 @@ Leia antes `/hyperframes` (contrato e ciclo de trabalho). Esta receita guarda o 
 
 - **Formato:** 1080×1920, 30 fps, de 25 a 30 s.
 - **Som:** sem música, porque ele põe um áudio em alta no próprio Instagram. Cada ação tem um efeito sonoro: whoosh no corte, clique, pop no aviso, teclas na digitação.
-- **Personagem:** é o Jessé desenhado. **Nunca abre e fecha a boca.** Ele fala mexendo o corpo com a energia da voz e troca de cara a cada frase.
+- **Personagem:** é o Jessé desenhado, de corpo inteiro (as poses da `folha-poses`). **Nunca abre e fecha a boca.** Ele fala mexendo o corpo com a energia da voz e troca de pose a cada frase.
+- **Nada parado:** ele reclamou que parecia "só tirando print". Então:
+  - toda tela tem câmera andando (rolagem ou aproximação lenta);
+  - estados do mesmo lugar se fundem em 0,16 s;
+  - um lugar novo entra empurrando a tela anterior (x 1080 → 0 com borrão, em 0,32 s);
+  - o personagem respira e balança o tempo todo.
 - **Visual:** o do próprio jogo.
   - Placa: fundo `#fde6c9`, contorno 6 px `#3f2631` e sombra dura `0 8px 0 #3f2631`.
   - Títulos em 'Jersey 10' (`assets/fonts/jersey10-latin.woff2`).
@@ -51,7 +56,7 @@ Leia antes `/hyperframes` (contrato e ciclo de trabalho). Esta receita guarda o 
    - **Ver o que é dito em cada trecho:** `voz-transcrever.py voz16k.wav "<pausas>"`. O arquivo `voz16k.wav` sai de `ffmpeg -i voz.mp3 -ar 16000 -ac 1 voz16k.wav`.
    - **Achar o corte dentro de uma palavra:** use a curva de energia de 20 ms. O vale entre "feira" e "e ainda", por exemplo, estava a −41 dB.
    - **Cortar:** escreva `cortes.txt` com "nome início fim" (exemplo: `ferramentas/cortes-fazenda.txt`) e rode `bash ferramentas/voz-cortar.sh voz.mp3 cortes.txt assets/vo <ganho_dB>`.
-   - **Ganho:** iguale o LUFS integrado da voz nova ao da anterior (cerca de −20 LUFS só a voz). Com os efeitos e o volume 1.2, o filme fecha em cerca de −16 LUFS.
+   - **Ganho:** ponha o ganho nos próprios arquivos (no modelo foi +3 dB). O `volume` acima de 1 no `<audio>` não aumenta o som. Mire em cerca de −16 LUFS no filme final (no modelo deu −16,5 LUFS).
    - **Conferir:** rode `voz-conferir.py assets/vo/*.wav`. Cada arquivo precisa ter a frase inteira, sem palavra partida.
    - **Encaixar:** cada fala entra em `VOZ` no `gerar.py` com arquivo, início no filme e texto da legenda. No texto, `/` separa os grupos. Uma fala precisa terminar antes do início da próxima. Se não terminar, mude os tempos das cenas.
 5. **Montar:**
@@ -62,6 +67,21 @@ Leia antes `/hyperframes` (contrato e ciclo de trabalho). Esta receita guarda o 
    - Renderize o rascunho, mande com SendUserFile e espere a resposta dele.
 
 ## O personagem
+
+### Como o modelo usa as poses (o jeito atual)
+
+- **Lista:** `POSES_T` no `gerar.py` diz a pose de cada frase, como uma lista `[(tempo, pose)]`.
+  - Exemplos: mão no cabelo no "Rola o currículo…", surpreso de mãos abertas na revelação, joinha, rindo gesticulando, pensativo, selfie no "Desce até Projetos" e joinha no fim.
+- **Alinhamento:** cada pose é alinhada pelo pé (`poses.json`), com a altura igualada a 1130 px (2×). O pé fica abaixo do quadro, e ele aparece do joelho para cima.
+- **Tamanho e posição:**
+  - grande (gancho e final): `G` = pé em (820, 2308), escala 2.05;
+  - pequeno (meio): `P` = pé em (905, 2106), escala 1.25.
+- **Troca de pose:**
+  - fusão de 0,1 s (`TROCA`); mais longa que isso, aparece um fantasma de duas poses;
+  - `#ps-troca` vai de scaleX 1.025 / scaleY 0.955 / y 10 até 1 em 0,34 s, com `back.out(2.4)`.
+- **Respiração:** `#ps-resp` faz scaleY 1→1.014 e um giro de ±0,6° em 0,8 s, com yoyo e repetição finita.
+- **Fala:** em `#ps-corpo`, a energia da voz vira `y −9·e`, `scaleY 1+0.02·e` e um giro de `±1.1°·e`.
+- **Caras e gesto:** as caras soltas e o gesto da mão no queixo continuam no kit (seções abaixo). São da versão anterior e servem para um vídeo em close no rosto.
 
 ### As caras
 

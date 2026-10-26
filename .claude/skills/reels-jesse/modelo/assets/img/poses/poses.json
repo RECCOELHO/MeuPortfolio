@@ -1,0 +1,74 @@
+{
+ "neutro": {
+  "largura": 400,
+  "altura": 1137,
+  "pe_y": 1136,
+  "pe_x": 201
+ },
+ "sorriso": {
+  "largura": 369,
+  "altura": 1131,
+  "pe_y": 1130,
+  "pe_x": 219
+ },
+ "afirmativo": {
+  "largura": 398,
+  "altura": 1125,
+  "pe_y": 1124,
+  "pe_x": 207
+ },
+ "pensativo": {
+  "largura": 346,
+  "altura": 1106,
+  "pe_y": 1105,
+  "pe_x": 201
+ },
+ "raiva": {
+  "largura": 391,
+  "altura": 1106,
+  "pe_y": 1105,
+  "pe_x": 227
+ },
+ "surpreso": {
+  "largura": 405,
+  "altura": 1089,
+  "pe_y": 1088,
+  "pe_x": 208
+ },
+ "rindo": {
+  "largura": 356,
+  "altura": 1036,
+  "pe_y": 1035,
+  "pe_x": 194
+ },
+ "triste": {
+  "largura": 329,
+  "altura": 999,
+  "pe_y": 998,
+  "pe_x": 168
+ },
+ "foto": {
+  "largura": 336,
+  "altura": 1032,
+  "pe_y": 1031,
+  "pe_x": 157
+ },
+ "caminhando": {
+  "largura": 330,
+  "altura": 1026,
+  "pe_y": 1025,
+  "pe_x": 144
+ },
+ "cabelo": {
+  "largura": 351,
+  "altura": 1027,
+  "pe_y": 1026,
+  "pe_x": 181
+ },
+ "costas": {
+  "largura": 293,
+  "altura": 1019,
+  "pe_y": 1012,
+  "pe_x": 178
+ }
+}

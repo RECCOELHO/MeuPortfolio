@@ -20,8 +20,11 @@
   <script>
     const tl = gsap.timeline({ paused: true });
     tl.fromTo('#s2-senai', { y: 480, filter: 'blur(18px)' }, { y: 0, filter: 'blur(0px)', duration: 0.22, ease: 'power3.out' }, 0.0);
+    tl.fromTo('#s2-senai', { scale: 1 }, { scale: 1.06, duration: 1.0, ease: 'none' }, 0.0);
     tl.fromTo('#s2-exer', { y: 1920, filter: 'blur(18px)' }, { y: 0, filter: 'blur(0px)', duration: 0.22, ease: 'power3.out' }, 0.8);
+    tl.fromTo('#s2-exer', { scale: 1 }, { scale: 1.06, duration: 1.0, ease: 'none' }, 0.8);
     tl.fromTo('#s2-hosp', { y: 1920, filter: 'blur(18px)' }, { y: 0, filter: 'blur(0px)', duration: 0.22, ease: 'power3.out' }, 1.6);
+    tl.fromTo('#s2-hosp', { scale: 1 }, { scale: 1.06, duration: 1.0, ease: 'none' }, 1.6);
     tl.to('#s2-hosp', { y: -1920, filter: 'blur(18px)', duration: 0.2, ease: 'power3.in' }, 2.2);
     window.__timelines["s2"] = tl;
   </script>

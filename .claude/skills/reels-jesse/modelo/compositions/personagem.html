@@ -3,112 +3,93 @@
       #root { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
   </style>
   <div id="root" data-composition-id="personagem" data-width="1080" data-height="1920" data-layout-allow-overflow data-layout-allow-occlusion>
-    <div id="ps-pos" style="position:absolute;left:0;top:0;width:418px;height:700px;transform-origin:50% 100%">
-      <div id="ps-corpo" style="position:absolute;inset:0;transform-origin:50% 100%">
-        <div id="ps-cara" style="position:absolute;inset:0;transform-origin:50% 100%">
-          <img id="ps-sorriso" src="assets/img/personagem/jesse-sorriso.webp" alt="Jessé desenhado (sorriso)" style="position:absolute;inset:0;width:418px;height:700px;opacity:1" />
-          <img id="ps-desconfiado" src="assets/img/personagem/jesse-desconfiado.webp" alt="Jessé desenhado (desconfiado)" style="position:absolute;inset:0;width:418px;height:700px;opacity:0" />
-          <img id="ps-surpreso" src="assets/img/personagem/jesse-surpreso.webp" alt="Jessé desenhado (surpreso)" style="position:absolute;inset:0;width:418px;height:700px;opacity:0" />
-          <img id="ps-sorriso_aberto" src="assets/img/personagem/jesse-sorriso_aberto.webp" alt="Jessé desenhado (sorriso aberto)" style="position:absolute;inset:0;width:418px;height:700px;opacity:0" />
-          <img id="ps-rindo" src="assets/img/personagem/jesse-rindo.webp" alt="Jessé desenhado (rindo)" style="position:absolute;inset:0;width:418px;height:700px;opacity:0" />
-          <img id="ps-falando" src="assets/img/personagem/jesse-falando.webp" alt="Jessé desenhado (falando)" style="position:absolute;inset:0;width:418px;height:700px;opacity:0" />
-          <img id="ps-piscando" src="assets/img/personagem/jesse-piscando.webp" alt="Jessé desenhado (piscando)" style="position:absolute;inset:0;width:418px;height:700px;opacity:0" />
-          <div id="ps-gesto" style="position:absolute;inset:0;opacity:0" data-layout-allow-overflow>
-            <img id="ps-g-base" src="assets/img/personagem/gesto-base.webp" alt="" style="position:absolute;left:0;top:0;width:418px;height:700px;opacity:1" />
-            <img id="ps-g-desconfiado" src="assets/img/personagem/gesto-cara-desconfiado.webp" alt="" style="position:absolute;left:0;top:0;width:418px;height:700px;opacity:1" />
-            <img id="ps-g-pensativo" src="assets/img/personagem/gesto-cara-pensativo.webp" alt="" style="position:absolute;left:0;top:0;width:418px;height:700px;opacity:0" />
-            <img id="ps-g-surpreso" src="assets/img/personagem/gesto-cara-surpreso.webp" alt="" style="position:absolute;left:0;top:0;width:418px;height:700px;opacity:0" />
-            <div id="ps-g-braco" style="position:absolute;left:0;top:0;width:418px;height:780px">
-            <img id="ps-g-antebraco" src="assets/img/personagem/gesto-antebraco.webp" alt="" style="position:absolute;left:0;top:0;width:418px;height:780px;opacity:1" />
-            <img id="ps-g-mao" src="assets/img/personagem/gesto-mao.webp" alt="" style="position:absolute;left:0;top:0;width:418px;height:780px;opacity:1;transform-origin:36px 470px;transform:rotate(143.8deg)" />
-            </div>
-          </div>
+    <div id="ps-pos" style="position:absolute;left:0;top:0;width:1px;height:1px" data-layout-allow-overflow>
+      <div id="ps-resp" style="position:absolute;left:0;top:0;width:1px;height:1px">
+      <div id="ps-corpo" style="position:absolute;left:0;top:0;width:1px;height:1px">
+        <div id="ps-troca" style="position:absolute;left:0;top:0;width:1px;height:1px">
+          <img id="ps-sorriso" src="assets/img/poses/sorriso.webp" alt="Jessé desenhado (sorriso)" style="position:absolute;left:-109.4px;top:-564.5px;width:184.3px;height:565.0px;opacity:1" />
+          <img id="ps-cabelo" src="assets/img/poses/cabelo.webp" alt="Jessé desenhado (cabelo)" style="position:absolute;left:-99.6px;top:-564.4px;width:193.1px;height:565.0px;opacity:0" />
+          <img id="ps-surpreso" src="assets/img/poses/surpreso.webp" alt="Jessé desenhado (surpreso)" style="position:absolute;left:-107.9px;top:-564.5px;width:210.1px;height:565.0px;opacity:0" />
+          <img id="ps-rindo" src="assets/img/poses/rindo.webp" alt="Jessé desenhado (rindo)" style="position:absolute;left:-105.8px;top:-564.5px;width:194.2px;height:565.0px;opacity:0" />
+          <img id="ps-afirmativo" src="assets/img/poses/afirmativo.webp" alt="Jessé desenhado (afirmativo)" style="position:absolute;left:-104.0px;top:-564.5px;width:199.9px;height:565.0px;opacity:0" />
+          <img id="ps-pensativo" src="assets/img/poses/pensativo.webp" alt="Jessé desenhado (pensativo)" style="position:absolute;left:-102.7px;top:-564.5px;width:176.8px;height:565.0px;opacity:0" />
+          <img id="ps-neutro" src="assets/img/poses/neutro.webp" alt="Jessé desenhado (neutro)" style="position:absolute;left:-99.9px;top:-564.5px;width:198.8px;height:565.0px;opacity:0" />
+          <img id="ps-foto" src="assets/img/poses/foto.webp" alt="Jessé desenhado (foto)" style="position:absolute;left:-86.0px;top:-564.5px;width:184.0px;height:565.0px;opacity:0" />
         </div>
+      </div>
       </div>
     </div>
   </div>
   <script>
     const tl = gsap.timeline({ paused: true });
-    tl.set('#ps-pos', { x: 672.25, y: 1295.0, scale: 1.25 }, 0);
-    tl.to('#ps-pos', { x: 743.85, y: 1271.0, scale: 0.85, duration: 0.5, ease: 'back.out(1.3)' }, 2.85);
-    tl.to('#ps-pos', { x: 672.25, y: 1295.0, scale: 1.25, duration: 0.55, ease: 'back.out(1.3)' }, 27.35);
-    // a cara muda a cada frase, com um amassadinho de 0,16 s
-    tl.set('#ps-sorriso', { opacity: 0 }, 3.0);
-    tl.set('#ps-desconfiado', { opacity: 1 }, 3.0);
-    tl.set('#ps-cara', { scaleX: 1.03, scaleY: 0.96 }, 3.0);
-    tl.to('#ps-cara', { scaleX: 1, scaleY: 1, duration: 0.16, ease: 'back.out(2)' }, 3.0);
-    tl.set('#ps-surpreso', { opacity: 0 }, 8.05);
-    tl.set('#ps-sorriso_aberto', { opacity: 1 }, 8.05);
-    tl.set('#ps-cara', { scaleX: 1.03, scaleY: 0.96 }, 8.05);
-    tl.to('#ps-cara', { scaleX: 1, scaleY: 1, duration: 0.16, ease: 'back.out(2)' }, 8.05);
-    tl.set('#ps-sorriso_aberto', { opacity: 0 }, 10.9);
-    tl.set('#ps-rindo', { opacity: 1 }, 10.9);
-    tl.set('#ps-cara', { scaleX: 1.03, scaleY: 0.96 }, 10.9);
-    tl.to('#ps-cara', { scaleX: 1, scaleY: 1, duration: 0.16, ease: 'back.out(2)' }, 10.9);
-    tl.set('#ps-rindo', { opacity: 0 }, 12.3);
-    tl.set('#ps-sorriso', { opacity: 1 }, 12.3);
-    tl.set('#ps-cara', { scaleX: 1.03, scaleY: 0.96 }, 12.3);
-    tl.to('#ps-cara', { scaleX: 1, scaleY: 1, duration: 0.16, ease: 'back.out(2)' }, 12.3);
-    tl.set('#ps-sorriso', { opacity: 0 }, 13.9);
-    tl.set('#ps-falando', { opacity: 1 }, 13.9);
-    tl.set('#ps-cara', { scaleX: 1.03, scaleY: 0.96 }, 13.9);
-    tl.to('#ps-cara', { scaleX: 1, scaleY: 1, duration: 0.16, ease: 'back.out(2)' }, 13.9);
-    tl.set('#ps-falando', { opacity: 0 }, 15.15);
-    tl.set('#ps-surpreso', { opacity: 1 }, 15.15);
-    tl.set('#ps-cara', { scaleX: 1.03, scaleY: 0.96 }, 15.15);
-    tl.to('#ps-cara', { scaleX: 1, scaleY: 1, duration: 0.16, ease: 'back.out(2)' }, 15.15);
-    tl.set('#ps-surpreso', { opacity: 0 }, 16.95);
-    tl.set('#ps-falando', { opacity: 1 }, 16.95);
-    tl.set('#ps-cara', { scaleX: 1.03, scaleY: 0.96 }, 16.95);
-    tl.to('#ps-cara', { scaleX: 1, scaleY: 1, duration: 0.16, ease: 'back.out(2)' }, 16.95);
-    tl.set('#ps-falando', { opacity: 0 }, 18.0);
-    tl.set('#ps-sorriso', { opacity: 1 }, 18.0);
-    tl.set('#ps-cara', { scaleX: 1.03, scaleY: 0.96 }, 18.0);
-    tl.to('#ps-cara', { scaleX: 1, scaleY: 1, duration: 0.16, ease: 'back.out(2)' }, 18.0);
-    tl.set('#ps-sorriso', { opacity: 0 }, 20.5);
-    tl.set('#ps-falando', { opacity: 1 }, 20.5);
-    tl.set('#ps-cara', { scaleX: 1.03, scaleY: 0.96 }, 20.5);
-    tl.to('#ps-cara', { scaleX: 1, scaleY: 1, duration: 0.16, ease: 'back.out(2)' }, 20.5);
-    tl.set('#ps-falando', { opacity: 0 }, 22.0);
-    tl.set('#ps-sorriso_aberto', { opacity: 1 }, 22.0);
-    tl.set('#ps-cara', { scaleX: 1.03, scaleY: 0.96 }, 22.0);
-    tl.to('#ps-cara', { scaleX: 1, scaleY: 1, duration: 0.16, ease: 'back.out(2)' }, 22.0);
-    tl.set('#ps-sorriso_aberto', { opacity: 0 }, 23.9);
-    tl.set('#ps-falando', { opacity: 1 }, 23.9);
-    tl.set('#ps-cara', { scaleX: 1.03, scaleY: 0.96 }, 23.9);
-    tl.to('#ps-cara', { scaleX: 1, scaleY: 1, duration: 0.16, ease: 'back.out(2)' }, 23.9);
-    tl.set('#ps-falando', { opacity: 0 }, 25.3);
-    tl.set('#ps-sorriso', { opacity: 1 }, 25.3);
-    tl.set('#ps-cara', { scaleX: 1.03, scaleY: 0.96 }, 25.3);
-    tl.to('#ps-cara', { scaleX: 1, scaleY: 1, duration: 0.16, ease: 'back.out(2)' }, 25.3);
-    tl.set('#ps-sorriso', { opacity: 0 }, 27.5);
-    tl.set('#ps-rindo', { opacity: 1 }, 27.5);
-    tl.set('#ps-cara', { scaleX: 1.03, scaleY: 0.96 }, 27.5);
-    tl.to('#ps-cara', { scaleX: 1, scaleY: 1, duration: 0.16, ease: 'back.out(2)' }, 27.5);
-    tl.set('#ps-rindo', { opacity: 0 }, 28.9);
-    tl.set('#ps-piscando', { opacity: 1 }, 28.9);
-    tl.set('#ps-cara', { scaleX: 1.03, scaleY: 0.96 }, 28.9);
-    tl.to('#ps-cara', { scaleX: 1, scaleY: 1, duration: 0.16, ease: 'back.out(2)' }, 28.9);
-    // a mão sai do bolso: troca a figura inteira pelas camadas do gesto e gira o antebraço até o queixo
-    tl.set('#ps-g-braco', { transformOrigin: '36px 470px', rotation: 0 }, 0);
-    tl.set('#ps-desconfiado', { opacity: 0 }, 3.35);
-    tl.set('#ps-gesto', { opacity: 1 }, 3.35);
-    tl.to('#ps-g-braco', { rotation: -143.8, duration: 0.42, ease: 'power2.inOut' }, 3.35);
-    tl.set('#ps-g-desconfiado', { opacity: 0 }, 3.77);
-    tl.set('#ps-g-pensativo', { opacity: 1 }, 3.77);
-    tl.set('#ps-cara', { scaleX: 1.03, scaleY: 0.96 }, 3.77);
-    tl.to('#ps-cara', { scaleX: 1, scaleY: 1, duration: 0.16, ease: 'back.out(2)' }, 3.77);
-    // e volta para o bolso na surpresa
-    tl.set('#ps-g-pensativo', { opacity: 0 }, 6.1);
-    tl.set('#ps-g-surpreso', { opacity: 1 }, 6.1);
-    tl.set('#ps-cara', { scaleX: 1.03, scaleY: 0.96 }, 6.1);
-    tl.to('#ps-cara', { scaleX: 1, scaleY: 1, duration: 0.16, ease: 'back.out(2)' }, 6.1);
-    tl.to('#ps-g-braco', { rotation: 0, duration: 0.3, ease: 'power2.in' }, 6.1);
-    tl.set('#ps-gesto', { opacity: 0 }, 6.4);
-    tl.set('#ps-surpreso', { opacity: 1 }, 6.4);
-    // a fala: cada 1/15 s da voz vira um pulo, um esticão e um giro que troca de lado nas sílabas fortes
-    // (gerado por gerar.py a partir da energia de cada arquivo em assets/vo)
-    const FALAS = [[0.25,[0,96,99,50,58,47,13,21,15,4,0,0,0,0,0,2,34,47,46,63,53,38,24,41,13,39,38,7,19,5,46,45,31,18,28,29,26,27,14,5,1],0.057],[3.05,[7,46,99,73,47,4,29,14,54,96,87,51,6,51,80,74,84,56,5,0],0.18],[6.15,[24,99,46,62,12,8,50,53,38,11,49,36,20,29,7,24,33,27,59,25,44,32,26,0,0,42,51,92,40,42,16,51,52,45,28,50,44,34,31,4,0],0.157],[9.05,[14,99,61,6,44,1,0,18,64,44,51,30,36,42,37,13,28,13,7,15,12,1],0.18],[10.95,[2,44,99,89,52,40,19,0],0.18],[12.35,[6,49,30,18,99,89,52,61,42,75,48,44,59,51,46,22,12],0.18],[13.95,[8,18,52,71,51,35,43,54,15,5,45,99,75,48,10],0.18],[15.2,[13,73,70,25,40,47,0,0,59,99,54,24,50,42,38,66,37,22,39,46,54,40,7,0],0.18],[17.0,[38,99,51,37,31,49,40,10,1],0.18],[18.05,[4,19,50,99,42,36,25,3,61,67,68,42,45,2,37,32,8,22,3,46,35,19,5,33,21,16,18,57,49,24,15,9,6,0],0.18],[20.55,[4,28,99,43,31,35,21,35,19,47,38,25,66,48,13,20,23,18,0],0.18],[22.05,[34,47,0,99,88,5,49,53,46,44,30,82,43,28,79,59,57,19,45,43,17,9,1],0.18],[23.95,[18,42,9,99,73,47,42,30,32,50,45,58,48,36,18,0],0.18],[25.35,[16,28,20,86,99,44,22,26,24,48,3,43,43,18,6,4,3],0.18],[27.6,[5,13,68,69,66,57,99,38,70,90,40,6,1],0.18]];
+    tl.set('#ps-pos', { x: 820, y: 2308, scale: 2.05, transformOrigin: '0 0' }, 0);
+    tl.to('#ps-pos', { x: 905, y: 2106, scale: 1.25, duration: 0.55, ease: 'back.out(1.2)' }, 2.85);
+    tl.to('#ps-pos', { x: 820, y: 2308, scale: 2.05, duration: 0.6, ease: 'back.out(1.2)' }, 27.35);
+    tl.set(['#ps-resp', '#ps-corpo', '#ps-troca'], { transformOrigin: '0 0' }, 0);
+    tl.fromTo('#ps-resp', { scaleY: 1, rotation: -0.6 }, { scaleY: 1.014, rotation: 0.6, duration: 0.8, ease: 'sine.inOut', yoyo: true, repeat: 37 }, 0);
+    // a pose muda a cada frase: fusão curta e um amassado com quique
+    tl.to('#ps-sorriso', { opacity: 0, duration: 0.1, ease: 'power1.inOut' }, 3.0);
+    tl.to('#ps-cabelo', { opacity: 1, duration: 0.1, ease: 'power1.inOut' }, 3.0);
+    tl.set('#ps-troca', { scaleX: 1.025, scaleY: 0.955, y: 10 }, 3.0);
+    tl.to('#ps-troca', { scaleX: 1, scaleY: 1, y: 0, duration: 0.34, ease: 'back.out(2.4)' }, 3.001);
+    tl.to('#ps-cabelo', { opacity: 0, duration: 0.1, ease: 'power1.inOut' }, 6.1);
+    tl.to('#ps-surpreso', { opacity: 1, duration: 0.1, ease: 'power1.inOut' }, 6.1);
+    tl.set('#ps-troca', { scaleX: 1.025, scaleY: 0.955, y: 10 }, 6.1);
+    tl.to('#ps-troca', { scaleX: 1, scaleY: 1, y: 0, duration: 0.34, ease: 'back.out(2.4)' }, 6.101);
+    tl.to('#ps-surpreso', { opacity: 0, duration: 0.1, ease: 'power1.inOut' }, 9.0);
+    tl.to('#ps-rindo', { opacity: 1, duration: 0.1, ease: 'power1.inOut' }, 9.0);
+    tl.set('#ps-troca', { scaleX: 1.025, scaleY: 0.955, y: 10 }, 9.0);
+    tl.to('#ps-troca', { scaleX: 1, scaleY: 1, y: 0, duration: 0.34, ease: 'back.out(2.4)' }, 9.001);
+    tl.to('#ps-rindo', { opacity: 0, duration: 0.1, ease: 'power1.inOut' }, 10.9);
+    tl.to('#ps-afirmativo', { opacity: 1, duration: 0.1, ease: 'power1.inOut' }, 10.9);
+    tl.set('#ps-troca', { scaleX: 1.025, scaleY: 0.955, y: 10 }, 10.9);
+    tl.to('#ps-troca', { scaleX: 1, scaleY: 1, y: 0, duration: 0.34, ease: 'back.out(2.4)' }, 10.901);
+    tl.to('#ps-afirmativo', { opacity: 0, duration: 0.1, ease: 'power1.inOut' }, 12.3);
+    tl.to('#ps-sorriso', { opacity: 1, duration: 0.1, ease: 'power1.inOut' }, 12.3);
+    tl.set('#ps-troca', { scaleX: 1.025, scaleY: 0.955, y: 10 }, 12.3);
+    tl.to('#ps-troca', { scaleX: 1, scaleY: 1, y: 0, duration: 0.34, ease: 'back.out(2.4)' }, 12.301);
+    tl.to('#ps-sorriso', { opacity: 0, duration: 0.1, ease: 'power1.inOut' }, 13.9);
+    tl.to('#ps-pensativo', { opacity: 1, duration: 0.1, ease: 'power1.inOut' }, 13.9);
+    tl.set('#ps-troca', { scaleX: 1.025, scaleY: 0.955, y: 10 }, 13.9);
+    tl.to('#ps-troca', { scaleX: 1, scaleY: 1, y: 0, duration: 0.34, ease: 'back.out(2.4)' }, 13.901);
+    tl.to('#ps-pensativo', { opacity: 0, duration: 0.1, ease: 'power1.inOut' }, 15.15);
+    tl.to('#ps-surpreso', { opacity: 1, duration: 0.1, ease: 'power1.inOut' }, 15.15);
+    tl.set('#ps-troca', { scaleX: 1.025, scaleY: 0.955, y: 10 }, 15.15);
+    tl.to('#ps-troca', { scaleX: 1, scaleY: 1, y: 0, duration: 0.34, ease: 'back.out(2.4)' }, 15.151);
+    tl.to('#ps-surpreso', { opacity: 0, duration: 0.1, ease: 'power1.inOut' }, 16.95);
+    tl.to('#ps-neutro', { opacity: 1, duration: 0.1, ease: 'power1.inOut' }, 16.95);
+    tl.set('#ps-troca', { scaleX: 1.025, scaleY: 0.955, y: 10 }, 16.95);
+    tl.to('#ps-troca', { scaleX: 1, scaleY: 1, y: 0, duration: 0.34, ease: 'back.out(2.4)' }, 16.951);
+    tl.to('#ps-neutro', { opacity: 0, duration: 0.1, ease: 'power1.inOut' }, 18.0);
+    tl.to('#ps-afirmativo', { opacity: 1, duration: 0.1, ease: 'power1.inOut' }, 18.0);
+    tl.set('#ps-troca', { scaleX: 1.025, scaleY: 0.955, y: 10 }, 18.0);
+    tl.to('#ps-troca', { scaleX: 1, scaleY: 1, y: 0, duration: 0.34, ease: 'back.out(2.4)' }, 18.001);
+    tl.to('#ps-afirmativo', { opacity: 0, duration: 0.1, ease: 'power1.inOut' }, 20.5);
+    tl.to('#ps-foto', { opacity: 1, duration: 0.1, ease: 'power1.inOut' }, 20.5);
+    tl.set('#ps-troca', { scaleX: 1.025, scaleY: 0.955, y: 10 }, 20.5);
+    tl.to('#ps-troca', { scaleX: 1, scaleY: 1, y: 0, duration: 0.34, ease: 'back.out(2.4)' }, 20.501);
+    tl.to('#ps-foto', { opacity: 0, duration: 0.1, ease: 'power1.inOut' }, 22.0);
+    tl.to('#ps-rindo', { opacity: 1, duration: 0.1, ease: 'power1.inOut' }, 22.0);
+    tl.set('#ps-troca', { scaleX: 1.025, scaleY: 0.955, y: 10 }, 22.0);
+    tl.to('#ps-troca', { scaleX: 1, scaleY: 1, y: 0, duration: 0.34, ease: 'back.out(2.4)' }, 22.001);
+    tl.to('#ps-rindo', { opacity: 0, duration: 0.1, ease: 'power1.inOut' }, 23.9);
+    tl.to('#ps-pensativo', { opacity: 1, duration: 0.1, ease: 'power1.inOut' }, 23.9);
+    tl.set('#ps-troca', { scaleX: 1.025, scaleY: 0.955, y: 10 }, 23.9);
+    tl.to('#ps-troca', { scaleX: 1, scaleY: 1, y: 0, duration: 0.34, ease: 'back.out(2.4)' }, 23.901);
+    tl.to('#ps-pensativo', { opacity: 0, duration: 0.1, ease: 'power1.inOut' }, 25.3);
+    tl.to('#ps-sorriso', { opacity: 1, duration: 0.1, ease: 'power1.inOut' }, 25.3);
+    tl.set('#ps-troca', { scaleX: 1.025, scaleY: 0.955, y: 10 }, 25.3);
+    tl.to('#ps-troca', { scaleX: 1, scaleY: 1, y: 0, duration: 0.34, ease: 'back.out(2.4)' }, 25.301);
+    tl.to('#ps-sorriso', { opacity: 0, duration: 0.1, ease: 'power1.inOut' }, 27.5);
+    tl.to('#ps-rindo', { opacity: 1, duration: 0.1, ease: 'power1.inOut' }, 27.5);
+    tl.set('#ps-troca', { scaleX: 1.025, scaleY: 0.955, y: 10 }, 27.5);
+    tl.to('#ps-troca', { scaleX: 1, scaleY: 1, y: 0, duration: 0.34, ease: 'back.out(2.4)' }, 27.501);
+    tl.to('#ps-rindo', { opacity: 0, duration: 0.1, ease: 'power1.inOut' }, 28.85);
+    tl.to('#ps-afirmativo', { opacity: 1, duration: 0.1, ease: 'power1.inOut' }, 28.85);
+    tl.set('#ps-troca', { scaleX: 1.025, scaleY: 0.955, y: 10 }, 28.85);
+    tl.to('#ps-troca', { scaleX: 1, scaleY: 1, y: 0, duration: 0.34, ease: 'back.out(2.4)' }, 28.851);
+    // a fala: cada 1/15 s da voz vira um pulo, um esticão e um giro leve que troca de lado nas sílabas fortes
+    const FALAS = [[0.25,[0,87,99,51,59,48,13,22,15,5,0,0,0,0,0,2,35,48,47,63,53,39,25,41,13,40,38,7,19,5,47,46,32,18,28,30,27,27,14,5,1],0.057],[3.05,[7,46,99,73,47,4,29,14,54,96,87,51,6,51,80,74,84,56,5,0],0.18],[6.15,[25,99,46,62,12,8,50,53,39,11,50,37,20,30,7,25,33,28,60,25,44,33,26,0,0,42,51,94,40,42,16,51,52,45,28,51,45,35,32,4,0],0.157],[9.05,[16,99,66,7,51,1,0,21,74,51,59,34,41,48,43,15,32,15,8,18,13,2],0.18],[10.95,[2,46,99,87,54,41,20,0],0.18],[12.35,[6,49,30,18,99,89,52,61,42,75,48,44,59,51,46,22,12],0.18],[13.95,[8,18,52,71,51,35,43,54,15,5,45,99,75,48,10],0.18],[15.2,[13,73,70,25,40,47,0,0,59,99,54,24,50,42,38,66,37,22,39,46,54,40,7,0],0.18],[17.0,[41,99,56,42,34,55,44,12,2],0.18],[18.05,[4,19,52,99,44,37,25,3,63,69,70,43,46,2,38,33,9,23,3,47,36,20,5,34,22,17,18,58,50,24,15,9,6,0],0.18],[20.55,[5,33,99,52,38,42,26,42,23,57,46,30,78,57,16,24,27,22,0],0.18],[22.05,[34,47,0,99,88,5,49,53,46,44,30,82,43,28,79,59,57,19,45,43,17,9,1],0.18],[23.95,[19,45,10,99,78,50,44,32,35,53,49,62,51,38,19,0],0.18],[25.35,[19,35,24,99,98,49,27,32,29,59,3,53,53,22,7,5,4],0.18],[27.6,[5,13,68,69,66,57,99,38,69,80,39,6,1],0.18]];
     const PASSO = 1 / 15;
     let lado = 1;
     for (const [ini, e, descanso] of FALAS) {
@@ -116,7 +97,7 @@
       e.forEach((n, k) => {
         const v = n / 99, t = ini + k * PASSO;
         if (v > 0.55 && v >= ult && k % 3 === 0) lado = -lado;
-        tl.to('#ps-corpo', { y: -16 * v, scaleY: 1 + 0.035 * v, rotation: lado * 2.5 * v, duration: PASSO - 0.002, ease: 'none' }, t);
+        tl.to('#ps-corpo', { y: -9 * v, scaleY: 1 + 0.02 * v, rotation: lado * 1.1 * v, duration: PASSO - 0.002, ease: 'sine.inOut' }, t);
         ult = v;
       });
       tl.to('#ps-corpo', { y: 0, scaleY: 1, rotation: 0, duration: descanso, ease: 'power2.out' }, ini + e.length * PASSO);
