@@ -197,9 +197,13 @@ function montarTeatro() {
         return 4;
     };
     const cenaDe = (t) => (t < 1.1 ? 0 : t < 2.8 ? 1 : t < 4.46 ? 2 : t < 5.9 ? 3 : 4);
-    let tocando = false, anterior = 0, crachaNaTela = true;
+    let tocando = false, anterior = 0, crachaNaTela = true, cenaAtiva = -1;
+    const cenas = [...document.querySelectorAll('.palco .cena')];
     tl.eventCallback('onUpdate', () => {
         const t = tl.time();
+        // só a cena da vez recebe toque: as de antes ficam por baixo, invisíveis, e roubavam o clique dos projetos
+        const ativa = cenaDe(t);
+        if (ativa !== cenaAtiva) { cenaAtiva = ativa; cenas.forEach((c, i) => c.classList.toggle('inativa', i !== ativa)); }
         fundo.forma(forma(t));
         trilha.cena(cenaDe(t));
         // descendo pela passagem 2020 → 2025, a música toca o coração junto com o pulso da tela
