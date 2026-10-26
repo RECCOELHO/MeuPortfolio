@@ -6,6 +6,7 @@
 | agent-browser | https://github.com/vercel-labs/agent-browser (skills/agent-browser) | Apache-2.0 | fd93075 |
 | find-skills | https://github.com/vercel-labs/skills (skills/find-skills) | MIT | a80e4c9 |
 | hyperframes e as outras 21 de vídeo (hyperframes-*, embedded-captions, faceless-explainer, figma, general-video, media-use, motion-graphics, music-to-video, pr-to-video, product-launch-video, remotion-to-hyperframes, slideshow, talking-head-recut) | https://github.com/heygen-com/hyperframes (skills/) | Apache-2.0 | 32ebdde |
+| reels-jesse | feita neste repositório (receita dos Reels com o personagem desenhado do Jessé) | — | — |
 
 O "grilling" (Matt Pocock) não está aqui: ele vem pelo plugin "Skills For Real Engineers" do catálogo do Claude.
 

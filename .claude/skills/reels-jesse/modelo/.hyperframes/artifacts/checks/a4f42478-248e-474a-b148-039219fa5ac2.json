@@ -1,0 +1,394 @@
+{
+  "ok": true,
+  "strict": false,
+  "browserSkipped": false,
+  "lint": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": [],
+    "filesScanned": 9
+  },
+  "runtime": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": []
+  },
+  "layout": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 7,
+    "findings": [
+      {
+        "code": "container_overflow",
+        "severity": "info",
+        "time": 1.667,
+        "selector": "#s1-cam",
+        "message": "Element extends outside a clipping layout container.",
+        "rect": {
+          "left": -64.8,
+          "top": -84,
+          "right": 1144.8,
+          "bottom": 2066.4,
+          "width": 1209.6,
+          "height": 2150.4
+        },
+        "containerSelector": "#s1 > div:nth-of-type(1)",
+        "fixHint": "Resize/reposition the child or container, or mark intentional overflow with data-layout-allow-overflow.",
+        "containerRect": {
+          "left": 0,
+          "top": 0,
+          "right": 1080,
+          "bottom": 1920,
+          "width": 1080,
+          "height": 1920
+        },
+        "overflow": {
+          "left": 64.8,
+          "right": 64.8,
+          "top": 84,
+          "bottom": 146.4
+        },
+        "dataAttributes": {},
+        "sourceFile": "compositions/s1.html",
+        "bbox": {
+          "x": -64.8,
+          "y": -84,
+          "width": 1209.6,
+          "height": 2150.4
+        },
+        "firstSeen": 1.667,
+        "lastSeen": 1.667,
+        "occurrences": 1,
+        "heldMs": 0,
+        "times": [
+          1.667
+        ]
+      },
+      {
+        "code": "container_overflow",
+        "severity": "info",
+        "time": 8.333,
+        "selector": "#s3-cam",
+        "message": "Element extends outside a clipping layout container.",
+        "rect": {
+          "left": 152.4,
+          "top": -1891.1,
+          "right": 1988.4,
+          "bottom": 1372.9,
+          "width": 1836,
+          "height": 3264
+        },
+        "containerSelector": "#s3 > div:nth-of-type(1)",
+        "fixHint": "Resize/reposition the child or container, or mark intentional overflow with data-layout-allow-overflow.",
+        "containerRect": {
+          "left": 0,
+          "top": 0,
+          "right": 1080,
+          "bottom": 1920,
+          "width": 1080,
+          "height": 1920
+        },
+        "overflow": {
+          "right": 908.4,
+          "top": 1891.1
+        },
+        "dataAttributes": {},
+        "sourceFile": "compositions/s3.html",
+        "bbox": {
+          "x": 152.4,
+          "y": -1891.1,
+          "width": 1836,
+          "height": 3264
+        },
+        "firstSeen": 8.333,
+        "lastSeen": 8.333,
+        "occurrences": 1,
+        "heldMs": 0,
+        "times": [
+          8.333
+        ]
+      },
+      {
+        "code": "escaped_container",
+        "severity": "info",
+        "time": 8.333,
+        "selector": "#s3-cam",
+        "message": "Positioned element renders far outside its offset parent — its coordinates were likely computed in a different frame (canvas/viewport pixels).",
+        "rect": {
+          "left": 152.4,
+          "top": -1891.1,
+          "right": 1988.4,
+          "bottom": 1372.9,
+          "width": 1836,
+          "height": 3264
+        },
+        "containerSelector": "#s3 > div:nth-of-type(1)",
+        "text": "",
+        "fixHint": "Compute left/top in the offset parent's frame (subtract its rect), or mark intentional placement with data-layout-allow-overflow.",
+        "containerRect": {
+          "left": 0,
+          "top": 0,
+          "right": 1080,
+          "bottom": 1920,
+          "width": 1080,
+          "height": 1920
+        },
+        "dataAttributes": {},
+        "sourceFile": "compositions/s3.html",
+        "bbox": {
+          "x": 152.4,
+          "y": -1891.1,
+          "width": 1836,
+          "height": 3264
+        },
+        "firstSeen": 8.333,
+        "lastSeen": 8.333,
+        "occurrences": 1,
+        "heldMs": 0,
+        "times": [
+          8.333
+        ]
+      },
+      {
+        "code": "escaped_container",
+        "severity": "info",
+        "time": 8.333,
+        "selector": "#s3-botao",
+        "message": "Positioned element renders far outside its offset parent — its coordinates were likely computed in a different frame (canvas/viewport pixels).",
+        "rect": {
+          "left": -2412.9,
+          "top": -194.5,
+          "right": 3492.9,
+          "bottom": 1794.5,
+          "width": 5905.8,
+          "height": 1989
+        },
+        "containerSelector": "#s3-cam",
+        "text": "",
+        "fixHint": "Compute left/top in the offset parent's frame (subtract its rect), or mark intentional placement with data-layout-allow-overflow.",
+        "containerRect": {
+          "left": 152.4,
+          "top": -1891.1,
+          "right": 1988.4,
+          "bottom": 1372.9,
+          "width": 1836,
+          "height": 3264
+        },
+        "dataAttributes": {},
+        "sourceFile": "compositions/s3.html",
+        "bbox": {
+          "x": -2412.9,
+          "y": -194.5,
+          "width": 5905.8,
+          "height": 1989
+        },
+        "firstSeen": 8.333,
+        "lastSeen": 8.333,
+        "occurrences": 1,
+        "heldMs": 0,
+        "times": [
+          8.333
+        ]
+      },
+      {
+        "code": "container_overflow",
+        "severity": "info",
+        "time": 11.667,
+        "selector": "#s4-cam",
+        "message": "Element extends outside a clipping layout container.",
+        "rect": {
+          "left": -58.76,
+          "top": -89.54,
+          "right": 1172.33,
+          "bottom": 2099.07,
+          "width": 1231.09,
+          "height": 2188.61
+        },
+        "containerSelector": "#s4 > div:nth-of-type(1)",
+        "fixHint": "Resize/reposition the child or container, or mark intentional overflow with data-layout-allow-overflow.",
+        "containerRect": {
+          "left": 0,
+          "top": 0,
+          "right": 1080,
+          "bottom": 1920,
+          "width": 1080,
+          "height": 1920
+        },
+        "overflow": {
+          "left": 58.76,
+          "right": 92.33,
+          "top": 89.54,
+          "bottom": 179.07
+        },
+        "dataAttributes": {},
+        "sourceFile": "compositions/s4.html",
+        "bbox": {
+          "x": -58.76,
+          "y": -89.54,
+          "width": 1231.09,
+          "height": 2188.61
+        },
+        "firstSeen": 11.667,
+        "lastSeen": 11.667,
+        "occurrences": 1,
+        "heldMs": 0,
+        "times": [
+          11.667
+        ]
+      },
+      {
+        "code": "container_overflow",
+        "severity": "info",
+        "time": 25,
+        "selector": "#s5-cam",
+        "message": "Element extends outside a clipping layout container.",
+        "rect": {
+          "left": 152.4,
+          "top": -1891.1,
+          "right": 1988.4,
+          "bottom": 1372.9,
+          "width": 1836,
+          "height": 3264
+        },
+        "containerSelector": "#s5 > div:nth-of-type(1)",
+        "fixHint": "Resize/reposition the child or container, or mark intentional overflow with data-layout-allow-overflow.",
+        "containerRect": {
+          "left": 0,
+          "top": 0,
+          "right": 1080,
+          "bottom": 1920,
+          "width": 1080,
+          "height": 1920
+        },
+        "overflow": {
+          "right": 908.4,
+          "top": 1891.1
+        },
+        "dataAttributes": {},
+        "sourceFile": "compositions/s5.html",
+        "bbox": {
+          "x": 152.4,
+          "y": -1891.1,
+          "width": 1836,
+          "height": 3264
+        },
+        "firstSeen": 25,
+        "lastSeen": 25,
+        "occurrences": 1,
+        "heldMs": 0,
+        "times": [
+          25
+        ]
+      },
+      {
+        "code": "escaped_container",
+        "severity": "info",
+        "time": 25,
+        "selector": "#s5-cam",
+        "message": "Positioned element renders far outside its offset parent — its coordinates were likely computed in a different frame (canvas/viewport pixels).",
+        "rect": {
+          "left": 152.4,
+          "top": -1891.1,
+          "right": 1988.4,
+          "bottom": 1372.9,
+          "width": 1836,
+          "height": 3264
+        },
+        "containerSelector": "#s5 > div:nth-of-type(1)",
+        "text": "",
+        "fixHint": "Compute left/top in the offset parent's frame (subtract its rect), or mark intentional placement with data-layout-allow-overflow.",
+        "containerRect": {
+          "left": 0,
+          "top": 0,
+          "right": 1080,
+          "bottom": 1920,
+          "width": 1080,
+          "height": 1920
+        },
+        "dataAttributes": {},
+        "sourceFile": "compositions/s5.html",
+        "bbox": {
+          "x": 152.4,
+          "y": -1891.1,
+          "width": 1836,
+          "height": 3264
+        },
+        "firstSeen": 25,
+        "lastSeen": 25,
+        "occurrences": 1,
+        "heldMs": 0,
+        "times": [
+          25
+        ]
+      }
+    ],
+    "duration": 30,
+    "samples": [
+      1.667,
+      5,
+      8.333,
+      11.667,
+      15,
+      18.333,
+      21.667,
+      25,
+      28.333
+    ],
+    "transitionSamples": [],
+    "transitionSamplesDropped": 0,
+    "tolerance": 2,
+    "totalIssueCount": 7,
+    "truncated": false
+  },
+  "motion": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": [],
+    "enabled": false,
+    "samples": 0
+  },
+  "contrast": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": [],
+    "enabled": true,
+    "samples": [
+      1.667,
+      8.333,
+      15,
+      21.667,
+      28.333
+    ],
+    "checked": 13,
+    "passed": 13
+  },
+  "craft": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": [],
+    "enabled": true,
+    "step": 0.125,
+    "samples": 240
+  },
+  "hdr": {
+    "autoPromotion": null,
+    "inspection": "available"
+  },
+  "snapshots": {
+    "enabled": false,
+    "files": [],
+    "times": [],
+    "findingFiles": []
+  }
+}

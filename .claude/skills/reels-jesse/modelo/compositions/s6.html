@@ -1,0 +1,37 @@
+<template>
+  <style>
+      @font-face { font-family: 'Jersey 10'; src: url('assets/fonts/jersey10-latin.woff2') format('woff2'); font-weight: 400; font-style: normal; }
+      #root { position: absolute; inset: 0; overflow: hidden; background: #1a0a0d; font-family: 'Nunito', sans-serif; }
+
+      .placa { position: absolute; background: #fde6c9; color: #3f2631; border: 6px solid #3f2631;
+               box-shadow: 0 8px 0 #3f2631, inset 0 -6px 0 #fec99c; padding: 14px 30px 18px; }
+      .pixel { font-family: 'Jersey 10', 'Nunito', monospace; font-weight: 400; letter-spacing: 0.01em; line-height: 0.95; }
+      .acento { color: #3b7a3a; font-weight: inherit; }
+      .tela { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; object-fit: cover; }
+      .mao { position: absolute; width: 156px; height: 156px; image-rendering: pixelated; }
+
+      #root { background: transparent; }
+  </style>
+  <div id="root" data-composition-id="s6" data-width="1080" data-height="1920">
+    <div id="s6-chao" style="position:absolute;inset:0;background:#84c669"></div>
+    <div id="s6-marca" style="position:absolute;left:0;top:230px;width:1080px;text-align:center;z-index:3">
+      <div id="s6-girassol" style="margin:0 auto;width:260px;height:300px;background:url(assets/img/girassol.png) center/contain no-repeat;image-rendering:pixelated"></div>
+      <div id="s6-nome" class="pixel" style="font-size:118px;color:#fde6c9;-webkit-text-stroke:10px #3f2631;paint-order:stroke fill;margin-top:10px">Fazendinha Secreta</div>
+    </div>
+    <div id="s6-cta" class="placa" style="left:90px;top:760px;width:900px;z-index:4;text-align:center">
+      <div class="pixel" style="font-size:104px">jessecoelho.com.br</div>
+      <div style="font: 900 46px 'Nunito', sans-serif; margin-top:6px" class="acento">link na bio</div>
+    </div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    // o chão de grama sobe como uma maré (a cor muda, o Jessé fica)
+    tl.fromTo('#s6-chao', { clipPath: 'inset(100% 0 0 0)' }, { clipPath: 'inset(0% 0 0 0)', duration: 0.4, ease: 'power2.inOut' }, 0);
+    // o girassol cai e quica; o nome entra em cima dele, letra por letra em grupos
+    tl.fromTo('#s6-girassol', { y: -500, scale: 0.6 }, { y: 0, scale: 1, duration: 0.5, ease: 'back.out(1.8)' }, 0.15);
+    tl.fromTo('#s6-nome', { opacity: 0, filter: 'blur(8px)' }, { opacity: 1, filter: 'blur(0px)', duration: 0.18, ease: 'power4.out' }, 0.42);
+    // o CTA chega e fica parado até o fim (2,2 s)
+    tl.fromTo('#s6-cta', { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.35, ease: 'back.out(1.6)' }, 0.45);
+    window.__timelines["s6"] = tl;
+  </script>
+</template>
