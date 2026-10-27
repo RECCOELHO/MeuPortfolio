@@ -15,6 +15,7 @@ Leia antes `/hyperframes` (contrato e ciclo de trabalho). Esta receita guarda o 
 | `personagem/` | As duas folhas que ele mandou (`folha-expressoes.webp`, `folha-poses.webp`) e os scripts que montam o personagem. |
 | `personagem/final/` | As 8 caras prontas (`jesse-<cara>.webp`) e as camadas do gesto "mão no queixo" (`gesto-*.webp`). |
 | `personagem/poses/` | As 12 poses de corpo inteiro, com fundo transparente. `poses.json` dá a largura, a altura e o pé de cada uma. |
+| `personagem-ela/` | A Ranya (esposa do Jessé, Instagram @_ranyacoelho), para vídeos com os dois conversando: a folha `folha-poses-ela.webp`, o `poses_ela.py` que recorta e as 13 poses em `poses/` (neutro, sorriso, afirmativo, pensativo, brava, surpresa, triste, pensando, desconfiada, confiante, rindo, seria, de_lado), com o mesmo `poses.json`. |
 | `ferramentas/` | Scripts para cortar e conferir a voz (`voz-*`) e para capturar as telas (`captura/`). |
 
 ## O que ele já decidiu

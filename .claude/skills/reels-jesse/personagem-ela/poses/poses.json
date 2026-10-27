@@ -1,0 +1,80 @@
+{
+ "neutro": {
+  "largura": 349,
+  "altura": 1179,
+  "pe_y": 1178,
+  "pe_x": 186
+ },
+ "sorriso": {
+  "largura": 337,
+  "altura": 1175,
+  "pe_y": 1174,
+  "pe_x": 192
+ },
+ "afirmativo": {
+  "largura": 340,
+  "altura": 1167,
+  "pe_y": 1166,
+  "pe_x": 179
+ },
+ "pensativo": {
+  "largura": 354,
+  "altura": 1170,
+  "pe_y": 1169,
+  "pe_x": 199
+ },
+ "brava": {
+  "largura": 349,
+  "altura": 1162,
+  "pe_y": 1161,
+  "pe_x": 177
+ },
+ "surpresa": {
+  "largura": 354,
+  "altura": 1171,
+  "pe_y": 1170,
+  "pe_x": 194
+ },
+ "triste": {
+  "largura": 307,
+  "altura": 1067,
+  "pe_y": 1066,
+  "pe_x": 170
+ },
+ "pensando": {
+  "largura": 302,
+  "altura": 1056,
+  "pe_y": 1055,
+  "pe_x": 159
+ },
+ "desconfiada": {
+  "largura": 308,
+  "altura": 1061,
+  "pe_y": 1060,
+  "pe_x": 160
+ },
+ "confiante": {
+  "largura": 308,
+  "altura": 1058,
+  "pe_y": 1057,
+  "pe_x": 169
+ },
+ "rindo": {
+  "largura": 293,
+  "altura": 1047,
+  "pe_y": 1046,
+  "pe_x": 158
+ },
+ "seria": {
+  "largura": 283,
+  "altura": 1060,
+  "pe_y": 1059,
+  "pe_x": 150
+ },
+ "de_lado": {
+  "largura": 263,
+  "altura": 1052,
+  "pe_y": 1051,
+  "pe_x": 135
+ }
+}
