@@ -41,7 +41,7 @@ Leia antes `/hyperframes` (contrato e ciclo de trabalho). Esta receita guarda o 
   3. Mande o rascunho (`render -q draft`) e espere a aprovação.
   4. Só então faça o render final (`render -q delivery`).
 - **Voz:** a que ele escolheu é do ElevenLabs.
-  - Voz "Lendário — Cheerful, Vibrant and Fun", velocidade 1.00, estabilidade 50, similaridade 75, modelo v4.
+  - Voz atual: "Mário — Excited, Constant and Cheerful", velocidade 1.00, estabilidade 50, similaridade 75, modelo v4 (usada no "Eu sou o Jessé"). Antes era a "Lendário — Cheerful, Vibrant and Fun".
   - Ele gera no site e manda o MP3, porque a rede da nuvem bloqueia o ElevenLabs.
   - Plano B, local: Kokoro `pm_alex`.
 
