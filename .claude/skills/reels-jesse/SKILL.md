@@ -53,13 +53,15 @@ Os posts saem pelo conector do Metricool, na marca **Byte Storm** (brandId `7687
   - O post só aparece no perfil dele depois que ele aceita o convite no Instagram.
   - Só vale para o Instagram. Facebook, TikTok e YouTube não têm colaborador.
 - **IA:** marque `isAiGenerated: true` nos Reels, porque a voz é de IA.
-- **Tipo:** Reels vão como `type: "REEL"`, com o vídeo final.
+- **Tipo:** Reels vão como `type: "REEL"`, com o vídeo final. Carrosséis vão como `type: "POST"`, com várias imagens em `media` (até 10, 1080×1350, mesmo estilo dos Reels).
 - **Vídeo:** o Metricool precisa de um link público. Ele sobe os finais numa pasta do Google Drive ligado ao Metricool e manda o link.
 - **Confirmação:** mostre cada post (data, hora, legenda, hashtags e colaborador) e só agende depois do "ok" dele.
-- **Cronograma:** três posts por semana, às 19h, até o Metricool ter dados de melhor horário.
-  - Terça: dica de TI.
-  - Quinta: Fazendinha ou portfólio.
-  - Domingo: reflexão bíblica.
+- **Cronograma:** cinco posts por semana, às 19h, até o Metricool ter dados de melhor horário.
+  - **Reels** na segunda, na quarta e na sexta.
+    - Segunda: dica de TI.
+    - Quarta: Fazendinha ou portfólio.
+    - Sexta: reflexão bíblica.
+  - **Carrosséis** na terça e na quinta, de preferência aprofundando o Reel do dia anterior ou o do dia seguinte.
 
 ## Um vídeo novo, passo a passo
 
