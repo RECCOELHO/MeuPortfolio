@@ -45,6 +45,22 @@ Leia antes `/hyperframes` (contrato e ciclo de trabalho). Esta receita guarda o 
   - Ele gera no site e manda o MP3, porque a rede da nuvem bloqueia o ElevenLabs.
   - Plano B, local: Kokoro `pm_alex`.
 
+## Publicação no Instagram (Metricool)
+
+Os posts saem pelo conector do Metricool, na marca **Byte Storm** (brandId `7687211`, Instagram @bytestormoficial, fuso `America/Sao_Paulo`).
+
+- **Colaborador em todos os posts:** sempre ponha **@c.j.coelho** como colaborador no Instagram, em `instagramData.collaborators: [{"username": "c.j.coelho", "deleted": false}]`.
+  - O post só aparece no perfil dele depois que ele aceita o convite no Instagram.
+  - Só vale para o Instagram. Facebook, TikTok e YouTube não têm colaborador.
+- **IA:** marque `isAiGenerated: true` nos Reels, porque a voz é de IA.
+- **Tipo:** Reels vão como `type: "REEL"`, com o vídeo final.
+- **Vídeo:** o Metricool precisa de um link público. Ele sobe os finais numa pasta do Google Drive ligado ao Metricool e manda o link.
+- **Confirmação:** mostre cada post (data, hora, legenda, hashtags e colaborador) e só agende depois do "ok" dele.
+- **Cronograma:** três posts por semana, às 19h, até o Metricool ter dados de melhor horário.
+  - Terça: dica de TI.
+  - Quinta: Fazendinha ou portfólio.
+  - Domingo: reflexão bíblica.
+
 ## Um vídeo novo, passo a passo
 
 1. **Copiar o modelo:** copie `modelo/` para o scratchpad e rode `git init` lá, para poder desfazer.
