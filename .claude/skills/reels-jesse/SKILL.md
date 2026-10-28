@@ -12,8 +12,7 @@ Leia antes `/hyperframes` (contrato e ciclo de trabalho). Esta receita guarda o 
 | Pasta | O que é |
 | --- | --- |
 | `modelo/` | O Reels "POV: era só um portfólio" (Fazendinha), pronto para copiar. `gerar.py` gera `index.html` e `compositions/*`. Também traz SPEC, STORYBOARD, STORYLINES, REVIEW e os assets (telas, voz, efeitos, fontes, GSAP). |
-| `personagem/` | As folhas que ele mandou e os scripts. **Recorte as poses com `recortar_ia.py`** (IA BiRefNet via rembg, num venv com `pip install "rembg[cpu]"`): `python recortar_ia.py jesse` ou `ranya`. Ele substitui o recorte por cor do `poses.py`, que deixava fundo preso entre braço e corpo. |
-| `personagem/ (antigo)` | As duas folhas que ele mandou (`folha-expressoes.webp`, `folha-poses.webp`) e os scripts que montam o personagem. |
+| `personagem/` | As duas folhas que ele mandou (`folha-expressoes.webp`, `folha-poses.webp`) e os scripts que montam o personagem. **Recorte as poses com `recortar_ia.py`** (IA BiRefNet via rembg, num venv com `pip install "rembg[cpu]"`): `python recortar_ia.py jesse` ou `ranya`. Ele substitui o recorte por cor do `poses.py`, que deixava fundo preso entre braço e corpo. |
 | `personagem/final/` | As 8 caras prontas (`jesse-<cara>.webp`) e as camadas do gesto "mão no queixo" (`gesto-*.webp`). |
 | `personagem/poses/` | As 12 poses de corpo inteiro, com fundo transparente. `poses.json` dá a largura, a altura e o pé de cada uma. |
 | `personagem-ela/` | A Ranya (esposa do Jessé, Instagram @_ranyacoelho), para vídeos com os dois conversando: a folha `folha-poses-ela.webp`, o `poses_ela.py` que recorta e as 13 poses em `poses/` (neutro, sorriso, afirmativo, pensativo, brava, surpresa, triste, pensando, desconfiada, confiante, rindo, seria, de_lado), com o mesmo `poses.json`. **Não use a pose `confiante`:** na folha original o cotovelo direito dela termina reto na borda do quadro, e no vídeo o braço aparece cortado. |
