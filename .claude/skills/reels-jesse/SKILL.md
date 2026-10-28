@@ -53,7 +53,8 @@ Leia antes `/hyperframes` (contrato e ciclo de trabalho). Esta receita guarda o 
 Os posts saem pelo conector do Metricool, na marca **Byte Storm** (brandId `7687211`, Instagram @bytestormoficial, fuso `America/Sao_Paulo`).
 
 - **Colaborador em todos os posts:** sempre ponha **@c.j.coelho** como colaborador no Instagram, em `instagramData.collaborators: [{"username": "c.j.coelho", "deleted": false}]`.
-  - O post só aparece no perfil dele depois que ele aceita o convite no Instagram.
+  - Quando a Ranya aparece no vídeo, ponha também **@_ranyacoelho** como colaboradora.
+  - O post só aparece no perfil de cada colaborador depois que ele aceita o convite no Instagram.
   - Só vale para o Instagram. Facebook, TikTok e YouTube não têm colaborador.
 - **IA:** marque `isAiGenerated: true` nos Reels, porque a voz é de IA.
 - **Tipo:** Reels vão como `type: "REEL"`, com o vídeo final. Carrosséis vão como `type: "POST"`, com várias imagens em `media` (até 10, 1080×1350, mesmo estilo dos Reels).
