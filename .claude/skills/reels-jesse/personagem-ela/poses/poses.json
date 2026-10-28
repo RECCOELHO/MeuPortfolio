@@ -1,80 +1,80 @@
 {
  "neutro": {
-  "largura": 349,
-  "altura": 1179,
-  "pe_y": 1178,
-  "pe_x": 186
+  "largura": 353,
+  "altura": 1182,
+  "pe_y": 1181,
+  "pe_x": 185
  },
  "sorriso": {
-  "largura": 337,
-  "altura": 1175,
-  "pe_y": 1174,
-  "pe_x": 192
+  "largura": 342,
+  "altura": 1178,
+  "pe_y": 1177,
+  "pe_x": 176
  },
  "afirmativo": {
-  "largura": 340,
-  "altura": 1167,
-  "pe_y": 1166,
-  "pe_x": 179
- },
- "pensativo": {
-  "largura": 354,
-  "altura": 1170,
-  "pe_y": 1169,
-  "pe_x": 199
- },
- "brava": {
-  "largura": 349,
-  "altura": 1162,
-  "pe_y": 1161,
-  "pe_x": 177
- },
- "surpresa": {
-  "largura": 354,
-  "altura": 1171,
-  "pe_y": 1170,
+  "largura": 343,
+  "altura": 1172,
+  "pe_y": 1168,
   "pe_x": 194
  },
+ "pensativo": {
+  "largura": 359,
+  "altura": 1173,
+  "pe_y": 1172,
+  "pe_x": 195
+ },
+ "brava": {
+  "largura": 354,
+  "altura": 1166,
+  "pe_y": 1162,
+  "pe_x": 162
+ },
+ "surpresa": {
+  "largura": 358,
+  "altura": 1174,
+  "pe_y": 1173,
+  "pe_x": 174
+ },
  "triste": {
-  "largura": 307,
-  "altura": 1067,
-  "pe_y": 1066,
-  "pe_x": 170
+  "largura": 311,
+  "altura": 1073,
+  "pe_y": 1070,
+  "pe_x": 168
  },
  "pensando": {
-  "largura": 302,
-  "altura": 1056,
-  "pe_y": 1055,
-  "pe_x": 159
+  "largura": 306,
+  "altura": 1059,
+  "pe_y": 1056,
+  "pe_x": 164
  },
  "desconfiada": {
-  "largura": 308,
-  "altura": 1061,
-  "pe_y": 1060,
-  "pe_x": 160
+  "largura": 310,
+  "altura": 1066,
+  "pe_y": 1062,
+  "pe_x": 163
  },
  "confiante": {
-  "largura": 308,
-  "altura": 1058,
-  "pe_y": 1057,
-  "pe_x": 169
+  "largura": 311,
+  "altura": 1065,
+  "pe_y": 1064,
+  "pe_x": 155
  },
  "rindo": {
-  "largura": 293,
-  "altura": 1047,
-  "pe_y": 1046,
-  "pe_x": 158
+  "largura": 296,
+  "altura": 1049,
+  "pe_y": 1045,
+  "pe_x": 165
  },
  "seria": {
-  "largura": 283,
-  "altura": 1060,
-  "pe_y": 1059,
-  "pe_x": 150
+  "largura": 288,
+  "altura": 1065,
+  "pe_y": 1064,
+  "pe_x": 156
  },
  "de_lado": {
-  "largura": 263,
-  "altura": 1052,
+  "largura": 266,
+  "altura": 1053,
   "pe_y": 1051,
-  "pe_x": 135
+  "pe_x": 127
  }
 }

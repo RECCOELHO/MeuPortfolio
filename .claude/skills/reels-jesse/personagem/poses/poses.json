@@ -1,74 +1,74 @@
 {
  "neutro": {
-  "largura": 400,
-  "altura": 1137,
+  "largura": 385,
+  "altura": 1140,
   "pe_y": 1136,
-  "pe_x": 201
+  "pe_x": 197
  },
  "sorriso": {
-  "largura": 369,
-  "altura": 1131,
+  "largura": 373,
+  "altura": 1134,
   "pe_y": 1130,
-  "pe_x": 219
+  "pe_x": 204
  },
  "afirmativo": {
-  "largura": 398,
-  "altura": 1125,
-  "pe_y": 1124,
-  "pe_x": 207
+  "largura": 384,
+  "altura": 1130,
+  "pe_y": 1126,
+  "pe_x": 191
  },
  "pensativo": {
-  "largura": 346,
-  "altura": 1106,
-  "pe_y": 1105,
+  "largura": 350,
+  "altura": 1110,
+  "pe_y": 1106,
   "pe_x": 201
  },
  "raiva": {
-  "largura": 391,
-  "altura": 1106,
-  "pe_y": 1105,
+  "largura": 393,
+  "altura": 1107,
+  "pe_y": 1103,
   "pe_x": 227
  },
  "surpreso": {
-  "largura": 405,
-  "altura": 1089,
-  "pe_y": 1088,
-  "pe_x": 208
+  "largura": 410,
+  "altura": 1093,
+  "pe_y": 1090,
+  "pe_x": 171
  },
  "rindo": {
-  "largura": 356,
-  "altura": 1036,
-  "pe_y": 1035,
-  "pe_x": 194
+  "largura": 362,
+  "altura": 1040,
+  "pe_y": 1036,
+  "pe_x": 175
  },
  "triste": {
-  "largura": 329,
-  "altura": 999,
-  "pe_y": 998,
-  "pe_x": 168
+  "largura": 318,
+  "altura": 1003,
+  "pe_y": 999,
+  "pe_x": 175
  },
  "foto": {
-  "largura": 336,
-  "altura": 1032,
-  "pe_y": 1031,
-  "pe_x": 157
+  "largura": 340,
+  "altura": 1037,
+  "pe_y": 1036,
+  "pe_x": 159
  },
  "caminhando": {
-  "largura": 330,
-  "altura": 1026,
-  "pe_y": 1025,
-  "pe_x": 144
+  "largura": 332,
+  "altura": 1031,
+  "pe_y": 1029,
+  "pe_x": 132
  },
  "cabelo": {
-  "largura": 351,
-  "altura": 1027,
+  "largura": 354,
+  "altura": 1030,
   "pe_y": 1026,
-  "pe_x": 181
+  "pe_x": 182
  },
  "costas": {
-  "largura": 293,
-  "altura": 1019,
-  "pe_y": 1012,
-  "pe_x": 178
+  "largura": 297,
+  "altura": 1001,
+  "pe_y": 998,
+  "pe_x": 135
  }
 }
