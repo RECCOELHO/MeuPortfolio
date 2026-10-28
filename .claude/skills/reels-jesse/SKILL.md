@@ -34,6 +34,8 @@ Leia antes `/hyperframes` (contrato e ciclo de trabalho). Esta receita guarda o 
   - Legendas em Nunito 900, 60 px, um grupo por vez, centradas em `top: 1010px`.
   - Verde de acento `#3b7a3a`, só numa palavra por legenda (`*palavra*` no texto).
   - Fundo das cenas `#1a0a0d`.
+- **Sem faixas pretas:** ele não quer as faixas de cinema (130 px em cima e embaixo). O vídeo ocupa a tela inteira; não inclua a composição `cinema`.
+- **Fundo vivo, sem cara de prints:** use um cenário contínuo do começo ao fim (manchas de luz que mudam de cor com a história, partículas em profundidade, piso em perspectiva correndo), sem escurecer para preto entre as cenas; os elementos entram e saem com movimento (o modelo é `cenario()` e `cena_viva()` do Reel do casal).
 - **Telas:** sempre reais, capturadas do site e do jogo. Nunca invente uma tela.
 - **Final:** "jessecoelho.com.br · link na bio".
 - **Aprovação:** ele aprova o plano antes de montar.
