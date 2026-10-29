@@ -35,6 +35,12 @@ Leia antes `/hyperframes` (contrato e ciclo de trabalho). Esta receita guarda o 
   - Verde de acento `#3b7a3a`, só numa palavra por legenda (`*palavra*` no texto).
   - Fundo das cenas `#1a0a0d`.
 - **Sem faixas pretas:** ele não quer as faixas de cinema (130 px em cima e embaixo). O vídeo ocupa a tela inteira; não inclua a composição `cinema`.
+- **Elementos em 3D, fluidos:** todo vídeo novo tem objetos 3D de verdade (Three.js), não ícones chapados. Use um mundo 3D só, do começo ao fim, com a câmera sempre andando (pontos por tempo ligados por Catmull-Rom, sem parar) e objetos que se transformam de um momento para o outro em vez de trocar de tela. O modelo é `assets/mundo3d.js` do Reel do AD:
+  - **Ligação:** canvas 1080×1200 no `index.html` principal, com Three.js e o `RoundedBoxGeometry` copiados para `assets/vendor` (importmap local, sem CDN).
+  - **Tempos:** os momentos vêm de `window.T3D`, gerado pelo `gerar.py`. A cena é desenhada só no evento `hf-seek`.
+  - **Antes de desenhar:** a fonte Anton é carregada para as texturas de texto, com `window.__hf.buildReady`.
+  - **Por cima:** os títulos 2D ficam nas cenas, acima do canvas. No convite final, o canvas é apagado para 45%.
+  - **Tempo de render:** o 3D deixa o render mais lento, cerca de 15 min para 49 s em qualidade final.
 - **Fundo vivo, sem cara de prints:** use um cenário contínuo do começo ao fim (manchas de luz que mudam de cor com a história, partículas em profundidade, piso em perspectiva correndo), sem escurecer para preto entre as cenas; os elementos entram e saem com movimento (o modelo é `cenario()` e `cena_viva()` do Reel do casal).
 - **Telas:** sempre reais, capturadas do site e do jogo. Nunca invente uma tela.
 - **Final:** "jessecoelho.com.br · link na bio".
@@ -45,8 +51,13 @@ Leia antes `/hyperframes` (contrato e ciclo de trabalho). Esta receita guarda o 
   4. Só então faça o render final (`render -q delivery`).
 - **Voz:** a que ele escolheu é do ElevenLabs. **Nenhum Reel está pronto sem a voz do ElevenLabs.** A voz local (Kokoro) serve só para o rascunho; o vídeo só entra no cronograma depois que ele manda o MP3 e a voz é trocada.
   - Voz atual: "Mário — Excited, Constant and Cheerful", velocidade 1.00, estabilidade 50, similaridade 75, modelo v4 (usada no "Eu sou o Jessé"). Antes era a "Lendário — Cheerful, Vibrant and Fun".
+  - Para os Reels de T.I. e de serviços, ele usa "Lucas — Engaging, Captivating and Kind" (modelo v4). Foi usada no Reel do AD em 3D e no Reel de serviços.
   - Ele gera no site e manda o MP3, porque a rede da nuvem bloqueia o ElevenLabs.
   - Plano B, local: Kokoro `pm_alex`.
+
+## Ideias guardadas
+- **Um vídeo para cada site do portfólio:** cada projeto do jessecoelho.com.br ganha o seu Reel, mostrando o site real em 3D. A ideia é atrair clientes ("posso fazer algo assim para você").
+- **Reel de serviços** ("Seu negócio ainda depende só do Instagram?"): mostra o portfólio e a Fazendinha como prova e termina com "comenta SITE". O roteiro do direct para triar clientes está na conversa de 29/10.
 
 ## Publicação no Instagram (Metricool)
 
