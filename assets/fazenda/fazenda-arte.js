@@ -2887,6 +2887,54 @@
             bateria: 'carga', supercap: 'carga', estufa: 'estufa', reator: 'reator', hidreletrica: 'roda'
         };
         let energiaFrac = 0;   // 0..1, para as luzinhas das baterias
+        // a fábrica automática em uso: algum item da rede saindo dela ou chegando nela agora
+        // (null parada; senão o ícone do item e o quanto ele está na porta, 0..1)
+        function fabricaEmUso(c) {
+            const k = c.x + ',' + c.y, agoraMs = relogio();
+            let uso = null;
+            for (const v of viagensFn()) {
+                if (v.fab !== k) continue;
+                const f = (agoraMs - v.inicio) / v.dur;
+                if (f < -0.05 || f > 1.05) continue;
+                const perto = v.entra ? f : 1 - f;   // entrando: chega no fim; saindo: está no começo
+                const porta = perto > 0.8 ? Math.min(1, (perto - 0.8) / 0.2) : 0;
+                if (!uso || porta > uso.porta) uso = { icone: v.icone, porta };
+            }
+            return uso;
+        }
+        /* fábrica automática (2x2: duas prensas em cima, duas máquinas com telinha embaixo):
+           parada, as luzinhas piscam devagar e sai um fio de fumaça; trabalhando, as luzinhas
+           correm em verde, a telinha da esquerda mostra o item passando, a da direita uma barra
+           enchendo, a fumaça engrossa e solta faísca na porta quando um item entra ou sai */
+        function desenharFabrica(c, x, y, t, px) {
+            const uso = fabricaEmUso(c);
+            const leds = [[6, 4], [9, 4], [6, 6], [9, 6], [22, 4], [25, 4], [22, 6], [25, 6]];
+            if (uso) {
+                const passo = Math.floor(t / 120) % leds.length;
+                leds.forEach(([lx, ly], k) => px(x + lx, y + ly, k === passo || k === (passo + 4) % 8 ? '#7dff6a' : '#3c8c4a', 2, 1));
+                const tela = (sx, sy) => { q.fillStyle = 'rgba(125, 255, 106, 0.35)'; q.fillRect(x + sx, y + sy, 6, 5); };
+                tela(5, 19); tela(21, 19);
+                if (uso.icone != null) miniTile(uso.icone, x + 5, y + 18, 6);
+                const enche = Math.floor(t / 90) % 6;
+                px(x + 21, y + 22, '#7dff6a', enche + 1, 1);
+                if (uso.porta > 0) {   // a faísca na porta: quatro pontinhos abrindo
+                    const r = 2 + uso.porta * 5, cx = x + 16, cy = y + 16;
+                    q.globalAlpha = 1 - uso.porta * 0.6;
+                    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) px(cx + dx * r - 1, cy + dy * r - 1, '#fdf3a7', 2, 2);
+                    q.globalAlpha = 1;
+                }
+            } else if (Math.floor(t / 900) % 2) {
+                leds.forEach(([lx, ly], k) => { if (k % 3 === 0) px(x + lx, y + ly, '#fdbe53', 2, 1); });
+            }
+            const puffs = uso ? 4 : 2, ritmo = uso ? 700 : 1300;
+            for (let k = 0; k < puffs; k++) {
+                const f = (t / ritmo + k / puffs) % 1;
+                q.globalAlpha = 0.7 * (1 - f);
+                const tam = 2 + Math.round(f * (uso ? 3 : 2));
+                px(x + 26 + Math.sin(f * 6 + k) * 1.5 + f * 3, y + 2 - f * (uso ? 14 : 10), k % 2 ? '#8b9bb4' : '#c0cbdc', tam, tam);
+            }
+            q.globalAlpha = 1;
+        }
         function desenharMaquinas(lista, tempo) {
             const px = (x, y, cor, w = 1, h = 1) => { q.fillStyle = cor; q.fillRect(Math.round(x), Math.round(y), w, h); };
             for (const c of lista) {
@@ -2934,8 +2982,10 @@
                     }
                 } else if (tipo === 'robo') {
                     if (Math.floor(t / 700) % 3 === 0) px(x + 8, y + 1, '#7dff6a', 1, 1);   // luzinha da antena piscando
-                } else if (tipo === 'fumaca' || tipo === 'fabrica') {
-                    const sx = tipo === 'fabrica' ? x + 26 : x + 4, sy = tipo === 'fabrica' ? y + 2 : y + 3;
+                } else if (tipo === 'fabrica') {
+                    desenharFabrica(c, x, y, t, px);
+                } else if (tipo === 'fumaca') {
+                    const sx = x + 4, sy = y + 3;
                     for (let k = 0; k < 2; k++) {
                         const f = (t / 1300 + k / 2) % 1;
                         q.globalAlpha = 0.7 * (1 - f);
