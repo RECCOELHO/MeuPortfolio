@@ -262,8 +262,8 @@
         let faixaAtual = Number(store.get(LS.faixaMusica)) || 0; // 0: Tema da Roça 1, 1: Tema da Roça 2
 
         const FAIXAS = [
-            { nome: 'Fazenda Secreta (Tema 1)', src: 'assets/music/fazenda-tema-1.mp3' },
-            { nome: 'Fazenda Secreta (Tema 2)', src: 'assets/music/fazenda-tema-2.mp3' }
+            { nome: 'Fazenda Secreta (Tema 1)', src: 'assets/music/fazenda-tema-1.mp3?v=20261030' },
+            { nome: 'Fazenda Secreta (Tema 2)', src: 'assets/music/fazenda-tema-2.mp3?v=20261030' }
         ];
 
         let musicaAudio = null;
@@ -1346,6 +1346,8 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-10-30-musica', data: '30/10', titulo: 'Música sem pausa', itens: [
+            'As duas músicas da fazenda agora tocam <b>em loop sem parar</b>: acabou a pausa no fim e o silêncio antes de recomeçar. A volta para o começo cai no ritmo, sem dar para perceber a emenda.'] },
         { id: '2026-10-30-fabrica', data: '30/10', titulo: 'A fábrica automática trabalhando', itens: [
             'A <b>fábrica automática</b> é um pedaço do celeiro em qualquer lugar: encoste um cano nela e a rede pega e guarda no celeiro por ela, sem precisar levar o cano até o celeiro.',
             'Agora dá para <b>ver os itens</b> saindo da fábrica para as oficinas e voltando para ela pelo cano (antes, com a rede ligada só pela fábrica, eles não apareciam).',
