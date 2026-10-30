@@ -1346,6 +1346,10 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-10-30-fabrica', data: '30/10', titulo: 'A fábrica automática trabalhando', itens: [
+            'A <b>fábrica automática</b> é um pedaço do celeiro em qualquer lugar: encoste um cano nela e a rede pega e guarda no celeiro por ela, sem precisar levar o cano até o celeiro.',
+            'Agora dá para <b>ver os itens</b> saindo da fábrica para as oficinas e voltando para ela pelo cano (antes, com a rede ligada só pela fábrica, eles não apareciam).',
+            'E ela se mexe: as luzinhas correm, a telinha mostra o item que está passando, sai mais fumaça e uma faísca na porta quando um item entra ou sai.'] },
         { id: '2026-10-25-premios', data: '25/10', titulo: 'Os prêmios do evento agora têm uso', itens: [
             'No celeiro, os prêmios do evento da semana ganharam o botão <b>Usar</b>: o prêmio é gasto e liga um bônus. <b>Troféu de ouro</b>: 24 h de XP em dobro e plantas 2x mais rápidas. <b>Troféu de prata</b>: 24 h de XP em dobro. <b>Troféu de bronze</b>: 12 h de XP em dobro.',
             '<b>Ampulheta dourada</b>: 24 h de plantas 2x mais rápidas (o que plantar nasce com metade do tempo pronto). <b>Cofrinho de ouro</b>: 24 h de +50% nas vendas do celeiro (menos no que veio da feira). <b>Balança de ouro</b>: 24 h de +50% na colheita. <b>Sacola de ouro</b>: 24 h de ajudantes em dobro.',
@@ -2481,6 +2485,18 @@
         r.caminhos.set(chave, cam);
         return cam;
     }
+    // a ponta "celeiro" de uma viagem: o celeiro do mapa ou uma fábrica automática na mesma rede
+    // da outra ponta, a de caminho mais curto pelos canos ({ k, cam } ou null)
+    function pontaDoCeleiro(outra, saindo) {
+        const r = redeCanos(), eu = r.coisas.find((k) => k.x === outra.x && k.y === outra.y && k.tipo !== 'celeiro');
+        let melhor = null;
+        for (const k of r.coisas) {
+            if (k.papel !== 'celeiro' || (eu && ![...k.redes].some((n) => eu.redes.has(n)))) continue;
+            const cam = saindo ? caminhoCanos(k, outra) : caminhoCanos(outra, k);
+            if (cam.length && (!melhor || cam.length < melhor.cam.length)) melhor = { k, cam };
+        }
+        return melhor;
+    }
     // viagens dos itens (estado.viagens): o jogo só desenha cada uma enquanto ela acontece
     const pegada = (p) => {
         if (!p) return CELEIRO_PEGADA;
@@ -2504,10 +2520,20 @@
         for (const [k, livre] of filaRota) if (livre < t0) filaRota.delete(k);
         for (const g of lista) {
             if (viagensVistas.has(g.id) || itensAndando.length >= MAX_NA_TELA) continue;
-            const de = pegada(g.de), para = pegada(g.para);
+            let de = pegada(g.de), para = pegada(g.para), cam = [], fab = null;
             // pelo cano: sem caminho (a oficina ou o baú mudou de lugar, ou o cano saiu depois que a
             // viagem foi feita), não desenha; antes o item voava em linha reta por cima da fazenda
-            const cam = g.direto ? [] : caminhoCanos(de, para);
+            if (!g.direto && (!g.de || !g.para)) {
+                // do celeiro ou para o celeiro: a ponta é o celeiro do mapa ou a fábrica automática
+                // da mesma rede, a que tiver o caminho mais curto (antes só o celeiro do mapa: com a
+                // rede ligada só pela fábrica, o item não aparecia)
+                const m = pontaDoCeleiro(g.de ? de : para, !g.de);
+                if (m) {
+                    if (!g.de) de = m.k; else para = m.k;
+                    cam = m.cam;
+                    if (m.k.tipo === 'fabrica_auto') fab = m.k.x + ',' + m.k.y;
+                }
+            } else if (!g.direto) cam = caminhoCanos(de, para);
             if (!g.direto && !cam.length) continue;
             const pontos = [centro(de), ...cam, centro(para)];
             const dur = Math.max(900, (pontos.length - 1) * MS_POR_QUADRADO);
@@ -2516,7 +2542,7 @@
             const marcada = Date.parse(g.em);
             let inicio = Math.max(filaRota.get(rota) || 0, t0, marcada > t0 && marcada < t0 + 20000 ? marcada : 0);
             for (let n = Math.min(g.qtd || 1, MAX_POR_VIAGEM); n > 0 && itensAndando.length < MAX_NA_TELA; n--) {
-                itensAndando.push({ pontos, icone: A.cultura(g.item).item, inicio, dur, direto: g.direto });
+                itensAndando.push({ pontos, icone: A.cultura(g.item).item, inicio, dur, direto: g.direto, fab, entra: !g.para });
                 inicio += ESPACO_MS;
             }
             filaRota.set(rota, inicio);
