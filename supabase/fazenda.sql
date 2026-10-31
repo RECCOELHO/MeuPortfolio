@@ -9546,15 +9546,24 @@ $$;
 -- e está na sala (o lote chega a cada 2,5 s; o tempo que conta por lote é de no máximo 5 s).
 -- A sala pesa pouco: quem está nela e o placar ficam prontos por 1,5 s (fazenda_cache), um calcula e
 -- os outros leem; o lote e o painel não esperam na fila de uma chamada por vez (só a compra espera).
+-- O teste dos admins (p_teste = true, só para quem é admin ou dono): uma invasão separada
+-- ("varginha-teste"), aberta já, até domingo às 14h, com placar próprio, armas de graça e sem prêmio.
+-- Pode rodar este arquivo de novo (a versão de antes, sem o teste, é trocada por esta).
 -- ------------------------------------------------------------
+drop function if exists public.fazenda_invasao_regras();
+drop function if exists public.fazenda_invasao(text, boolean);
+drop function if exists public.fazenda_invasao_lote(text, jsonb);
+drop function if exists public.fazenda_invasao_comprar(text, text);
 
 -- as regras (as horas e os números moram aqui: para outra invasão, é só trocar)
-create or replace function public.fazenda_invasao_regras()
+create or replace function public.fazenda_invasao_regras(p_teste boolean default false)
 returns jsonb language sql stable as $$
   select jsonb_build_object(
-    'id', 'varginha-2026', 'nome', 'Invasão de Varginha',
-    'inicio', '2026-11-01 15:00:00-03'::timestamptz, 'fim', '2026-11-02 00:00:00-03'::timestamptz,
-    'nivel_min', 10,
+    'id', case when p_teste then 'varginha-teste' else 'varginha-2026' end, 'nome', 'Invasão de Varginha',
+    'teste', p_teste,
+    'inicio', case when p_teste then '2026-10-31 00:00:00-03' else '2026-11-01 15:00:00-03' end::timestamptz,
+    'fim', case when p_teste then '2026-11-01 14:00:00-03' else '2026-11-02 00:00:00-03' end::timestamptz,
+    'nivel_min', case when p_teste then 1 else 10 end,
     'toques_seg', 6, 'toques_max', 30,                 -- o saldo de toques: enche 6 por segundo, guarda até 30
     'intervalo', 1.2, 'vida', 9,                       -- um ET novo a cada 1,2 s; cada um fica 9 s na tela
     'hp_base', 4, 'hp_por_hora', 2,                    -- a cada hora os ETs aguentam mais
@@ -9785,14 +9794,15 @@ $$;
 
 -- O painel: as regras, a hora do servidor, você, o placar e (depois do fim) o seu prêmio.
 -- p_visto = true marca o prêmio como visto (o aviso "Você ganhou" não volta).
-create or replace function public.fazenda_invasao(p_token text, p_visto boolean default false)
+create or replace function public.fazenda_invasao(p_token text, p_visto boolean default false, p_teste boolean default false)
 returns jsonb language plpgsql security definer set search_path = public, extensions as $$
 declare
   v_id uuid := fazenda_auth_ler(p_token);
-  v_r  jsonb := fazenda_invasao_regras();
+  v_r  jsonb := fazenda_invasao_regras(p_teste);
   v_pr record;
   v_fech boolean;
 begin
+  if p_teste and not exists (select 1 from fazenda_jogadores where id = v_id and admin is not null) then raise exception 'sem_permissao'; end if;
   perform fazenda_invasao_fechar();
   v_fech := exists (select 1 from fazenda_invasao_fechamentos where evento = v_r->>'id');
   select * into v_pr from fazenda_invasao_premios where evento = v_r->>'id' and jogador_id = v_id;
@@ -9810,11 +9820,11 @@ $$;
 
 -- O lote: o que o jogo manda a cada 2,5 s enquanto você está na sala ({"k": toques} dos ETs em que você
 -- tocou; vazio também vale: diz que você continua na sala e devolve a sala).
-create or replace function public.fazenda_invasao_lote(p_token text, p_toques jsonb)
+create or replace function public.fazenda_invasao_lote(p_token text, p_toques jsonb, p_teste boolean default false)
 returns jsonb language plpgsql security definer set search_path = public, extensions as $$
 declare
   v_id    uuid := fazenda_auth_ler(p_token);
-  v_r     jsonb := fazenda_invasao_regras();
+  v_r     jsonb := fazenda_invasao_regras(p_teste);
   v_ev    text := v_r->>'id';
   m       record;
   v_pod   record;
@@ -9837,6 +9847,7 @@ declare
   v_cont  int := 0;
   c       record;
 begin
+  if p_teste and not exists (select 1 from fazenda_jogadores where id = v_id and admin is not null) then raise exception 'sem_permissao'; end if;
   if now() < (v_r->>'inicio')::timestamptz then raise exception 'invasao_antes'; end if;
   if now() >= (v_r->>'fim')::timestamptz then raise exception 'invasao_acabou'; end if;
   if (select fazenda_nivel_de(xp, nivel_trava) from fazenda_jogadores where id = v_id) < (v_r->>'nivel_min')::int then
@@ -9896,8 +9907,8 @@ begin
     subiu_em = case when v_pts > 0 then now() else subiu_em end
    where evento = v_ev and jogador_id = v_id;
 
-  -- a conquista do chefão (paga só quem gravou agora)
-  if v_chef > 0 then
+  -- a conquista do chefão (paga só quem gravou agora; no teste, não)
+  if v_chef > 0 and not p_teste then
     select * into c from fazenda_conquistas_tipos where id = 'invasao_chefe';
     insert into fazenda_conquistas (jogador_id, conquista) values (v_id, 'invasao_chefe') on conflict do nothing;
     if found then
@@ -9913,16 +9924,17 @@ $$;
 
 -- Comprar o próximo nível de uma arma (com moedas; só durante a invasão). Esta espera a fila do jogador,
 -- porque mexe nas moedas.
-create or replace function public.fazenda_invasao_comprar(p_token text, p_arma text)
+create or replace function public.fazenda_invasao_comprar(p_token text, p_arma text, p_teste boolean default false)
 returns jsonb language plpgsql security definer set search_path = public, extensions as $$
 declare
   v_id    uuid := fazenda_auth(p_token);
-  v_r     jsonb := fazenda_invasao_regras();
+  v_r     jsonb := fazenda_invasao_regras(p_teste);
   v_ev    text := v_r->>'id';
   v_nivel int;
   v_preco bigint;
   v_moedas int;
 begin
+  if p_teste and not exists (select 1 from fazenda_jogadores where id = v_id and admin is not null) then raise exception 'sem_permissao'; end if;
   if now() < (v_r->>'inicio')::timestamptz then raise exception 'invasao_antes'; end if;
   if now() >= (v_r->>'fim')::timestamptz then raise exception 'invasao_acabou'; end if;
   if (select fazenda_nivel_de(xp, nivel_trava) from fazenda_jogadores where id = v_id) < (v_r->>'nivel_min')::int then
@@ -9935,6 +9947,7 @@ begin
   select coalesce((armas->>p_arma)::int, 0) into v_nivel from fazenda_invasao where evento = v_ev and jogador_id = v_id for update;
   v_preco := fazenda_invasao_preco(v_r, p_arma, v_nivel);
   if v_preco is null then raise exception 'arma_maxima'; end if;
+  if p_teste then v_preco := 0; end if;   -- no teste dos admins, as armas são de graça
   select moedas into v_moedas from fazenda_jogadores where id = v_id for update;
   if v_moedas < v_preco then raise exception 'sem_moedas'; end if;
   update fazenda_jogadores set moedas = moedas - v_preco where id = v_id;
@@ -10248,7 +10261,7 @@ select public.fazenda_regra_nivel_aplicar() as jogadores_com_base;
 
 -- fase 94: a Invasão de Varginha
 revoke execute on function
-  public.fazenda_invasao_regras(),
+  public.fazenda_invasao_regras(boolean),
   public.fazenda_invasao_alien(int, jsonb),
   public.fazenda_invasao_preco(jsonb, text, int),
   public.fazenda_invasao_poder(jsonb, jsonb),
@@ -10259,9 +10272,9 @@ revoke execute on function
 from public, anon, authenticated;
 
 grant execute on function
-  public.fazenda_invasao(text, boolean),
-  public.fazenda_invasao_lote(text, jsonb),
-  public.fazenda_invasao_comprar(text, text)
+  public.fazenda_invasao(text, boolean, boolean),
+  public.fazenda_invasao_lote(text, jsonb, boolean),
+  public.fazenda_invasao_comprar(text, text, boolean)
 to anon, authenticated;
 
 -- o relógio do banco também fecha a invasão (de 5 em 5 min; depois de fechada, não faz nada)
