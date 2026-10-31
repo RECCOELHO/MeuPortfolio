@@ -1730,6 +1730,13 @@ body.construindo .status {
         margin: 0;
         background: var(--creme);
         box-shadow: 0 -3px 0 var(--o), 0 3px 0 var(--o), -3px 0 0 var(--o), 3px 0 0 var(--o), 0 8px 0 rgba(63, 38, 49, .25);
+        /* o menu rola: com muitos botões ele passava da barra de baixo e o fim (Ajuda, Som, Sair) sumia */
+        max-height: calc(100vh - 230px);
+        max-height: calc(100dvh - 230px - env(safe-area-inset-bottom));
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+        touch-action: pan-y;
     }
 
     .hud.menu-aberto .hud-botoes {

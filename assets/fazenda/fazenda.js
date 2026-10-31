@@ -256,9 +256,9 @@
     const moeda = (n) => `${ico('moeda', 14)}${n}`;
     // fase 94: números grandes curtos (1.000 vira 1k, 1.500 vira 1,5k, 2.250.000 vira 2,2M); arredonda
     // para baixo, para nunca mostrar mais do que tem
-    function curto(v) {
-        const n = Math.floor(Number(v) || 0), a = Math.abs(n);
-        const f = (x, s) => (x < 10 ? Math.floor(x * 10) / 10 : Math.floor(x)).toLocaleString('pt-BR') + s;
+    function curto(v, casas = 1) {   // casas: decimais quando fica abaixo de 10 (o XP usa 2: 1,31M)
+        const n = Math.floor(Number(v) || 0), a = Math.abs(n), p = Math.pow(10, casas);
+        const f = (x, s) => (x < 10 ? Math.floor(x * p) / p : Math.floor(x)).toLocaleString('pt-BR') + s;
         return a >= 1e9 ? f(n / 1e9, 'B') : a >= 1e6 ? f(n / 1e6, 'M') : a >= 1e3 ? f(n / 1e3, 'k') : String(n);
     }
     const itemDe = (k, px = 22) => spr(A.cultura(k.id).item, px);
@@ -1362,6 +1362,9 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-10-31-menu', data: '31/10', titulo: 'Menu que rola e XP com letra', itens: [
+            'No celular, o <b>menu (☰) rola</b>: dá para chegar até Ajuda, Som e Sair, que ficavam escondidos atrás da barra de baixo.',
+            'O <b>XP</b> no alto da tela também ficou curto: 1.315.314/1.346.711 virou <b>1,31M/1,34M</b>.'] },
         { id: '2026-10-31-invasao', data: '31/10', titulo: '👽 Invasão de Varginha: domingo, das 15h à meia-noite', itens: [
             'Em homenagem ao ET de Varginha, a nave pousou na fazenda! No <b>domingo (1/11), das 15h à meia-noite</b>, abre a <b>sala da invasão</b> (botão 👽 Invasão no menu): todo mundo que entrar se vê lá dentro, com a nave lá em cima e os ETs descendo.',
             '<b>Toque nos ETs</b>: o seu fazendeiro atira e cada acerto vale pontos. De hora em hora desce um <b>ET chefão</b>, que vale muito mais.',
@@ -3380,7 +3383,7 @@
         const faixa = j.xp_proximo - j.xp_nivel;
         const prog = (j.xp - j.xp_nivel) / faixa;
         el.xpBar.style.width = `${j.trava ? 100 : Math.min(100, prog * 100)}%`;
-        el.xp.textContent = j.trava ? `Falta: ${curtoFaltam(j.trava)}` : `${j.xp}/${j.xp_proximo}`;   // fase 90
+        el.xp.textContent = j.trava ? `Falta: ${curtoFaltam(j.trava)}` : `${curto(j.xp, 2)}/${curto(j.xp_proximo, 2)}`;   // fase 90; com letra: 1,31M/1,34M
         // a isca: o que vem no próximo nível fica sempre à vista, e a barra brilha quando falta pouco
         const hudAvatar = document.getElementById('hudAvatar');
         if (hudAvatar) hudAvatar.innerHTML = A.htmlAvatar(j.avatar, 40);
