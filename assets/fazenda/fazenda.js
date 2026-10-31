@@ -316,7 +316,7 @@
                 musicaAudio.src = faixa.src;
             }
             aplicarVolumeMusica();
-            if (!mudo && !pausado && volMusica > 0) {
+            if (!mudo && !pausado && volMusica > 0 && !document.hidden) {   // fase 98: fora do jogo não toca
                 const prom = musicaAudio.play();
                 if (prom && typeof prom.catch === 'function') {
                     prom.catch(() => { /* aguarda interação do usuário */ });
@@ -333,12 +333,26 @@
             }
         }
 
+        // fase 98: o jogo saiu da tela (outro app, celular bloqueado, outra aba): a música e os efeitos param;
+        // ao voltar, a música continua de onde estava
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                if (musicaAudio) musicaAudio.pause();
+                if (ctx && ctx.state === 'running') ctx.suspend().catch(() => {});
+            } else if (desbloqueado) {
+                if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {});
+                tocarMusica();
+            }
+        });
+        window.addEventListener('pagehide', () => { if (musicaAudio) musicaAudio.pause(); });
+
         // Tenta iniciar a música na primeira interação do jogador com a página
         ['click', 'keydown', 'touchstart'].forEach((ev) => {
             window.addEventListener(ev, desbloquearAudio, { once: true, passive: true });
         });
 
         function nota(freq, ini, dur, tipo = 'square', vol = 0.05) {
+            if (document.hidden) return;   // fase 98: fora do jogo não toca efeito
             const c = audio();
             if (!c || mudo || pausado || volEfeitos <= 0) return;
             const o = c.createOscillator(), g = c.createGain(), t = c.currentTime + ini;
@@ -372,7 +386,7 @@
                 aplicarVolumeMusica();
                 if (musicaAudio) {
                     if (pausado) musicaAudio.pause();
-                    else if (!mudo && volMusica > 0) musicaAudio.play().catch(() => {});
+                    else if (!mudo && volMusica > 0 && !document.hidden) musicaAudio.play().catch(() => {});
                 }
             },
             alternar() {
@@ -1419,6 +1433,10 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-10-31-ajustes', data: '31/10', titulo: 'Ajustes: botões, som e ícones', itens: [
+            'No <b>Construir</b>, os botões Mover, Guardar, Vender e <b>Pronto</b> cabem na tela do celular (o Pronto ficava cortado).',
+            'A <b>música para</b> quando você sai do jogo (outro aplicativo, celular bloqueado ou outra aba) e volta quando você volta.',
+            'Os ícones da Invasão, dos Itens, dos Funcionários, do depósito e das armas ganharam desenho em <b>pixel art</b>, como o resto do jogo.'] },
         { id: '2026-10-31-praia', data: '31/10', titulo: '🏖️ A praia com vendedores', itens: [
             'A <b>praia ganhou movimento</b>: de dia aparecem <b>banhistas</b> nos guarda-sóis e nas cadeiras, e fregueses nas barracas.',
             'A <b>barraca de coco</b> agora <b>vende</b> o coco do seu celeiro para eles, a 140 cada (no celeiro vale 70), e tem o <b>carrinho de milho</b> novo (Construir → Praia), que vende o milho cozido a 50 (no celeiro, 12).',
@@ -1958,7 +1976,7 @@
                  moedas: Math.max(p.min_moedas, Math.round(p.moedas * Math.pow(p.fator, pos - 1))) };
     }
     const nomeArma = (id) => ((regrasInvasao().armas || []).find((a) => a.id === id) || { nome: id }).nome;
-    const ICONE_ARMA = { forcado: '🔱', espantalho: '🎃', trator: '🚜', drone: '🛸' };
+    const ICONE_ARMA = { forcado: ico('forcado', 30), espantalho: ico('espantalho', 30), trator: ico('trator', 34), drone: ico('drone', 32) };   // fase 98: pixel art
     function efeitoArma(a, n) {
         return a.tipo === 'toque' ? `+${a.efeito * n} de dano por toque` : `${numero(a.efeito * n)} de dano por segundo, sozinho`;
     }
@@ -1984,7 +2002,7 @@
         }
         if (f === 'durante') {
             html += nivelOk
-                ? `<p><button type="button" class="botao verde" data-invasao-entrar>👽 Entrar na sala${sala.na_sala ? ` (${sala.na_sala} lá dentro)` : ''}</button></p>`
+                ? `<p><button type="button" class="botao verde" data-invasao-entrar>${ico('et', 18)} Entrar na sala${sala.na_sala ? ` (${sala.na_sala} lá dentro)` : ''}</button></p>`
                 : `<p class="aviso">A sala abre para quem está no nível ${R.nivel_min} ou mais.</p>`;
         }
         if (invasao.premio) {
@@ -2030,12 +2048,12 @@
         const R = regrasInvasao(), eu = (invasao && invasao.eu) || {}, sala = (invasao && invasao.sala) || {};
         const falta = R ? Date.parse(R.fim) - agora() : 0;
         return `<button type="button" class="botao pequeno creme" data-invasao-sair>← Fazenda</button>
-            <span class="chip">${R && R.teste ? '🧪 TESTE · ' : '👽 '}Acaba em ${fmtTempo(Math.max(0, falta))}</span>
+            <span class="chip">${R && R.teste ? '🧪 TESTE · ' : ico('et', 14) + ' '}Acaba em ${fmtTempo(Math.max(0, falta))}</span>
             <button type="button" class="botao pequeno verde mar-direita" data-invasao-armas>Armas</button>
             <span class="mar-linha">
-                <span class="chip">⭐ ${curto(eu.pontos || 0)} pontos</span>
-                ${eu.posicao ? `<span class="chip">🏆 ${eu.posicao}º de ${sala.participantes || 1}</span>` : ''}
-                <span class="chip">👥 ${sala.na_sala || 1} na sala</span>
+                <span class="chip">${ico('xp', 14)} ${curto(eu.pontos || 0)} pontos</span>
+                ${eu.posicao ? `<span class="chip">${ico('medalha', 14)} ${eu.posicao}º de ${sala.participantes || 1}</span>` : ''}
+                <span class="chip">${ico('funcionario', 14)} ${sala.na_sala || 1} na sala</span>
                 <button type="button" class="botao pequeno creme" data-invasao-placar>Placar</button>
             </span>`;
     }
@@ -2097,7 +2115,7 @@
                 if (invasao) invasao.eu = r.eu;
                 desenharHud();
                 som.tocar('construir');
-                toast(`${ICONE_ARMA[id] || ''} ${esc(nomeArma(id))} no nível ${r.nivel}!`);
+                toast(`${ico(id, 18)} ${esc(nomeArma(id))} no nível ${r.nivel}!`);
                 if (painelAtual === 'invasaoArmas') abrirPainel('invasaoArmas', true);
                 if (invasaoCena) invasaoCena.atualizar();
             } catch (e) {
@@ -3318,7 +3336,7 @@
         const sel = tipoItem(constr.tipo);
         if (c) return mostrarStatus(`${A.htmlItem(c.tipo, 22)} ${esc(it ? it.nome : c.tipo)}. ${it && it.descricao ? esc(it.descricao) + ' ' : ''}Toque nele para mudar de lugar, ou use Guardar (vai para o depósito) ou Vender.`);
         if (sel && sel.id === 'canteiro') return mostrarStatus(`${A.htmlItem('canteiro', 22)} Toque para colocar um canteiro (sobram ${canteirosLivres()}).`);
-        mostrarStatus(sel ? `${A.htmlItem(sel.id, 22)} Toque para colocar ${esc(sel.nome.toLowerCase())} (${noDeposito(sel.id) ? `📦 do depósito, de graça: tem ${noDeposito(sel.id)}` : cercadoGratis(sel) ? 'de graça' : moeda(sel.custo)}).` : 'Escolha um item na barra de baixo.');
+        mostrarStatus(sel ? `${A.htmlItem(sel.id, 22)} Toque para colocar ${esc(sel.nome.toLowerCase())} (${noDeposito(sel.id) ? `${ico('caixa', 14)} do depósito, de graça: tem ${noDeposito(sel.id)}` : cercadoGratis(sel) ? 'de graça' : moeda(sel.custo)}).` : 'Escolha um item na barra de baixo.');
     }
 
     function abrirConstrucao() {
@@ -3355,7 +3373,7 @@
         if (!S || !S.itens) return;
         const nDep = totalDeposito();
         if (constr.aba === 'guardados' && !nDep) constr.aba = 'plantacao';
-        const abas = [...(nDep ? [['guardados', `📦 Guardados (${nDep})`]] : []), ['plantacao', 'Plantação'], ['pomar', 'Pomar'], ['bichos', 'Bichos'], ['oficina', 'Oficinas'], ['maquina', 'Máquinas'], ['energia', 'Energia'], ['caminho', 'Cercas e caminhos'], ['natureza', 'Natureza'], ['objeto', 'Objetos'], ['construcao', 'Casas'], ['praia', 'Praia']];
+        const abas = [...(nDep ? [['guardados', `${ico('caixa', 14)} Guardados (${nDep})`]] : []), ['plantacao', 'Plantação'], ['pomar', 'Pomar'], ['bichos', 'Bichos'], ['oficina', 'Oficinas'], ['maquina', 'Máquinas'], ['energia', 'Energia'], ['caminho', 'Cercas e caminhos'], ['natureza', 'Natureza'], ['objeto', 'Objetos'], ['construcao', 'Casas'], ['praia', 'Praia']];
         el.constrAbas.innerHTML = abas.map(([id, txt]) =>
             `<button type="button" data-constr-aba="${id}" class="${constr.aba === id ? 'ativa' : ''}">${txt}</button>`).join('');
         // por nível (o que já libera primeiro); no mesmo nível, a ordem do catálogo. A ordem do catálogo
@@ -3373,7 +3391,7 @@
             const falta = !!(S.jogador.trava && (S.jogador.trava.faltam || []).includes(i.id));   // fase 90: falta para subir
             return `<button type="button" class="paleta-item${sel ? ' selecionado' : ''}${travado ? ' travado' : ''}${falta ? ' falta-nivel' : ''}" data-item="${esc(i.id)}" title="${esc(i.nome)}${falta ? ' (falta para passar de nível)' : contaNivel(i) ? ' (conta para passar de nível)' : ''}${i.descricao ? ': ' + esc(i.descricao) : ''}">
                 ${travado ? ico('cadeado', 18) : A.htmlItem(i.id, 32)}
-                ${dep ? `<b class="paleta-dep" title="${dep} no depósito">📦${dep}</b>` : ''}
+                ${dep ? `<b class="paleta-dep" title="${dep} no depósito">${ico('caixa', 10)}${dep}</b>` : ''}
                 <small>${travado ? `Nv ${i.nivel_min}` : preco}</small>
             </button>`;
         }).join('');
@@ -3450,7 +3468,7 @@
             colocar(S);
             desenharHud();
             som.tocar('construir');
-            flutuarTile(x, y, doDep ? '📦 Do depósito' : custo ? `−${custo} ${ico('moeda', 16)}` : 'De graça!');
+            flutuarTile(x, y, doDep ? `${ico('caixa', 14)} Do depósito` : custo ? `−${custo} ${ico('moeda', 16)}` : 'De graça!');
             enfileirarOtimista(colocar, () => rpc('fazenda_construir', { p_token: token, p_tipo: it.id, p_x: x, p_y: y }))
                 .then((r) => {
                     if (r && r.deposito) { deposito = r.deposito; desenharPaleta(); }
@@ -3523,7 +3541,7 @@
             deposito[tipo] = noDeposito(tipo) + 1;
             desenharPaleta();
             som.tocar('construir');
-            flutuarTile(ax, ay, '📦 Guardado');
+            flutuarTile(ax, ay, `${ico('caixa', 14)} Guardado`);
             const o = { refazer: tirar };
             otimistas.add(o);
             enfileirar([], async () => {
@@ -4940,21 +4958,21 @@
             el.painelTitulo.innerHTML = `${itemDe(culturas.ancora || { id: 'ancora' }, 30)} Píer`;
             corpo.innerHTML = htmlPier();
         } else if (nome === 'invasao') {   // fase 94: a Invasão de Varginha
-            el.painelTitulo.innerHTML = '👽 Invasão de Varginha';
+            el.painelTitulo.innerHTML = `${ico('et', 28)} Invasão de Varginha`;
             corpo.innerHTML = htmlInvasao();
             if (!soAtualizar) carregarInvasao();
         } else if (nome === 'invasaoArmas') {
-            el.painelTitulo.innerHTML = '🔱 Armas contra os ETs';
+            el.painelTitulo.innerHTML = `${ico('forcado', 26)} Armas contra os ETs`;
             corpo.innerHTML = htmlInvasaoArmas();
         } else if (nome === 'invasaoPremio') {
-            el.painelTitulo.innerHTML = '👽 Você ganhou!';
+            el.painelTitulo.innerHTML = `${ico('et', 28)} Você ganhou!`;
             corpo.innerHTML = htmlInvasaoPremio();
             carregarInvasao(true);
         } else if (nome === 'funcionarios') {   // fase 97: os funcionários
-            el.painelTitulo.innerHTML = '👷 Funcionários';
+            el.painelTitulo.innerHTML = `${ico('funcionario', 28)} Funcionários`;
             corpo.innerHTML = htmlFuncionarios();
         } else if (nome === 'itens') {   // fase 96: os itens especiais
-            el.painelTitulo.innerHTML = '🎒 Itens especiais';
+            el.painelTitulo.innerHTML = `${ico('mochila', 28)} Itens especiais`;
             corpo.innerHTML = htmlItens();
         } else if (nome === 'evento') {   // fase 63: o evento da semana
             el.painelTitulo.innerHTML = `${itemDe(culturas.trofeu_ouro || { id: 'trofeu_ouro' }, 30)} Evento da semana`;
@@ -5323,7 +5341,7 @@
     function htmlLojaAjudantes() {
         const tipos = S.ajudantes_tipos || [];
         if (!tipos.length) return '<p class="vazio-msg">Os ajudantes chegam em breve.</p>';
-        return '<p><button type="button" class="botao pequeno creme" data-painel-ir="funcionarios">👷 Gerenciar todos os funcionários</button></p><div class="lista">' + tipos.map((t) => {
+        return `<p><button type="button" class="botao pequeno creme" data-painel-ir="funcionarios">${ico('funcionario', 16)} Gerenciar todos os funcionários</button></p><div class="lista">` + tipos.map((t) => {
             const h = meuAjudante(t.id), nivel = h ? h.nivel : 0;
             const travado = !h && t.nivel_min > S.jogador.nivel;
             const estrelas = [1, 2, 3, 4, 5].map((n) => (n <= nivel ? '★' : '☆')).join('');
@@ -7051,7 +7069,7 @@
             atualizarModo();
             mostrarStatus(it.id === 'canteiro'
                 ? `${A.htmlItem('canteiro', 22)} Canteiro: toque nos quadrados livres (sobram ${canteirosLivres()}). Lado a lado eles viram fileiras.`
-                : `${A.htmlItem(it.id, 22)} ${esc(it.nome)} (${noDeposito(it.id) ? `📦 ${noDeposito(it.id)} no depósito: sai de graça` : cercadoGratis(it) ? 'o seu sai de graça' : moeda(it.custo)})${it.descricao ? ': ' + esc(it.descricao) : ''} Toque nos quadrados livres.`);
+                : `${A.htmlItem(it.id, 22)} ${esc(it.nome)} (${noDeposito(it.id) ? `${ico('caixa', 14)} ${noDeposito(it.id)} no depósito: sai de graça` : cercadoGratis(it) ? 'o seu sai de graça' : moeda(it.custo)})${it.descricao ? ': ' + esc(it.descricao) : ''} Toque nos quadrados livres.`);
             return;
         }
         const ferr = e.target.closest('[data-ferramenta]');
@@ -7064,7 +7082,7 @@
             atualizarModo();
             mostrarStatus(constr.modo === 'mover' ? 'Mover: toque num item ou canteiro e depois no lugar novo.'
                 : constr.modo === 'vender' ? 'Vender: toque num item para tirar e receber metade do que pagou (ou num canteiro vazio).'
-                : 'Guardar: toque num item para levar para o depósito (sai inteiro; aparece com 📦 na barra para colocar de novo, de graça).');
+                : `Guardar: toque num item para levar para o depósito (sai inteiro; aparece com ${ico('caixa', 14)} na barra para colocar de novo, de graça).`);
         }
     });
 

@@ -1065,7 +1065,16 @@
         escudo: ['.ooooooo.', 'oBBbbbBBo', 'oBbwbbbBo', 'oBbbbbbBo', 'oBbbbbbBo', '.oBbbbBo.', '.oBbbbBo.', '..oBbBo..', '...oBo...', '....o....'],
         medalha_off: ['.oo...oo.', '.oSo.oSo.', '..oSoSo..', '...ooo...', '..ossso..', '.ossssSo.', '.ossssSo.', '.osssSSo.', '..oSSSo..', '...ooo...'],
         som: ['....o....', '...oo.o..', 'oooko..o.', 'okkko.o.o', 'okkko.o.o', 'okkko.o.o', 'oooko..o.', '...oo.o..', '....o....'],
-        mudo: ['....o....', '...oo....', 'oooko.o.o', 'okkko..o.', 'okkko.o.o', 'okkko....', 'oooko....', '...oo....', '....o....']
+        mudo: ['....o....', '...oo....', 'oooko.o.o', 'okkko..o.', 'okkko.o.o', 'okkko....', 'oooko....', '...oo....', '....o....'],
+        // fase 98: os ícones das telas novas (a invasão, os itens, os funcionários, o depósito e as armas)
+        et: ['..o.o.o..', '.odododo.', 'odddddddo', 'orrdddrro', 'orwrdrwro', 'odrrdrrdo', '.odddddo.', '..odndo..', '...ooo...'],
+        mochila: ['...ooo...', '..o...o..', '.ooooooo.', 'otttttddo', 'otttttddo', 'ooooooooo', 'otyyyttdo', 'otyoyttdo', 'otttttddo', '.ooooooo.'],
+        funcionario: ['...ooo...', '..oyyyo..', '.oyyyyyo.', 'ooooooooo', '.okkkkko.', '.okokoko.', '.okkkkko.', '..ooooo..', '.oBBBBBo.', 'oBBBBBBBo'],
+        caixa: ['ooooooooo', 'ottttttto', 'odtdtdtdo', 'ooooooooo', 'ottttttto', 'odtdtdtdo', 'ottttttto', 'ooooooooo'],
+        forcado: ['.y.......y.', 'oso.oso.oso', 'oso.oso.oso', 'oso.oso.oso', 'ossssssssso', '.oooosoooo.', '....oto....', '....oto....', '....odo....', '....odo....', '....ooo....'],
+        espantalho: ['...ooooo...', '..oyyyyyo..', 'ooooooooooo', '..ossssso..', '..osrsrso..', '..ossssso..', 'ooooooooooo', 'ottttttttto', 'ooooBBBoooo', '...oBBBo...', '...oBoBo...', '...oo.oo...'],
+        trator: ['..oooo.......', '..obbo..ooooo', 'ooooooooSSSSo', 'orrrrrroooooo', 'orrrrrrrrro..', 'ooooooooooo..', 'oSSSo...oSo..', 'oSoSo...ooo..', 'oSSSo........', '.ooo.........'],
+        drone: ['SSS.....SSS', '.o.......o.', 'ooooooooooo', '..ossssso..', '..osbrbso..', '...ooooo...', '....oSo....', '...g.g.g...', '..g..g..g..']
     };
 
     const icones = {};
