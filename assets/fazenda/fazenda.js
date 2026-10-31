@@ -1816,7 +1816,7 @@
        O painel (fazenda_invasao: regras, você, o placar e o prêmio), a loja de armas e a sala (a cena
        em fazenda-invasao.js; o lote de toques vai a cada 2,5 s em fazenda_invasao_lote). */
     const INVASAO_VER_ATE = Date.parse('2026-11-08T00:00:00-03:00');   // depois disso o jogo nem pergunta
-    let invasao = null, invasaoCena = null, invasaoCarregando = false;
+    let invasao = null, invasaoCena = null, invasaoCarregando = false, invasaoTeste = false;   // invasaoTeste: a sala de teste dos admins
     const regrasInvasao = () => (invasao && invasao.regras) || null;
     function faseInvasao() {
         const R = regrasInvasao();
@@ -1827,7 +1827,7 @@
     function carregarInvasao(marcarVisto) {
         if (!S || invasaoCarregando || Date.now() > INVASAO_VER_ATE) return Promise.resolve(null);
         invasaoCarregando = true;
-        return rpc('fazenda_invasao', { p_token: token, p_visto: !!marcarVisto }).then((r) => {
+        return rpc('fazenda_invasao', invasaoTeste ? { p_token: token, p_visto: !!marcarVisto, p_teste: true } : { p_token: token, p_visto: !!marcarVisto }).then((r) => {
             invasao = r;
             atualizarHudInvasao();
             if (painelAtual === 'invasao' || painelAtual === 'invasaoArmas') abrirPainel(painelAtual, true);
@@ -1872,6 +1872,10 @@
         const premios = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((p) => { const x = premioInvasao(p); return `<span class="chip">${p}º ${ico('diamante', 12)} ${x.diamantes} + ${ico('moeda', 12)} ${curto(x.moedas)}</span>`; }).join('');
         let html = `<p class="fala">Em 1996, Varginha viu um ET. Agora a nave voltou, e dessa vez veio para a <b>fazenda</b>! Entre na sala, onde todo mundo se vê, e <b>toque nos ETs</b>: o seu fazendeiro atira e cada acerto vale pontos. De hora em hora desce um <b>ET chefão</b>, que vale muito mais.</p>
             <p>${quando}</p>`;
+        if (S.jogador.admin && !R.teste) {
+            html += `<div class="evento-cat"><b>🧪 Teste dos admins</b><p class="det">Uma sala separada, aberta até domingo às 14h: o mesmo jogo, mas com placar próprio, armas de graça e sem prêmio. Só admins entram.</p>
+                <p><button type="button" class="botao creme" data-invasao-teste>🧪 Testar a sala agora</button></p></div>`;
+        }
         if (f === 'durante') {
             html += nivelOk
                 ? `<p><button type="button" class="botao verde" data-invasao-entrar>👽 Entrar na sala${sala.na_sala ? ` (${sala.na_sala} lá dentro)` : ''}</button></p>`
@@ -1920,7 +1924,7 @@
         const R = regrasInvasao(), eu = (invasao && invasao.eu) || {}, sala = (invasao && invasao.sala) || {};
         const falta = R ? Date.parse(R.fim) - agora() : 0;
         return `<button type="button" class="botao pequeno creme" data-invasao-sair>← Fazenda</button>
-            <span class="chip">👽 Acaba em ${fmtTempo(Math.max(0, falta))}</span>
+            <span class="chip">${R && R.teste ? '🧪 TESTE · ' : '👽 '}Acaba em ${fmtTempo(Math.max(0, falta))}</span>
             <button type="button" class="botao pequeno verde mar-direita" data-invasao-armas>Armas</button>
             <span class="mar-linha">
                 <span class="chip">⭐ ${curto(eu.pontos || 0)} pontos</span>
@@ -1948,7 +1952,7 @@
             painelAberto: () => !!painelAtual,
             som: (n) => som.tocar(n),
             lote: async (toques) => {
-                const r = await rpc('fazenda_invasao_lote', { p_token: token, p_toques: toques });
+                const r = await rpc('fazenda_invasao_lote', invasaoTeste ? { p_token: token, p_toques: toques, p_teste: true } : { p_token: token, p_toques: toques });
                 if (invasao) { invasao.eu = r.eu; invasao.sala = r.sala; }
                 return r;
             },
@@ -1968,12 +1972,21 @@
         cena.pausar(false);
         document.body.classList.remove('no-mar');
         if (painelAtual === 'invasaoArmas') fecharPainel();
+        if (invasaoTeste) { invasaoTeste = false; invasao = null; carregarInvasao(); }   // volta para a invasão de verdade
+    }
+    // o teste dos admins: carrega a invasão de teste e entra na sala
+    async function testarInvasao() {
+        if (!S || !S.jogador.admin || invasaoCena) return;
+        invasaoTeste = true;
+        const r = await carregarInvasao();
+        if (!r) { invasaoTeste = false; toast('Não deu para abrir o teste. Rodou o fase94.sql novo?', 'erro'); return; }
+        abrirInvasao();
     }
     function comprarArma(id, botao) {
         if (botao) botao.disabled = true;
         enfileirar([], async () => {
             try {
-                const r = await rpc('fazenda_invasao_comprar', { p_token: token, p_arma: id });
+                const r = await rpc('fazenda_invasao_comprar', invasaoTeste ? { p_token: token, p_arma: id, p_teste: true } : { p_token: token, p_arma: id });
                 S.jogador.moedas = r.moedas;
                 if (invasao) invasao.eu = r.eu;
                 desenharHud();
@@ -6054,6 +6067,7 @@
         }
         if (e.target.closest('[data-mar-ir]')) { if (mar) fecharPainel(); else abrirMar(); return; }   // fase 62: o alto-mar
         if (e.target.closest('[data-invasao-entrar]')) { abrirInvasao(); return; }   // fase 94
+        if (e.target.closest('[data-invasao-teste]')) { testarInvasao(); return; }
         const arma = e.target.closest('[data-invasao-comprar]');
         if (arma) { comprarArma(arma.dataset.invasaoComprar, arma); return; }
         if (e.target.closest('[data-mar-painel]')) { abrirPainel('mar'); return; }
