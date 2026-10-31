@@ -12,9 +12,10 @@ Leia antes `/hyperframes` (contrato e ciclo de trabalho). Esta receita guarda o 
 | Pasta | O que é |
 | --- | --- |
 | `modelo/` | O Reels "POV: era só um portfólio" (Fazendinha), pronto para copiar. `gerar.py` gera `index.html` e `compositions/*`. Também traz SPEC, STORYBOARD, STORYLINES, REVIEW e os assets (telas, voz, efeitos, fontes, GSAP). |
-| `personagem/` | As duas folhas que ele mandou (`folha-expressoes.webp`, `folha-poses.webp`) e os scripts que montam o personagem. |
+| `personagem/` | As duas folhas que ele mandou (`folha-expressoes.webp`, `folha-poses.webp`) e os scripts que montam o personagem. **Recorte as poses com `recortar_ia.py`** (IA BiRefNet via rembg, num venv com `pip install "rembg[cpu]"`): `python recortar_ia.py jesse` ou `ranya`. Ele substitui o recorte por cor do `poses.py`, que deixava fundo preso entre braço e corpo. |
 | `personagem/final/` | As 8 caras prontas (`jesse-<cara>.webp`) e as camadas do gesto "mão no queixo" (`gesto-*.webp`). |
 | `personagem/poses/` | As 12 poses de corpo inteiro, com fundo transparente. `poses.json` dá a largura, a altura e o pé de cada uma. |
+| `personagem-ela/` | A Ranya (esposa do Jessé, Instagram @_ranyacoelho), para vídeos com os dois conversando: a folha `folha-poses-ela.webp`, o `poses_ela.py` que recorta e as 13 poses em `poses/` (neutro, sorriso, afirmativo, pensativo, brava, surpresa, triste, pensando, desconfiada, confiante, rindo, seria, de_lado), com o mesmo `poses.json`. **Não use a pose `confiante`:** na folha original o cotovelo direito dela termina reto na borda do quadro, e no vídeo o braço aparece cortado. |
 | `ferramentas/` | Scripts para cortar e conferir a voz (`voz-*`) e para capturar as telas (`captura/`). |
 
 ## O que ele já decidiu
@@ -33,6 +34,14 @@ Leia antes `/hyperframes` (contrato e ciclo de trabalho). Esta receita guarda o 
   - Legendas em Nunito 900, 60 px, um grupo por vez, centradas em `top: 1010px`.
   - Verde de acento `#3b7a3a`, só numa palavra por legenda (`*palavra*` no texto).
   - Fundo das cenas `#1a0a0d`.
+- **Sem faixas pretas:** ele não quer as faixas de cinema (130 px em cima e embaixo). O vídeo ocupa a tela inteira; não inclua a composição `cinema`.
+- **Elementos em 3D, fluidos:** todo vídeo novo tem objetos 3D de verdade (Three.js), não ícones chapados. Use um mundo 3D só, do começo ao fim, com a câmera sempre andando (pontos por tempo ligados por Catmull-Rom, sem parar) e objetos que se transformam de um momento para o outro em vez de trocar de tela. O modelo é `assets/mundo3d.js` do Reel do AD:
+  - **Ligação:** canvas 1080×1200 no `index.html` principal, com Three.js e o `RoundedBoxGeometry` copiados para `assets/vendor` (importmap local, sem CDN).
+  - **Tempos:** os momentos vêm de `window.T3D`, gerado pelo `gerar.py`. A cena é desenhada só no evento `hf-seek`.
+  - **Antes de desenhar:** a fonte Anton é carregada para as texturas de texto, com `window.__hf.buildReady`.
+  - **Por cima:** os títulos 2D ficam nas cenas, acima do canvas. No convite final, o canvas é apagado para 45%.
+  - **Tempo de render:** o 3D deixa o render mais lento, cerca de 15 min para 49 s em qualidade final.
+- **Fundo vivo, sem cara de prints:** use um cenário contínuo do começo ao fim (manchas de luz que mudam de cor com a história, partículas em profundidade, piso em perspectiva correndo), sem escurecer para preto entre as cenas; os elementos entram e saem com movimento (o modelo é `cenario()` e `cena_viva()` do Reel do casal).
 - **Telas:** sempre reais, capturadas do site e do jogo. Nunca invente uma tela.
 - **Final:** "jessecoelho.com.br · link na bio".
 - **Aprovação:** ele aprova o plano antes de montar.
@@ -40,10 +49,34 @@ Leia antes `/hyperframes` (contrato e ciclo de trabalho). Esta receita guarda o 
   2. Escreva o SPEC.md e o storyboard.
   3. Mande o rascunho (`render -q draft`) e espere a aprovação.
   4. Só então faça o render final (`render -q delivery`).
-- **Voz:** a que ele escolheu é do ElevenLabs.
-  - Voz "Lendário — Cheerful, Vibrant and Fun", velocidade 1.00, estabilidade 50, similaridade 75, modelo v4.
+- **Voz:** a que ele escolheu é do ElevenLabs. **Nenhum Reel está pronto sem a voz do ElevenLabs.** A voz local (Kokoro) serve só para o rascunho; o vídeo só entra no cronograma depois que ele manda o MP3 e a voz é trocada.
+  - Voz atual: "Mário — Excited, Constant and Cheerful", velocidade 1.00, estabilidade 50, similaridade 75, modelo v4 (usada no "Eu sou o Jessé"). Antes era a "Lendário — Cheerful, Vibrant and Fun".
+  - Para os Reels de T.I. e de serviços, ele usa "Lucas — Engaging, Captivating and Kind" (modelo v4). Foi usada no Reel do AD em 3D e no Reel de serviços.
   - Ele gera no site e manda o MP3, porque a rede da nuvem bloqueia o ElevenLabs.
   - Plano B, local: Kokoro `pm_alex`.
+
+## Ideias guardadas
+- **Um vídeo para cada site do portfólio:** cada projeto do jessecoelho.com.br ganha o seu Reel, mostrando o site real em 3D. A ideia é atrair clientes ("posso fazer algo assim para você").
+- **Reel de serviços** ("Seu negócio ainda depende só do Instagram?"): mostra o portfólio e a Fazendinha como prova e termina com "comenta SITE". O roteiro do direct para triar clientes está na conversa de 29/10.
+
+## Publicação no Instagram (Metricool)
+
+Os posts saem pelo conector do Metricool, na marca **Byte Storm** (brandId `7687211`, Instagram @bytestormoficial, fuso `America/Sao_Paulo`).
+
+- **Colaborador em todos os posts:** sempre ponha **@c.j.coelho** como colaborador no Instagram, em `instagramData.collaborators: [{"username": "c.j.coelho", "deleted": false}]`.
+  - Quando a Ranya aparece no vídeo, ponha também **@_ranyacoelho** como colaboradora.
+  - O post só aparece no perfil de cada colaborador depois que ele aceita o convite no Instagram.
+  - Só vale para o Instagram. Facebook, TikTok e YouTube não têm colaborador.
+- **IA:** marque `isAiGenerated: true` nos Reels, porque a voz é de IA.
+- **Tipo:** Reels vão como `type: "REEL"`, com o vídeo final. Carrosséis vão como `type: "POST"`, com várias imagens em `media` (até 10, 1080×1350, mesmo estilo dos Reels).
+- **Vídeo:** o Metricool precisa de um link público. Ele sobe os finais numa pasta do Google Drive ligado ao Metricool e manda o link.
+- **Confirmação:** mostre cada post (data, hora, legenda, hashtags e colaborador) e só agende depois do "ok" dele.
+- **Cronograma:** cinco posts por semana, às 19h, até o Metricool ter dados de melhor horário.
+  - **Reels** na segunda, na quarta e na sexta.
+    - Segunda: dica de TI.
+    - Quarta: Fazendinha ou portfólio.
+    - Sexta: reflexão bíblica.
+  - **Carrosséis** na terça e na quinta, de preferência aprofundando o Reel do dia anterior ou o do dia seguinte.
 
 ## Um vídeo novo, passo a passo
 
