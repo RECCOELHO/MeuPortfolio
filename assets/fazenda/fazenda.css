@@ -3221,3 +3221,24 @@ body.construindo .status {
     border: 0;
     box-shadow: 0 -2px 0 var(--o), 0 2px 0 var(--o), -2px 0 0 var(--o), 2px 0 0 var(--o);
 }
+
+/* fase 97: a tela dos funcionários */
+.funcionarios .item {
+    align-items: flex-start;
+}
+
+.funcionarios .item.descansando {
+    opacity: .85;
+}
+
+.botoes-func {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.barra-energia.mini {
+    height: 8px;
+    margin: 4px 0 2px;
+}
