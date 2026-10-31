@@ -3165,3 +3165,19 @@ body.construindo .status {
 /* fase 88: o que falta ter para passar de nível fica marcado na paleta de construir */
 .paleta-item.falta-nivel { position: relative; box-shadow: 0 0 0 2px #f2b632 inset; }
 .paleta-item.falta-nivel::after { content: '!'; position: absolute; top: 2px; right: 4px; font-weight: bold; color: #b5730a; }
+
+/* fase 94: a Invasão de Varginha */
+.hud-et {
+    font-size: 24px;
+    line-height: 1;
+}
+
+.invasao-arma {
+    font-size: 30px;
+    line-height: 1;
+    text-align: center;
+}
+
+.mar.invasao {
+    background: #0d1030;
+}

@@ -46,6 +46,13 @@
     /* ---------- Mensagens de erro do servidor ---------- */
     const ERROS = {
         token_invalido: 'Sessão expirada. Entre de novo com seu código.',
+        // fase 94: a Invasão de Varginha
+        invasao_antes: 'A invasão ainda não começou: domingo, às 15h.',
+        invasao_acabou: 'A invasão acabou! Os prêmios saem no placar.',
+        invasao_nivel: 'A sala da invasão abre no nível 10.',
+        arma_invalida: 'Essa arma não existe.',
+        arma_maxima: 'Essa arma já está no nível máximo.',
+        sem_moedas: 'Moedas insuficientes para essa arma.',
         conta_banida: 'Esta fazenda foi suspensa por desrespeitar as regras do jogo.',
         sem_permissao: 'Só os admins do jogo podem fazer isso.',
         // fase 69: o calendário
@@ -247,6 +254,13 @@
     const ico = (nome, px) => A.htmlIcone(nome, px);
     const spr = (i, px, pacote) => A.htmlTile(i, px, pacote);
     const moeda = (n) => `${ico('moeda', 14)}${n}`;
+    // fase 94: números grandes curtos (1.000 vira 1k, 1.500 vira 1,5k, 2.250.000 vira 2,2M); arredonda
+    // para baixo, para nunca mostrar mais do que tem
+    function curto(v) {
+        const n = Math.floor(Number(v) || 0), a = Math.abs(n);
+        const f = (x, s) => (x < 10 ? Math.floor(x * 10) / 10 : Math.floor(x)).toLocaleString('pt-BR') + s;
+        return a >= 1e9 ? f(n / 1e9, 'B') : a >= 1e6 ? f(n / 1e6, 'M') : a >= 1e3 ? f(n / 1e3, 'k') : String(n);
+    }
     const itemDe = (k, px = 22) => spr(A.cultura(k.id).item, px);
 
     document.querySelectorAll('[data-spr]').forEach((s) => { s.outerHTML = spr(Number(s.dataset.spr), Number(s.dataset.px) || 32, s.dataset.pack || 'farm'); });
@@ -340,7 +354,9 @@
             moeda: () => { nota(988, 0, 0.06); nota(1319, 0.06, 0.16); },
             construir: () => { nota(220, 0, 0.05, 'square', 0.05); nota(330, 0.05, 0.07, 'square', 0.05); },
             erro: () => { nota(170, 0, 0.12, 'sawtooth', 0.035); nota(120, 0.1, 0.16, 'sawtooth', 0.035); },
-            festa: () => { [523, 659, 784, 1047].forEach((f, n) => nota(f, n * 0.09, 0.14)); }
+            festa: () => { [523, 659, 784, 1047].forEach((f, n) => nota(f, n * 0.09, 0.14)); },
+            tiro: () => { nota(1400, 0, 0.04, 'square', 0.025); nota(900, 0.03, 0.05, 'square', 0.02); },   // fase 94
+            et: () => { nota(330, 0, 0.07, 'sawtooth', 0.035); nota(165, 0.06, 0.12, 'sawtooth', 0.03); }
         };
 
         return {
@@ -1346,6 +1362,12 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-10-31-invasao', data: '31/10', titulo: '👽 Invasão de Varginha: domingo, das 15h à meia-noite', itens: [
+            'Em homenagem ao ET de Varginha, a nave pousou na fazenda! No <b>domingo (1/11), das 15h à meia-noite</b>, abre a <b>sala da invasão</b> (botão 👽 Invasão no menu): todo mundo que entrar se vê lá dentro, com a nave lá em cima e os ETs descendo.',
+            '<b>Toque nos ETs</b>: o seu fazendeiro atira e cada acerto vale pontos. De hora em hora desce um <b>ET chefão</b>, que vale muito mais.',
+            'Com moedas, compre <b>armas</b>: forcado elétrico (mais dano por toque), espantalho-robô, trator-canhão e drone pulverizador (atiram sozinhos). O preço sobe a cada nível.',
+            '<b>Todo mundo que pontuar ganha</b>: o 1º leva <b>40 diamantes e 4 milhões de moedas</b>, o 2º 30 e 3 milhões, e cada lugar seguinte leva 3/4 do anterior, até 1 diamante. A sala abre no nível 10.',
+            'E os números grandes ficaram curtos: no alto da tela e no perfil, 1.000 vira <b>1k</b> e 1.000.000 vira <b>1M</b> (tocando, aparece o número inteiro).'] },
         { id: '2026-10-30-musica', data: '30/10', titulo: 'Música sem pausa', itens: [
             'As duas músicas da fazenda agora tocam <b>em loop sem parar</b>: acabou a pausa no fim e o silêncio antes de recomeçar. A volta para o começo cai no ritmo, sem dar para perceber a emenda.'] },
         { id: '2026-10-30-fabrica', data: '30/10', titulo: 'A fábrica automática trabalhando', itens: [
@@ -1790,6 +1812,182 @@
                 ${cesto ? `<span class="chip" title="O Seu Nonato pesca sozinho: 1 peixe a cada ${minutos(m.cesto.intervalo)} min, até ${cesto.max}">${A.htmlTile(120, 18, 'factory')} ${cesto.n}/${cesto.max}</span>${cesto.n ? '<button type="button" class="botao pequeno creme" data-mar-recolher>Recolher</button>' : ''}` : ''}
             </span>`;
     }
+    /* ---------- fase 94: a Invasão de Varginha (domingo, 1/11, das 15h à meia-noite) ----------
+       O painel (fazenda_invasao: regras, você, o placar e o prêmio), a loja de armas e a sala (a cena
+       em fazenda-invasao.js; o lote de toques vai a cada 2,5 s em fazenda_invasao_lote). */
+    const INVASAO_VER_ATE = Date.parse('2026-11-08T00:00:00-03:00');   // depois disso o jogo nem pergunta
+    let invasao = null, invasaoCena = null, invasaoCarregando = false;
+    const regrasInvasao = () => (invasao && invasao.regras) || null;
+    function faseInvasao() {
+        const R = regrasInvasao();
+        if (!R) return null;
+        const t = agora();
+        return t < Date.parse(R.inicio) ? 'antes' : t < Date.parse(R.fim) ? 'durante' : 'depois';
+    }
+    function carregarInvasao(marcarVisto) {
+        if (!S || invasaoCarregando || Date.now() > INVASAO_VER_ATE) return Promise.resolve(null);
+        invasaoCarregando = true;
+        return rpc('fazenda_invasao', { p_token: token, p_visto: !!marcarVisto }).then((r) => {
+            invasao = r;
+            atualizarHudInvasao();
+            if (painelAtual === 'invasao' || painelAtual === 'invasaoArmas') abrirPainel(painelAtual, true);
+            // o prêmio esperando: o aviso "Você ganhou" (uma vez)
+            if (r && r.premio && !r.premio.visto && !marcarVisto) {
+                if (!painelAtual) abrirPainel('invasaoPremio'); else if (!paineisDepois.includes('invasaoPremio')) paineisDepois.push('invasaoPremio');
+            }
+            return r;
+        }).catch(() => null).finally(() => { invasaoCarregando = false; });
+    }
+    function atualizarHudInvasao() {
+        const b = $('hudInvasao'), c = $('hudInvasaoCont');
+        if (!b) return;
+        const f = faseInvasao();
+        b.hidden = !f || (f === 'depois' && !(invasao.premio && !invasao.premio.visto) && Date.now() > Date.parse(invasao.regras.fim) + 2 * 86400e3);
+        if (c) c.hidden = !(f === 'durante' || (invasao && invasao.premio && !invasao.premio.visto));
+    }
+    // o prêmio de cada posição: o 1º leva o cheio e cada um seguinte 3/4 do anterior, até o mínimo
+    function premioInvasao(pos) {
+        const p = regrasInvasao().premio;
+        return { diamantes: Math.max(p.min_diamantes, Math.round(p.diamantes * Math.pow(p.fator, pos - 1))),
+                 moedas: Math.max(p.min_moedas, Math.round(p.moedas * Math.pow(p.fator, pos - 1))) };
+    }
+    const nomeArma = (id) => ((regrasInvasao().armas || []).find((a) => a.id === id) || { nome: id }).nome;
+    const ICONE_ARMA = { forcado: '🔱', espantalho: '🎃', trator: '🚜', drone: '🛸' };
+    function efeitoArma(a, n) {
+        return a.tipo === 'toque' ? `+${a.efeito * n} de dano por toque` : `${numero(a.efeito * n)} de dano por segundo, sozinho`;
+    }
+    function htmlPlacarInvasao() {
+        const sala = invasao && invasao.sala, top = (sala && sala.top) || [];
+        if (!top.length) return '<p class="det">Ninguém pontuou ainda: quem acertar o primeiro ET já fica em 1º.</p>';
+        const meu = S.jogador.id.slice(0, 8);
+        return '<ol class="evento-top">' + top.map((t, i) => `<li${t.id === meu ? ' class="eu"' : ''}><span class="pos">${i + 1}º</span>${A.htmlAvatar(t.avatar, 20)}<b>${esc(t.apelido)}${t.id === meu ? ' (você)' : ''}</b><span class="val">${curto(t.pontos)} pts</span></li>`).join('') + '</ol>';
+    }
+    function htmlInvasao() {
+        const R = regrasInvasao(), f = faseInvasao();
+        if (!R) return '<p class="vazio-msg">Carregando a invasão…</p>';
+        const eu = invasao.eu || {}, sala = invasao.sala || {}, nivelOk = (invasao.nivel || S.jogador.nivel) >= R.nivel_min;
+        const quando = f === 'antes' ? `Começa em <b>${fmtTempo(Date.parse(R.inicio) - agora())}</b> (domingo, às 15h).`
+            : f === 'durante' ? `<b>A invasão começou!</b> Acaba em <b>${fmtTempo(Date.parse(R.fim) - agora())}</b> (meia-noite).`
+            : invasao.fechada ? '<b>A invasão acabou.</b> Os prêmios já foram entregues.' : '<b>A invasão acabou.</b> Os prêmios saem em instantes.';
+        const premios = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((p) => { const x = premioInvasao(p); return `<span class="chip">${p}º ${ico('diamante', 12)} ${x.diamantes} + ${ico('moeda', 12)} ${curto(x.moedas)}</span>`; }).join('');
+        let html = `<p class="fala">Em 1996, Varginha viu um ET. Agora a nave voltou, e dessa vez veio para a <b>fazenda</b>! Entre na sala, onde todo mundo se vê, e <b>toque nos ETs</b>: o seu fazendeiro atira e cada acerto vale pontos. De hora em hora desce um <b>ET chefão</b>, que vale muito mais.</p>
+            <p>${quando}</p>`;
+        if (f === 'durante') {
+            html += nivelOk
+                ? `<p><button type="button" class="botao verde" data-invasao-entrar>👽 Entrar na sala${sala.na_sala ? ` (${sala.na_sala} lá dentro)` : ''}</button></p>`
+                : `<p class="aviso">A sala abre para quem está no nível ${R.nivel_min} ou mais.</p>`;
+        }
+        if (invasao.premio) {
+            const p = invasao.premio;
+            html += `<p class="evento-eu">Você ficou em <b>${p.posicao}º</b> com ${curto(p.pontos)} pontos e ganhou ${ico('diamante', 14)} <b>${p.diamantes}</b> e ${ico('moeda', 14)} <b>${numero(p.moedas)}</b>.</p>`;
+        } else if (eu.pontos > 0) {
+            html += `<p class="evento-eu">Você: <b>${eu.posicao}º</b> de ${sala.participantes || 1} · ${curto(eu.pontos)} pontos · ${eu.abates} ETs${eu.chefes ? ` e ${eu.chefes} chefão` : ''}</p>`;
+        }
+        html += `<h3 class="secao-titulo">Prêmios</h3>
+            <div class="evento-premios">${premios}</div>
+            <p>E continua descendo (cada lugar ganha 3/4 do anterior) até <b>${R.premio.min_diamantes} diamante</b> e ${numero(R.premio.min_moedas)} moedas: <b>todo mundo que pontuar ganha</b>. O top 4 leva a conquista Defensor de Varginha.</p>
+            <h3 class="secao-titulo">Placar${sala.participantes ? ` <small class="qtd">${sala.participantes} jogando</small>` : ''}</h3>
+            ${htmlPlacarInvasao()}
+            <h3 class="secao-titulo">Armas</h3>
+            <div class="lista">${(R.armas || []).map((a) => `<div class="item"><span class="ico invasao-arma">${ICONE_ARMA[a.id] || '⚡'}</span><span><span class="nome">${esc(a.nome)}</span>
+                <span class="det"><span>${a.tipo === 'toque' ? `+${a.efeito} de dano por toque a cada nível` : `atira sozinho: ${a.efeito} de dano por segundo a cada nível`}</span><span>a partir de ${moeda(curto(a.preco))}, o preço sobe a cada nível</span></span></span></div>`).join('')}</div>
+            <p class="aviso">Vale até ${R.toques_seg} toques por segundo (quem conta é o servidor: clicar mais rápido que isso não adianta). As armas que atiram sozinhas só funcionam com você na sala e tocando em algum ET a cada 2 minutos. As armas valem só nesta invasão.</p>`;
+        return html;
+    }
+    function htmlInvasaoArmas() {
+        const R = regrasInvasao(), eu = (invasao && invasao.eu) || {};
+        if (!R) return '<p class="vazio-msg">Carregando…</p>';
+        return `<p class="fala">Cada nível deixa a arma mais forte, e o próximo fica mais caro. Agora: <b>${eu.por_toque || 1}</b> de dano por toque${eu.por_seg ? ` e <b>${numero(eu.por_seg)}</b> por segundo sozinho${eu.auto_ligado ? '' : ' (toque num ET para ligar)'}` : ''}.</p>
+            <div class="lista">${R.armas.map((a) => {
+                const n = (eu.armas && eu.armas[a.id]) || 0, preco = eu.precos && eu.precos[a.id];
+                return `<div class="item"><span class="ico invasao-arma">${ICONE_ARMA[a.id] || '⚡'}</span><span>
+                    <span class="nome">${esc(a.nome)}${n ? ` · nível ${n}` : ''}</span>
+                    <span class="det"><span>${n ? efeitoArma(a, n) : 'ainda não tem'}</span><span>próximo: ${efeitoArma(a, n + 1)}</span></span></span>
+                    ${preco == null ? '<span class="chip">máximo</span>' : `<button type="button" class="botao pequeno verde" data-invasao-comprar="${esc(a.id)}"${S.jogador.moedas >= preco ? '' : ' disabled'}>${moeda(curto(preco))}</button>`}
+                </div>`;
+            }).join('')}</div>
+            <div class="rodape-painel"><span class="preco">Suas moedas: ${moeda(curto(S.jogador.moedas))}</span><button type="button" class="botao verde" data-fechar>Voltar para a sala</button></div>`;
+    }
+    function htmlInvasaoPremio() {
+        const p = invasao && invasao.premio;
+        if (!p) return '<p class="vazio-msg">Sem prêmio por aqui.</p>';
+        return `<p class="fala">A Invasão de Varginha acabou e a fazenda agradece: você ficou em <b>${p.posicao}º lugar</b> com ${curto(p.pontos)} pontos!</p>
+            <div class="chips evento-premios"><span class="chip">${ico('diamante', 18)} ${p.diamantes} diamantes</span><span class="chip">${ico('moeda', 18)} ${numero(p.moedas)} moedas</span></div>
+            ${p.posicao <= 4 ? '<p>E a conquista <b>Defensor de Varginha</b> já está no seu perfil.</p>' : ''}
+            <div class="rodape-painel"><button type="button" class="botao creme" data-painel-ir="invasao">Ver o placar</button><button type="button" class="botao verde" data-fechar>Oba!</button></div>`;
+    }
+    function htmlTopoInvasao() {
+        const R = regrasInvasao(), eu = (invasao && invasao.eu) || {}, sala = (invasao && invasao.sala) || {};
+        const falta = R ? Date.parse(R.fim) - agora() : 0;
+        return `<button type="button" class="botao pequeno creme" data-invasao-sair>← Fazenda</button>
+            <span class="chip">👽 Acaba em ${fmtTempo(Math.max(0, falta))}</span>
+            <button type="button" class="botao pequeno verde mar-direita" data-invasao-armas>Armas</button>
+            <span class="mar-linha">
+                <span class="chip">⭐ ${curto(eu.pontos || 0)} pontos</span>
+                ${eu.posicao ? `<span class="chip">🏆 ${eu.posicao}º de ${sala.participantes || 1}</span>` : ''}
+                <span class="chip">👥 ${sala.na_sala || 1} na sala</span>
+                <button type="button" class="botao pequeno creme" data-invasao-placar>Placar</button>
+            </span>`;
+    }
+    function abrirInvasao() {
+        if (!S || visita || invasaoCena || mar) return;
+        if (!window.FazendaInvasao) { toast('A sala ainda está carregando. Tente de novo.', 'erro'); return; }
+        if (faseInvasao() !== 'durante') { abrirPainel('invasao'); return; }
+        fecharPainel();
+        if (constr.ativo) fecharConstrucao();
+        cena.pausar(true);
+        document.body.classList.add('no-mar');
+        invasaoCena = window.FazendaInvasao.criar({
+            regras: regrasInvasao,
+            agora,
+            avatar: () => S && S.jogador.avatar,
+            meuId: () => S && S.jogador.id.slice(0, 8),
+            eu: () => invasao && invasao.eu,
+            sala: () => invasao && invasao.sala,
+            htmlTopo: htmlTopoInvasao,
+            painelAberto: () => !!painelAtual,
+            som: (n) => som.tocar(n),
+            lote: async (toques) => {
+                const r = await rpc('fazenda_invasao_lote', { p_token: token, p_toques: toques });
+                if (invasao) { invasao.eu = r.eu; invasao.sala = r.sala; }
+                return r;
+            },
+            erro: (e) => {
+                if (e && (e.code === 'invasao_acabou' || e.code === 'invasao_nivel' || e.code === 'invasao_antes')) { toast(e.message, 'erro'); fecharInvasao(); carregarInvasao(); return; }
+                if (e && e.code !== 'lento' && e.code !== 'rede') toast(e.message, 'erro');
+            },
+            armas: () => abrirPainel('invasaoArmas'),
+            placar: () => { carregarInvasao(); abrirPainel('invasao'); },
+            sair: fecharInvasao
+        });
+    }
+    function fecharInvasao() {
+        if (!invasaoCena) return;
+        invasaoCena.fechar();
+        invasaoCena = null;
+        cena.pausar(false);
+        document.body.classList.remove('no-mar');
+        if (painelAtual === 'invasaoArmas') fecharPainel();
+    }
+    function comprarArma(id, botao) {
+        if (botao) botao.disabled = true;
+        enfileirar([], async () => {
+            try {
+                const r = await rpc('fazenda_invasao_comprar', { p_token: token, p_arma: id });
+                S.jogador.moedas = r.moedas;
+                if (invasao) invasao.eu = r.eu;
+                desenharHud();
+                som.tocar('construir');
+                toast(`${ICONE_ARMA[id] || ''} ${esc(nomeArma(id))} no nível ${r.nivel}!`);
+                if (painelAtual === 'invasaoArmas') abrirPainel('invasaoArmas', true);
+                if (invasaoCena) invasaoCena.atualizar();
+            } catch (e) {
+                toast(e.message, 'erro');
+                if (botao) botao.disabled = false;
+            }
+        });
+    }
+
     function abrirMar() {
         if (!S || visita || mar) return;
         if (!S.mar) { abrirPainel('pier'); return; }
@@ -3206,10 +3404,13 @@
                 : 'Nível máximo! Toque para abrir o seu perfil.';
         }
         desenharContadorHistorico();
-        const diam = String(j.diamantes || 0);
-        if (el.diamantes && el.diamantes.textContent !== diam) el.diamantes.textContent = diam;
-        if (el.moedas.textContent !== String(j.moedas)) {
-            el.moedas.textContent = j.moedas;
+        atualizarHudInvasao();   // fase 94
+        const diam = curto(j.diamantes || 0);   // fase 94: 1k, 1M (o número inteiro fica no title)
+        if (el.diamantes && el.diamantes.textContent !== diam) { el.diamantes.textContent = diam; el.diamantes.title = `${numero(j.diamantes || 0)} diamantes`; }
+        if (el.moedas.dataset.valor !== String(j.moedas)) {
+            el.moedas.dataset.valor = String(j.moedas);
+            el.moedas.textContent = curto(j.moedas);
+            el.moedas.title = `${numero(j.moedas)} moedas`;
             const box = el.moedas.parentElement;
             box.classList.remove('pulo');
             void box.offsetWidth;
@@ -3415,6 +3616,7 @@
         if (versaoNova(estado)) return;
         otimistas.forEach((o) => o.refazer(S));   // fase 56: o que ainda está na fila continua na tela
         offset = Date.parse(estado.agora) - Date.now();
+        if (!antes) setTimeout(() => carregarInvasao(), 1500);   // fase 94: a invasão (e o prêmio esperando)
         culturas = {};
         for (const k of estado.culturas) culturas[k.id] = k;
         if (!culturas[semente] || culturas[semente].tipo !== 'cultura') semente = 'alface';   // (amora deixou de ser semente)
@@ -4504,6 +4706,17 @@
         } else if (nome === 'pier') {   // fase 61
             el.painelTitulo.innerHTML = `${itemDe(culturas.ancora || { id: 'ancora' }, 30)} Píer`;
             corpo.innerHTML = htmlPier();
+        } else if (nome === 'invasao') {   // fase 94: a Invasão de Varginha
+            el.painelTitulo.innerHTML = '👽 Invasão de Varginha';
+            corpo.innerHTML = htmlInvasao();
+            if (!soAtualizar) carregarInvasao();
+        } else if (nome === 'invasaoArmas') {
+            el.painelTitulo.innerHTML = '🔱 Armas contra os ETs';
+            corpo.innerHTML = htmlInvasaoArmas();
+        } else if (nome === 'invasaoPremio') {
+            el.painelTitulo.innerHTML = '👽 Você ganhou!';
+            corpo.innerHTML = htmlInvasaoPremio();
+            carregarInvasao(true);
         } else if (nome === 'evento') {   // fase 63: o evento da semana
             el.painelTitulo.innerHTML = `${itemDe(culturas.trofeu_ouro || { id: 'trofeu_ouro' }, 30)} Evento da semana`;
             corpo.innerHTML = htmlEvento();
@@ -4793,7 +5006,7 @@
             ['vender', 'moedas em vendas'], ['animal', 'produtos dos animais'], ['ajudar', 'ajudas a vizinhos'],
             ['pegar', 'itens pegos de vizinhos'], ['anuncios', 'anúncios assistidos']
         ].filter(([k]) => k !== 'anuncios' || e.anuncios);
-        return '<div class="estatisticas">' + linhas.map(([k, txt]) => `<div><b>${e[k] || 0}</b><span>${txt}</span></div>`).join('') + '</div>';
+        return '<div class="estatisticas">' + linhas.map(([k, txt]) => `<div><b title="${numero(e[k] || 0)}">${curto(e[k] || 0)}</b><span>${txt}</span></div>`).join('') + '</div>';   // fase 94: 1k, 1M
     }
 
     const desde = (iso) => iso ? new Date(iso).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }) : '';
@@ -5840,6 +6053,9 @@
             return;
         }
         if (e.target.closest('[data-mar-ir]')) { if (mar) fecharPainel(); else abrirMar(); return; }   // fase 62: o alto-mar
+        if (e.target.closest('[data-invasao-entrar]')) { abrirInvasao(); return; }   // fase 94
+        const arma = e.target.closest('[data-invasao-comprar]');
+        if (arma) { comprarArma(arma.dataset.invasaoComprar, arma); return; }
         if (e.target.closest('[data-mar-painel]')) { abrirPainel('mar'); return; }
         const pt = e.target.closest('[data-pintar]');   // fase 65: a pintura do barco (o rascunho)
         if (pt) {
@@ -6633,6 +6849,7 @@
 
     function sair(apagarCodigo) {
         fecharMar();   // fase 62
+        fecharInvasao();   // fase 94
         if (constr.ativo) fecharConstrucao();
         token = null;
         S = null;
