@@ -1827,7 +1827,7 @@
     function carregarInvasao(marcarVisto) {
         if (!S || invasaoCarregando || Date.now() > INVASAO_VER_ATE) return Promise.resolve(null);
         invasaoCarregando = true;
-        return rpc('fazenda_invasao', { p_token: token, p_visto: !!marcarVisto, p_teste: invasaoTeste }).then((r) => {
+        return rpc('fazenda_invasao', invasaoTeste ? { p_token: token, p_visto: !!marcarVisto, p_teste: true } : { p_token: token, p_visto: !!marcarVisto }).then((r) => {
             invasao = r;
             atualizarHudInvasao();
             if (painelAtual === 'invasao' || painelAtual === 'invasaoArmas') abrirPainel(painelAtual, true);
@@ -1952,7 +1952,7 @@
             painelAberto: () => !!painelAtual,
             som: (n) => som.tocar(n),
             lote: async (toques) => {
-                const r = await rpc('fazenda_invasao_lote', { p_token: token, p_toques: toques, p_teste: invasaoTeste });
+                const r = await rpc('fazenda_invasao_lote', invasaoTeste ? { p_token: token, p_toques: toques, p_teste: true } : { p_token: token, p_toques: toques });
                 if (invasao) { invasao.eu = r.eu; invasao.sala = r.sala; }
                 return r;
             },
@@ -1986,7 +1986,7 @@
         if (botao) botao.disabled = true;
         enfileirar([], async () => {
             try {
-                const r = await rpc('fazenda_invasao_comprar', { p_token: token, p_arma: id, p_teste: invasaoTeste });
+                const r = await rpc('fazenda_invasao_comprar', invasaoTeste ? { p_token: token, p_arma: id, p_teste: true } : { p_token: token, p_arma: id });
                 S.jogador.moedas = r.moedas;
                 if (invasao) invasao.eu = r.eu;
                 desenharHud();
