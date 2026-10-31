@@ -9489,7 +9489,7 @@ create or replace function public.fazenda_premios_efeitos()
 returns jsonb language sql immutable as $$
   select '{"trofeu_ouro": {"xp2": 24, "crescer": 24}, "trofeu_prata": {"xp2": 24}, "trofeu_bronze": {"xp2": 12},
            "ampulheta_dourada": {"crescer": 24}, "cofrinho_ouro": {"venda": 24}, "balanca_ouro": {"colheita": 24},
-           "sacola_ouro": {"cafe": 24}}'::jsonb;
+           "sacola_ouro": {"cafe": 24}, "perola_negra": {"colheita": 12}}'::jsonb;   -- fase 96: a pérola negra
 $$;
 
 -- quanto a planta nasce adiantada (0 a 1 do tempo dela): com as plantas 2x mais rápidas, o que falta cai
