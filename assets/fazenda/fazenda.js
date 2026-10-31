@@ -1365,6 +1365,9 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-10-31-itens', data: '31/10', titulo: '🎒 Itens especiais e a pérola negra', itens: [
+            'No menu tem <b>🎒 Itens</b>: os seus itens raros num lugar só. Os que dá para usar (os prêmios do evento da semana e a pérola negra) têm o botão <b>Usar</b>, e os materiais mostram para que servem.',
+            'A <b>pérola negra</b> agora também dá para usar: liga <b>12 h de +50% na colheita</b>. Ela continua servindo nas melhorias e na pintura do barco.'] },
         { id: '2026-10-31-deposito', data: '31/10', titulo: 'Depósito no Construir e trocar o nome', itens: [
             'No <b>Construir</b>, o <b>Guardar</b> agora guarda de verdade: o item sai inteiro da fazenda e vai para o <b>depósito</b> (ideia do Francisco). Ele aparece com 📦 e o número na barra (e na aba <b>Guardados</b>); colocar de novo é <b>de graça</b>. Para reorganizar a fazenda: guarde o que quer mudar e vá colocando com calma.',
             'O que o Guardar fazia antes virou o botão <b>Vender</b>: tira o item e devolve metade do que você pagou.',
@@ -1719,11 +1722,43 @@
     const ehRaro = (k) => !!k && k.tipo === 'raro';
     // de onde vem cada raro (fase 62: a pérola, do alto-mar; fase 63: os prêmios do evento da semana)
     function origemRaro(id) {
-        if (id === 'perola_negra') return 'Do alto-mar: 1 em cada 200 peixes vem com uma.';
+        if (id === 'perola_negra') return `Do alto-mar: 1 em cada 200 peixes vem com uma. <b>Usar</b> liga ${textoPremio(id)}; também serve nas melhorias e na pintura do barco.`;
         if (id === 'leme_dourado') return 'Peça do píer e prêmio do evento da semana (para quem mais convidou).';
         if (PREMIO_EFEITO[id]) return `Prêmio do evento da semana. <b>Usar</b> liga ${textoPremio(id)}.`;   // fase 93
         if (ITENS_EVENTO.includes(id)) return 'Prêmio do evento da semana: só sai de lá.';
         return 'Material do píer (nível 31, no terreno do litoral).';
+    }
+    /* fase 96: a tela dos itens especiais (🎒 Itens): o que dá para usar, com o botão Usar, e os materiais
+       raros, com para que servem e o atalho para a feira */
+    const PARA_QUE = {
+        madeira_nobre: 'Peça do píer e das melhorias do barco.', corda_naval: 'Peça do píer e das melhorias do barco.',
+        pedra_cantaria: 'Peça do píer e das melhorias do barco.', ferro_forjado: 'Peça do píer e das melhorias do barco.',
+        ancora: 'Peça do píer e das melhorias do barco.', leme_dourado: 'Peça do píer (vem do evento da semana).',
+        luva_perks: 'Usa sozinha: visitando um vizinho, toque num canteiro com alarme e a luva passa por ele.'
+    };
+    const itensUsaveis = () => (S ? S.culturas.filter((k) => PREMIO_EFEITO[k.id] && naCeleiro(k.id) > 0) : []);
+    function htmlItens() {
+        const usar = itensUsaveis();
+        const outros = S.culturas.filter((k) => k.tipo === 'raro' && !PREMIO_EFEITO[k.id] && naCeleiro(k.id) > 0);
+        const feira = (k) => `<button type="button" class="botao pequeno creme" data-raro-feira="${esc(k.id)}">Na feira</button>`;
+        let html = `<p class="fala">Seus itens especiais num lugar só. <b>Usar</b> gasta 1 e liga o bônus na hora (se já estiver ligado, soma o tempo).</p>${htmlBonusLigados()}`;
+        html += '<h3 class="secao-titulo">Para usar</h3>';
+        html += usar.length ? '<div class="lista">' + usar.map((k) => `<div class="item raro">
+                <span class="ico">${spr(A.cultura(k.id).item, 44)}</span>
+                <span><span class="nome">${esc(k.nome)} × ${naCeleiro(k.id)}</span>
+                    <span class="det"><span class="txt">Liga <b>${textoPremio(k.id)}</b>.${k.id === 'perola_negra' ? ' Também serve nas melhorias e na pintura do barco.' : ''}</span></span></span>
+                <span class="botoes-raro"><button type="button" class="botao pequeno verde" data-usar-premio="${esc(k.id)}">Usar</button>${feira(k)}</span>
+            </div>`).join('') + '</div>'
+            : `<p class="det">Nenhum agora. Os troféus e as peças de ouro saem do <b>Evento da semana</b>, e a ${itemDe(culturas.perola_negra || { id: 'perola_negra' }, 16)} pérola negra vem do <b>alto-mar</b> (1 em cada 200 peixes).</p>`;
+        if (outros.length) {
+            html += '<h3 class="secao-titulo">Materiais raros</h3><div class="lista">' + outros.map((k) => `<div class="item raro">
+                <span class="ico">${spr(A.cultura(k.id).item, 44)}</span>
+                <span><span class="nome">${esc(k.nome)} × ${naCeleiro(k.id)}</span>
+                    <span class="det"><span class="txt">${PARA_QUE[k.id] || 'Material raro.'} Na feira vale de ${moeda(numero(k.venda))} a ${moeda(numero(k.venda * 3))}.</span></span></span>
+                ${feira(k)}
+            </div>`).join('') + '</div>';
+        }
+        return html;
     }
     function htmlRaroCeleiro(k) {
         return `<div class="item raro">
@@ -2205,7 +2240,8 @@
     // fase 93: usar o prêmio liga um bônus (horas; igual a fazenda_premios_efeitos no servidor)
     const PREMIO_EFEITO = {
         trofeu_ouro: { xp2: 24, crescer: 24 }, trofeu_prata: { xp2: 24 }, trofeu_bronze: { xp2: 12 },
-        ampulheta_dourada: { crescer: 24 }, cofrinho_ouro: { venda: 24 }, balanca_ouro: { colheita: 24 }, sacola_ouro: { cafe: 24 }
+        ampulheta_dourada: { crescer: 24 }, cofrinho_ouro: { venda: 24 }, balanca_ouro: { colheita: 24 }, sacola_ouro: { cafe: 24 },
+        perola_negra: { colheita: 12 }   // fase 96
     };
     const NOME_BONUS = { xp2: 'XP em dobro', crescer: 'plantas 2x mais rápidas', venda: '+50% nas vendas do celeiro', colheita: '+50% na colheita', cafe: 'ajudantes em dobro' };
     const ICONE_BONUS = { crescer: 'ampulheta_dourada', venda: 'cofrinho_ouro', colheita: 'balanca_ouro', cafe: 'sacola_ouro' };
@@ -3498,6 +3534,8 @@
         }
         desenharContadorHistorico();
         atualizarHudInvasao();   // fase 94
+        const hi = $('hudItens');   // fase 96: quantos itens dá para usar
+        if (hi) { const n = itensUsaveis().reduce((a, k) => a + naCeleiro(k.id), 0); hi.textContent = n; hi.hidden = !n; }
         const diam = curto(j.diamantes || 0);   // fase 94: 1k, 1M (o número inteiro fica no title)
         if (el.diamantes && el.diamantes.textContent !== diam) { el.diamantes.textContent = diam; el.diamantes.title = `${numero(j.diamantes || 0)} diamantes`; }
         if (el.moedas.dataset.valor !== String(j.moedas)) {
@@ -4813,6 +4851,9 @@
             el.painelTitulo.innerHTML = '👽 Você ganhou!';
             corpo.innerHTML = htmlInvasaoPremio();
             carregarInvasao(true);
+        } else if (nome === 'itens') {   // fase 96: os itens especiais
+            el.painelTitulo.innerHTML = '🎒 Itens especiais';
+            corpo.innerHTML = htmlItens();
         } else if (nome === 'evento') {   // fase 63: o evento da semana
             el.painelTitulo.innerHTML = `${itemDe(culturas.trofeu_ouro || { id: 'trofeu_ouro' }, 30)} Evento da semana`;
             corpo.innerHTML = htmlEvento();
@@ -6223,13 +6264,14 @@
         const up = e.target.closest('[data-usar-premio]');   // fase 93: o prêmio do evento vira bônus
         if (up) {
             const id = up.dataset.usarPremio, k = culturas[id] || { id, nome: id };
-            if (!await perguntar(`Usar 1 ${k.nome.toLowerCase()}? Liga ${textoPremio(id)} (se já estiver ligado, soma o tempo). O prêmio sai do celeiro.`, 'Usar')) return;
+            if (!await perguntar(`Usar 1 ${k.nome.toLowerCase()}? Liga ${textoPremio(id)} (se já estiver ligado, soma o tempo). ${id === 'perola_negra' ? 'A pérola sai do celeiro (lembre: ela também serve nas melhorias e na pintura do barco).' : 'O prêmio sai do celeiro.'}`, 'Usar')) return;
             up.disabled = true;
             enfileirar([], async () => {
                 const r = await rpc('fazenda_usar_premio', { p_token: token, p_item: id });
                 aplicarEstado(r.estado);
                 toast(`${itemDe(k, 20)} ${esc(k.nome)}: ${textoPremio(id)}!`, 'festa');
                 som.tocar('festa');
+                if (painelAtual === 'itens' || painelAtual === 'celeiro') abrirPainel(painelAtual, true);   // fase 96
             }).finally(() => { up.disabled = false; });
             return;
         }
