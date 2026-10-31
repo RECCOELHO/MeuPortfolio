@@ -1327,9 +1327,35 @@ body.construindo .status {
         right: 8px;
     }
 
+    /* fase 98: as 4 ferramentas (Mover, Guardar, Vender, Pronto) numa grade: o Pronto ficava fora da tela */
     .constr-ferramentas {
         width: 100%;
-        justify-content: space-between;
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .constr-ferramentas .botao {
+        min-width: 0;
+        justify-content: center;
+        gap: 4px;
+        padding-left: 4px;
+        padding-right: 4px;
+        white-space: nowrap;
+    }
+
+    /* celular estreito (360 px): letra um pouco menor para o "Guardar" caber inteiro */
+    @media (max-width: 400px) {
+        .constr-ferramentas {
+            gap: 6px;
+        }
+
+        .constr-ferramentas .botao {
+            font-size: 13px;
+            gap: 2px;
+            padding-left: 2px;
+            padding-right: 2px;
+        }
     }
 
     body.construindo .status {
@@ -3195,6 +3221,9 @@ body.construindo .status {
 }
 
 .paleta-dep {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
     position: absolute;
     top: 2px;
     right: 2px;
