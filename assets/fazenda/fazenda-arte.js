@@ -662,7 +662,11 @@
         // 153 caldeirada
         ['................', '................', '................', '.......f..f.....', '......f..f......', '................',
          '.aaaaaaaaaaaaaa.', '..aiiXiiiviiia..', 'a.adiidiidiXda.a', '..aKKKKKKKKKKa..', '..aKKKKKKKKKKa..', '..aKKKKKKKKKKa..',
-         '..aKKKKKKKKKKa..', '..aaaaaaaaaaaa..', '................', '................']
+         '..aKKKKKKKKKKa..', '..aaaaaaaaaaaa..', '................', '................'],
+        // 154 carrinho de milho (fase 97: o vendedor da praia)
+        ['................', '.aaaaaaaaaaaaaa.', '.aGXGXGXGXGXGXa.', '.aaaaaaaaaaaaaa.', '..u..........u..', '..u.aG.aG.aG.u..',
+         '..uaGGaGGaGGau..', '..uavvavvavvau..', '..aaaaaaaaaaaa..', '..agggggggggga..', '..agHHgHHgHHga..', '..agggggggggga..',
+         '..aaaaaaaaaaaa..', '...aKKa..aKKa...', '...aaaa..aaaa...', '................']
     ];
     const atlasProprio = document.createElement('canvas');
     atlasProprio.width = 12 * 16;
@@ -906,6 +910,7 @@
             case 'coqueiro_praia': return { p: 'farm', i: 1000 + PRAIA.coqueiro.i, topo: 1000 + PRAIA.coqueiro.topo };
             case 'castelo_areia': return { p: 'farm', i: 1141 };
             case 'barraca_coco': return { p: 'farm', i: 1142 };
+            case 'barraca_milho': return { p: 'farm', i: 1154 };   // fase 97
             case 'pedras': return { p: 'farm', i: 89 };
             case 'tora': return { p: 'town', i: 106 };
             case 'placa': return { p: 'town', i: 83 };
@@ -2884,8 +2889,16 @@
         const ANIMA = {
             irrigador: 'agua', aspersor: 'agua', pulverizador: 'nevoa', alarme: 'luz', robo_capina: 'robo', robo_colheita: 'robo',
             trator: 'fumaca', colheitadeira: 'fumaca', fabrica_auto: 'fabrica', triturador: 'po', painel_solar: 'reflexo',
-            bateria: 'carga', supercap: 'carga', estufa: 'estufa', reator: 'reator', hidreletrica: 'roda'
+            bateria: 'carga', supercap: 'carga', estufa: 'estufa', reator: 'reator', hidreletrica: 'roda',
+            guarda_sol: 'banhista', cadeira_praia: 'banhista', barraca_coco: 'fregues', barraca_milho: 'fregues'   // fase 97: a praia
         };
+        // fase 97: os banhistas (gente de dia na areia; cada guarda-sol e cadeira tem o seu, e as barracas,
+        // um freguês que vem e vai). O jeito de cada um sai da posição, sempre o mesmo.
+        function banhistaDe(x, y) {
+            const r = rng(x * 7919 + y * 104729), tipos = ['fazendeiro', 'fazendeira'];
+            return { tipo: tipos[Math.floor(r() * 2)], pele: Math.floor(r() * 5), cabelo: 1 + Math.floor(r() * 6), roupa: 1 + Math.floor(r() * 8), calca: 1 + Math.floor(r() * 6) };
+        }
+        const deDia = () => !faseDoDia(relogio()).noite;   // o dia do jogo (o ciclo próprio, não a hora de verdade)
         let energiaFrac = 0;   // 0..1, para as luzinhas das baterias
         // a fábrica automática em uso: algum item da rede saindo dela ou chegando nela agora
         // (null parada; senão o ícone do item e o quanto ele está na porta, 0..1)
@@ -2984,6 +2997,13 @@
                     if (Math.floor(t / 700) % 3 === 0) px(x + 8, y + 1, '#7dff6a', 1, 1);   // luzinha da antena piscando
                 } else if (tipo === 'fabrica') {
                     desenharFabrica(c, x, y, t, px);
+                } else if (tipo === 'banhista' || tipo === 'fregues') {   // fase 97
+                    if (!deDia()) continue;
+                    if (tipo === 'fregues' && Math.floor(t / 4000) % 3 === 2) continue;   // o freguês vai e volta
+                    const cv = avatarCanvas(banhistaDe(c.x, c.y + (tipo === 'fregues' ? Math.floor(t / 12000) : 0)));
+                    const bx = tipo === 'banhista' ? x + 6 : x + 2, by = tipo === 'banhista' ? y + 3 : y + 9;
+                    const pulo = tipo === 'fregues' ? Math.round(Math.abs(Math.sin(t / 260)) * 1) : Math.round(Math.sin(t / 900) * 0.6);
+                    q.drawImage(cv, 0, 0, 16, 16, Math.round(bx), Math.round(by - pulo), 12, 12);
                 } else if (tipo === 'fumaca') {
                     const sx = x + 4, sy = y + 3;
                     for (let k = 0; k < 2; k++) {
