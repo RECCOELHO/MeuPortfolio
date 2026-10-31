@@ -3188,3 +3188,36 @@ body.construindo .status {
 .mar.invasao {
     background: #0d1030;
 }
+
+/* fase 95: o depósito do Construir e a troca de nome */
+.paleta-item {
+    position: relative;
+}
+
+.paleta-dep {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    padding: 0 4px;
+    font-size: 11px;
+    line-height: 16px;
+    color: #fff;
+    background: var(--grama-esc);
+    box-shadow: 0 -2px 0 var(--o), 0 2px 0 var(--o), -2px 0 0 var(--o), 2px 0 0 var(--o);
+}
+
+.trocar-nome {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.trocar-nome input {
+    flex: 1 1 140px;
+    min-width: 0;
+    padding: 6px 8px;
+    font: inherit;
+    border: 0;
+    box-shadow: 0 -2px 0 var(--o), 0 2px 0 var(--o), -2px 0 0 var(--o), 2px 0 0 var(--o);
+}

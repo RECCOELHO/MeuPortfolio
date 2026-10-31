@@ -46,6 +46,9 @@
     /* ---------- Mensagens de erro do servidor ---------- */
     const ERROS = {
         token_invalido: 'Sessão expirada. Entre de novo com seu código.',
+        // fase 95: a troca de nome
+        apelido_palavrao: 'Esse nome não pode: tem palavrão.',
+        apelido_igual: 'Esse já é o seu nome.',
         // fase 94: a Invasão de Varginha
         invasao_antes: 'A invasão ainda não começou: domingo, às 15h.',
         invasao_acabou: 'A invasão acabou! Os prêmios saem no placar.',
@@ -1362,6 +1365,10 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-10-31-deposito', data: '31/10', titulo: 'Depósito no Construir e trocar o nome', itens: [
+            'No <b>Construir</b>, o <b>Guardar</b> agora guarda de verdade: o item sai inteiro da fazenda e vai para o <b>depósito</b> (ideia do Francisco). Ele aparece com 📦 e o número na barra (e na aba <b>Guardados</b>); colocar de novo é <b>de graça</b>. Para reorganizar a fazenda: guarde o que quer mudar e vá colocando com calma.',
+            'O que o Guardar fazia antes virou o botão <b>Vender</b>: tira o item e devolve metade do que você pagou.',
+            'No <b>Perfil</b>, dá para <b>trocar o nome</b> por 30 diamantes.'] },
         { id: '2026-10-31-menu', data: '31/10', titulo: 'Menu que rola e XP com letra', itens: [
             'No celular, o <b>menu (☰) rola</b>: dá para chegar até Ajuda, Som e Sair, que ficavam escondidos atrás da barra de baixo.',
             'O <b>XP</b> no alto da tela também ficou curto: 1.315.314/1.346.711 virou <b>1,31M/1,34M</b>.'] },
@@ -3055,6 +3062,39 @@
 
     /* ---------- Modo construir (abre e fecha pelo botão) ---------- */
     const constr = { ativo: false, modo: 'colocar', tipo: null, movendo: null, aba: 'plantacao' };
+    // fase 95: o depósito do Construir ({ tipo: quantos }). O Guardar leva o item inteiro para cá; colocar
+    // um item que tem aqui usa o guardado, de graça. O jogo pede ao abrir o Construir.
+    let deposito = {};
+    // fase 95: a troca de nome no perfil (por diamantes)
+    const APELIDO_PRECO = 30;
+    let trocandoNome = false;
+    function trocarNome(botao) {
+        const novo = (($('novoApelido') || {}).value || '').trim().replace(/\s+/g, ' ');
+        if (novo.length < 2 || novo.length > 20) return toast(ERROS.apelido_invalido, 'erro');
+        if (novo === S.jogador.apelido) return toast(ERROS.apelido_igual, 'erro');
+        if ((S.jogador.diamantes || 0) < APELIDO_PRECO) return toast(ERROS.diamantes_insuficientes, 'erro');
+        botao.disabled = true;
+        enfileirar([], async () => {
+            try {
+                const r = await rpc('fazenda_trocar_apelido', { p_token: token, p_apelido: novo });
+                S.jogador.apelido = r.apelido;
+                S.jogador.diamantes = r.diamantes;
+                trocandoNome = false;
+                desenharHud();
+                som.tocar('festa');
+                toast(`Agora você é <b>${esc(r.apelido)}</b>!`);
+                if (painelAtual === 'conta') abrirPainel('conta', true);
+            } catch (e) {
+                toast(e.message, 'erro');
+                botao.disabled = false;
+            }
+        });
+    }
+    const noDeposito = (id) => deposito[id] || 0;
+    const totalDeposito = () => Object.values(deposito).reduce((a, n) => a + n, 0);
+    function carregarDeposito() {
+        rpc('fazenda_deposito', { p_token: token }).then((r) => { deposito = (r && r.deposito) || {}; if (constr.ativo) desenharPaleta(); }).catch(() => { /* sem a fase 95: depósito vazio */ });
+    }
     // a cena desenha o alcance da máquina escolhida (irrigador, alarme...)
     const atualizarModo = () => cena.definirModoConstrucao({ ...constr, raio: (tipoItem(constr.tipo) || {}).raio || 0 });
     const NOME_AREA = (x, y) => {
@@ -3123,24 +3163,27 @@
         if (!A.livre(x, y)) return mostrarStatus(`${ico('cadeado', 12)} Aqui fica ${NOME_AREA(x, y)}: não dá para construir.`);
         const ct = canteiroEm(x, y);
         if (ct) {
-            if (constr.modo === 'guardar') {
-                return mostrarStatus(ct.estado === 'plantado' ? 'Tem planta nesse canteiro: colha ou limpe antes de guardar.' : `${A.htmlItem('canteiro', 22)} Toque para guardar o canteiro (ele volta para o seu limite).`);
+            if (constr.modo === 'guardar' || constr.modo === 'vender') {
+                return mostrarStatus(ct.estado === 'plantado' ? 'Tem planta nesse canteiro: colha ou limpe antes de tirar.' : `${A.htmlItem('canteiro', 22)} Toque para tirar o canteiro (ele volta para o seu limite).`);
             }
             return mostrarStatus(`${A.htmlItem('canteiro', 22)} Canteiro. ${constr.modo === 'mover' ? 'Toque para escolher e depois no lugar novo (a planta vai junto).' : 'Use Mover para mudar de lugar.'}`);
         }
         const c = construcaoEm(x, y);
         const it = c && tipoItem(c.tipo);
-        if (constr.modo === 'guardar') {
-            return mostrarStatus(it ? `${A.htmlItem(c.tipo, 22)} Toque para guardar ${esc(it.nome.toLowerCase())} (volta ${moeda(Math.floor((c.pago != null ? c.pago : it.custo) / 2))}, metade do que pagou).` : 'Nada para guardar aqui.');
+        if (constr.modo === 'guardar') {   // fase 95
+            return mostrarStatus(it ? `${A.htmlItem(c.tipo, 22)} Toque para guardar ${esc(it.nome.toLowerCase())} no depósito (sai inteiro; depois é só colocar de novo, de graça).` : 'Nada para guardar aqui.');
+        }
+        if (constr.modo === 'vender') {
+            return mostrarStatus(it ? `${A.htmlItem(c.tipo, 22)} Toque para vender ${esc(it.nome.toLowerCase())} (volta ${moeda(Math.floor((c.pago != null ? c.pago : it.custo) / 2))}, metade do que pagou).` : 'Nada para vender aqui.');
         }
         if (constr.modo === 'mover') {
             if (constr.movendo) return mostrarStatus(c ? 'Esse lugar está ocupado.' : 'Toque para levar o item para cá.');
             return mostrarStatus(it ? `${A.htmlItem(c.tipo, 22)} Toque para escolher ${esc(it.nome.toLowerCase())} e depois o novo lugar.` : 'Toque num item para mover.');
         }
         const sel = tipoItem(constr.tipo);
-        if (c) return mostrarStatus(`${A.htmlItem(c.tipo, 22)} ${esc(it ? it.nome : c.tipo)}. ${it && it.descricao ? esc(it.descricao) + ' ' : ''}Toque nele para mudar de lugar, ou use Guardar.`);
+        if (c) return mostrarStatus(`${A.htmlItem(c.tipo, 22)} ${esc(it ? it.nome : c.tipo)}. ${it && it.descricao ? esc(it.descricao) + ' ' : ''}Toque nele para mudar de lugar, ou use Guardar (vai para o depósito) ou Vender.`);
         if (sel && sel.id === 'canteiro') return mostrarStatus(`${A.htmlItem('canteiro', 22)} Toque para colocar um canteiro (sobram ${canteirosLivres()}).`);
-        mostrarStatus(sel ? `${A.htmlItem(sel.id, 22)} Toque para colocar ${esc(sel.nome.toLowerCase())} (${cercadoGratis(sel) ? 'de graça' : moeda(sel.custo)}).` : 'Escolha um item na barra de baixo.');
+        mostrarStatus(sel ? `${A.htmlItem(sel.id, 22)} Toque para colocar ${esc(sel.nome.toLowerCase())} (${noDeposito(sel.id) ? `📦 do depósito, de graça: tem ${noDeposito(sel.id)}` : cercadoGratis(sel) ? 'de graça' : moeda(sel.custo)}).` : 'Escolha um item na barra de baixo.');
     }
 
     function abrirConstrucao() {
@@ -3155,6 +3198,7 @@
         el.barra.hidden = true;
         desenharPaleta();
         atualizarModo();
+        carregarDeposito();   // fase 95
         mostrarStatus('Modo construir: escolha um item e toque nos quadrados livres. Arraste para ver o terreno.');
         ajustarMargens(true);
     }
@@ -3174,22 +3218,27 @@
 
     function desenharPaleta() {
         if (!S || !S.itens) return;
-        const abas = [['plantacao', 'Plantação'], ['pomar', 'Pomar'], ['bichos', 'Bichos'], ['oficina', 'Oficinas'], ['maquina', 'Máquinas'], ['energia', 'Energia'], ['caminho', 'Cercas e caminhos'], ['natureza', 'Natureza'], ['objeto', 'Objetos'], ['construcao', 'Casas'], ['praia', 'Praia']];
+        const nDep = totalDeposito();
+        if (constr.aba === 'guardados' && !nDep) constr.aba = 'plantacao';
+        const abas = [...(nDep ? [['guardados', `📦 Guardados (${nDep})`]] : []), ['plantacao', 'Plantação'], ['pomar', 'Pomar'], ['bichos', 'Bichos'], ['oficina', 'Oficinas'], ['maquina', 'Máquinas'], ['energia', 'Energia'], ['caminho', 'Cercas e caminhos'], ['natureza', 'Natureza'], ['objeto', 'Objetos'], ['construcao', 'Casas'], ['praia', 'Praia']];
         el.constrAbas.innerHTML = abas.map(([id, txt]) =>
             `<button type="button" data-constr-aba="${id}" class="${constr.aba === id ? 'ativa' : ''}">${txt}</button>`).join('');
         // por nível (o que já libera primeiro); no mesmo nível, a ordem do catálogo. A ordem do catálogo
         // segue a fase em que cada item entrou, e deixava oficina liberada no fim da lista
         const lista = constr.aba === 'plantacao' ? [ITEM_CANTEIRO]
+            : constr.aba === 'guardados' ? S.itens.filter((i) => noDeposito(i.id) > 0)   // fase 95
             : S.itens.filter((i) => i.categoria === constr.aba).sort((a, b) => a.nivel_min - b.nivel_min || a.ordem - b.ordem);
         el.constrItens.innerHTML = lista.map((i) => {
             const travado = i.nivel_min > S.jogador.nivel;
             const sel = constr.modo === 'colocar' && constr.tipo === i.id;
             const max = maxItem(i), tem = max ? quantosTem(i) : 0;
+            const dep = noDeposito(i.id);   // fase 95: quantos estão guardados
             const preco = i.id === 'canteiro' ? `${S.canteiros.length}/${S.jogador.max_canteiros}`
-                : max && tem >= max ? (i.por_terreno ? `${tem}/${max}` : 'Já tem') : cercadoGratis(i) ? 'Grátis' : `${ico('moeda', 11)}${i.custo}`;
+                : max && tem >= max ? (i.por_terreno ? `${tem}/${max}` : 'Já tem') : dep ? 'Guardado' : cercadoGratis(i) ? 'Grátis' : `${ico('moeda', 11)}${i.custo}`;
             const falta = !!(S.jogador.trava && (S.jogador.trava.faltam || []).includes(i.id));   // fase 90: falta para subir
             return `<button type="button" class="paleta-item${sel ? ' selecionado' : ''}${travado ? ' travado' : ''}${falta ? ' falta-nivel' : ''}" data-item="${esc(i.id)}" title="${esc(i.nome)}${falta ? ' (falta para passar de nível)' : contaNivel(i) ? ' (conta para passar de nível)' : ''}${i.descricao ? ': ' + esc(i.descricao) : ''}">
                 ${travado ? ico('cadeado', 18) : A.htmlItem(i.id, 32)}
+                ${dep ? `<b class="paleta-dep" title="${dep} no depósito">📦${dep}</b>` : ''}
                 <small>${travado ? `Nv ${i.nivel_min}` : preco}</small>
             </button>`;
         }).join('');
@@ -3251,10 +3300,12 @@
                 return toast(tam.w > 1 ? `Não cabe aqui: ${esc(it.nome.toLowerCase())} precisa de ${tam.w}×${tam.h} quadrados livres.` : ERROS.lugar_ocupado, 'erro');
             }
             if (it.nivel_min > S.jogador.nivel) return toast(`${esc(it.nome)} libera no nível ${it.nivel_min}.`);
-            const custo = custoItem(it);
+            const doDep = noDeposito(it.id) > 0;   // fase 95: sai do depósito, de graça
+            const custo = doDep ? 0 : custoItem(it);
             if (S.jogador.moedas < custo) return toast(ERROS.moedas_insuficientes, 'erro');
             // aparece na hora; o servidor confirma em seguida
-            const gratis = cercadoGratis(it);
+            const gratis = !doDep && cercadoGratis(it);
+            if (doDep) { deposito[it.id] -= 1; if (!deposito[it.id]) delete deposito[it.id]; desenharPaleta(); }
             const colocar = (s) => {
                 if (s.construcoes.some((c) => c.x === x && c.y === y)) return;
                 s.construcoes.push({ x, y, tipo: it.id });
@@ -3264,9 +3315,12 @@
             colocar(S);
             desenharHud();
             som.tocar('construir');
-            flutuarTile(x, y, custo ? `−${custo} ${ico('moeda', 16)}` : 'De graça!');
+            flutuarTile(x, y, doDep ? '📦 Do depósito' : custo ? `−${custo} ${ico('moeda', 16)}` : 'De graça!');
             enfileirarOtimista(colocar, () => rpc('fazenda_construir', { p_token: token, p_tipo: it.id, p_x: x, p_y: y }))
-                .then(() => { if (!S.construcoes.some((c) => c.x === x && c.y === y)) recarregar(); });
+                .then((r) => {
+                    if (r && r.deposito) { deposito = r.deposito; desenharPaleta(); }
+                    if (!S.construcoes.some((c) => c.x === x && c.y === y)) recarregar();
+                }).catch(() => { if (doDep) carregarDeposito(); });
         } else if (constr.modo === 'mover') {
             if (!constr.movendo) {
                 if (cant) {
@@ -3319,14 +3373,37 @@
                 }
                 otimistas.delete(o);
             });
-        } else if (constr.modo === 'guardar' && cant) {
+        } else if ((constr.modo === 'guardar' || constr.modo === 'vender') && cant) {
             if (cant.estado === 'plantado') return toast('Tem planta nesse canteiro: colha (ou limpe) antes de guardar.', 'erro');
             const tirar = (s) => { s.canteiros = s.canteiros.filter((c) => c.x !== x || c.y !== y); };
             tirar(S);
             som.tocar('construir');
             enfileirarOtimista(tirar, () => rpc('fazenda_demolir', { p_token: token, p_x: x, p_y: y }))
                 .then(() => desenharPaleta());
-        } else if (constr.modo === 'guardar') {
+        } else if (constr.modo === 'guardar') {   // fase 95: vai inteiro para o depósito
+            if (!ocupado) return;
+            const ax = ocupado.x, ay = ocupado.y, tipo = ocupado.tipo;
+            const tirar = (s) => { s.construcoes = s.construcoes.filter((c) => c.x !== ax || c.y !== ay); };
+            tirar(S);
+            deposito[tipo] = noDeposito(tipo) + 1;
+            desenharPaleta();
+            som.tocar('construir');
+            flutuarTile(ax, ay, '📦 Guardado');
+            const o = { refazer: tirar };
+            otimistas.add(o);
+            enfileirar([], async () => {
+                try {
+                    const r = await rpc('fazenda_guardar', { p_token: token, p_x: ax, p_y: ay });
+                    if (r && r.deposito) { deposito = r.deposito; desenharPaleta(); }
+                } catch (e) {
+                    otimistas.delete(o);
+                    carregarDeposito();
+                    try { aplicarEstado(await rpc('fazenda_carregar', { p_token: token, p_cat: (S && S.cat_ver) || '' })); } catch (e2) { /* a próxima busca acerta */ }
+                    throw e;
+                }
+                otimistas.delete(o);
+            });
+        } else if (constr.modo === 'vender') {   // o "Guardar" de antes: tira e devolve metade do que pagou
             if (!ocupado) return;
             const ax = ocupado.x, ay = ocupado.y;
             const tirar = (s) => { s.construcoes = s.construcoes.filter((c) => c.x !== ax || c.y !== ay); };
@@ -4690,6 +4767,9 @@
                     <div>
                         <p>Fazendeiro(a): <b>${esc(S.jogador.apelido)}</b> · Nível ${S.jogador.nivel}${S.criado_em ? ` · desde ${desde(S.criado_em)}` : ''}</p>
                         <button type="button" class="botao pequeno verde" data-avatar-editar>Personalizar avatar</button>
+                        ${boasVindas ? '' : `<button type="button" class="botao pequeno creme" data-trocar-nome>Trocar nome · ${ico('diamante', 12)} ${APELIDO_PRECO}</button>`}
+                        ${trocandoNome ? `<span class="trocar-nome"><input id="novoApelido" type="text" maxlength="20" autocomplete="off" value="${esc(S.jogador.apelido)}" aria-label="Novo nome">
+                            <button type="button" class="botao pequeno verde" data-trocar-nome-ok>Trocar por ${ico('diamante', 12)} ${APELIDO_PRECO}</button></span>` : ''}
                     </div>
                 </div>
                 ${boasVindas ? '' : `<p><button type="button" class="botao pequeno creme" data-painel-ir="niveis">${ico('xp', 14)} Ver o caminho dos níveis</button></p>
@@ -5954,6 +6034,8 @@
             toast(`Semente escolhida: ${itemDe(k)} ${esc(k.nome)}`, undefined, 'leve');
             return;
         }
+        if (e.target.closest('[data-trocar-nome]')) { trocandoNome = !trocandoNome; abrirPainel('conta', true); const i = $('novoApelido'); if (i) { i.focus(); i.select(); } return; }   // fase 95
+        if (e.target.closest('[data-trocar-nome-ok]')) { trocarNome(e.target.closest('[data-trocar-nome-ok]')); return; }
         if (e.target.closest('[data-avatar-editar]')) {
             rascunhoAvatar = { tipo: 'fazendeiro', pele: 0, cabelo: 0, roupa: 0, calca: 0, chapeu: 0, ...A.normalizarAvatar(S.jogador.avatar) };
             abrirPainel('avatar');
@@ -6824,7 +6906,7 @@
             atualizarModo();
             mostrarStatus(it.id === 'canteiro'
                 ? `${A.htmlItem('canteiro', 22)} Canteiro: toque nos quadrados livres (sobram ${canteirosLivres()}). Lado a lado eles viram fileiras.`
-                : `${A.htmlItem(it.id, 22)} ${esc(it.nome)} (${cercadoGratis(it) ? 'o seu sai de graça' : moeda(it.custo)})${it.descricao ? ': ' + esc(it.descricao) : ''} Toque nos quadrados livres.`);
+                : `${A.htmlItem(it.id, 22)} ${esc(it.nome)} (${noDeposito(it.id) ? `📦 ${noDeposito(it.id)} no depósito: sai de graça` : cercadoGratis(it) ? 'o seu sai de graça' : moeda(it.custo)})${it.descricao ? ': ' + esc(it.descricao) : ''} Toque nos quadrados livres.`);
             return;
         }
         const ferr = e.target.closest('[data-ferramenta]');
@@ -6835,7 +6917,9 @@
             constr.voltar = null;
             desenharPaleta();
             atualizarModo();
-            mostrarStatus(constr.modo === 'mover' ? 'Mover: toque num item ou canteiro e depois no lugar novo.' : 'Guardar: toque num item para tirar (volta metade do valor) ou num canteiro vazio.');
+            mostrarStatus(constr.modo === 'mover' ? 'Mover: toque num item ou canteiro e depois no lugar novo.'
+                : constr.modo === 'vender' ? 'Vender: toque num item para tirar e receber metade do que pagou (ou num canteiro vazio).'
+                : 'Guardar: toque num item para levar para o depósito (sai inteiro; aparece com 📦 na barra para colocar de novo, de graça).');
         }
     });
 
