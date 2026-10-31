@@ -1335,6 +1335,57 @@
             ${t.funcao === 'colher' ? htmlMurchasJuca() : ''}
             <p class="aviso">Descansar recupera a energia toda. Descansando, ele não trabalha nem junta tarefas para depois. Só dá para mandar descansar com <b>menos de 75%</b> de energia, e precisa de uma cama livre: mais casinhas, mais ajudantes descansando ao mesmo tempo. Ele dorme na casa (tocar nela mostra quem está lá).</p>`;
     }
+    /* ---- fase 97: a tela dos funcionários (👷 no menu): todos os ajudantes num lugar só, com o estado de
+       cada um e os botões de contratar, evoluir, mandar descansar, demitir e ver os detalhes ---- */
+    const totalFeito = (feito) => Object.values(feito || {}).reduce((a, n) => a + (Number(n) || 0), 0);
+    function htmlFuncionarios() {
+        const tipos = S.ajudantes_tipos || [];
+        if (!tipos.length) return '<p class="vazio-msg">Os ajudantes chegam em breve.</p>';
+        const camas = S.camas || { total: 1, ocupadas: 0 }, livres = Math.max(0, camas.total - camas.ocupadas);
+        const meus = tipos.filter((t) => meuAjudante(t.id)).length;
+        let html = `<p class="fala">Seus funcionários num lugar só: ${meus ? `<b>${meus}</b> trabalhando para você` : 'ninguém contratado ainda'}. Camas: <b>${camas.ocupadas} de ${camas.total}</b> ocupadas${livres ? ` (${livres} livre${livres === 1 ? '' : 's'})` : ''}.</p>`;
+        if (lojaD() && meus) html += `<p class="det">${ativoAte(S.jogador.cafe_ate) ? `<b>Café servido:</b> todos em dobro até ${hora(S.jogador.cafe_ate)}. ` : `Café: todos em dobro por ${lojaD().cafe.horas} h. `}${botaoDiamante('cafe', lojaD().cafe.preco, ativoAte(S.jogador.cafe_ate) ? `+${lojaD().cafe.horas} horas` : 'Servir café')}</p>`;
+        html += '<div class="lista funcionarios">' + tipos.map((t) => {
+            const h = meuAjudante(t.id), nivel = h ? h.nivel : 0;
+            const travado = !h && t.nivel_min > S.jogador.nivel;
+            if (travado) {
+                return `<div class="item travada"><span class="ico">${ico('cadeado', 28)}</span><span><span class="nome">${esc(t.nome)} <small class="qtd">${esc(t.papel)}</small></span>
+                    <span class="det"><span>Libera no nível ${t.nivel_min}.</span></span></span></div>`;
+            }
+            const precisa = nivel && EVOLUIR_NIVEL[nivel + 1] > S.jogador.nivel ? EVOLUIR_NIVEL[nivel + 1] : 0;
+            const preco = nivel < NIVEL_MAX_AJUDANTE && !precisa ? custoAjudante(t, nivel) : null;
+            const botaoSubir = nivel >= NIVEL_MAX_AJUDANTE ? '<span class="chip">Nível máximo</span>'
+                : precisa ? `<span class="chip">Evolui no nível ${precisa}</span>`
+                : `<button type="button" class="botao pequeno verde" data-contratar="${esc(t.id)}"${S.jogador.moedas >= preco ? '' : ' disabled'}>${nivel ? 'Evoluir' : 'Contratar'} · ${moeda(curto(preco))}</button>`;
+            if (!h) {
+                return `<div class="item"><span class="ico">${retratoAjudante(t.id, 44)}</span><span>
+                    <span class="nome">${esc(t.nome)} <small class="qtd">${esc(t.papel)}</small></span>
+                    <span class="det"><span>${esc(t.descricao)}</span></span>
+                    <span class="det"><span>Começa com ${efeitoAjudante(t, 1)}.</span></span>
+                    <span class="botoes-func">${botaoSubir}</span></span></div>`;
+            }
+            const estrelas = [1, 2, 3, 4, 5].map((n) => (n <= nivel ? '★' : '☆')).join('');
+            const eletrico = t.funcao === 'energia';
+            const e = Math.max(0, Math.min(100, Number(h.energia) || 0)), parado = !eletrico && descansando(h);
+            const estado = eletrico ? 'Sempre ligado: não cansa.'
+                : parado ? `${ico('lua', 12)} Descansando até ${hora(h.descanso_ate)}`
+                : `Trabalhando · energia ${Math.round(e)}%${e < 20 ? ' (quase cansado)' : ''}`;
+            const hoje = eletrico ? '' : ` · hoje: ${totalFeito(h.hoje)} tarefa${totalFeito(h.hoje) === 1 ? '' : 's'}`;
+            const descansar = eletrico ? ''
+                : parado ? ''
+                : e >= 75 ? `<button type="button" class="botao pequeno creme" disabled title="Só com menos de 75% de energia">${ico('lua', 12)} Descansar</button>`
+                : livres ? `<button type="button" class="botao pequeno creme" data-ajudante-descansar="${esc(t.id)}">${ico('lua', 12)} Descansar 1 h</button>`
+                : `<button type="button" class="botao pequeno creme" disabled title="Sem cama livre: construa casinhas">${ico('lua', 12)} Sem cama</button>`;
+            return `<div class="item${parado ? ' descansando' : ''}"><span class="ico">${retratoAjudante(t.id, 44)}</span><span>
+                <span class="nome">${esc(t.nome)} <small class="qtd">${esc(t.papel)}</small></span>
+                <span class="det"><span class="estrelas">${estrelas}</span><span>nível ${nivel} · ${efeitoAjudante(t, nivel)}</span></span>
+                ${eletrico ? '' : `<div class="barra-energia mini${parado ? ' parado' : e < 20 ? ' pouca' : ''}" title="${Math.round(e)}%"><i style="width:${parado ? 0 : e}%"></i></div>`}
+                <span class="det"><span>${estado}${hoje}</span></span>
+                <span class="botoes-func">${botaoSubir}${descansar}<button type="button" class="botao pequeno creme" data-ajudante-ver="${esc(t.id)}">Ver</button><button type="button" class="botao pequeno vermelho" data-demitir="${esc(t.id)}">Demitir</button></span>
+            </span></div>`;
+        }).join('') + '</div>';
+        return html + `<p class="aviso">Descansar recupera a energia toda e precisa de uma cama livre (cada casinha dá camas). Demitir não devolve as moedas e deixa contratar aquele ajudante de novo 50% mais caro.</p>`;
+    }
     /* ---- fase 66: por que a planta murchou (o servidor registra o motivo de cada uma) ---- */
     const DICA_MURCHA = {
         sem_colhedor: 'Contrate o Juca, o colhedor (Loja → Ajudantes, nível 10): ele colhe sozinho antes de murchar.',
@@ -1365,6 +1416,9 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-10-31-funcionarios', data: '31/10', titulo: '👷 Funcionários num lugar só', itens: [
+            'No menu tem <b>👷 Funcionários</b>: todos os ajudantes numa tela, com o nível, a energia, se está trabalhando ou descansando e quanto já fez hoje.',
+            'Dali dá para <b>contratar, evoluir, mandar descansar, demitir</b> e ver os detalhes de cada um, sem ir na Loja.'] },
         { id: '2026-10-31-itens', data: '31/10', titulo: '🎒 Itens especiais e a pérola negra', itens: [
             'No menu tem <b>🎒 Itens</b>: os seus itens raros num lugar só. Os que dá para usar (os prêmios do evento da semana e a pérola negra) têm o botão <b>Usar</b>, e os materiais mostram para que servem.',
             'A <b>pérola negra</b> agora também dá para usar: liga <b>12 h de +50% na colheita</b>. Ela continua servindo nas melhorias e na pintura do barco.'] },
@@ -4851,6 +4905,9 @@
             el.painelTitulo.innerHTML = '👽 Você ganhou!';
             corpo.innerHTML = htmlInvasaoPremio();
             carregarInvasao(true);
+        } else if (nome === 'funcionarios') {   // fase 97: os funcionários
+            el.painelTitulo.innerHTML = '👷 Funcionários';
+            corpo.innerHTML = htmlFuncionarios();
         } else if (nome === 'itens') {   // fase 96: os itens especiais
             el.painelTitulo.innerHTML = '🎒 Itens especiais';
             corpo.innerHTML = htmlItens();
@@ -5221,7 +5278,7 @@
     function htmlLojaAjudantes() {
         const tipos = S.ajudantes_tipos || [];
         if (!tipos.length) return '<p class="vazio-msg">Os ajudantes chegam em breve.</p>';
-        return '<div class="lista">' + tipos.map((t) => {
+        return '<p><button type="button" class="botao pequeno creme" data-painel-ir="funcionarios">👷 Gerenciar todos os funcionários</button></p><div class="lista">' + tipos.map((t) => {
             const h = meuAjudante(t.id), nivel = h ? h.nivel : 0;
             const travado = !h && t.nivel_min > S.jogador.nivel;
             const estrelas = [1, 2, 3, 4, 5].map((n) => (n <= nivel ? '★' : '☆')).join('');
@@ -6511,6 +6568,7 @@
                 aplicarEstado(r.estado);
                 const t = tipoAjudante(ajDesc.dataset.ajudanteDescansar);
                 toast(`${retratoAjudante(ajDesc.dataset.ajudanteDescansar, 20)} ${esc(t ? t.nome : 'O ajudante')} foi descansar. Volta em 1 h com a energia cheia.`);
+                if (painelAtual === 'funcionarios' || painelAtual === 'ajudante') abrirPainel(painelAtual, true);   // fase 97
             }).finally(() => { ajDesc.disabled = false; });
             return;
         }
@@ -6524,7 +6582,7 @@
                 enfileirar([], async () => {
                     const r = await rpc('fazenda_demitir', { p_token: token, p_tipo: t.id });
                     aplicarEstado(r.estado);
-                    fecharPainel();
+                    if (painelAtual === 'funcionarios') abrirPainel('funcionarios', true); else fecharPainel();   // fase 97: na lista, ela continua aberta
                     toast(`${retratoAjudante(t.id, 20)} ${esc(t.nome)} foi embora da fazenda.`);
                 });
             });
@@ -6542,7 +6600,7 @@
                     ? `${retratoAjudante(t.id, 22)} ${esc(t.nome)} começou a trabalhar na sua fazenda!`
                     : `${retratoAjudante(t.id, 22)} ${esc(t.nome)} subiu para o nível ${r.nivel}: agora ${t.funcao === 'animal' ? 'os bichos dele(a) ficam ' + ADIANTA_CUIDADOR[r.nivel] + ' no tempo' : t.funcao === 'energia' ? 'é ' + DESCONTO_ELETRICISTA[r.nivel] + ' de energia' : 'faz ' + RITMO[r.nivel] + ' por hora'}.`, 'festa');
                 som.tocar('festa');
-                if (painelAtual === 'loja') abrirPainel('loja', true);
+                if (painelAtual === 'loja' || painelAtual === 'funcionarios') abrirPainel(painelAtual, true);   // fase 97
             }).finally(() => { contr.disabled = false; });
             return;
         }
