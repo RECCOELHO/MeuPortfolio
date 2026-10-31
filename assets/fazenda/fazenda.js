@@ -46,6 +46,9 @@
     /* ---------- Mensagens de erro do servidor ---------- */
     const ERROS = {
         token_invalido: 'Sessão expirada. Entre de novo com seu código.',
+        // fase 97: a praia
+        praia_sem_estoque: 'Acabou o estoque no celeiro: a barraca não tem o que vender.',
+        praia_juntando: 'Os banhistas ainda estão comprando: volte daqui a pouco.',
         // fase 95: a troca de nome
         apelido_palavrao: 'Esse nome não pode: tem palavrão.',
         apelido_igual: 'Esse já é o seu nome.',
@@ -1416,6 +1419,10 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-10-31-praia', data: '31/10', titulo: '🏖️ A praia com vendedores', itens: [
+            'A <b>praia ganhou movimento</b>: de dia aparecem <b>banhistas</b> nos guarda-sóis e nas cadeiras, e fregueses nas barracas.',
+            'A <b>barraca de coco</b> agora <b>vende</b> o coco do seu celeiro para eles, a 140 cada (no celeiro vale 70), e tem o <b>carrinho de milho</b> novo (Construir → Praia), que vende o milho cozido a 50 (no celeiro, 12).',
+            'Quanto mais conforto na areia, mais vendem: cada barraca vende 6 por hora, mais 2 por guarda-sol e 1 por cadeira, castelo ou coqueiro da praia (até +20). O caixa junta até 8 h: <b>toque na barraca para recolher</b>.'] },
         { id: '2026-10-31-funcionarios', data: '31/10', titulo: '👷 Funcionários num lugar só', itens: [
             'No menu tem <b>👷 Funcionários</b>: todos os ajudantes numa tela, com o nível, a energia, se está trabalhando ou descansando e quanto já fez hoje.',
             'Dali dá para <b>contratar, evoluir, mandar descansar, demitir</b> e ver os detalhes de cada um, sem ir na Loja.'] },
@@ -2692,6 +2699,8 @@
                 return total > 0 ? { ...c, bau: { frac: total / BAU_MAX } } : c;
             }
             if (c.iniciado_em && (tipoItem(c.tipo) || {}).efeito === 'biomassa') return { ...c, ligado: true };
+            const cx = caixaPraia(c);   // fase 97: a barraca com venda no caixa mostra o balão
+            if (cx) return cx.n > 0 ? { ...c, pronto: true, produto: A.cultura(cx.v.item).item } : c;
             const p = infoProducao(c);
             return p && p.falta <= 0 ? { ...c, pronto: true, produto: A.cultura(p.it.produz).item } : c;
         });
@@ -3013,6 +3022,37 @@
             </div>`;
     }
 
+    /* ---------- fase 97: a praia com vendedores ----------
+       As barracas vendem do celeiro para os banhistas (igual a fazenda_praia_regras): por hora, 6 + o conforto
+       da areia (guarda-sol 2, cadeira, castelo e coqueiro da praia 1, até 20); o caixa junta até 8 h. */
+    const PRAIA_REGRAS = {
+        vendedores: { barraca_coco: { item: 'coco', preco: 140 }, barraca_milho: { item: 'milho', preco: 50 } },
+        conforto: { guarda_sol: 2, cadeira_praia: 1, castelo_areia: 1, coqueiro_praia: 1 }, base: 6, confortoMax: 20, horasMax: 8
+    };
+    const confortoPraia = () => Math.min(PRAIA_REGRAS.confortoMax, (S.construcoes || []).reduce((a, c) => a + (PRAIA_REGRAS.conforto[c.tipo] || 0), 0));
+    const livreCeleiro = (item) => Math.max(0, naCeleiro(item) - reservaDe(item));
+    function caixaPraia(c) {
+        const v = PRAIA_REGRAS.vendedores[c.tipo];
+        if (!v) return null;
+        const porHora = PRAIA_REGRAS.base + confortoPraia();
+        const horas = Math.min(PRAIA_REGRAS.horasMax, Math.max(0, (agora() - Date.parse(c.colhido_em || new Date(agora()).toISOString())) / 3600e3));
+        const tem = livreCeleiro(v.item), n = Math.min(Math.floor(horas * porHora), tem);
+        return { v, porHora, horas, tem, n, moedas: n * v.preco, k: culturas[v.item] || { id: v.item, nome: v.item } };
+    }
+    function recolherPraia(c) {
+        const cx = caixaPraia(c), it = tipoItem(c.tipo) || { nome: 'Barraca' };
+        if (!cx.tem) return mostrarStatus(`${A.htmlItem(c.tipo, 22)} <b>${esc(it.nome)}</b>: sem ${esc(cx.k.nome.toLowerCase())} no celeiro para vender. ${cx.v.item === 'coco' ? 'O coco vem do coqueiro do pomar.' : 'Plante milho nos canteiros.'}`);
+        if (!cx.n) return mostrarStatus(`${A.htmlItem(c.tipo, 22)} <b>${esc(it.nome)}</b>: os banhistas estão comprando (${cx.porHora} por hora). Volte daqui a pouco para recolher.`);
+        c.colhido_em = new Date(agora()).toISOString();   // o balão some na hora
+        som.tocar('moeda');
+        enfileirar([], async () => {
+            const r = await rpc('fazenda_praia_caixa', { p_token: token, p_x: c.x, p_y: c.y });
+            flutuarTile(c.x, c.y, `+${numero(r.ganhou)} ${ico('moeda', 16)}`);
+            aplicarEstado(r.estado);
+            mostrarStatus(`${A.htmlItem(c.tipo, 22)} Vendeu ${r.vendeu} ${itemDe(cx.k, 16)} para os banhistas por ${moeda(numero(r.ganhou))}!`);
+        });
+    }
+
     function coletarItem(x, y) {
         const c = (S.construcoes || []).find((k) => k.x === x && k.y === y);
         if (c && c.sobrecarga_em) { consertoAlvo = { x, y }; return abrirPainel('conserto'); }   // fase 77
@@ -3020,6 +3060,7 @@
         const o = c && infoOficina(c);
         if (o) return acaoOficina(c, o);
         if (c && c.tipo === 'bau' && !visita) { bauAberto = { x, y }; return abrirPainel('bau'); }
+        if (c && PRAIA_REGRAS.vendedores[c.tipo] && !visita) return recolherPraia(c);   // fase 97
         const p = c && infoProducao(c);
         if (!p) return;
         if (p.falta > 0) return mostrarStatus(`${A.htmlItem(c.tipo, 22)} ${esc(p.it.nome)}: as próximas ${esc(p.produto.nome.toLowerCase())}s ficam prontas em ${fmtTempo(p.falta)}.`);
@@ -3084,6 +3125,10 @@
                     ? `${A.htmlItem(c.tipo, 22)} ${esc(it.nome)}: ${esc(p.produto.nome.toLowerCase())}s prontas! Toque para colher.`
                     : `${A.htmlItem(c.tipo, 22)} ${esc(it.nome)}: próximas ${esc(p.produto.nome.toLowerCase())}s em ${fmtTempo(p.falta)}.`);
             }
+        }
+        if (!visita && PRAIA_REGRAS.vendedores[c.tipo]) {   // fase 97
+            const cx = caixaPraia(c);
+            return mostrarStatus(`${A.htmlItem(c.tipo, 22)} <b>${esc(it.nome)}</b>: vende ${itemDe(cx.k, 16)} a ${moeda(cx.v.preco)} para os banhistas, ${cx.porHora} por hora (conforto da praia ${confortoPraia()}). ${cx.n ? `No caixa: <b>${cx.n} vendidos, ${moeda(numero(cx.moedas))}</b>. Toque para recolher.` : cx.tem ? 'Ainda juntando.' : `Sem ${esc(cx.k.nome.toLowerCase())} no celeiro.`}`);
         }
         if (!visita && c.tipo === 'alarme' && temEletrico() && cargaAgora() < 1) {   // fase 83
             return mostrarStatus(`${A.htmlItem(c.tipo, 22)} <b>${esc(it.nome)}: desligado por falta de energia.</b> A bateria zerou (o alarme gasta 5 ⚡/h e as luzes, de noite, 1 cada): os vizinhos podem pegar dos canteiros em volta. Gere mais energia para ele voltar.`);
