@@ -9582,12 +9582,13 @@ returns jsonb language sql stable as $$
     'ameaca_pontos', 1000, 'ameaca_passo', 0.5, 'ameaca_max', 60,
     'premio', jsonb_build_object('diamantes', 40, 'moedas', 4000000, 'fator', 0.75, 'min_diamantes', 1, 'min_moedas', 1000),
     'armas', '[
-      {"id": "forcado",    "nome": "Forcado elétrico",   "tipo": "toque", "efeito": 1,  "preco": 5000,   "fator": 1.6},
-      {"id": "espantalho", "nome": "Espantalho-robô",    "tipo": "auto",  "efeito": 1,  "preco": 20000,  "fator": 1.7},
-      {"id": "trator",     "nome": "Trator-canhão",      "tipo": "auto",  "efeito": 4,  "preco": 80000,  "fator": 1.8},
-      {"id": "drone",      "nome": "Drone pulverizador", "tipo": "auto",  "efeito": 12, "preco": 250000, "fator": 2.0}
+      {"id": "forcado",    "nome": "Forcado elétrico",   "tipo": "toque", "efeito": 2,  "preco": 5000,   "fator": 1.22},
+      {"id": "espantalho", "nome": "Espantalho-robô",    "tipo": "auto",  "efeito": 1,  "preco": 20000,  "fator": 1.3},
+      {"id": "trator",     "nome": "Trator-canhão",      "tipo": "auto",  "efeito": 4,  "preco": 80000,  "fator": 1.32},
+      {"id": "drone",      "nome": "Drone pulverizador", "tipo": "auto",  "efeito": 12, "preco": 250000, "fator": 1.35}
     ]'::jsonb,
-    'arma_nivel_max', 25);
+    -- fase 100: as armas sobem até o nível 60 e o preço cresce mais devagar; o forcado dá +2 de dano por nível
+    'arma_nivel_max', 60);
 $$;
 
 -- cada jogador na invasão
