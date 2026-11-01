@@ -9577,6 +9577,9 @@ returns jsonb language sql stable as $$
     -- as armas automáticas param de valer até você tocar nele.
     'ouro_primeiro', case when p_teste then 20 else 90 end, 'ouro_min', case when p_teste then 45 else 180 end,
     'ouro_max', case when p_teste then 90 else 360 end, 'ouro_prazo', 15, 'bonus_ouro', 50,
+    -- fase 99: a ameaça. A cada ameaca_pontos pontos SEUS, os ETs e o chefão aguentam +ameaca_passo da vida
+    -- (1.000 pontos: ×1,5; 2.000: ×2; 10.000: ×6...), até ameaca_max. O bônus de derrubar sobe junto.
+    'ameaca_pontos', 1000, 'ameaca_passo', 0.5, 'ameaca_max', 60,
     'premio', jsonb_build_object('diamantes', 40, 'moedas', 4000000, 'fator', 0.75, 'min_diamantes', 1, 'min_moedas', 1000),
     'armas', '[
       {"id": "forcado",    "nome": "Forcado elétrico",   "tipo": "toque", "efeito": 1,  "preco": 5000,   "fator": 1.6},
@@ -9710,6 +9713,13 @@ language sql immutable as $$
 $$;
 
 -- o que o jogo mostra de você
+-- fase 99: quanto a vida dos ETs é multiplicada para quem tem p_pontos (igual a multDe() em fazenda-invasao.js)
+create or replace function public.fazenda_invasao_mult(p_r jsonb, p_pontos bigint)
+returns numeric language sql immutable as $$
+  select least(coalesce((p_r->>'ameaca_max')::numeric, 1),
+               1 + coalesce((p_r->>'ameaca_passo')::numeric, 0) * floor(greatest(0, coalesce(p_pontos, 0)) / greatest(1, coalesce((p_r->>'ameaca_pontos')::numeric, 1))));
+$$;
+
 create or replace function public.fazenda_invasao_eu(p_r jsonb, p_jogador uuid)
 returns jsonb language plpgsql stable security definer set search_path = public as $$
 declare
@@ -9721,7 +9731,7 @@ begin
   if not found then
     return jsonb_build_object('pontos', 0, 'abates', 0, 'chefes', 0, 'armas', '{}'::jsonb, 'posicao', null,
       'precos', (select jsonb_object_agg(a->>'id', fazenda_invasao_preco(p_r, a->>'id', 0)) from jsonb_array_elements(p_r->'armas') a),
-      'por_toque', 1, 'por_seg', 0, 'golpes', '{}'::jsonb);
+      'por_toque', 1, 'por_seg', 0, 'golpes', '{}'::jsonb, 'mult', 1);
   end if;
   select count(*) + 1 into v_pos from fazenda_invasao where evento = m.evento and pontos > m.pontos;
   select * into v_pod from fazenda_invasao_poder(p_r, m.armas);
@@ -9732,7 +9742,7 @@ begin
     'por_toque', v_pod.por_toque, 'por_seg', v_pod.por_seg, 'golpes', m.golpes,
     'auto_ligado', m.ult_toque is not null and m.ult_toque > now() - make_interval(secs => (p_r->>'auto_ativo_seg')::int),
     'ouro', case when m.ouro_n is not null then jsonb_build_object('n', m.ouro_n, 'x', m.ouro_x, 'y', m.ouro_y, 'ate', m.ouro_ate) end,
-    'pausado', m.pausado, 'ouros', m.ouros);
+    'pausado', m.pausado, 'ouros', m.ouros, 'mult', fazenda_invasao_mult(p_r, m.pontos));
 end;
 $$;
 
@@ -9870,6 +9880,8 @@ declare
   v_oy    real;
   v_oate  timestamptz;
   v_oprox timestamptz;
+  v_mult  numeric;
+  v_hp    int;
 begin
   if p_teste and not exists (select 1 from fazenda_jogadores where id = v_id and admin is not null) then raise exception 'sem_permissao'; end if;
   if now() < (v_r->>'inicio')::timestamptz then raise exception 'invasao_antes'; end if;
@@ -9882,6 +9894,7 @@ begin
   v_dt := least((v_r->>'lote_max_seg')::double precision, greatest(0, extract(epoch from now() - coalesce(m.ult_lote, now()))));
   v_saldo := least((v_r->>'toques_max')::double precision, m.saldo + (v_r->>'toques_seg')::double precision * v_dt);
   select * into v_pod from fazenda_invasao_poder(v_r, m.armas);
+  v_mult := fazenda_invasao_mult(v_r, m.pontos);   -- fase 99: a ameaça (pelos seus pontos)
 
   -- o dano já feito só vale para os ETs que ainda estão na tela
   for e in select key, value from jsonb_each_text(m.golpes) loop
@@ -9915,18 +9928,19 @@ begin
       continue when v_n <= 0;
       select * into a from fazenda_invasao_alien(v_k, v_r);
       continue when not found or now() < a.nasce - interval '1 second' or now() > a.morre + interval '3 seconds';
+      v_hp := ceil(a.hp * v_mult)::int;
       v_feito := coalesce((v_golpes->>v_k::text)::int, 0);
-      continue when v_feito >= a.hp;
-      v_dano := least(v_n * v_pod.por_toque, a.hp - v_feito);
+      continue when v_feito >= v_hp;
+      v_dano := least(v_n * v_pod.por_toque, v_hp - v_feito);
       v_usou := ceil(v_dano::numeric / v_pod.por_toque)::int;
       v_saldo := v_saldo - v_usou;
       v_qtd := v_qtd + v_usou;
       v_alvo := v_k;
       v_pts := v_pts + v_dano;
       v_golpes := v_golpes || jsonb_build_object(v_k::text, v_feito + v_dano);
-      if v_feito + v_dano >= a.hp then
-        if a.chefe then v_chef := v_chef + 1; v_pts := v_pts + (v_r->>'bonus_chefe')::int;
-        else v_abat := v_abat + 1; v_pts := v_pts + (v_r->>'bonus_abate')::int; end if;
+      if v_feito + v_dano >= v_hp then
+        if a.chefe then v_chef := v_chef + 1; v_pts := v_pts + round((v_r->>'bonus_chefe')::int * v_mult)::int;
+        else v_abat := v_abat + 1; v_pts := v_pts + round((v_r->>'bonus_abate')::int * v_mult)::int; end if;
       end if;
     end loop;
   end if;
@@ -10589,6 +10603,7 @@ revoke execute on function
   public.fazenda_invasao_poder(jsonb, jsonb),
   public.fazenda_invasao_premio(jsonb, int),
   public.fazenda_invasao_eu(jsonb, uuid),
+  public.fazenda_invasao_mult(jsonb, bigint),
   public.fazenda_invasao_sala(jsonb),
   public.fazenda_invasao_fechar()
 from public, anon, authenticated;
