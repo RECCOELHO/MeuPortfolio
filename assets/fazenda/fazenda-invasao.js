@@ -30,6 +30,7 @@
     ];
     const COR_ET = { b: '#2e1a0e', B: '#8a5a32', R: '#e3261c', w: '#ffd8cf', m: '#2e1a0e' };
     const COR_CHEFE = { b: '#1e0f22', B: '#6d4a8a', R: '#ff3b2f', w: '#ffffff', m: '#1e0f22' };
+    const COR_OURO = { b: '#5a3a00', B: '#ffd23f', R: '#ff8a00', w: '#fffbe0', m: '#5a3a00' };   // fase 98: o ET dourado
 
     // números "aleatórios" que não mudam de um quadro para o outro
     function rng(seed) {
@@ -224,6 +225,9 @@
 
         /* ---------- o jogo: toques, saldo, lote ---------- */
         let pend = {}, feito = {}, mortos = new Set(), saldo = 5, ultSaldo = performance.now(), ultRelogio = 0;
+        // fase 98: o ET dourado ("ainda tá aí?"): o número dele em que você tocou (vai no próximo lote) e
+        // o último que você tocou (some da tela na hora, sem esperar o servidor)
+        let ouroPend = 0, ouroTocado = 0, ouroCaixa = null;
         let vivo = true, enviando = false, ultTiroOutros = new Map();
         let dica = { texto: 'Toque nos ETs!', ate: 0 };
         const eu = () => op.eu() || {};
@@ -236,6 +240,22 @@
             if (op.painelAberto()) return;
             const r = canvas.getBoundingClientRect();
             const lx = (ev.clientX - r.left) / escala, ly = (ev.clientY - r.top) / escala;
+            // fase 98: o ET dourado vem antes de tudo
+            const o = eu().ouro;
+            if (o && ouroCaixa && o.n !== ouroTocado) {
+                const c = ouroCaixa, folga = 6;
+                if (lx >= c.x0 - folga && lx <= c.x0 + c.w + folga && ly >= c.y0 - folga && ly <= c.y0 + c.h + folga) {
+                    const t = op.agora();
+                    ouroTocado = o.n; ouroPend = o.n;
+                    explodir(c.x0 + c.w / 2, c.y0 + c.h / 2, 30, '#ffd23f', t);
+                    numero(c.x0 + c.w / 2, c.y0 - 4, `DOURADO! +${op.regras().bonus_ouro || 50}`, '#ffd23f', t);
+                    op.som('festa');
+                    mostrarDica('Boa! Pode continuar.', 1500);
+                    setTimeout(lote, 60);
+                    return;
+                }
+            }
+            if (eu().pausado && !(o && o.n === ouroTocado)) { mostrarDica('Toque no ET DOURADO primeiro!', 1500); return; }
             let melhor = null, dist = 1e9;
             for (const a of alvosNaTela) {
                 const c = a.caixa, folga = a.e.chefe ? 4 : 7;
@@ -267,6 +287,7 @@
         canvas.addEventListener('pointerdown', tocar);
         // para os testes (Playwright): onde está cada ET na tela agora
         canvas.alvos = () => alvosNaTela.map((x) => ({ k: x.e.k, x: (x.caixa.x0 + x.caixa.w / 2) * escala, y: (x.caixa.y0 + x.caixa.h / 2) * escala }));
+        canvas.ouro = () => (ouroCaixa ? { x: (ouroCaixa.x0 + ouroCaixa.w / 2) * escala, y: (ouroCaixa.y0 + ouroCaixa.h / 2) * escala } : null);
         elTopo.addEventListener('click', (ev) => {
             if (ev.target.closest('[data-invasao-sair]')) op.sair();
             else if (ev.target.closest('[data-invasao-armas]')) op.armas();
@@ -276,9 +297,9 @@
         async function lote() {
             if (!vivo || enviando) return;
             enviando = true;
-            const manda = pend; pend = {};
+            const manda = pend, ouro = ouroPend; pend = {}; ouroPend = 0;
             try {
-                const r = await op.lote(manda);
+                const r = await op.lote(manda, ouro);
                 if (!vivo || !r) return;
                 // o que o servidor diz que você já fez em cada ET (o que ele não aceitou volta a aparecer)
                 const g2 = (r.eu && r.eu.golpes) || {}, R = op.regras(), t0 = op.agora();
@@ -300,6 +321,7 @@
                 });
                 pintarTopo();
             } catch (e) {
+                if (ouro && !ouroPend) ouroPend = ouro;   // não chegou: manda de novo no próximo
                 if (vivo) op.erro(e);
             } finally {
                 enviando = false;
@@ -323,6 +345,17 @@
                 const p = onde(e, t), caixa = desenharEt(e, p, t, feito[k] || 0);
                 alvosNaTela.push({ e, caixa });
                 if (e.chefe) chefe = { e, caixa };
+            }
+            // fase 98: o ET dourado (só seu), num lugar sorteado pelo servidor
+            ouroCaixa = null;
+            const ouro = eu().ouro;
+            if (ouro && ouro.n !== ouroTocado) {
+                const s = 2, w = ET[0].length * s, h = ET.length * s;
+                const x0 = Math.round(Math.max(4, Math.min(LW - w - 4, ouro.x * LW - w / 2))), y0 = Math.round(Math.max(LH * 0.2, Math.min(chao() - h - 30, ouro.y * LH - h / 2)) + Math.sin(t / 220) * 2);
+                const brilho = 0.35 + 0.25 * Math.sin(t / 130);
+                g.globalAlpha = brilho; g.fillStyle = '#fff2a8'; g.fillRect(x0 - 4, y0 - 4, w + 8, h + 8); g.globalAlpha = 1;
+                ET.forEach((linha, y) => [...linha].forEach((ch, x) => { if (ch !== '.') { g.fillStyle = COR_OURO[ch]; g.fillRect(x0 + x * s, y0 + y * s, s, s); } }));
+                ouroCaixa = { x0, y0, w, h };
             }
             // quem está na sala (você no meio, na frente)
             const sala = op.sala(), meu = op.meuId(), lista = ((sala && sala.jogadores) || []).filter((j) => j.id !== meu);
@@ -397,8 +430,28 @@
                 ctx.font = `800 ${Math.round(14 * dpr)}px 'Jersey 10', Nunito, sans-serif`; ctx.fillStyle = '#fff'; ctx.textBaseline = 'bottom';
                 ctx.fillText(`ET CHEFÃO! ${Math.max(0, e.hp - (feito[String(e.k)] || 0))}/${e.hp} · sai em ${Math.max(0, Math.ceil((e.morre - t) / 1000))} s`, canvas.width / 2, Y - 3 * dpr);
             }
+            desenharOuroAviso(t, k);
+            const PAUSA = 'Pausado: toque no ET DOURADO para voltar a pontuar!', pausou = eu().pausado && ouroCaixa;
+            if (pausou && !dica.ate && dica.texto !== PAUSA) mostrarDica(PAUSA, 0);
+            else if (!pausou && dica.texto === PAUSA) mostrarDica('Toque nos ETs!', 0);
             if (dica.ate && performance.now() > dica.ate) mostrarDica(alvosNaTela.length ? 'Toque nos ETs!' : 'Os ETs estão vindo…', 0);
             requestAnimationFrame(quadro);
+        }
+        // fase 98: o contador em cima do ET dourado e, se pausou, o aviso grande
+        function desenharOuroAviso(t, k) {
+            const o = eu().ouro;
+            if (!ouroCaixa || !o || o.n === ouroTocado) return;
+            const c = ouroCaixa, falta = Math.max(0, Math.ceil((Date.parse(o.ate) - t) / 1000));
+            ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.lineWidth = 3 * dpr; ctx.strokeStyle = 'rgba(40,24,0,.9)';
+            ctx.font = `800 ${Math.round(14 * dpr)}px 'Jersey 10', Nunito, sans-serif`; ctx.fillStyle = '#ffd23f';
+            const txt = eu().pausado ? 'TOQUE AQUI!' : `TOQUE! ${falta}s`;
+            ctx.strokeText(txt, (c.x0 + c.w / 2) * k, (c.y0 - 6) * k); ctx.fillText(txt, (c.x0 + c.w / 2) * k, (c.y0 - 6) * k);
+            if (eu().pausado) {
+                const Y = canvas.height * 0.13;
+                ctx.fillStyle = 'rgba(40,24,0,.82)'; ctx.fillRect(canvas.width * 0.06, Y - 26 * dpr, canvas.width * 0.88, 40 * dpr);
+                ctx.font = `800 ${Math.round(20 * dpr)}px 'Jersey 10', Nunito, sans-serif`; ctx.fillStyle = '#ffd23f';
+                ctx.fillText('PAUSADO: TOQUE NO ET DOURADO!', canvas.width / 2, Y + 8 * dpr);
+            }
         }
         requestAnimationFrame(quadro);
         const relogioTopo = setInterval(pintarTopo, 1000);

@@ -1433,6 +1433,10 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-11-01-et-dourado', data: '01/11', titulo: 'Invasão: ET dourado e mais chefões', itens: [
+            'Na <b>Invasão de Varginha</b>, o <b>ET chefão</b> agora desce a cada <b>20 minutos</b> (antes era de hora em hora).',
+            'De vez em quando aparece um <b>ET dourado</b> só para você, num lugar diferente da tela. Toque nele em 15 segundos e ganhe <b>+50 pontos</b>.',
+            'Se não tocar, os seus toques e as armas automáticas <b>param de valer</b> até você tocar nele. É para barrar quem usa robô de clique: quem joga de verdade nem sente.'] },
         { id: '2026-10-31-ajustes', data: '31/10', titulo: 'Ajustes: botões, som e ícones', itens: [
             'No <b>Construir</b>, os botões Mover, Guardar, Vender e <b>Pronto</b> cabem na tela do celular (o Pronto ficava cortado).',
             'A <b>música para</b> quando você sai do jogo (outro aplicativo, celular bloqueado ou outra aba) e volta quando você volta.',
@@ -1994,7 +1998,7 @@
             : f === 'durante' ? `<b>A invasão começou!</b> Acaba em <b>${fmtTempo(Date.parse(R.fim) - agora())}</b> (meia-noite).`
             : invasao.fechada ? '<b>A invasão acabou.</b> Os prêmios já foram entregues.' : '<b>A invasão acabou.</b> Os prêmios saem em instantes.';
         const premios = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((p) => { const x = premioInvasao(p); return `<span class="chip">${p}º ${ico('diamante', 12)} ${x.diamantes} + ${ico('moeda', 12)} ${curto(x.moedas)}</span>`; }).join('');
-        let html = `<p class="fala">Em 1996, Varginha viu um ET. Agora a nave voltou, e dessa vez veio para a <b>fazenda</b>! Entre na sala, onde todo mundo se vê, e <b>toque nos ETs</b>: o seu fazendeiro atira e cada acerto vale pontos. De hora em hora desce um <b>ET chefão</b>, que vale muito mais.</p>
+        let html = `<p class="fala">Em 1996, Varginha viu um ET. Agora a nave voltou, e dessa vez veio para a <b>fazenda</b>! Entre na sala, onde todo mundo se vê, e <b>toque nos ETs</b>: o seu fazendeiro atira e cada acerto vale pontos. A cada 20 minutos desce um <b>ET chefão</b>, que vale muito mais. E de vez em quando aparece um <b>ET dourado</b> só para você: toque nele em 15 s (+50 pontos), senão os seus toques param de valer até você tocar.</p>
             <p>${quando}</p>`;
         if (S.jogador.admin && !R.teste) {
             html += `<div class="evento-cat"><b>🧪 Teste dos admins</b><p class="det">Uma sala separada, aberta até domingo às 14h: o mesmo jogo, mas com placar próprio, armas de graça e sem prêmio. Só admins entram.</p>
@@ -2075,8 +2079,8 @@
             htmlTopo: htmlTopoInvasao,
             painelAberto: () => !!painelAtual,
             som: (n) => som.tocar(n),
-            lote: async (toques) => {
-                const r = await rpc('fazenda_invasao_lote', invasaoTeste ? { p_token: token, p_toques: toques, p_teste: true } : { p_token: token, p_toques: toques });
+            lote: async (toques, ouro) => {   // fase 98: p_ouro sempre vai (0: não tocou no ET dourado)
+                const r = await rpc('fazenda_invasao_lote', invasaoTeste ? { p_token: token, p_toques: toques, p_teste: true, p_ouro: ouro || 0 } : { p_token: token, p_toques: toques, p_ouro: ouro || 0 });
                 if (invasao) { invasao.eu = r.eu; invasao.sala = r.sala; }
                 return r;
             },
