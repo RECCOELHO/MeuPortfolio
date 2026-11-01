@@ -1433,6 +1433,10 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-11-01-ameaca', data: '01/11', titulo: 'Invasão: os ETs ficam mais fortes', itens: [
+            'Na <b>Invasão de Varginha</b>, quanto mais pontos você tem, <b>mais vida</b> os ETs e o chefão têm para você: a cada 1.000 pontos, +50%.',
+            'O selo <b>ETs ×2</b> (×3, ×4…) no alto da sala mostra a sua ameaça. O bônus de derrubar um ET sobe junto.',
+            'Quem está começando continua com os ETs fracos: cada um tem a sua ameaça.'] },
         { id: '2026-11-01-et-dourado', data: '01/11', titulo: 'Invasão: ET dourado e mais chefões', itens: [
             'Na <b>Invasão de Varginha</b>, o <b>ET chefão</b> agora desce a cada <b>20 minutos</b> (antes era de hora em hora).',
             'De vez em quando aparece um <b>ET dourado</b> só para você, num lugar diferente da tela. Toque nele em 15 segundos e ganhe <b>+50 pontos</b>.',
@@ -1998,7 +2002,7 @@
             : f === 'durante' ? `<b>A invasão começou!</b> Acaba em <b>${fmtTempo(Date.parse(R.fim) - agora())}</b> (meia-noite).`
             : invasao.fechada ? '<b>A invasão acabou.</b> Os prêmios já foram entregues.' : '<b>A invasão acabou.</b> Os prêmios saem em instantes.';
         const premios = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((p) => { const x = premioInvasao(p); return `<span class="chip">${p}º ${ico('diamante', 12)} ${x.diamantes} + ${ico('moeda', 12)} ${curto(x.moedas)}</span>`; }).join('');
-        let html = `<p class="fala">Em 1996, Varginha viu um ET. Agora a nave voltou, e dessa vez veio para a <b>fazenda</b>! Entre na sala, onde todo mundo se vê, e <b>toque nos ETs</b>: o seu fazendeiro atira e cada acerto vale pontos. A cada 20 minutos desce um <b>ET chefão</b>, que vale muito mais. E de vez em quando aparece um <b>ET dourado</b> só para você: toque nele em 15 s (+50 pontos), senão os seus toques param de valer até você tocar.</p>
+        let html = `<p class="fala">Em 1996, Varginha viu um ET. Agora a nave voltou, e dessa vez veio para a <b>fazenda</b>! Entre na sala, onde todo mundo se vê, e <b>toque nos ETs</b>: o seu fazendeiro atira e cada acerto vale pontos. A cada 20 minutos desce um <b>ET chefão</b>, que vale muito mais. Quanto mais pontos você tem, <b>mais fortes</b> os ETs ficam para você (e o bônus de derrubar sobe junto). E de vez em quando aparece um <b>ET dourado</b> só para você: toque nele em 15 s (+50 pontos), senão os seus toques param de valer até você tocar.</p>
             <p>${quando}</p>`;
         if (S.jogador.admin && !R.teste) {
             html += `<div class="evento-cat"><b>🧪 Teste dos admins</b><p class="det">Uma sala separada, aberta até domingo às 14h: o mesmo jogo, mas com placar próprio, armas de graça e sem prêmio. Só admins entram.</p>
@@ -2058,6 +2062,7 @@
                 <span class="chip">${ico('xp', 14)} ${curto(eu.pontos || 0)} pontos</span>
                 ${eu.posicao ? `<span class="chip">${ico('medalha', 14)} ${eu.posicao}º de ${sala.participantes || 1}</span>` : ''}
                 <span class="chip">${ico('funcionario', 14)} ${sala.na_sala || 1} na sala</span>
+                ${Number(eu.mult) > 1 ? `<span class="chip chip-ameaca" title="Quanto mais pontos você tem, mais vida os ETs têm">${ico('et', 14)} ETs ×${String(Number(eu.mult)).replace('.', ',')}</span>` : ''}
                 <button type="button" class="botao pequeno creme" data-invasao-placar>Placar</button>
             </span>`;
     }
@@ -2081,6 +2086,9 @@
             som: (n) => som.tocar(n),
             lote: async (toques, ouro) => {   // fase 98: p_ouro sempre vai (0: não tocou no ET dourado)
                 const r = await rpc('fazenda_invasao_lote', invasaoTeste ? { p_token: token, p_toques: toques, p_teste: true, p_ouro: ouro || 0 } : { p_token: token, p_toques: toques, p_ouro: ouro || 0 });
+                // fase 99: a ameaça subiu (os seus pontos passaram de mais um milhar)
+                const antes = Number(invasao && invasao.eu && invasao.eu.mult) || 1, agoraM = Number(r.eu && r.eu.mult) || 1;
+                if (invasao && invasao.eu && agoraM > antes) { toast(`${ico('et', 18)} Os ETs ficaram mais fortes com você: vida ×${String(agoraM).replace('.', ',')}!`); som.tocar('et'); }
                 if (invasao) { invasao.eu = r.eu; invasao.sala = r.sala; }
                 return r;
             },

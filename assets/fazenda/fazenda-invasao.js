@@ -191,7 +191,7 @@
             }));
             // a vida (o dano que VOCÊ já fez nele)
             if (feito > 0 && !e.chefe) {
-                const bw = 9, f = Math.max(0, 1 - feito / e.hp);
+                const bw = 9, f = Math.max(0, 1 - feito / hpDe(e));
                 g.fillStyle = '#2e1a0e'; g.fillRect(x0, y0 - 3, bw, 2);
                 g.fillStyle = f > 0.5 ? '#6aff6a' : f > 0.25 ? '#ffd84d' : '#ff4d4d'; g.fillRect(x0, y0 - 3, Math.max(1, Math.round(bw * f)), 2);
             }
@@ -231,6 +231,9 @@
         let vivo = true, enviando = false, ultTiroOutros = new Map();
         let dica = { texto: 'Toque nos ETs!', ate: 0 };
         const eu = () => op.eu() || {};
+        // fase 99: a ameaça. A vida de cada ET é multiplicada pelos SEUS pontos (o servidor manda eu.mult)
+        const hpDe = (e) => Math.ceil(e.hp * (Number(eu().mult) || 1));
+        const bonusDe = (n) => Math.round(n * (Number(eu().mult) || 1));
         function mostrarDica(texto, ms) { dica = { texto, ate: ms ? performance.now() + ms : 0 }; pintarDica(); }
         function pintarDica() { elDica.textContent = dica.texto || ''; elDica.className = 'mar-dica'; }
         function pintarTopo() { elTopo.innerHTML = op.htmlTopo(); }
@@ -269,17 +272,17 @@
             const de = { x: Math.round(LW / 2), y: chao() - 12 }, para = { x: melhor.caixa.x0 + melhor.caixa.w / 2, y: melhor.caixa.y0 + melhor.caixa.h / 2 };
             if (saldo < 1) { mostrarDica('Calma! O forcado está esquentando…', 900); return; }
             saldo -= 1;
-            const e = melhor.e, k = String(e.k), dano = Math.min(eu().por_toque || 1, e.hp - (feito[k] || 0));
+            const e = melhor.e, k = String(e.k), dano = Math.min(eu().por_toque || 1, hpDe(e) - (feito[k] || 0));
             if (dano <= 0) return;
             pend[k] = (pend[k] || 0) + 1;
             feito[k] = (feito[k] || 0) + dano;
             atirar(de, para, '#ffe08a', t);
             numero(para.x, para.y - 4, '+' + dano, '#ffe08a', t);
             op.som('tiro');
-            if (feito[k] >= e.hp) {
+            if (feito[k] >= hpDe(e)) {
                 mortos.add(k);
                 explodir(para.x, para.y, e.chefe ? 40 : 12, null, t);
-                numero(para.x, para.y - 10, e.chefe ? `CHEFÃO! +${op.regras().bonus_chefe}` : `+${op.regras().bonus_abate}`, '#7dff6a', t);
+                numero(para.x, para.y - 10, e.chefe ? `CHEFÃO! +${bonusDe(op.regras().bonus_chefe)}` : `+${bonusDe(op.regras().bonus_abate)}`, '#7dff6a', t);
                 op.som(e.chefe ? 'festa' : 'et');
             }
             try { if (navigator.vibrate) navigator.vibrate(12); } catch { /* sem vibrar */ }
@@ -308,7 +311,7 @@
                     if (!e || e.morre < t0 - 5000) { delete feito[k]; mortos.delete(k); continue; }   // já saiu da tela
                     if (k in pend) continue;
                     feito[k] = g2[k] || 0;
-                    if (feito[k] < e.hp) mortos.delete(k);   // o servidor não contou: o ET volta
+                    if (feito[k] < hpDe(e)) mortos.delete(k);   // o servidor não contou: o ET volta
                 }
                 for (const [k, v] of Object.entries(g2)) feito[k] = Math.max(feito[k] || 0, v);
                 if (r.ganhou > 0) numero(LW / 2, chao() - 24, `+${r.ganhou} pontos`, '#fff3b0', op.agora());
@@ -423,12 +426,12 @@
             }
             ctx.globalAlpha = 1;
             if (chefe) {
-                const e = chefe.e, f = Math.max(0, 1 - (feito[String(e.k)] || 0) / e.hp), W = canvas.width * 0.6, X = canvas.width * 0.2, Y = canvas.height * 0.27;
+                const e = chefe.e, f = Math.max(0, 1 - (feito[String(e.k)] || 0) / hpDe(e)), W = canvas.width * 0.6, X = canvas.width * 0.2, Y = canvas.height * 0.27;
                 ctx.fillStyle = 'rgba(14,10,30,.75)'; ctx.fillRect(X - 4 * dpr, Y - 22 * dpr, W + 8 * dpr, 34 * dpr);
                 ctx.fillStyle = '#3b1f4a'; ctx.fillRect(X, Y, W, 8 * dpr);
                 ctx.fillStyle = '#c77dff'; ctx.fillRect(X, Y, W * f, 8 * dpr);
                 ctx.font = `800 ${Math.round(14 * dpr)}px 'Jersey 10', Nunito, sans-serif`; ctx.fillStyle = '#fff'; ctx.textBaseline = 'bottom';
-                ctx.fillText(`ET CHEFÃO! ${Math.max(0, e.hp - (feito[String(e.k)] || 0))}/${e.hp} · sai em ${Math.max(0, Math.ceil((e.morre - t) / 1000))} s`, canvas.width / 2, Y - 3 * dpr);
+                ctx.fillText(`ET CHEFÃO! ${Math.max(0, hpDe(e) - (feito[String(e.k)] || 0))}/${hpDe(e)} · sai em ${Math.max(0, Math.ceil((e.morre - t) / 1000))} s`, canvas.width / 2, Y - 3 * dpr);
             }
             desenharOuroAviso(t, k);
             const PAUSA = 'Pausado: toque no ET DOURADO para voltar a pontuar!', pausou = eu().pausado && ouroCaixa;
