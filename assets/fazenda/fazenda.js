@@ -1436,6 +1436,10 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-11-03-gerente', data: '03/11', titulo: 'Modo gerente e a mata nova', itens: [
+            'Novo <b>Modo gerente</b> (no menu): todos os seus canteiros numa grade, cada um com a <b>barra de progresso</b> e o tempo que falta. Filtre os prontos, os que estão crescendo e os que precisam de você, e colha, cuide, are ou plante em lote dali mesmo.',
+            'Toque num canteiro da grade e a câmera vai até ele.',
+            'A <b>mata</b> em volta da fazenda ganhou árvores novas, em pixel art bem mais detalhada, com sombra no chão: cerejeiras floridas na primavera, folhas laranja no outono e pinheiros com neve no inverno. É o começo da textura nova do jogo.'] },
         { id: '2026-11-01-ameaca', data: '01/11', titulo: 'Invasão: os ETs ficam mais fortes', itens: [
             'Na <b>Invasão de Varginha</b>, quanto mais pontos você tem, <b>mais vida</b> os ETs e o chefão têm para você: a cada 1.000 pontos, +50%.',
             'O selo <b>ETs ×2</b> (×3, ×4…) no alto da sala mostra a sua ameaça. O bônus de derrubar um ET sobe junto.',
@@ -4519,6 +4523,45 @@
         executar('agora', [...p.escolhidos, ...p.maduros]);   // (mais de 100 vai em lotes: emLotes)
     }
 
+    /* ---------- fase 103: o modo gerente — todos os canteiros numa grade, com o tempo que falta ----------
+       Cada quadradinho é um canteiro (na ordem da fazenda: de cima para baixo, da esquerda para a direita).
+       Tocar leva a câmera até ele. Em cima, quantos estão em cada fase e as ações em lote de sempre. */
+    let gerenteFiltro = 'todos';
+    function htmlGerente() {
+        if (!S) return '';
+        const lista = (S.canteiros || []).map((c) => ({ c, i: info(c) })).sort((a, b) => a.c.y - b.c.y || a.c.x - b.c.x);
+        const conta = (f) => lista.filter(f).length;
+        const nPronto = conta((x) => x.i.fase === 'maduro'), nCresce = conta((x) => x.i.fase === 'crescendo');
+        const nCuidar = conta((x) => x.i.probs && x.i.probs.length), nArar = conta((x) => x.i.fase === 'vazio' || x.i.fase === 'murcho'), nArado = conta((x) => x.i.fase === 'arado');
+        const filtros = { todos: () => true, prontos: (x) => x.i.fase === 'maduro', crescendo: (x) => x.i.fase === 'crescendo',
+                          atencao: (x) => x.i.fase === 'vazio' || x.i.fase === 'arado' || x.i.fase === 'murcho' || (x.i.probs && x.i.probs.length) };
+        const abas = [['todos', `Todos ${lista.length}`], ['prontos', `Prontos ${nPronto}`], ['crescendo', `Crescendo ${nCresce}`], ['atencao', `Precisam de você ${nArar + nArado + nCuidar}`]];
+        const cartoes = lista.filter(filtros[gerenteFiltro] || filtros.todos).map(({ c, i }) => {
+            const prob = i.probs && i.probs.length;
+            const pct = i.fase === 'maduro' ? 100 : i.fase === 'crescendo' ? Math.floor(i.prog * 100) : 0;
+            const txt = i.fase === 'maduro' ? 'Pronto!' : i.fase === 'crescendo' ? fmtTempo(i.resta) : i.fase === 'vazio' ? 'Vazio' : i.fase === 'arado' ? 'Arado' : i.fase === 'murcho' ? 'Murchou' : '';
+            const arte = i.k ? itemDe(i.k, 26) : A.htmlItem('canteiro', 26);
+            const nome = i.k ? i.k.nome : txt;
+            return `<button type="button" class="gerente-card g-${i.fase}${prob ? ' g-prob' : ''}" data-gerente-ir="${c.x},${c.y}" title="${esc(nome)}${prob ? ' · precisa de cuidado' : ''}">
+                <span class="g-arte">${arte}</span><span class="g-barra"><i style="width:${pct}%"></i></span><small>${txt}</small></button>`;
+        }).join('');
+        const sem = culturas[semente];
+        return `<div class="chips gerente-resumo">
+                <span class="chip">${ico('xp', 14)} <b>${nPronto}</b> prontos</span><span class="chip"><b>${nCresce}</b> crescendo</span>
+                ${nCuidar ? `<span class="chip g-alerta"><b>${nCuidar}</b> precisam de cuidado</span>` : ''}${nArar ? `<span class="chip"><b>${nArar}</b> para arar</span>` : ''}${nArado ? `<span class="chip"><b>${nArado}</b> arados vazios</span>` : ''}
+            </div>
+            <div class="gerente-acoes">
+                <button type="button" class="botao verde" data-gerente-massa="colher"${nPronto ? '' : ' disabled'}>Colher ${nPronto || ''}</button>
+                <button type="button" class="botao creme" data-gerente-massa="cuidar"${nCuidar ? '' : ' disabled'}>Cuidar ${nCuidar || ''}</button>
+                <button type="button" class="botao creme" data-gerente-massa="arar"${nArar ? '' : ' disabled'}>Arar ${nArar || ''}</button>
+                <button type="button" class="botao creme" data-gerente-massa="plantar"${nArado ? '' : ' disabled'}>Plantar ${sem ? itemDe(sem, 16) : ''} ${nArado || ''}</button>
+            </div>
+            <div class="painel-abas" role="tablist">${abas.map(([id, t]) => `<button type="button" role="tab" data-gerente-filtro="${id}" class="${gerenteFiltro === id ? 'ativa' : ''}">${t}</button>`).join('')}</div>
+            ${cartoes ? `<div class="gerente-grade">${cartoes}</div>` : '<p class="vazio-msg">Nenhum canteiro aqui.</p>'}
+            <p class="det">Toque num canteiro para ir até ele na fazenda.</p>`;
+    }
+    setInterval(() => { if (painelAtual === 'gerente' && !document.hidden) abrirPainel('gerente', true); }, 1500);
+
     async function acaoEmMassa(tipo) {
         if (!S) return;
         if (tipo === 'agora') return abrirPainel('colherTudo');   // colher tudo com diamantes (pergunta antes)
@@ -5042,6 +5085,11 @@
             el.painelTitulo.innerHTML = `${ico('et', 28)} Você ganhou!`;
             corpo.innerHTML = htmlInvasaoPremio();
             carregarInvasao(true);
+        } else if (nome === 'gerente') {   // fase 103: o modo gerente
+            el.painelTitulo.innerHTML = `${ico('gerente', 28)} Modo gerente`;
+            const rolou = soAtualizar ? corpo.scrollTop : 0;
+            corpo.innerHTML = htmlGerente();
+            corpo.scrollTop = rolou;
         } else if (nome === 'funcionarios') {   // fase 97: os funcionários
             el.painelTitulo.innerHTML = `${ico('funcionario', 28)} Funcionários`;
             corpo.innerHTML = htmlFuncionarios();
@@ -6387,6 +6435,12 @@
         }
         if (e.target.closest('[data-mar-ir]')) { if (mar) fecharPainel(); else abrirMar(); return; }   // fase 62: o alto-mar
         if (e.target.closest('[data-invasao-entrar]')) { abrirInvasao(); return; }   // fase 94
+        const gIr = e.target.closest('[data-gerente-ir]');   // fase 103: o modo gerente
+        if (gIr) { const [gx, gy] = gIr.dataset.gerenteIr.split(',').map(Number); fecharPainel(); cena.focarTile(gx, gy); return; }
+        const gF = e.target.closest('[data-gerente-filtro]');
+        if (gF) { gerenteFiltro = gF.dataset.gerenteFiltro; abrirPainel('gerente', true); return; }
+        const gM = e.target.closest('[data-gerente-massa]');
+        if (gM) { acaoEmMassa(gM.dataset.gerenteMassa); setTimeout(() => { if (painelAtual === 'gerente') abrirPainel('gerente', true); }, 700); return; }
         if (e.target.closest('[data-invasao-teste]')) { testarInvasao(); return; }
         const agS = e.target.closest('[data-agenda-salvar]');   // fase 101: a agenda (só o dono)
         if (agS) { agendarInvasao(agS); return; }
