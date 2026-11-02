@@ -3271,3 +3271,33 @@ body.construindo .status {
     height: 8px;
     margin: 4px 0 2px;
 }
+
+/* fase 101: a agenda de invasões (só o dono) */
+.agenda-form {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 10px;
+    margin: 10px 0 4px;
+}
+
+.agenda-form label {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    font-weight: 800;
+    font-size: 13px;
+}
+
+.agenda-form .largo {
+    grid-column: 1 / -1;
+}
+
+.agenda-form input {
+    min-width: 0;
+    padding: 7px 8px;
+    border: 3px solid var(--o);
+    border-radius: 4px;
+    background: #fffaf2;
+    font: 700 15px Nunito, sans-serif;
+    color: var(--o);
+}

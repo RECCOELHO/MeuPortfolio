@@ -53,7 +53,10 @@
         apelido_palavrao: 'Esse nome não pode: tem palavrão.',
         apelido_igual: 'Esse já é o seu nome.',
         // fase 94: a Invasão de Varginha
-        invasao_antes: 'A invasão ainda não começou: domingo, às 15h.',
+        invasao_antes: 'A invasão ainda não começou. Veja o dia e a hora no botão da Invasão.',
+        agenda_horario: 'Horário inválido: a invasão precisa durar de 30 min a 24 h e começar de agora até 60 dias.',
+        agenda_conflito: 'Já tem uma invasão agendada nesse horário.',
+        agenda_comecou: 'Essa invasão já começou (ou já foi cancelada): não dá para cancelar.',
         invasao_acabou: 'A invasão acabou! Os prêmios saem no placar.',
         invasao_nivel: 'A sala da invasão abre no nível 10.',
         arma_invalida: 'Essa arma não existe.',
@@ -1947,7 +1950,6 @@
     /* ---------- fase 94: a Invasão de Varginha (domingo, 1/11, das 15h à meia-noite) ----------
        O painel (fazenda_invasao: regras, você, o placar e o prêmio), a loja de armas e a sala (a cena
        em fazenda-invasao.js; o lote de toques vai a cada 2,5 s em fazenda_invasao_lote). */
-    const INVASAO_VER_ATE = Date.parse('2026-11-08T00:00:00-03:00');   // depois disso o jogo nem pergunta
     let invasao = null, invasaoCena = null, invasaoCarregando = false, invasaoTeste = false;   // invasaoTeste: a sala de teste dos admins
     const regrasInvasao = () => (invasao && invasao.regras) || null;
     function faseInvasao() {
@@ -1957,7 +1959,7 @@
         return t < Date.parse(R.inicio) ? 'antes' : t < Date.parse(R.fim) ? 'durante' : 'depois';
     }
     function carregarInvasao(marcarVisto) {
-        if (!S || invasaoCarregando || Date.now() > INVASAO_VER_ATE) return Promise.resolve(null);
+        if (!S || invasaoCarregando) return Promise.resolve(null);
         invasaoCarregando = true;
         return rpc('fazenda_invasao', invasaoTeste ? { p_token: token, p_visto: !!marcarVisto, p_teste: true } : { p_token: token, p_visto: !!marcarVisto }).then((r) => {
             invasao = r;
@@ -1974,8 +1976,67 @@
         const b = $('hudInvasao'), c = $('hudInvasaoCont');
         if (!b) return;
         const f = faseInvasao();
-        b.hidden = !f || (f === 'depois' && !(invasao.premio && !invasao.premio.visto) && Date.now() > Date.parse(invasao.regras.fim) + 2 * 86400e3);
+        // fase 101: o dono sempre vê (é por ali que ele agenda); os outros, só com invasão agendada, rolando,
+        // nas 12 h depois do fim ou com prêmio esperando
+        b.hidden = !souDono() && (!f || (f === 'depois' && !(invasao.premio && !invasao.premio.visto) && agora() > Date.parse(invasao.regras.fim) + 12 * 3600e3));
         if (c) c.hidden = !(f === 'durante' || (invasao && invasao.premio && !invasao.premio.visto));
+    }
+    const souDono = () => !!(S && S.jogador && S.jogador.admin === 'dono');
+    // fase 101: "domingo, 08/11, às 15:00"
+    const quandoInvasao = (iso) => new Date(iso).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', weekday: 'long', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    const horaInvasao = (iso) => new Date(iso).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' });
+    // fase 101: a agenda (só o dono): as invasões que vêm e as da última semana, e o formulário para agendar
+    function htmlAgendaInvasao() {
+        const lista = (invasao && invasao.agenda) || [], t = agora();
+        const hoje = new Date(t).toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+        const linhas = lista.map((a) => {
+            const ini = Date.parse(a.inicio), fim = Date.parse(a.fim);
+            const st = a.cancelada ? 'cancelada' : t < ini ? `começa em ${fmtTempo(ini - t)}` : t < fim ? '<b>rolando agora</b>' : `acabou · ${a.jogadores} pontuaram`;
+            const pode = !a.cancelada && t < ini;
+            return `<div class="item"><span class="ico">${ico('et', 22)}</span><span><span class="nome">${esc(a.nome)}</span>
+                <span class="det"><span>${quandoInvasao(a.inicio)} até ${horaInvasao(a.fim)} · nível ${a.nivel_min}+</span><span>${st}</span></span></span>
+                ${pode ? `<button type="button" class="botao pequeno creme" data-agenda-cancelar="${esc(a.id)}">Cancelar</button>` : ''}</div>`;
+        }).join('');
+        return `<div class="evento-cat"><b>${ico('calendario', 18)} Agenda de invasões (só você vê)</b>
+            ${linhas ? `<div class="lista">${linhas}</div>` : '<p class="det">Nenhuma invasão agendada.</p>'}
+            <div class="agenda-form">
+                <label>Dia <input type="date" id="agData" value="${hoje}" min="${hoje}"></label>
+                <label>Começa <input type="time" id="agIni" value="15:00"></label>
+                <label>Acaba <input type="time" id="agFim" value="00:00"></label>
+                <label>Nível mínimo <input type="number" id="agNivel" value="10" min="1" max="70"></label>
+                <label class="largo">Nome <input type="text" id="agNome" value="Invasão de Varginha" maxlength="40"></label>
+            </div>
+            <p class="det">Se a hora de acabar for menor que a de começar, acaba no dia seguinte (15:00 até 00:00 = até a meia-noite). Cada invasão tem placar e prêmios próprios.</p>
+            <p><button type="button" class="botao verde" data-agenda-salvar>${ico('et', 18)} Agendar invasão</button></p></div>`;
+    }
+    function agendarInvasao(botao) {
+        const v = (id) => ($(id) && $(id).value || '').trim();
+        const data = v('agData'), hi = v('agIni'), hf = v('agFim');
+        if (!data || !hi || !hf) { toast('Escolha o dia e as horas.', 'erro'); return; }
+        const ini = new Date(`${data}T${hi}:00-03:00`);
+        let fim = new Date(`${data}T${hf}:00-03:00`);
+        if (fim <= ini) fim = new Date(fim.getTime() + 86400e3);
+        botao.disabled = true;
+        enfileirar([], async () => {
+            try {
+                const r = await rpc('fazenda_invasao_agendar', { p_token: token, p_inicio: ini.toISOString(), p_fim: fim.toISOString(), p_nivel_min: Number(v('agNivel')) || 10, p_nome: v('agNome') });
+                invasao = r; atualizarHudInvasao();
+                toast(`${ico('et', 18)} Invasão agendada: ${quandoInvasao(ini.toISOString())} até ${horaInvasao(fim.toISOString())}!`);
+                som.tocar('festa');
+                if (painelAtual === 'invasao') abrirPainel('invasao', true);
+            } catch (e) { toast(e.message, 'erro'); } finally { botao.disabled = false; }
+        });
+    }
+    function cancelarInvasao(id, botao) {
+        if (!confirm('Cancelar essa invasão?')) return;
+        botao.disabled = true;
+        enfileirar([], async () => {
+            try {
+                invasao = await rpc('fazenda_invasao_cancelar', { p_token: token, p_evento: id });
+                atualizarHudInvasao(); toast('Invasão cancelada.');
+                if (painelAtual === 'invasao') abrirPainel('invasao', true);
+            } catch (e) { toast(e.message, 'erro'); botao.disabled = false; }
+        });
     }
     // o prêmio de cada posição: o 1º leva o cheio e cada um seguinte 3/4 do anterior, até o mínimo
     function premioInvasao(pos) {
@@ -1998,14 +2059,15 @@
         const R = regrasInvasao(), f = faseInvasao();
         if (!R) return '<p class="vazio-msg">Carregando a invasão…</p>';
         const eu = invasao.eu || {}, sala = invasao.sala || {}, nivelOk = (invasao.nivel || S.jogador.nivel) >= R.nivel_min;
-        const quando = f === 'antes' ? `Começa em <b>${fmtTempo(Date.parse(R.inicio) - agora())}</b> (domingo, às 15h).`
-            : f === 'durante' ? `<b>A invasão começou!</b> Acaba em <b>${fmtTempo(Date.parse(R.fim) - agora())}</b> (meia-noite).`
+        const quando = f === 'antes' ? `Começa em <b>${fmtTempo(Date.parse(R.inicio) - agora())}</b> (${quandoInvasao(R.inicio)}, até ${horaInvasao(R.fim)}).`
+            : f === 'durante' ? `<b>A invasão começou!</b> Acaba em <b>${fmtTempo(Date.parse(R.fim) - agora())}</b> (às ${horaInvasao(R.fim)}).`
             : invasao.fechada ? '<b>A invasão acabou.</b> Os prêmios já foram entregues.' : '<b>A invasão acabou.</b> Os prêmios saem em instantes.';
         const premios = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((p) => { const x = premioInvasao(p); return `<span class="chip">${p}º ${ico('diamante', 12)} ${x.diamantes} + ${ico('moeda', 12)} ${curto(x.moedas)}</span>`; }).join('');
         let html = `<p class="fala">Em 1996, Varginha viu um ET. Agora a nave voltou, e dessa vez veio para a <b>fazenda</b>! Entre na sala, onde todo mundo se vê, e <b>toque nos ETs</b>: o seu fazendeiro atira e cada acerto vale pontos. A cada 20 minutos desce um <b>ET chefão</b>, que vale muito mais. Quanto mais pontos você tem, <b>mais fortes</b> os ETs ficam para você (e o bônus de derrubar sobe junto). E de vez em quando aparece um <b>ET dourado</b> só para você: toque nele em 15 s (+50 pontos), senão os seus toques param de valer até você tocar.</p>
             <p>${quando}</p>`;
+        if (souDono() && !R.teste) html = htmlAgendaInvasao() + html;   // fase 101: a agenda em cima, só para o dono
         if (S.jogador.admin && !R.teste) {
-            html += `<div class="evento-cat"><b>🧪 Teste dos admins</b><p class="det">Uma sala separada, aberta até domingo às 14h: o mesmo jogo, mas com placar próprio, armas de graça e sem prêmio. Só admins entram.</p>
+            html += `<div class="evento-cat"><b>🧪 Teste dos admins</b><p class="det">Uma sala separada, aberta o dia todo: o mesmo jogo, mas com placar próprio, armas de graça e sem prêmio. Só admins entram.</p>
                 <p><button type="button" class="botao creme" data-invasao-teste>🧪 Testar a sala agora</button></p></div>`;
         }
         if (f === 'durante') {
@@ -2047,7 +2109,7 @@
     function htmlInvasaoPremio() {
         const p = invasao && invasao.premio;
         if (!p) return '<p class="vazio-msg">Sem prêmio por aqui.</p>';
-        return `<p class="fala">A Invasão de Varginha acabou e a fazenda agradece: você ficou em <b>${p.posicao}º lugar</b> com ${curto(p.pontos)} pontos!</p>
+        return `<p class="fala">A ${esc(p.nome || 'Invasão de Varginha')} acabou e a fazenda agradece: você ficou em <b>${p.posicao}º lugar</b> com ${curto(p.pontos)} pontos!</p>
             <div class="chips evento-premios"><span class="chip">${ico('diamante', 18)} ${p.diamantes} diamantes</span><span class="chip">${ico('moeda', 18)} ${numero(p.moedas)} moedas</span></div>
             ${p.posicao <= 4 ? '<p>E a conquista <b>Defensor de Varginha</b> já está no seu perfil.</p>' : ''}
             <div class="rodape-painel"><button type="button" class="botao creme" data-painel-ir="invasao">Ver o placar</button><button type="button" class="botao verde" data-fechar>Oba!</button></div>`;
@@ -4970,7 +5032,7 @@
             el.painelTitulo.innerHTML = `${itemDe(culturas.ancora || { id: 'ancora' }, 30)} Píer`;
             corpo.innerHTML = htmlPier();
         } else if (nome === 'invasao') {   // fase 94: a Invasão de Varginha
-            el.painelTitulo.innerHTML = `${ico('et', 28)} Invasão de Varginha`;
+            el.painelTitulo.innerHTML = `${ico('et', 28)} ${esc((regrasInvasao() && regrasInvasao().nome) || 'Invasão de Varginha')}`;
             corpo.innerHTML = htmlInvasao();
             if (!soAtualizar) carregarInvasao();
         } else if (nome === 'invasaoArmas') {
@@ -6326,6 +6388,10 @@
         if (e.target.closest('[data-mar-ir]')) { if (mar) fecharPainel(); else abrirMar(); return; }   // fase 62: o alto-mar
         if (e.target.closest('[data-invasao-entrar]')) { abrirInvasao(); return; }   // fase 94
         if (e.target.closest('[data-invasao-teste]')) { testarInvasao(); return; }
+        const agS = e.target.closest('[data-agenda-salvar]');   // fase 101: a agenda (só o dono)
+        if (agS) { agendarInvasao(agS); return; }
+        const agC = e.target.closest('[data-agenda-cancelar]');
+        if (agC) { cancelarInvasao(agC.dataset.agendaCancelar, agC); return; }
         const arma = e.target.closest('[data-invasao-comprar]');
         if (arma) { comprarArma(arma.dataset.invasaoComprar, arma); return; }
         if (e.target.closest('[data-mar-painel]')) { abrirPainel('mar'); return; }
