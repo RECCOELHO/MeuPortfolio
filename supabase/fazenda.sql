@@ -9591,6 +9591,11 @@ alter table public.fazenda_invasao
   add column if not exists ouros     int not null default 0;
 create index if not exists fazenda_invasao_pontos on public.fazenda_invasao (evento, pontos desc);
 create index if not exists fazenda_invasao_visto on public.fazenda_invasao (evento, visto_em);
+-- as tabelas mais regravadas: espaço livre em cada página (a regravação fica na mesma página, sem índice
+-- novo) e limpeza automática bem mais frequente (a linha da sala é regravada a cada 2 s o dia todo)
+alter table public.fazenda_cache set (fillfactor = 50, autovacuum_vacuum_scale_factor = 0, autovacuum_vacuum_threshold = 200,
+                                      autovacuum_analyze_scale_factor = 0.05);
+alter table public.fazenda_invasao set (fillfactor = 70, autovacuum_vacuum_scale_factor = 0.02, autovacuum_vacuum_threshold = 500);
 alter table public.fazenda_invasao enable row level security;
 revoke all on public.fazenda_invasao from anon, authenticated;
 
@@ -9791,9 +9796,16 @@ returns jsonb language plpgsql security definer set search_path = public as $$
 declare
   v_chave text := 'invasao:' || (p_r->>'id');
   v jsonb;
+  v_em timestamptz;
 begin
-  select valor into v from fazenda_cache where chave = v_chave and em > now() - interval '1.5 seconds';
-  if v is not null then return v; end if;
+  -- fase 102: sem fila. A sala pronta vale 2 s; quem a acha vencida só remonta se pegar a vez (sem esperar
+  -- ninguém); quem não pega usa a de antes (até 15 s). Antes, todo mundo regravava a mesma linha do cache e
+  -- esperava o outro terminar: com a sala cheia isso virou fila, esgotou as conexões e travou o banco (1/11, 21h).
+  select valor, em into v, v_em from fazenda_cache where chave = v_chave;
+  if v is not null and v_em > now() - interval '2 seconds' then return v; end if;
+  if not pg_try_advisory_xact_lock(7072, hashtext(v_chave)) and v is not null and v_em > now() - interval '15 seconds' then
+    return v;
+  end if;
   v := jsonb_build_object(
     'jogadores', coalesce((select jsonb_agg(q order by q.pontos desc) from (
         select left(i.jogador_id::text, 8) as id, j.apelido, j.avatar, fazenda_nivel_de(j.xp, j.nivel_trava) as nivel, i.pontos,
@@ -9809,12 +9821,8 @@ begin
          where i.evento = p_r->>'id' and i.pontos > 0
          order by i.pontos desc, i.subiu_em limit 10) q), '[]'::jsonb),
     'participantes', (select count(*) from fazenda_invasao where evento = p_r->>'id' and pontos > 0));
-  -- quem grava no cache não faz fila: um grava, os outros seguem
-  begin
-    insert into fazenda_cache (chave, valor, em) values (v_chave, v, now())
-    on conflict (chave) do update set valor = excluded.valor, em = excluded.em;
-  exception when others then null;
-  end;
+  -- grava sem fila (fazenda_cache_gravar: só quem tem a vez grava; a vez já é desta chamada, se ela pegou)
+  perform fazenda_cache_gravar(v_chave, v);
   return v;
 end;
 $$;
