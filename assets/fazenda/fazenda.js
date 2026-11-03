@@ -1516,6 +1516,10 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-11-03-casas', data: '03/11', titulo: 'Casas novas, com mais detalhe', itens: [
+            'A <b>casa da fazenda</b>, o <b>celeiro</b>, as casinhas e as <b>43 oficinas</b> foram redesenhados à mão, com mais detalhe: telhas, tábuas e pedras, janelas com floreira, venezianas, chaminé, varandinha, lampião e degrau de pedra.',
+            'Cada oficina tem a sua cor e uma <b>placa com o produto</b> dela; as de comida ganharam toldo listrado. O celeiro tem o cata-vento de galo, o palheiro com feno e a porta grande com o X.',
+            'No <b>inverno</b>, neve em cima dos telhados.'] },
         { id: '2026-11-03-navio', data: '03/11', titulo: 'O barco vira navio', itens: [
             'O barco atracado no píer agora é desenhado com tudo: convés de tábuas, costado com friso, portinholas, mastros, velas, cordame e a sua bandeira. Ele <b>cresce</b> a cada nível (bote, traineira, barco de pesca, pesqueiro e o <b>navio oceânico</b> de dois mastros) e mostra as peças que você comprou.',
             'O barco agora é <b>montado com materiais</b>: o <b>ipê-amarelo</b> (pomar, 32) dá toras; a <b>serraria naval</b> (33) faz tábuas, a <b>forja</b> (36) faz cravos, a <b>velaria</b> (39) faz velas e a <b>cartografia</b> (42) faz cartas náuticas.',
