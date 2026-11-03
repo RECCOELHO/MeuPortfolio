@@ -907,6 +907,7 @@
        p = pacote, i = tile, topo = tile de cima (árvores altas), topo2 = mais um em cima, auto = encaixe automático */
     function arteItem(id, est) {
         const inv = est === 'inverno';
+        if (OFICINA_PRODUTO[id]) return { p: 'casas', w: 2, h: 3, grade: gradeCasa(id, 2, 3) };   // fase 105: as oficinas desenhadas
         switch (id) {
             case 'cerca': return { p: 'town', auto: 'cerca' };
             case 'caminho_terra': return { p: 'town', auto: 'terra', chao: true };
@@ -946,8 +947,8 @@
             case 'bau': return { p: 'farm', i: 76 };
             case 'lampiao': return { p: 'farm', i: 1049 };
             case 'barraca': return { p: 'farm', i: 1064 };
-            case 'casa_vermelha': return { p: 'town', w: 3, h: 3, grade: [[52, 53, 55], [64, 65, 67], [84, 85, 75]] };
-            case 'casa_azul': return { p: 'town', w: 3, h: 3, grade: [[48, 49, 51], [60, 61, 63], [88, 89, 79]] };
+            case 'casa_vermelha': return { p: 'casas', w: 3, h: 3, grade: gradeCasa('casa_vermelha', 3, 3) };   // fase 105
+            case 'casa_azul': return { p: 'casas', w: 3, h: 3, grade: gradeCasa('casa_azul', 3, 3) };
             case 'canteiro': return { p: 'farm', i: 1 };
             // oficinas (2 x 3)
             case 'saladeira': return { p: 'town', w: 2, h: 3, grade: [[48, 51], [60, 63], [86, 87]] };
@@ -1145,10 +1146,12 @@
         const c = i % COLS, l = Math.floor(i / COLS);
         if (pacote === 'propria' && !urlPropria) urlPropria = atlasProprio.toDataURL();
         if (pacote === 'pomar' && !urlPomar && atlas.pomar) urlPomar = atlas.pomar.toDataURL();
+        if (pacote === 'casas' && !urlCasas && atlas.casas) urlCasas = atlas.casas.toDataURL();   // fase 105
         const img = pacote === 'farm' ? '' : pacote === 'propria' ? `background-image:url('${urlPropria}');`
             : pacote === 'pomar' ? `background-image:url('${urlPomar}');`
+            : pacote === 'casas' ? `background-image:url('${urlCasas}');`
             : `background-image:url('assets/fazenda/${ARQUIVOS[pacote]}');`;
-        return `<span class="px-spr" style="${img}width:${px}px;height:${px}px;background-size:${COLS * px}px ${(pacote === 'propria' ? LINHAS_PROPRIA : LINHAS) * px}px;background-position:-${c * px}px -${l * px}px" aria-hidden="true"></span>`;
+        return `<span class="px-spr" style="${img}width:${px}px;height:${px}px;background-size:${COLS * px}px ${(pacote === 'propria' ? LINHAS_PROPRIA : pacote === 'casas' ? LINHAS_CASAS : LINHAS) * px}px;background-position:-${c * px}px -${l * px}px" aria-hidden="true"></span>`;
     }
 
     // Ícone de item para a UI (árvores altas mostram as duas peças)
@@ -1223,6 +1226,244 @@
         atlas.pomar = c;
         urlPomar = null;
     }
+    /* ---- fase 105: as casas, o celeiro e as oficinas desenhados aqui, em pixel art com detalhe (no lugar
+       das peças do Tiny Town). Ficam num atlas próprio ("casas"), refeito a cada estação (neve no inverno).
+       Cada oficina sai com o seu telhado, parede, porta e uma placa com o produto dela. ---- */
+    const OFICINA_PRODUTO = {
+        saladeira: 'salada', pipocaria: 'pipoca', fabrica_molho: 'molho', queijaria: 'queijo', conservas: 'picles', padaria: 'pao',
+        prensa_oleo: 'oleo', confeitaria: 'bolo', doceria: 'doce_abobora', tecelagem: 'tecido', casa_geleia: 'geleia', peixaria: 'peixe_frito',
+        casa_sucos: 'suco', sorveteria: 'sorvete', defumadouro: 'peixe_defumado', atelie: 'almofada', cozinha_moqueca: 'moqueca',
+        emporio: 'azeite_trufado', engenho: 'acucar', torrefacao: 'cafe_torrado', fiacao: 'fio', cafeteria: 'cappuccino', alfaiataria: 'roupa',
+        vinicola: 'vinho', vitaminas: 'vitamina', guacamolaria: 'guacamole', pimentaria: 'molho_picante', chocolateria: 'chocolate',
+        adega: 'licor', bombonaria: 'bombom', doceria_coco: 'cocada', serraria_naval: 'tabua_naval', enlatados: 'sardinha_lata',
+        cajuinaria: 'cajuina', forja: 'cravo', acaiteria: 'acai_tigela', sushiteria: 'sashimi', velaria: 'vela', queijaria_bufala: 'mussarela',
+        cremeria: 'creme_cupuacu', cartografia: 'carta_nautica', caldeiraria: 'caldeirada', pacocaria: 'pacoca'
+    };
+    const COM_CHAMINE = new Set(['padaria', 'defumadouro', 'engenho', 'torrefacao', 'caldeiraria', 'enlatados', 'peixaria', 'cozinha_moqueca',
+        'forja', 'pipocaria', 'confeitaria', 'chocolateria', 'doceria_coco', 'pacocaria', 'fabrica_molho', 'conservas', 'casa_geleia']);
+    const DE_PEDRA = new Set(['adega', 'vinicola', 'engenho', 'defumadouro', 'forja', 'caldeiraria', 'pacocaria', 'emporio', 'queijaria']);
+    const COM_TOLDO = new Set(['sorveteria', 'casa_sucos', 'vitaminas', 'acaiteria', 'cajuinaria', 'cafeteria', 'saladeira', 'guacamolaria',
+        'bombonaria', 'doceria', 'sushiteria', 'cremeria', 'pipocaria']);
+    const LINHAS_CASAS = 30;
+    const CASAS_POS = { casa: [0, 0], casa_vermelha: [3, 0], casa_azul: [6, 0], celeiro: [9, 0] };
+    Object.keys(OFICINA_PRODUTO).forEach((id, k) => { CASAS_POS[id] = [(k % 6) * 2, 6 + Math.floor(k / 6) * 3]; });
+    const gradeCasa = (id, w, h) => { const [c0, r0] = CASAS_POS[id]; return Array.from({ length: h }, (_, r) => Array.from({ length: w }, (_, c) => (r0 + r) * COLS + c0 + c)); };
+    const TELHAS = {
+        vermelho: ['#c34b35', '#8e2e22', '#e0735a'], azul: ['#3b6fb6', '#25406e', '#6a9be0'], verde: ['#4e8a4c', '#2f5e3a', '#7ab46a'],
+        marrom: ['#8a5a32', '#5a3a20', '#b4804e'], ardosia: ['#5d6b80', '#3a4558', '#8b9bb4'], laranja: ['#d97a2b', '#9e4f1a', '#f2a65a'],
+        roxo: ['#8a4c9b', '#5a2f6a', '#b47ac4']
+    };
+    const PAREDES = {
+        madeira: ['#c98a4a', '#8a5a2a', '#e0a868'], pedra: ['#a39388', '#6e625a', '#c8bcb0'], reboco: ['#f1e4c8', '#c9b48e', '#fff6e2'],
+        tijolo: ['#b8603e', '#7e3a24', '#d88a68'], azulejo: ['#e8eef4', '#9fb4c8', '#ffffff']
+    };
+    let urlCasas = null;
+    function montarCasas(est) {
+        const inverno = est === 'inverno', outono = est === 'outono';
+        const cv = document.createElement('canvas');
+        cv.width = COLS * T; cv.height = LINHAS_CASAS * T;
+        const g = cv.getContext('2d');
+        const OL = '#3f2631';
+        const R = (x, y, w, h, c) => { if (w <= 0 || h <= 0) return; g.fillStyle = c; g.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); };
+        const icone = (item, x, y) => {   // o ícone do produto (8 px) na placa
+            if (item == null) return;
+            let i = item, img = atlas.farm;
+            if (i >= 1000) { i -= 1000; img = atlasProprio; }
+            g.imageSmoothingEnabled = false;
+            g.drawImage(img, (i % COLS) * T, Math.floor(i / COLS) * T, T, T, x, y, 8, 8);
+        };
+        // o telhado visto de frente e de cima: fileiras de telhas desencontradas, cumeeira clara e beiral escuro
+        function telhado(x, y, w, h, cor, r) {
+            const [c, esc, cla] = TELHAS[cor];
+            R(x - 1, y - 1, w + 2, h + 2, OL);
+            R(x, y, w, h, c);
+            for (let yy = y + 2, k = 0; yy < y + h - 1; yy += 3, k++) {
+                R(x, yy, w, 1, esc);
+                for (let xx = x + (k % 2 ? 2 : 0); xx < x + w; xx += 4) { R(xx, yy - 2, 1, 2, esc); R(xx + 1, yy - 2, 2, 1, cla); }
+            }
+            R(x, y, w, 1, cla); R(x, y + 1, w, 1, tomCasa(c, 0.15));                 // a cumeeira
+            R(x, y + h - 1, w, 1, esc);                                              // o beiral
+            if (r) for (let k = 0; k < Math.floor(w * h / 60); k++) R(x + Math.floor(r() * w), y + 3 + Math.floor(r() * (h - 4)), 1, 1, r() < 0.5 ? esc : cla);   // telha gasta
+            if (inverno) {   // a neve: grossa em cima, escorrendo nas bordas, com sombra azulada
+                R(x - 1, y - 2, w + 2, 4, '#ffffff'); R(x, y + 2, w, 1, '#e4edf6');
+                for (let xx = x; xx < x + w; xx++) { const d = ((xx * 7) % 5) === 0 ? 3 : ((xx * 3) % 4 === 0 ? 2 : 0); if (d) R(xx, y + 2, 1, d, '#f4f8fc'); }
+                R(x - 1, y + h - 1, w + 2, 1, '#e4edf6');
+            } else if (outono && r) for (let k = 0; k < 4; k++) R(x + Math.floor(r() * w), y + 2 + Math.floor(r() * (h - 3)), 2, 1, r() < 0.5 ? '#e38628' : '#c96b28');
+        }
+        // a parede: tábuas em pé, pedras ou reboco com vigas de madeira
+        function parede(x, y, w, h, tipo, r) {
+            const [c, esc, cla] = PAREDES[tipo];
+            R(x - 1, y, w + 2, h + 1, OL);
+            R(x, y, w, h, c);
+            if (tipo === 'madeira') {
+                for (let xx = x + 3; xx < x + w; xx += 4) R(xx, y, 1, h, esc);
+                for (let xx = x; xx < x + w; xx += 4) R(xx, y, 1, h, cla);
+                for (let k = 0; k < w / 3; k++) R(x + Math.floor(r() * w), y + Math.floor(r() * h), 1, 1, esc);   // os nós
+            } else if (tipo === 'pedra' || tipo === 'tijolo') {
+                const alt = tipo === 'pedra' ? 4 : 3;
+                for (let yy = y, k = 0; yy < y + h; yy += alt, k++) {
+                    R(x, yy + alt - 1, w, 1, esc);
+                    for (let xx = x + (k % 2 ? 0 : (tipo === 'pedra' ? 3 : 2)); xx < x + w; xx += (tipo === 'pedra' ? 6 + Math.floor(r() * 3) : 5)) R(xx, yy, 1, alt - 1, esc);
+                    R(x, yy, w, 1, tomCasa(c, 0.12));
+                }
+            } else if (tipo === 'reboco') {
+                R(x, y, w, 1, cla);
+                R(x, y, 2, h, '#7a4a2a'); R(x + w - 2, y, 2, h, '#7a4a2a'); R(x, y + 1, w, 2, '#7a4a2a');   // as vigas
+                for (let k = 0; k < w / 4; k++) R(x + 3 + Math.floor(r() * (w - 6)), y + 4 + Math.floor(r() * (h - 6)), 1, 1, esc);
+            } else {
+                for (let yy = y + 1; yy < y + h; yy += 4) R(x, yy, w, 1, esc);
+                for (let xx = x + 2; xx < x + w; xx += 4) R(xx, y, 1, h, esc);
+            }
+            R(x, y, w, 2, 'rgba(40,20,30,0.35)');   // a sombra do beiral
+        }
+        function porta(x, y, w, h, cor) {
+            R(x - 1, y - 1, w + 2, h + 1, OL); R(x - 1, y - 2, w + 2, 1, '#e8d8b0');
+            R(x, y, w, h, cor); R(x, y, w, 1, tomCasa(cor, 0.25));
+            for (let xx = x + 2; xx < x + w - 1; xx += 3) R(xx, y + 1, 1, h - 1, tomCasa(cor, -0.25));
+            R(x + w - 3, y + Math.floor(h / 2), 1, 1, '#ffd75e');                       // a maçaneta
+            R(x - 2, y + h, w + 4, 2, '#a39388'); R(x - 2, y + h, w + 4, 1, '#c8bcb0');   // o degrau de pedra
+        }
+        function janela(x, y, w, h, veneziana, flores, r) {
+            R(x - 2, y - 1, w + 4, h + 2, OL);
+            R(x - 1, y, w + 2, h, '#f4ecd8');
+            R(x, y + 1, w, h - 2, '#3b6fb6'); R(x, y + 1, w, 1, '#9fd3f5'); R(x + 1, y + 2, 1, 2, '#cfeaff');
+            R(x + Math.floor(w / 2), y + 1, 1, h - 2, '#f4ecd8'); R(x, y + Math.floor(h / 2), w, 1, '#f4ecd8');
+            if (veneziana) for (const vx of [x - 4, x + w + 2]) { R(vx, y, 3, h, OL); R(vx, y, 2, h, veneziana); for (let yy = y + 1; yy < y + h; yy += 2) R(vx, yy, 2, 1, tomCasa(veneziana, -0.3)); }
+            if (flores) {   // a floreira com flores (no inverno, só a terra com neve)
+                R(x - 2, y + h, w + 4, 3, OL); R(x - 1, y + h, w + 2, 2, '#8a5a2a');
+                if (!inverno) for (let xx = x - 1; xx < x + w + 1; xx += 2) { R(xx, y + h - 2, 1, 2, '#4e974c'); R(xx, y + h - 3, 2, 1, ['#e8434a', '#f5a3b0', '#ffe08a', '#d176d0'][Math.floor(r() * 4)]); }
+                else R(x - 1, y + h - 1, w + 2, 1, '#ffffff');
+            }
+        }
+        function chamine(x, y, h, tipo) {
+            R(x - 1, y - 1, 7, h + 1, OL); R(x, y, 5, h, tipo === 'pedra' ? '#8b7d72' : '#b8603e');
+            for (let yy = y + 2; yy < y + h; yy += 3) R(x, yy, 5, 1, tipo === 'pedra' ? '#6e625a' : '#7e3a24');
+            R(x - 1, y - 2, 7, 2, OL); R(x, y - 2, 5, 1, '#5a5560');
+            if (inverno) R(x - 1, y - 3, 7, 1, '#ffffff');
+        }
+        function toldo(x, y, w, cor) {   // o toldo listrado em cima da janela
+            R(x - 1, y - 1, w + 2, 6, OL);
+            for (let xx = x; xx < x + w; xx++) { const lis = Math.floor((xx - x) / 3) % 2 ? '#ffffff' : cor; R(xx, y, 1, 4, lis); }
+            for (let xx = x; xx < x + w; xx += 3) R(xx, y + 4, 2, 1, Math.floor((xx - x) / 3) % 2 ? '#ffffff' : cor);
+            R(x, y, w, 1, 'rgba(255,255,255,0.45)');
+        }
+        function barril(x, y) { R(x - 1, y - 1, 8, 9, OL); R(x, y, 6, 7, '#9a5a32'); R(x, y, 2, 7, '#c07a48'); R(x, y + 2, 6, 1, '#5a3a28'); R(x, y + 5, 6, 1, '#5a3a28'); R(x + 1, y, 4, 1, '#d08a48'); if (inverno) R(x, y - 1, 6, 1, '#ffffff'); }
+        function caixa(x, y) { R(x - 1, y - 1, 8, 8, OL); R(x, y, 6, 6, '#c98a4a'); R(x, y, 6, 1, '#e0a868'); R(x + 2, y + 1, 1, 5, '#8a5a2a'); R(x, y + 3, 6, 1, '#8a5a2a'); if (inverno) R(x, y - 1, 6, 1, '#ffffff'); }
+        function lenha(x, y) { for (let k = 0; k < 3; k++) for (let j = 0; j < 3 - k; j++) { const lx = x + j * 4 + k * 2, ly = y - k * 3; R(lx - 1, ly - 1, 5, 4, OL); R(lx, ly, 3, 2, '#b4673a'); R(lx, ly, 1, 1, '#f2c88a'); } }
+        function placa(x, y, item) {   // a placa pendurada com o produto
+            R(x + 4, y - 3, 1, 3, '#3f2631'); R(x - 1, y - 4, 13, 1, '#5a3a20');
+            R(x - 1, y - 1, 12, 12, OL); R(x, y, 10, 10, '#e0c088'); R(x, y, 10, 1, '#f4dca8'); R(x, y + 9, 10, 1, '#b8955c');
+            icone(item, x + 1, y + 1);
+        }
+        const base = (x, y, w) => { R(x - 1, y, w + 2, 3, OL); R(x, y, w, 2, '#8b7d72'); for (let xx = x + 2; xx < x + w; xx += 5) R(xx, y, 1, 2, '#6e625a'); R(x, y, w, 1, '#a39388'); };
+
+        // ----- a casa da fazenda e as casinhas (3 x 3 = 48 x 48) -----
+        function casa(id, tel, par, veneziana, portaCor) {
+            const [c0, r0] = CASAS_POS[id], ox = c0 * T, oy = r0 * T, r = rng(id.length * 911 + 7);
+            g.fillStyle = 'rgba(0,0,0,0)';
+            // a sombra no chão
+            R(ox + 4, oy + 44, 42, 3, 'rgba(30,40,20,0.28)');
+            parede(ox + 4, oy + 22, 40, 20, par, r);
+            chamine(ox + 33, oy + 2, 12, 'tijolo');
+            telhado(ox + 2, oy + 6, 44, 17, tel, r);
+            // a lucarna (a janelinha do sótão) no telhado
+            R(ox + 19, oy + 8, 10, 9, OL); R(ox + 20, oy + 10, 8, 6, '#f4ecd8'); R(ox + 21, oy + 11, 6, 4, '#3b6fb6'); R(ox + 21, oy + 11, 6, 1, '#9fd3f5');
+            R(ox + 19, oy + 7, 10, 3, TELHAS[tel][1]); R(ox + 20, oy + 7, 8, 1, TELHAS[tel][2]); if (inverno) R(ox + 19, oy + 6, 10, 2, '#ffffff');
+            // a varandinha: telhadinho em cima da porta com dois pilares
+            porta(ox + 20, oy + 30, 8, 12, portaCor);
+            R(ox + 17, oy + 25, 14, 4, OL); R(ox + 18, oy + 26, 12, 2, TELHAS[tel][0]); R(ox + 18, oy + 26, 12, 1, TELHAS[tel][2]);
+            if (inverno) R(ox + 17, oy + 24, 14, 2, '#ffffff');
+            R(ox + 18, oy + 29, 1, 13, '#f4ecd8'); R(ox + 29, oy + 29, 1, 13, '#f4ecd8');
+            janela(ox + 9, oy + 29, 6, 7, veneziana, true, r);
+            janela(ox + 33, oy + 29, 6, 7, veneziana, true, r);
+            base(ox + 4, oy + 42, 40);
+            R(ox + 21, oy + 43, 6, 2, '#a39388');   // o caminho de pedra até a porta
+            // o lampião do lado da porta
+            R(ox + 15, oy + 31, 2, 3, OL); R(ox + 15, oy + 31, 1, 2, '#ffe08a');
+        }
+        casa('casa', 'vermelho', 'reboco', '#4e974c', '#8a4a2b');
+        casa('casa_vermelha', 'vermelho', 'madeira', '#f4ecd8', '#5a3a20');
+        casa('casa_azul', 'azul', 'pedra', '#3b6fb6', '#25406e');
+
+        // ----- o celeiro (3 x 6 = 48 x 96): o telhado comprido visto de cima e a frente vermelha -----
+        {
+            const [c0, r0] = CASAS_POS.celeiro, ox = c0 * T, oy = r0 * T, r = rng(5150);
+            const TV = ['#3e7a4c', '#2a5838', '#5f9a5a'];   // o telhado verde de sempre, em tábuas de zinco
+            R(ox + 3, oy + 90, 44, 4, 'rgba(30,40,20,0.28)');
+            // o telhado, as duas águas (a da esquerda na sombra)
+            R(ox + 1, oy + 9, 46, 56, OL);
+            R(ox + 2, oy + 10, 22, 54, TV[1]); R(ox + 24, oy + 10, 22, 54, TV[0]);
+            for (let xx = ox + 4; xx < ox + 46; xx += 4) R(xx, oy + 10, 1, 54, xx < ox + 24 ? '#234a30' : TV[1]);
+            for (let xx = ox + 26; xx < ox + 46; xx += 4) R(xx + 1, oy + 10, 1, 54, TV[2]);
+            for (let k = 0; k < 18; k++) R(ox + 3 + Math.floor(r() * 42), oy + 12 + Math.floor(r() * 50), 1, 2, r() < 0.5 ? '#8a5a32' : '#a35a3a');   // ferrugem
+            R(ox + 23, oy + 10, 2, 54, '#c9d6c0'); R(ox + 23, oy + 10, 1, 54, '#ffffff');   // a cumeeira
+            if (inverno) {
+                R(ox + 2, oy + 10, 44, 54, '#eef3f8'); for (let xx = ox + 4; xx < ox + 46; xx += 4) R(xx, oy + 10, 1, 54, '#c9d6e3');
+                R(ox + 2, oy + 10, 22, 54, 'rgba(160,180,210,0.35)'); R(ox + 23, oy + 10, 2, 54, '#ffffff');
+            }
+            // a claraboia/ventilador no meio do telhado, com o cata-vento de galo
+            R(ox + 19, oy + 28, 10, 9, OL); R(ox + 20, oy + 29, 8, 7, '#c34b35'); R(ox + 20, oy + 29, 8, 1, '#e0735a');
+            for (let xx = ox + 21; xx < ox + 27; xx += 2) R(xx, oy + 31, 1, 4, '#7e2a1f');
+            R(ox + 18, oy + 26, 12, 3, OL); R(ox + 19, oy + 26, 10, 2, '#8e2e22'); if (inverno) R(ox + 18, oy + 25, 12, 2, '#ffffff');
+            R(ox + 23, oy + 16, 1, 10, '#3f2631');
+            R(ox + 20, oy + 13, 7, 4, OL); R(ox + 21, oy + 14, 5, 2, '#2b2b38'); R(ox + 25, oy + 12, 2, 2, '#c34b35'); R(ox + 20, oy + 15, 2, 2, '#2b2b38');   // o galo
+            R(ox + 21, oy + 19, 5, 1, '#3f2631'); R(ox + 23, oy + 18, 1, 3, '#3f2631');   // as setas N/S
+            // a frente: o oitão vermelho com o acabamento branco
+            R(ox + 3, oy + 63, 42, 30, OL);
+            R(ox + 4, oy + 64, 40, 28, '#b8382a');
+            for (let xx = ox + 6; xx < ox + 44; xx += 4) { R(xx, oy + 64, 1, 28, '#8e2a20'); R(xx - 1, oy + 64, 1, 28, '#d0503e'); }
+            R(ox + 4, oy + 64, 40, 2, '#f4f1e6'); R(ox + 4, oy + 64, 2, 28, '#f4f1e6'); R(ox + 42, oy + 64, 2, 28, '#f4f1e6');
+            // a porta do palheiro com o feno
+            R(ox + 18, oy + 66, 12, 8, OL); R(ox + 19, oy + 67, 10, 6, '#5a2a1a'); R(ox + 19, oy + 67, 10, 1, '#f4f1e6');
+            for (let xx = ox + 19; xx < ox + 29; xx++) R(xx, oy + 71 + ((xx * 3) % 3), 1, 2, xx % 2 ? '#f2c94c' : '#d9a83a');
+            R(ox + 23, oy + 63, 2, 3, '#3f2631');   // a roldana
+            // a porta grande de correr, com o X branco
+            const px = ox + 13, py = oy + 76;
+            R(px - 1, py - 1, 24, 17, OL);
+            for (const [ax, sentido] of [[px, 1], [px + 11, -1]]) {
+                R(ax, py, 11, 15, '#9e2e22');
+                R(ax, py, 11, 1, '#f4f1e6'); R(ax, py + 14, 11, 1, '#f4f1e6'); R(ax, py, 1, 15, '#f4f1e6'); R(ax + 10, py, 1, 15, '#f4f1e6');
+                for (let k = 0; k < 13; k++) { R(ax + 1 + Math.round(k * 9 / 12), py + 1 + k, 1, 1, '#f4f1e6'); R(ax + 9 - Math.round(k * 9 / 12), py + 1 + k, 1, 1, '#f4f1e6'); }
+            }
+            R(px - 2, py - 3, 26, 2, '#566c86'); R(px - 2, py - 3, 26, 1, '#8b9bb4');   // o trilho
+            // a janelinha redonda dos lados, o lampião e o chão de terra batida na frente
+            janela(ox + 6, oy + 77, 4, 5, null, false, r); janela(ox + 39, oy + 77, 4, 5, null, false, r);
+            R(ox + 11, oy + 76, 2, 3, OL); R(ox + 11, oy + 76, 1, 2, '#ffe08a');
+            base(ox + 4, oy + 92, 40);
+            barril(ox + 1, oy + 85); lenha(ox + 37, oy + 89);
+            if (!inverno) for (let k = 0; k < 5; k++) R(ox + 8 + Math.floor(r() * 32), oy + 94, 2, 1, '#f2c94c');   // feno caído
+        }
+
+        // ----- as oficinas (2 x 3 = 32 x 48) -----
+        Object.entries(OFICINA_PRODUTO).forEach(([id, produto], k) => {
+            const [c0, r0] = CASAS_POS[id], ox = c0 * T, oy = r0 * T, r = rng(k * 7919 + 17);
+            const cores = ['vermelho', 'azul', 'verde', 'marrom', 'ardosia', 'laranja', 'roxo'];
+            const tel = DE_PEDRA.has(id) ? (k % 2 ? 'ardosia' : 'marrom') : cores[k % cores.length];
+            const par = DE_PEDRA.has(id) ? 'pedra' : ['madeira', 'reboco', 'tijolo', 'madeira', 'azulejo', 'reboco'][k % 6];
+            const item = (CULTURAS[produto] || {}).item;
+            R(ox + 3, oy + 44, 28, 3, 'rgba(30,40,20,0.28)');
+            parede(ox + 3, oy + 22, 26, 20, par, r);
+            if (COM_CHAMINE.has(id)) chamine(ox + (k % 2 ? 6 : 21), oy + 3, 12, par === 'pedra' ? 'pedra' : 'tijolo');
+            telhado(ox + 1, oy + 7, 30, 16, tel, r);
+            const portaEsq = k % 2 === 0;
+            porta(ox + (portaEsq ? 6 : 19), oy + 30, 7, 12, ['#8a4a2b', '#5a3a20', '#3b6fb6', '#4e974c', '#9e2e22'][k % 5]);
+            const jx = portaEsq ? ox + 19 : ox + 6;
+            janela(jx, oy + 28, 7, 7, null, !COM_TOLDO.has(id), r);
+            if (COM_TOLDO.has(id)) toldo(jx - 2, oy + 25, 11, ['#d9452f', '#3b6fb6', '#4e974c', '#e38628'][k % 4]);
+            placa(ox + (portaEsq ? 16 : 5), oy + 14, item);   // a placa fica no telhado, na frente, bem à vista
+            base(ox + 3, oy + 42, 26);
+            const lado = portaEsq ? ox + 24 : ox + 2;
+            if (id === 'serraria_naval' || id === 'forja' || id === 'engenho') lenha(lado - 1, oy + 41);
+            else if (k % 3 === 0) barril(lado, oy + 38);
+            else if (k % 3 === 1) caixa(lado, oy + 39);
+        });
+        return cv;
+    }
+    function tomCasa(hex, f) {
+        const k = (v) => Math.max(0, Math.min(255, Math.round(f < 0 ? v * (1 + f) : v + (255 - v) * f)));
+        const [r, gg, b] = rgbDe(hex);
+        return '#' + [k(r), k(gg), k(b)].map((v) => v.toString(16).padStart(2, '0')).join('');
+    }
     let atlasPronto = null;
     function carregar() {
         if (!atlasPronto) {
@@ -1230,7 +1471,7 @@
                 img.onload = ok;
                 img.onerror = () => erro(new Error('Não deu para carregar a arte da fazenda.'));
                 img.src = 'assets/fazenda/' + ARQUIVOS[p] + '?v=' + VERSAO_ARTE;
-            }))).then(() => montarPomar());
+            }))).then(() => { montarPomar(); atlas.casas = montarCasas('primavera'); urlCasas = null; });   // fase 105: as casas
         }
         return atlasPronto;
     }
@@ -1292,6 +1533,7 @@
             g.putImageData(dados, 0, 0);
             novo[p] = c;
         }
+        if (atlas.casas) novo.casas = montarCasas(est);   // fase 105: as casas com a neve da estação
         atlasDaEstacao = novo;
     }
 
@@ -1683,15 +1925,7 @@
     const vizinhosTerra = (igual) => (igual(0, -1) ? 1 : 0) | (igual(0, 1) ? 2 : 0) | (igual(-1, 0) ? 4 : 0) | (igual(1, 0) ? 8 : 0)
         | (igual(-1, -1) ? 16 : 0) | (igual(1, -1) ? 32 : 0) | (igual(-1, 1) ? 64 : 0) | (igual(1, 1) ? 128 : 0);
 
-    const CELEIRO = [
-        [null, 82, null],
-        [93, 94, 95],
-        [105, 106, 107],
-        [117, 118, 119],
-        [[90, 129], [91, 130], [92, 131]],
-        [114, 126, 116]
-    ];
-    const CASA = [[52, 53, 55], [64, 65, 67], [84, 85, 75]];   // Tiny Town
+    // (fase 105: o celeiro e a casa agora vêm do atlas "casas", desenhado em montarCasas)
 
     /* ============================================================
        CENA
@@ -2061,25 +2295,9 @@
 
             // celeiro e casa
             const c = retCeleiro();
-            const chaoCeleiro = f.getImageData(c.x, c.y, c.w, c.h);   // fase 104: a grama nova de baixo dele
-            CELEIRO.forEach((linha, yy) => linha.forEach((cel, xx) => {
-                if (cel == null) return;
-                (Array.isArray(cel) ? cel : [cel]).forEach((i) => tile(f, i, c.x + xx * T, c.y + yy * T));
-            }));
-            CASA.forEach((linha, yy) => linha.forEach((i, xx) => tile(f, i, wx(MAPA.casa.x + xx), wy(MAPA.casa.y + yy), false, 'town')));
-            // o celeiro é uma peça grande (3 x 6): a grama em volta volta a ser a do fundo, a partir da borda dele todo
-            {
-                const dados = f.getImageData(c.x, c.y, c.w, c.h);
-                pintarGrama(dados, 0, 0, c.w, c.h, chao, chaoCeleiro);
-                if (EST === 'inverno') {   // telhado verde coberto de neve
-                    const d = dados.data, neve = { '84c669': [238, 243, 248], '4e974c': [201, 214, 227], 'c6e58d': [255, 255, 255] };
-                    for (let k = 0; k < d.length; k += 4) {
-                        const n = neve[((d[k] << 16) | (d[k + 1] << 8) | d[k + 2]).toString(16).padStart(6, '0')];
-                        if (n && d[k + 3] > 200) { d[k] = n[0]; d[k + 1] = n[1]; d[k + 2] = n[2]; }
-                    }
-                }
-                f.putImageData(dados, c.x, c.y);
-            }
+            // fase 105: o celeiro e a casa desenhados (atlas "casas"; a grama do fundo aparece em volta)
+            gradeCasa('celeiro', 3, 6).forEach((linha, yy) => linha.forEach((i, xx) => tile(f, i, c.x + xx * T, c.y + yy * T, false, 'casas')));
+            gradeCasa('casa', 3, 3).forEach((linha, yy) => linha.forEach((i, xx) => tile(f, i, wx(MAPA.casa.x + xx), wy(MAPA.casa.y + yy), false, 'casas')));
 
             // pasto cercado com porteira (fase 45: só para quem ainda tem bicho grande sem cercado)
             const pa = MAPA.pastoAtivo ? MAPA.pasto : { x: 0, y: 0, w: 0, h: 0 };
@@ -4469,6 +4687,7 @@
     }
 
     window.FazendaArte = {
+        montarCasas,   // fase 105 (para a prévia e os testes)
         mataNova,   // fase 103: as árvores novas (para a prévia)
         terraNova,   // fase 104: a terra nova (para a prévia)
         faseDoDia,
