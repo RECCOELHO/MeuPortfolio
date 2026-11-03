@@ -689,7 +689,64 @@
         // 159 carta náutica
         ['................', '................', '..aaaaaaaaaaaa..', '.awxxxxxxxxxxwa.', '.awxBBxxxxxxxwa.', '.awBBBBxxxtxxwa.',
          '.awxBBxxxtxxxwa.', '.awxxxxxtxxxxwa.', '.awxxxxtxxxXxwa.', '.awxxxtxxxXxXwa.', '.awxxxxxxxxXxwa.', '.awxxxxxxxXxXwa.',
-         '..aaaaaaaaaaaa..', '................', '................', '................']
+         '..aaaaaaaaaaaa..', '................', '................', '................'],
+        // fase 109: as máquinas desenhadas (os pontos das animações ficam onde eram)
+        // 160 irrigador
+        ['................', '.......aa.......', '......afBa......', '..aaaaaBdaaaaa..', '..allllaalllla..', '..aa..aKa...aa..',
+         '.......aKa......', '.......aKa......', '.....aaaKaa.....', '....aEEEEEEa....', '....aBdBBBEa....', '....aKKKKKKa....',
+         '....aEEEEEFa....', '....aBEEEEFa....', '....aKKKKKKa....', '.....aaaaaa.....'],
+        // 161 aspersor
+        ['................', '.......aa.......', '......aBBa......', '.....aBddBa.....', '....aaaffaaa....', '.......aKa......',
+         '.......aKa......', '.......aKa......', '..aaaaaaKaaaaa..', '.aTTTTTTTTTTTTa.', '.aTYYTTTTTTTSSa.', '.aaaaaaaaaaaaaa.',
+         '...aKa....aKa...', '...aKa....aKa...', '..aaaaa..aaaaa..', '................'],
+        // 162 pulverizador
+        ['................', '......aaaa......', '.....aWWWWa.....', '....aWhhhhWa....', '....aWhvvhWa....', '....aWhhhhWa....',
+         '.....aaaaaa.....', '......aKKa......', '....aaaKKaaa....', '...avvvvvvvva...', '...avhhvvvvLa...', '...avvvvvvvLa...',
+         '...aKKKKKKKKa...', '...avvvvvvvLa...', '....aaaaaaaa....', '................'],
+        // 163 alarme
+        ['......aaaa......', '.....aXrrXa.....', '.....aXdrXa.....', '.....aZXXZa.....', '....aaaaaaaa....', '....aKKKKKKa....',
+         '.....aKllKa.....', '......aKKa......', '......aKKa......', '......aKKa......', '....aaaKKaaa....', '...affffffffa...',
+         '...afeeeeeefa...', '...afeWWeXefa...', '...affffffffa...', '....aaaaaaaa....'],
+        // 164 robo_capina
+        ['........a.......', '.......aWa......', '........a.......', '.....aaaaaa.....', '....affffffa....', '....afeBeBfa....',
+         '....affffffa....', '...aaaaaaaaaa...', '..avvvvvvvvvva..', '..avhvvvvvvvLa..', '..aKKKKKKKKKKa..', '..aaffaaaaffaa..',
+         '.alllllaallllla.', '.alKlKlaalKlKla.', '..aaaaa..aaaaa..', '................'],
+        // 165 robo_colheita
+        ['........a.......', '.......aWa......', '........a.......', '....aaaaaaaa....', '...affffffffa...', '...afeBeeBefa...',
+         '...affffffffa...', '.aaaaaaaaaaaaaa.', 'agEgggggggggggga', 'agggggggggggggHa', 'aKKKKKKKKKKKKKKa', '.aaGGaaaaaaGGaa.',
+         '.allllla.alllla.', '.alKlKla.alKlKa.', '..aaaaa...aaaa..', '................'],
+        // 166 trator
+        ['................', '...aa...........', '...aKa..........', '...aKa.aaaaaa...', '...aKaafddddfa..', '...aaaafBBBBfa..',
+         '..aXXXXafffffa..', '.aXrrrXXXXXXXXa.', '.aXXXXXXXXXXZXa.', '.aaaaaXXXXXXZaa.', 'aeeeaaaaaaaeeeea', 'aeKea.....aeKKea',
+         'aeeea.....aeKKea', '.aaa......aeeeea', '...........aaaa.', '................'],
+        // 167 colheitadeira
+        ['................', '...aa...........', '...aKa.aaaaaaa..', '...aKaafddddfa..', '...aaaafBBBBfa..', '..agggggaffffa..',
+         '.aggGGgggggggga.', '.agggggggggggHa.', 'aaaaaaaaaaaaaaaa', 'alflflflflflflfa', 'aaaaaaaaaaaaaaaa', '.aeeea....aeeea.',
+         '.aeKea....aeKea.', '.aeeea....aeeea.', '..aaa......aaa..', '................'],
+        // 168 bateria
+        ['................', '....aaa..aaa....', '....aXa..aea....', '..aaaaaaaaaaaa..', '..aKKKKKKKKKKa..', '..aKllllllaaKa..',
+         '..aKllllllaeKa..', '..aKlllllla.Ka..', '..aKllllllaeKa..', '..aKllWWllaeKa..', '..aKllWWllaeKa..', '..aKlllllla.Ka..',
+         '..aKllllllaeKa..', '..aKKKKKKKKKKa..', '..aaaaaaaaaaaa..', '................'],
+        // 169 supercap
+        ['................', '.....aaaaaa.....', '....aEEEEEEa....', '...aEBBEEEEFa...', '...aEBEEEEEFa...', '...aEEEEEEEaa...',
+         '...aEEEEEEEaea..', '...aEEWWEEEa.a..', '...aEEWWEEEaea..', '...aEEEEEEEa.a..', '...aEEEEEEEaea..', '...aFFFFFFFa.a..',
+         '...aaaaaaaaaaa..', '...aKKKKKKKKKa..', '....aaaaaaaaa...', '................'],
+        // 170 gerador_bio
+        ['................', '.....aaaaaa.....', '....avvvvvva....', '...avhhvvvvLa...', '...avvvvvvvLa...', '..aaaaaaaaaaaa..',
+         '..aKKKKKKKKKKa..', '..aKyyyyyyyyKa..', '..aKyhvhyiyyKa..', '..aKyyyyyyyyKa..', '..aKKKKKKKKKKa..', '..aKllaaaallKa..',
+         '..aKlaXXXalKKa..', '..aKKaiiiaKKKa..', '..aaaaaaaaaaaa..', '................'],
+        // 171 triturador
+        ['................', '..aaaaaaaaaaaa..', '..aKfKfKfKfKfa..', '...aKlKlKlKla...', '....aaaaaaaa....', '...aiiiiiiiia...',
+         '..aiOOiiiiiiNa..', '..aiiiaaaaiiNa..', '..aiiaeeeeaiNa..', '..aiiaeKKeaiNa..', '..aiiiaaaaiiNa..', '..aNNNNNNNNNNa..',
+         '..aaaaaaaaaaaa..', '..aKa......aKa..', '..aaa......aaa..', '................'],
+        // 172 painel_solar
+        ['................', '................', 'aaaaaaaaaaaaaaa.', 'aIEEaIEEaIEEaIa.', 'aEBEaEBEaEBEaEa.', 'aaaaaaaaaaaaaaa.',
+         'aIEEaIEEaIEEaIa.', 'aEBEaEBEaEBEaEa.', 'aaaaaaaaaaaaaaa.', 'aIEEaIEEaIEEaIa.', 'aEEEaEEEaEEEaEa.', 'aaaaaaaaaaaaaaa.',
+         '......aKa.......', '......aKa.......', '....aaaaaaa.....', '................'],
+        // 173 estufa
+        ['................', '.......aa.......', '......aYYa......', '.....aYddYa.....', '....aYYYYYYa....', '...aYYdYYYYYa...',
+         '..aYYYYYYYYYYa..', '.aaaaaaaaaaaaaa.', '.aYhYaYYYaYhYYa.', '.aYvhaYhYaYvhYa.', '.aYvvaYvhaYvvYa.', '.aaaaaaaaaaaaaa.',
+         '.aYMhaYhvaYMhYa.', '.ayyyyyyyyyyyya.', '.aaaaaaaaaaaaaa.', '................']
     ];
     const atlasProprio = document.createElement('canvas');
     atlasProprio.width = 12 * 16;
@@ -1235,24 +1292,24 @@
             case 'cercado_vaca': case 'cercado_ovelha': case 'cercado_porco':
                 return { p: 'town', w: CERCADOS[id].w, h: CERCADOS[id].h, grade: gradeCercado(id), cercado: CERCADOS[id] };
             case 'cano': return { p: 'farm', i: 1048, cano: true };
-            case 'irrigador': return { p: 'factory', i: 91 };
-            case 'pulverizador': return { p: 'factory', i: 126 };
-            case 'alarme': return { p: 'factory', i: 129 };
-            case 'robo_capina': return { p: 'factory', i: 110 };
-            case 'trator': return { p: 'factory', i: 98 };
-            case 'colheitadeira': return { p: 'factory', i: 100 };
+            case 'irrigador': return { p: 'farm', i: 1160 };   // fase 109
+            case 'pulverizador': return { p: 'farm', i: 1162 };
+            case 'alarme': return { p: 'farm', i: 1163 };
+            case 'robo_capina': return { p: 'farm', i: 1164 };
+            case 'trator': return { p: 'farm', i: 1166 };
+            case 'colheitadeira': return { p: 'farm', i: 1167 };
             // energia (nível 16+): arte própria e Tiny Factory
-            case 'painel_solar': return { p: 'farm', i: 1021 };
-            case 'bateria': return { p: 'factory', i: 84 };
+            case 'painel_solar': return { p: 'farm', i: 1172 };
+            case 'bateria': return { p: 'farm', i: 1168 };
             case 'turbina': return { p: 'farm', i: 1022, topo: quadroHelice ? 1024 : 1023 };
-            case 'estufa': return { p: 'farm', i: 1025 };
-            case 'gerador_bio': return { p: 'factory', i: 75 };
+            case 'estufa': return { p: 'farm', i: 1173 };
+            case 'gerador_bio': return { p: 'farm', i: 1170 };
             case 'hidreletrica': return { p: 'factory', i: 112 };   // fase 78: a pequena central (a roda gira em desenharMaquinas)
-            case 'triturador': return { p: 'factory', i: 101 };
-            case 'supercap': return { p: 'factory', i: 86 };
+            case 'triturador': return { p: 'farm', i: 1171 };
+            case 'supercap': return { p: 'farm', i: 1169 };
             case 'fabrica_auto': return { p: 'factory', w: 2, h: 2, grade: [[76, 77], [88, 89]] };
-            case 'robo_colheita': return { p: 'factory', i: 108 };
-            case 'aspersor': return { p: 'factory', i: 94 };
+            case 'robo_colheita': return { p: 'farm', i: 1165 };
+            case 'aspersor': return { p: 'farm', i: 1161 };
             case 'reator': return { p: 'farm', w: 2, h: 2, grade: [[1026, 1027], [1028, 1029]] };
             case 'estatua_chico': return { p: 'farm', i: 1038, topo: 1037, topo2: 1039 };
             default: return { p: 'farm', i: 89, desconhecido: true };   // (fase 59: o jogo vê que falta arte)
@@ -4627,11 +4684,84 @@
                 ret(lx + 2, ly + 1, lw - 4, 2, '#4a86c8');                        // sombra da margem em cima
                 desenharAguaViva(tempo, L);
             }
-            s.grade.forEach((linha, dy) => linha.forEach((i, dx) => { if (i != null) tile(q, i, x + dx * T, y + dy * T, false, s.p); }));
-            if (k.chao === 'cocho') {   // cocho de água no canto, por cima da cerca (fase 79: as duas metades, como no pasto)
-                tile(q, 110, x + T + 2, y + T - 3);
-                tile(q, 111, x + 2 * T + 2, y + T - 3);
+            // fase 109: a casinha de cada bicho, o cocho e o balde, e a cerca desenhada (no lugar das peças do Tiny Town)
+            casinhaCercado(k, x, y, w, h, r);
+            cercaDesenhada(k, x, y, w, h);
+        }
+
+        /* ---- fase 109: a cerca dos cercados: mourões com tampa, duas tábuas, a porteira aberta embaixo no meio;
+           de lado, as tábuas na vertical. No inverno, neve em cima. ---- */
+        function cercaDesenhada(k, x, y, w, h) {
+            const R = (rx, ry, rw, rh, cor) => { q.fillStyle = cor; q.fillRect(Math.round(rx), Math.round(ry), rw, rh); };
+            const OL = '#3f2631', MAD = '#b4804e', CLA = '#d8a86a', ESC = '#7a4f2e', inv = EST === 'inverno';
+            const portao = x + Math.floor(k.w / 2) * T;
+            // as tábuas de cima e de baixo (de baixo com um vão na porteira)
+            const tabua = (x0, x1, yy) => { R(x0, yy - 1, x1 - x0, 6, OL); R(x0, yy, x1 - x0, 2, MAD); R(x0, yy, x1 - x0, 1, CLA); R(x0, yy + 3, x1 - x0, 2, MAD); R(x0, yy + 4, x1 - x0, 1, ESC); };
+            tabua(x + 3, x + w - 3, y + 6);
+            tabua(x + 3, portao + 1, y + h - 8); tabua(portao + T - 1, x + w - 3, y + h - 8);
+            // as dos lados
+            for (const xx of [x + 3, x + w - 7]) { R(xx - 1, y + 7, 6, h - 14, OL); R(xx, y + 7, 2, h - 14, MAD); R(xx, y + 7, 1, h - 14, CLA); R(xx + 3, y + 7, 1, h - 14, ESC); }
+            // os mourões (com tampa), um a cada quadrado
+            const mourao = (mx, my) => { R(mx - 1, my - 2, 6, 10, OL); R(mx, my - 1, 4, 8, '#8a5a32'); R(mx, my - 1, 4, 2, CLA); R(mx + 3, my, 1, 7, ESC); if (inv) R(mx - 1, my - 3, 6, 2, '#ffffff'); };
+            for (let tx = 0; tx <= k.w; tx++) {
+                const mx = Math.min(x + tx * T + 1, x + w - 6);
+                mourao(mx, y + 3);
+                if (!(tx === Math.floor(k.w / 2) || tx === Math.floor(k.w / 2) + 1)) mourao(mx, y + h - 11);
             }
+            for (let ty = 1; ty < k.h; ty++) { mourao(x + 1, y + ty * T + 2); mourao(x + w - 6, y + ty * T + 2); }
+            // a porteira aberta, encostada de lado
+            mourao(portao, y + h - 11); mourao(portao + T - 4, y + h - 11);
+            R(portao - 6, y + h - 13, 3, 12, OL); R(portao - 5, y + h - 12, 1, 10, MAD);
+            for (let k2 = 0; k2 < 3; k2++) R(portao - 8, y + h - 11 + k2 * 4, 6, 1, CLA);
+            if (inv) for (const yy of [y + 5, y + h - 9]) R(x + 3, yy, w - 6, 1, '#f4f8fc');
+        }
+
+        /* ---- fase 109: a casinha de cada bicho (num canto de cima, dentro da cerca), o cocho com ração e o balde ---- */
+        function casinhaCercado(k, x, y, w, h, r) {
+            const R = (rx, ry, rw, rh, cor) => { q.fillStyle = cor; q.fillRect(Math.round(rx), Math.round(ry), rw, rh); };
+            const OL = '#3f2631', inv = EST === 'inverno';
+            const telhado = (tx, ty, tw, th, c1, c2) => {
+                R(tx - 1, ty - 1, tw + 2, th + 2, OL); R(tx, ty, tw, th, c1);
+                for (let yy = ty + 2; yy < ty + th; yy += 3) R(tx, yy, tw, 1, c2);
+                R(tx, ty, tw, 1, '#ffffff33'); if (inv) { R(tx - 1, ty - 2, tw + 2, 3, '#ffffff'); }
+            };
+            const bx = x + 10, by = y + 12;   // o canto de cima, à esquerda, dentro da cerca
+            const b = k.bicho;
+            if (b === 'galinha') {   // o galinheiro em palafita, com a rampinha e os ninhos
+                R(bx + 2, by + 13, 2, 6, OL); R(bx + 16, by + 13, 2, 6, OL);
+                R(bx - 1, by + 4, 22, 11, OL); R(bx, by + 5, 20, 9, '#c34b35'); for (let xx = bx + 2; xx < bx + 20; xx += 3) R(xx, by + 5, 1, 9, '#9e2e22');
+                R(bx + 8, by + 8, 5, 6, '#3f2631');   // a portinhola
+                telhado(bx - 2, by, 24, 5, '#e0a050', '#b8783a');
+                for (let k2 = 0; k2 < 5; k2++) R(bx + 13 + k2 * 2, by + 15 + k2, 3, 1, '#b4804e');   // a rampa
+                R(bx + 3, by + 9, 3, 2, '#f2c94c'); R(bx + 4, by + 9, 1, 1, '#ffffff');   // um ovinho no ninho
+            } else if (b === 'coelho') {   // a toca de madeira com a tela
+                R(bx - 1, by + 5, 20, 12, OL); R(bx, by + 6, 18, 10, '#b4804e'); R(bx, by + 6, 18, 1, '#d8a86a');
+                R(bx + 2, by + 8, 8, 6, '#3f2631'); for (let xx = bx + 2; xx < bx + 10; xx += 2) for (let yy = by + 8; yy < by + 14; yy += 2) R(xx, yy, 1, 1, '#c0cbdc');
+                R(bx + 12, by + 9, 4, 7, '#3f2631');
+                telhado(bx - 2, by + 1, 22, 5, '#4e8a4c', '#2f5e3a');
+                R(bx + 21, by + 12, 6, 4, '#f08a3c'); R(bx + 23, by + 10, 2, 2, '#4e974c');   // uma cenoura
+            } else if (b === 'pato') {   // a casinha do pato com telhado azul, de frente para o lago
+                R(bx - 1, by + 6, 16, 10, OL); R(bx, by + 7, 14, 8, '#f1e4c8'); R(bx + 5, by + 10, 5, 5, '#3f2631');
+                telhado(bx - 2, by + 2, 18, 5, '#3b6fb6', '#25406e');
+            } else if (b === 'porco') {   // o chiqueiro: telhadinho inclinado em cima de dois esteios
+                R(bx + 1, by + 7, 2, 10, OL); R(bx + 19, by + 7, 2, 10, OL);
+                telhado(bx - 1, by + 3, 24, 5, '#8b9bb4', '#566c86');
+                R(bx + 3, by + 14, 16, 3, '#6b4330'); R(bx + 5, by + 13, 12, 1, '#8a5a3c');   // a lama embaixo
+            } else if (b === 'cabra') {   // as pedras para escalar
+                for (const [px, py, pw, ph] of [[0, 8, 14, 9], [9, 3, 12, 8], [16, 9, 10, 8]]) { R(bx + px - 1, by + py - 1, pw + 2, ph + 2, OL); R(bx + px, by + py, pw, ph, '#a39388'); R(bx + px, by + py, pw, 2, '#c8bcb0'); R(bx + px + pw - 2, by + py + 2, 2, ph - 2, '#6e625a'); if (inv) R(bx + px, by + py - 1, pw, 2, '#ffffff'); }
+            } else {   // vaca, ovelha e búfala: o estábulo pequeno, vermelho, com a porta em X
+                R(bx - 1, by + 6, 26, 14, OL); R(bx, by + 7, 24, 12, '#b8382a');
+                for (let xx = bx + 2; xx < bx + 24; xx += 3) R(xx, by + 7, 1, 12, '#8e2a20');
+                R(bx + 8, by + 10, 8, 9, '#f4f1e6'); R(bx + 9, by + 11, 6, 8, '#9e2e22');
+                for (let k2 = 0; k2 < 7; k2++) { R(bx + 9 + Math.round(k2 * 5 / 6), by + 11 + k2, 1, 1, '#f4f1e6'); R(bx + 14 - Math.round(k2 * 5 / 6), by + 11 + k2, 1, 1, '#f4f1e6'); }
+                telhado(bx - 3, by + 1, 30, 6, '#3e7a4c', '#2a5838');
+                R(bx + 26, by + 14, 7, 5, OL); R(bx + 27, by + 15, 5, 3, '#e9c46a'); R(bx + 27, by + 15, 5, 1, '#f2d888');   // o fardo de feno
+            }
+            // o cocho de madeira com a ração e o balde d'água, no canto de baixo à direita
+            const cx = x + w - 30, cy = y + h - 22;
+            R(cx - 1, cy - 1, 16, 7, OL); R(cx, cy, 14, 5, '#8a5a32'); R(cx + 1, cy, 12, 2, b === 'galinha' || b === 'pato' ? '#e9c46a' : '#9ad57a');
+            R(cx + 1, cy + 4, 12, 1, '#5a3a20');
+            R(cx + 17, cy - 2, 8, 8, OL); R(cx + 18, cy - 1, 6, 6, '#8b9bb4'); R(cx + 18, cy - 1, 6, 2, '#79a7e8'); R(cx + 18, cy + 2, 6, 1, '#566c86');
         }
 
         // o alcance de um item colocado (irrigador, alarme, estufa...): some sozinho em 5 s

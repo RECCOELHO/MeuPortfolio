@@ -1516,6 +1516,9 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-11-03-maquinas', data: '03/11', titulo: 'Máquinas e cercados redesenhados', itens: [
+            'As <b>máquinas</b> ganharam desenho novo: irrigador com a caixa d\'água, aspersor, pulverizador, alarme com a sirene, os robôs de capina e de colheita, trator, colheitadeira, bateria, supercapacitor, gerador de biomassa, triturador, painel solar e estufa com as mudinhas.',
+            'Os <b>cercados</b> têm cerca de verdade (mourões, tábuas e a porteira aberta) e a <b>casinha de cada bicho</b>: o galinheiro com a rampa, a toca do coelho, a casinha do pato, o chiqueiro, as pedras da cabra e o estábulo da vaca, da ovelha e da búfala. Todos com cocho e balde d\'água.'] },
         { id: '2026-11-03-bichos', data: '03/11', titulo: 'Bichos redesenhados e o passo dos bonecos', itens: [
             'Os <b>bichos</b> foram redesenhados, maiores e com mais detalhe, e mexem as pernas quando andam: a vaca com as manchas e o úbere, a búfala com os chifres curvos, a ovelha fofinha, o porco com o rabinho enrolado, a cabra com a barbicha, a galinha com a crista, o pato e o coelho de orelha comprida.',
             'O <b>fazendeiro</b>, os <b>ajudantes</b>, os <b>banhistas</b> e as <b>visitas da porteira</b> agora <b>andam de verdade</b>, nas <b>4 direções</b>: de frente, de costas (a nuca e o cabelo) e de lado (de perfil), com as pernas dando o passo, o corpo subindo um pouquinho e o braço balançando.'] },
