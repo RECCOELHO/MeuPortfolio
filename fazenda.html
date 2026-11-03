@@ -27,7 +27,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&family=Jersey+10&display=swap" rel="stylesheet">
     <!-- ?v=: o Cloudflare guarda CSS/JS por 4 h no navegador; troque a versão a cada deploy da fazenda -->
-    <link rel="stylesheet" href="assets/fazenda/fazenda.css?v=20261103-05">
+    <link rel="stylesheet" href="assets/fazenda/fazenda.css?v=20261103-07">
 </head>
 
 <body>
@@ -54,7 +54,7 @@
         <!-- celular: os botões do topo ficam dentro deste menu -->
         <button type="button" class="botao so-celular menu-btn" id="btnMenu" aria-label="Menu" aria-expanded="false" aria-controls="hudBotoes"><span class="menu-ico" aria-hidden="true"></span><b class="contador" id="hudMenu" hidden>0</b></button>
         <nav class="hud-botoes" id="hudBotoes">
-            <button type="button" class="botao" data-painel="loja"><span data-spr="9" data-px="28"></span><em>Loja</em></button>
+            <button type="button" class="botao" data-painel="loja"><span data-spr="9" data-px="28"></span><em>Loja</em><b class="selo-botao" data-novos="loja" hidden></b></button>
             <button type="button" class="botao" data-painel="celeiro"><span data-spr="11" data-px="28"></span><em>Celeiro</em><b class="contador" id="hudCeleiro" hidden>0</b></button>
             <button type="button" class="botao" data-painel="missoes"><span data-ico="missao" data-px="22"></span><em>Missões</em><b class="contador" id="hudMissoes" hidden>0</b></button>
             <button type="button" class="botao" data-painel="feira" aria-label="Feira entre jogadores"><span data-ico="moeda" data-px="22"></span><em>Feira</em></button>
@@ -109,7 +109,7 @@
         </div>
         <div class="acoes-massa" id="acoesCasa">
             <!-- celular: loja e celeiro na barra de baixo; as 4 ações num menuzinho -->
-            <button type="button" class="botao so-celular" data-painel="loja"><span data-spr="9" data-px="28"></span><em>Loja</em></button>
+            <button type="button" class="botao so-celular" data-painel="loja"><span data-spr="9" data-px="28"></span><em>Loja</em><b class="selo-botao" data-novos="loja" hidden></b></button>
             <button type="button" class="botao so-celular" data-painel="celeiro"><span data-spr="11" data-px="28"></span><em>Celeiro</em><b class="contador" id="hudCeleiroDock" hidden>0</b></button>
             <div class="acoes-grupo" id="acoesGrupo">
                 <button type="button" class="botao so-celular" id="btnAcoes" aria-expanded="false" aria-controls="acoesLista"><span data-spr="35" data-px="28"></span><em>Ações</em></button>
@@ -122,7 +122,7 @@
                     <button type="button" class="botao" data-massa="agora" title="Colher tudo agora com diamantes"><span data-ico="diamante" data-px="28"></span><em>Colher já</em></button>
                 </div>
             </div>
-            <button type="button" class="botao amarelo" id="btnConstruir"><span data-spr="127" data-pack="town" data-px="28"></span><em>Construir</em><b class="contador" id="hudConstruir" hidden>0</b></button>
+            <button type="button" class="botao amarelo" id="btnConstruir"><span data-spr="127" data-pack="town" data-px="28"></span><em>Construir</em><b class="contador" id="hudConstruir" hidden>0</b><b class="selo-botao" data-novos="construir" hidden></b></button>
         </div>
         <!-- anúncio premiado: só aparece quando tem anúncio pronto e algo em andamento -->
         <button type="button" class="botao anuncio" id="btnAnuncio" title="Assistir a um anúncio e adiantar tudo em 30 minutos" hidden><span data-ico="play" data-px="16"></span><em>+30 min</em></button>
@@ -192,10 +192,10 @@
     </section>
 
     <script src="assets/app/instalar.js?v=20261013-03" data-escopo="/fazenda" defer></script>
-    <script src="assets/fazenda/fazenda-arte.js?v=20261103-03" defer></script>
+    <script src="assets/fazenda/fazenda-arte.js?v=20261103-05" defer></script>
     <script src="assets/fazenda/fazenda-mar.js?v=20261017-01" defer></script>
     <script src="assets/fazenda/fazenda-invasao.js?v=20261101-02" defer></script>
-    <script src="assets/fazenda/fazenda.js?v=20261103-04" defer></script>
+    <script src="assets/fazenda/fazenda.js?v=20261103-08" defer></script>
 </body>
 
 </html>

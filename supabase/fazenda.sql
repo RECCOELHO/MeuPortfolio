@@ -3531,6 +3531,7 @@ $$;
 
 -- Pega colheita de um canteiro do vizinho. Retorna a quantidade pega.
 -- fase 66: p_luva = pode gastar 1 luva do Perks para passar pelo alarme (só gasta no canteiro protegido)
+-- fase 103: com a luva, leva a muda inteira (o que o dono colheria) e o canteiro do vizinho fica arado
 drop function if exists public.fazenda_pegar_um(uuid, uuid, int);
 create or replace function public.fazenda_pegar_um(p_ator uuid, p_dono uuid, p_posicao int, p_luva boolean default false)
 returns int
@@ -3567,7 +3568,7 @@ begin
                 and posicao = p_posicao and plantado_em = c.plantado_em) then
     raise exception 'ja_pegou';
   end if;
-  if c.roubado >= fazenda_limite_roubo(k.rendimento) then
+  if c.roubado >= (case when v_luva then k.rendimento else fazenda_limite_roubo(k.rendimento) end) then
     raise exception 'nada_pra_pegar';
   end if;
   if (select count(*) from fazenda_visitas
@@ -3582,13 +3583,20 @@ begin
     if not found then raise exception 'sem_luva'; end if;
   end if;
 
-  v_qtd := least(2 + (random() < 0.4)::int, fazenda_limite_roubo(k.rendimento) - c.roubado);
-  if fazenda_protegido(p_dono, 'cerca', c.x, c.y) then
-    v_qtd := least(v_qtd, 1);   -- cerca ou placa por perto
+  if v_luva then
+    -- fase 103: a muda inteira, o mesmo que o dono colheria agora (a cerca não segura a luva)
+    v_qtd := greatest(k.rendimento - (c.erva::int + c.praga::int + c.seco::int) - c.roubado, 1) + c.adubado::int;
+    update fazenda_canteiros set estado = 'arado', cultura = null, plantado_em = null,
+           erva = false, praga = false, seco = false, roubado = 0, prox_evento = null, adubado = false
+     where jogador_id = p_dono and posicao = p_posicao;
+  else
+    v_qtd := least(2 + (random() < 0.4)::int, fazenda_limite_roubo(k.rendimento) - c.roubado);
+    if fazenda_protegido(p_dono, 'cerca', c.x, c.y) then
+      v_qtd := least(v_qtd, 1);   -- cerca ou placa por perto
+    end if;
+    update fazenda_canteiros set roubado = roubado + v_qtd
+     where jogador_id = p_dono and posicao = p_posicao;
   end if;
-
-  update fazenda_canteiros set roubado = roubado + v_qtd
-   where jogador_id = p_dono and posicao = p_posicao;
   insert into fazenda_celeiro (jogador_id, item, quantidade)
   values (p_ator, k.id, v_qtd)
   on conflict (jogador_id, item)

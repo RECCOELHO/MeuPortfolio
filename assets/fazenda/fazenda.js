@@ -43,6 +43,54 @@
         del(k) { try { localStorage.removeItem(k); } catch { /* ignora */ } }
     };
 
+    /* ---- selo "Novo": o que liberou (ou chegou numa atualização) e o jogador ainda não viu ---- */
+    // Guarda no aparelho as chaves já vistas. Na 1ª vez, tudo o que já está liberado conta como visto.
+    // O selo fica enquanto a tela está aberta e some na próxima vez; os contadores contam só os não vistos.
+    const ABAS_CONSTR = ['pomar', 'bichos', 'oficina', 'maquina', 'energia', 'caminho', 'natureza', 'objeto', 'construcao', 'praia'];
+    const novos = (() => {
+        const CHAVE = 'fazenda_vistos';
+        let vistos = null, timer = 0;
+        const mostrando = new Set();
+        function liberados() {
+            if (!S || !S.jogador) return [];
+            const r = [], nv = S.jogador.nivel;
+            (S.culturas || []).forEach((k) => { if (k.tipo === 'cultura' && k.nivel_min <= nv) r.push({ chave: 'c:' + k.id, onde: 'loja', aba: 'sementes' }); });
+            (S.animais_tipos || []).forEach((t) => { if (t.nivel_min <= nv) r.push({ chave: 'a:' + t.id, onde: 'loja', aba: 'animais' }); });
+            (S.ajudantes_tipos || []).forEach((t) => { if (t.nivel_min <= nv) r.push({ chave: 'j:' + t.id, onde: 'loja', aba: 'ajudantes' }); });
+            (S.itens || []).forEach((i) => { if (i.nivel_min <= nv && ABAS_CONSTR.includes(i.categoria)) r.push({ chave: 'i:' + i.id, onde: 'construir', aba: i.categoria }); });
+            return r;
+        }
+        const salvar = () => { clearTimeout(timer); timer = setTimeout(() => store.set(CHAVE, JSON.stringify([...vistos])), 400); };
+        function carregar() {
+            if (vistos || !S || !S.itens) return !!vistos;
+            try { const v = JSON.parse(store.get(CHAVE) || 'null'); if (Array.isArray(v)) vistos = new Set(v); } catch { /* ignora */ }
+            if (!vistos) { vistos = new Set(liberados().map((x) => x.chave)); salvar(); }
+            return true;
+        }
+        return {
+            // devolve o selo (e já conta como visto) ou ''
+            selo(chave, liberado) {
+                if (!liberado || !carregar()) return '';
+                if (!vistos.has(chave)) { vistos.add(chave); mostrando.add(chave); salvar(); }
+                return mostrando.has(chave) ? '<b class="selo-novo">Novo</b>' : '';
+            },
+            quantos(onde, aba) {
+                if (!carregar()) return 0;
+                return liberados().filter((x) => x.onde === onde && (!aba || x.aba === aba) && !vistos.has(x.chave)).length;
+            },
+            // bolinha com o número, para as abas
+            ponto(onde, aba) { const n = this.quantos(onde, aba); return n ? `<i class="ponto-novo" title="${n} novo${n > 1 ? 's' : ''}">${n}</i>` : ''; },
+            limpar() { mostrando.clear(); },
+            contadores() {
+                document.querySelectorAll('[data-novos]').forEach((b) => {
+                    const n = this.quantos(b.dataset.novos);
+                    b.hidden = !n;
+                    b.textContent = n ? 'Novo' + (n > 1 ? ` ${n}` : '') : '';
+                });
+            }
+        };
+    })();
+
     /* ---------- Mensagens de erro do servidor ---------- */
     const ERROS = {
         token_invalido: 'Sessão expirada. Entre de novo com seu código.',
@@ -284,12 +332,19 @@
         let pausado = false;   // durante o anúncio
         let volMusica = store.get(LS.volMusica) !== null ? Math.max(0, Math.min(100, Number(store.get(LS.volMusica)))) : 35;
         let volEfeitos = store.get(LS.volEfeitos) !== null ? Math.max(0, Math.min(100, Number(store.get(LS.volEfeitos)))) : 80;
-        let faixaAtual = Number(store.get(LS.faixaMusica)) || 0; // 0: Tema da Roça 1, 1: Tema da Roça 2
-
-        const FAIXAS = [
-            { nome: 'Fazenda Secreta (Tema 1)', src: 'assets/music/fazenda-tema-1.mp3?v=20261030' },
-            { nome: 'Fazenda Secreta (Tema 2)', src: 'assets/music/fazenda-tema-2.mp3?v=20261030' }
-        ];
+        // fase 107: uma lista de músicas para o dia e outra para a noite (o dia do jogo, de 2 em 2 horas);
+        // quando o céu vira, a música troca sozinha (some devagar e a outra entra). O rádio da feira escolhe a próxima.
+        const FAIXAS = {
+            dia: [{ nome: 'Over the Garden Fence', src: 'assets/music/fazenda-dia-1.mp3?v=20261103' },
+                  { nome: 'The Porch Swing at Three', src: 'assets/music/fazenda-dia-2.mp3?v=20261103' }],
+            noite: [{ nome: 'Starlight Over the Acre', src: 'assets/music/fazenda-noite-1.mp3?v=20261103' }]
+        };
+        const faixaGuardada = (per) => Math.max(0, Number(store.get('fazenda_faixa_' + per)) || 0) % FAIXAS[per].length;
+        const faixaIdx = { dia: faixaGuardada('dia'), noite: faixaGuardada('noite') };
+        const periodo = () => (A && A.faseDoDia && A.faseDoDia(Date.now()).noite ? 'noite' : 'dia');
+        const faixaDaVez = () => { const per = periodo(); return FAIXAS[per][faixaIdx[per] % FAIXAS[per].length]; };
+        let fade = 1;   // 0..1: a música sumindo ou voltando na troca
+        let periodoTocando = null, aoMudar = null;
 
         let musicaAudio = null;
         let desbloqueado = false;
@@ -306,7 +361,7 @@
 
         function aplicarVolumeMusica() {
             if (!musicaAudio) return;
-            musicaAudio.volume = (mudo || pausado) ? 0 : (volMusica / 100);
+            musicaAudio.volume = (mudo || pausado) ? 0 : (volMusica / 100) * fade;
         }
 
         function tocarMusica() {
@@ -315,7 +370,8 @@
                 musicaAudio.loop = true;
                 musicaAudio.preload = 'auto';
             }
-            const faixa = FAIXAS[faixaAtual] || FAIXAS[0];
+            const faixa = faixaDaVez();
+            periodoTocando = periodo();
             const srcAtual = musicaAudio.getAttribute('src');
             if (srcAtual !== faixa.src) {
                 musicaAudio.src = faixa.src;
@@ -328,6 +384,22 @@
                 }
             }
         }
+
+        // some devagar, troca a música e volta (1,2 s para cada lado)
+        let trocando = null;
+        function trocarSuave() {
+            if (!musicaAudio || !desbloqueado) { periodoTocando = periodo(); return; }
+            if (trocando) clearInterval(trocando);
+            trocando = setInterval(() => {
+                fade = Math.max(0, fade - 0.1); aplicarVolumeMusica();
+                if (fade > 0) return;
+                clearInterval(trocando);
+                tocarMusica();
+                trocando = setInterval(() => { fade = Math.min(1, fade + 0.1); aplicarVolumeMusica(); if (fade >= 1) { clearInterval(trocando); trocando = null; } }, 120);
+            }, 120);
+            if (aoMudar) aoMudar();
+        }
+        setInterval(() => { if (desbloqueado && periodoTocando && periodo() !== periodoTocando) trocarSuave(); }, 5000);
 
         function desbloquearAudio() {
             if (desbloqueado) return;
@@ -415,22 +487,23 @@
                 volEfeitos = Math.max(0, Math.min(100, Number(v) || 0));
                 store.set(LS.volEfeitos, String(volEfeitos));
             },
-            trocarFaixa(idx) {
-                faixaAtual = (idx >= 0 && idx < FAIXAS.length) ? idx : 0;
-                store.set(LS.faixaMusica, String(faixaAtual));
-                if (musicaAudio) {
-                    musicaAudio.src = FAIXAS[faixaAtual].src;
-                    aplicarVolumeMusica();
-                    if (!mudo && !pausado && volMusica > 0) {
-                        musicaAudio.play().catch(() => {});
-                    }
-                }
+            // fase 107: escolhe uma música da lista do dia ou da noite (n = null: a próxima)
+            escolher(per, n) {
+                const lista = FAIXAS[per];
+                faixaIdx[per] = n == null ? (faixaIdx[per] + 1) % lista.length : Math.max(0, Math.min(lista.length - 1, n));
+                store.set('fazenda_faixa_' + per, String(faixaIdx[per]));
+                if (per === periodo()) { if (musicaAudio && desbloqueado) trocarSuave(); }
+                else if (aoMudar) aoMudar();
             },
+            get periodo() { return periodo(); },
+            get tocando() { return !!musicaAudio && !musicaAudio.paused && !mudo && volMusica > 0; },
+            faixaDe(per) { return FAIXAS[per][faixaIdx[per] % FAIXAS[per].length]; },
+            indice(per) { return faixaIdx[per]; },
+            set aoMudar(fn) { aoMudar = fn; },
             desbloquear: desbloquearAudio,
             get mudo() { return mudo; },
             get volMusica() { return volMusica; },
             get volEfeitos() { return volEfeitos; },
-            get faixaAtual() { return faixaAtual; },
             get faixas() { return FAIXAS; }
         };
     })();
@@ -1213,9 +1286,9 @@
     function podePegar(c, i) {
         return i.fase === 'maduro' && !c.ja_peguei && c.roubado < limitePegar(i.k) && !protegidoAlarme(c);
     }
-    // fase 66: a luva do Perks passa pelo alarme (1 luva por canteiro protegido)
+    // fase 66: a luva do Perks passa pelo alarme (1 luva por canteiro protegido); fase 103: leva a muda inteira
     const luvas = () => (S ? livreFeira('luva_perks') : 0);
-    const podeLuva = (c, i) => i.fase === 'maduro' && !c.ja_peguei && c.roubado < limitePegar(i.k) && protegidoAlarme(c) && luvas() > 0;
+    const podeLuva = (c, i) => i.fase === 'maduro' && !c.ja_peguei && c.roubado < i.k.rendimento && protegidoAlarme(c) && luvas() > 0;
     // fase 83: a semente que você planta na fazenda abandonada (a sua de sempre, se der; senão a mais barata que dá)
     function sementeVizinho() {
         const ok = (k) => k && k.tipo === 'cultura' && k.nivel_min <= S.jogador.nivel && daEstacao(k) && k.custo <= S.jogador.moedas;
@@ -1438,6 +1511,19 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-11-03-praia', data: '03/11', titulo: 'A praia ganhou vida', itens: [
+            'De dia, cada <b>cadeira</b> e <b>guarda-sol</b> tem o seu banhista: ele chega andando, senta, vai <b>nadar</b> no mar, volta, vai <b>comprar</b> na barraca de coco ou de milho, senta comendo e depois vai embora. Daí vem outra pessoa.',
+            'Também tem gente só <b>passeando</b> pela areia, parando na barraca ou dando um mergulho.',
+            'Quanto mais coisa você põe na praia (cadeiras, guarda-sóis, barracas, enfeites), mais gente aparece. Praia com pouca opção fica vazia.'] },
+        { id: '2026-11-03-novo', data: '03/11', titulo: 'Selo de Novo na Loja e no Construir', itens: [
+            'Quando você sobe de nível (ou chega coisa nova numa atualização), o que liberou aparece com o selo <b>Novo</b> na Loja (sementes, animais e ajudantes) e no Construir.',
+            'Os botões da Loja e do Construir e as abas mostram quantas novidades tem para ver. Abriu, viu: o selo some na próxima vez.'] },
+        { id: '2026-11-03-luva', data: '03/11', titulo: 'A luva do Perks leva a muda inteira', itens: [
+            'Visitando um vizinho, a <b>luva do Perks</b> passa pelo alarme e agora leva a <b>muda inteira</b>: tudo o que o dono colheria (a cerca não segura), e o canteiro dele fica arado.',
+            'Sem luva, pegar continua igual: 2 ou 3 por canteiro, até a metade.'] },
+        { id: '2026-11-03-radio', data: '03/11', titulo: 'Músicas novas e o rádio da feira', itens: [
+            '<b>Três músicas novas</b>: duas para o dia e uma para a noite. Quando o céu escurece ou clareia, a música troca sozinha.',
+            'Tem um <b>rádio</b> na feira, embaixo das barracas (todo mundo tem). Toque nele para abaixar ou aumentar o volume e pular para a próxima música do dia ou da noite.'] },
         { id: '2026-11-03-oficinas', data: '03/11', titulo: 'Tela das oficinas', itens: [
             'Nova tela <b>Oficinas</b> (no menu): todas as suas oficinas, separadas por tipo, com o que cada uma está fazendo, o tempo que falta, o estoque e <b>por que parou</b>.',
             '<b>Pegar tudo</b> leva os produtos prontos de todas para o celeiro, e <b>Encher todas</b> reparte os ingredientes do celeiro entre elas (as que dão mais lucro primeiro).',
@@ -1837,7 +1923,7 @@
         madeira_nobre: 'Peça do píer e das melhorias do barco.', corda_naval: 'Peça do píer e das melhorias do barco.',
         pedra_cantaria: 'Peça do píer e das melhorias do barco.', ferro_forjado: 'Peça do píer e das melhorias do barco.',
         ancora: 'Peça do píer e das melhorias do barco.', leme_dourado: 'Peça do píer (vem do evento da semana).',
-        luva_perks: 'Usa sozinha: visitando um vizinho, toque num canteiro com alarme e a luva passa por ele.'
+        luva_perks: 'Usa sozinha: visitando um vizinho, toque num canteiro com alarme e a luva leva a muda inteira.'
     };
     const itensUsaveis = () => (S ? S.culturas.filter((k) => PREMIO_EFEITO[k.id] && naCeleiro(k.id) > 0) : []);
     function htmlItens() {
@@ -2556,7 +2642,7 @@
             return `${cabeca}
                 <p class="fala">E aí! Sou o <b>Perks</b>, o 1º do ranking. Quer saber como passo pelo alarme dos vizinhos? Com estas luvas. Me traz <b>${v.qtd} ${itemDe(k, 18)} ${esc(nomeQtd(k, v.qtd))}</b> e eu te dou <b>${v.luvas} ${itemDe(luva, 18)} luvas</b>.</p>
                 <div class="oficina-conta">
-                    <span>Cada luva pega 1 canteiro com alarme</span>
+                    <span>Cada luva leva 1 muda inteira, mesmo com alarme</span>
                     <span class="lucro">Na feira, de ${moeda(numero(luva.venda))} a ${moeda(numero(luva.venda * 3))}</span>
                 </div>
                 <p class="det"><span class="txt">Você tem ${numero(tem)} ${esc(nomeQtd(k, tem))}${tem < v.qtd ? `: faltam ${numero(v.qtd - tem)}` : ''}. Ele é raro: aparece mais ou menos 1 vez a cada 4 dias.</span></p>
@@ -3127,6 +3213,29 @@
             </div>`;
     }
 
+    /* ---------- fase 107: o rádio da feira e as músicas de dia e de noite ---------- */
+    function htmlFaixas() {
+        const bloco = (per, titulo) => `<b>${titulo}</b><div class="som-faixas">${som.faixas[per].map((f, i) => {
+            const sel = som.indice(per) === i, agoraToca = sel && som.periodo === per;
+            return `<button type="button" class="botao pequeno ${sel ? 'verde' : 'creme'}" data-faixa="${per}:${i}">${agoraToca ? '▶ ' : ''}${esc(f.nome)}</button>`;
+        }).join('')}</div>`;
+        return `${bloco('dia', 'Músicas do dia')}${bloco('noite', 'Músicas da noite')}<p class="det">A música troca sozinha quando o céu escurece ou clareia.</p>`;
+    }
+    function htmlRadio() {
+        const per = som.periodo, f = som.faixaDe(per);
+        return `<p class="fala">${som.tocando ? `Tocando agora (${per === 'noite' ? 'noite' : 'dia'}): <b>${esc(f.nome)}</b>` : som.mudo ? 'O rádio está <b>mudo</b>.' : 'Toque em qualquer lugar para o rádio começar a tocar.'}</p>
+            <div class="radio-volume"><button type="button" class="botao creme" data-radio="menos">Abaixar</button>
+                <span class="chip">Volume ${som.volMusica}%</span><button type="button" class="botao creme" data-radio="mais">Aumentar</button></div>
+            <div class="gerente-acoes">
+                <button type="button" class="botao verde" data-radio="dia">Próxima música de dia</button>
+                <button type="button" class="botao verde" data-radio="noite">Próxima música à noite</button>
+            </div>
+            ${htmlFaixas()}
+            <div class="rodape-painel"><button type="button" class="botao ${som.mudo ? 'verde' : 'creme'}" data-radio="mudo">${ico(som.mudo ? 'som' : 'mudo', 18)} ${som.mudo ? 'Ligar o som' : 'Desligar o som'}</button><button type="button" class="botao creme" data-fechar>Fechar</button></div>`;
+    }
+    som.aoMudar = () => { if (painelAtual === 'radio' || painelAtual === 'som') abrirPainel(painelAtual, true); };
+    setInterval(() => { if (typeof cena !== 'undefined' && cena.radio) cena.radio(som.tocando); }, 1000);
+
     /* ---------- fase 105: administrar as oficinas ----------
        Todas as oficinas numa tela só, por tipo: o que cada uma está fazendo, o que está pronto, o estoque e
        por que parou. Pegar e encher uma por uma ou todas de uma vez (o encher reparte o que tem no celeiro). */
@@ -3349,6 +3458,7 @@
         aoCeleiro: () => { if (S && !painelAtual) abrirPainel('celeiro'); },
         aoCasa: () => { if (S && !painelAtual && !visita) descreverCasa('casa'); },   // fase 66: quem dorme na casa da fazenda
         aoVenda: () => { if (S && !painelAtual && !visita) { abaLoja = 'terrenos'; abrirPainel('loja'); } },
+        aoRadio: () => { if (!painelAtual) abrirPainel('radio'); },   // fase 107: o rádio da feira
         aoFeira: () => {   // fase 51: a pracinha da feira, na mata
             if (!S || painelAtual) return;
             abaFeira = !visita && S.feira && S.feira.meus.length ? 'meus' : 'comprar';
@@ -3368,6 +3478,7 @@
         aoPassar: (alvo, venda) => {
             if (!S || alvo == null) return;
             if (alvo === 'celeiro') mostrarStatus(`${spr(11, 22)} Celeiro: toque para ver e vender a colheita.`);
+            else if (alvo === 'radio') mostrarStatus(`${ico('radio', 20)} <b>Rádio</b>: ${som.tocando ? `tocando ${esc(som.faixaDe(som.periodo).nome)}. ` : ''}Toque para trocar a música ou mexer no volume.`);
             else if (alvo === 'feira') mostrarStatus(visita ? `${A.htmlItem('barraca', 22)} <b>Feira</b>: toque para comprar dos outros jogadores.`
                 : `${A.htmlItem('barraca', 22)} <b>Feira</b>: ${barracas()} barraca${barracas() > 1 ? 's' : ''}, até ${limiteFeira()} anúncios. Toque para comprar e vender com outros jogadores.`);
             else if (alvo === 'venda') descreverVenda(venda);
@@ -3539,6 +3650,7 @@
     }
 
     function fecharConstrucao(msg) {
+        novos.limpar();
         constr.ativo = false;
         constr.movendo = null;
         constr.rapido = false;
@@ -3557,7 +3669,7 @@
         if (constr.aba === 'guardados' && !nDep) constr.aba = 'plantacao';
         const abas = [...(nDep ? [['guardados', `${ico('caixa', 14)} Guardados (${nDep})`]] : []), ['plantacao', 'Plantação'], ['pomar', 'Pomar'], ['bichos', 'Bichos'], ['oficina', 'Oficinas'], ['maquina', 'Máquinas'], ['energia', 'Energia'], ['caminho', 'Cercas e caminhos'], ['natureza', 'Natureza'], ['objeto', 'Objetos'], ['construcao', 'Casas'], ['praia', 'Praia']];
         el.constrAbas.innerHTML = abas.map(([id, txt]) =>
-            `<button type="button" data-constr-aba="${id}" class="${constr.aba === id ? 'ativa' : ''}">${txt}</button>`).join('');
+            `<button type="button" data-constr-aba="${id}" class="${constr.aba === id ? 'ativa' : ''}">${txt}${constr.aba === id ? '' : novos.ponto('construir', id)}</button>`).join('');
         // por nível (o que já libera primeiro); no mesmo nível, a ordem do catálogo. A ordem do catálogo
         // segue a fase em que cada item entrou, e deixava oficina liberada no fim da lista
         const lista = constr.aba === 'plantacao' ? [ITEM_CANTEIRO]
@@ -3574,9 +3686,11 @@
             return `<button type="button" class="paleta-item${sel ? ' selecionado' : ''}${travado ? ' travado' : ''}${falta ? ' falta-nivel' : ''}" data-item="${esc(i.id)}" title="${esc(i.nome)}${falta ? ' (falta para passar de nível)' : contaNivel(i) ? ' (conta para passar de nível)' : ''}${i.descricao ? ': ' + esc(i.descricao) : ''}">
                 ${travado ? ico('cadeado', 18) : A.htmlItem(i.id, 32)}
                 ${dep ? `<b class="paleta-dep" title="${dep} no depósito">${ico('caixa', 10)}${dep}</b>` : ''}
+                ${ABAS_CONSTR.includes(i.categoria) ? novos.selo('i:' + i.id, !travado) : ''}
                 <small>${travado ? `Nv ${i.nivel_min}` : preco}</small>
             </button>`;
         }).join('');
+        novos.contadores();
         el.constrFerramentas.querySelectorAll('[data-ferramenta]').forEach((b) => b.classList.toggle('ativa', b.dataset.ferramenta === constr.modo));
     }
 
@@ -3783,6 +3897,7 @@
     /* ---------- HUD e status ---------- */
     function desenharHud() {
         const j = S.jogador;
+        novos.contadores();
         if (el.construirCont) {
             el.construirCont.textContent = canteirosLivres();
             el.construirCont.hidden = !canteirosLivres();
@@ -3882,7 +3997,7 @@
         let txt;
         if (i.fase === 'maduro') {
             if (c.ja_peguei) txt = `${item} Você já pegou desse ${esc(i.k.nome.toLowerCase())}.`;
-            else if (protegidoAlarme(c)) txt = `${item} ${esc(i.k.nome)} protegido pelo alarme antiladrão do vizinho.${luvas() ? ` Você tem ${luvas()} ${itemDe(culturas.luva_perks || { id: 'luva_perks' }, 16)} luva(s) do Perks: toque para passar (gasta 1).` : ''}`;
+            else if (protegidoAlarme(c)) txt = `${item} ${esc(i.k.nome)} protegido pelo alarme antiladrão do vizinho.${luvas() ? ` Você tem ${luvas()} ${itemDe(culturas.luva_perks || { id: 'luva_perks' }, 16)} luva(s) do Perks: toque para levar a muda inteira (gasta 1).` : ''}`;
             else if (c.roubado >= limitePegar(i.k)) txt = `${item} Já pegaram bastante desse ${esc(i.k.nome.toLowerCase())}.`;
             else txt = `${item} ${esc(i.k.nome)} maduro! Toque para pegar até 3 ${ico('mao', 16)}`;
         } else {
@@ -4126,7 +4241,7 @@
         if (d.tipo === 'colher') return `<b>${esc(d.apelido)}</b> colheu ${item} para você (está no celeiro).`;
         if (d.tipo === 'plantar') return `<b>${esc(d.apelido)}</b> plantou ${item} na sua fazenda com o dinheiro dele!`;
         return d.tipo === 'roubo'
-            ? `<b>${esc(d.apelido)}</b> pegou ${d.qtd} ${item} da sua fazenda!${d.luva ? ' Passou pelo alarme com a luva do Perks.' : ''}`
+            ? `<b>${esc(d.apelido)}</b> ${d.luva ? `levou a muda inteira de ${item} (${d.qtd}) da sua fazenda com a luva do Perks!` : `pegou ${d.qtd} ${item} da sua fazenda!`}`
             : `<b>${esc(d.apelido)}</b> cuidou do seu ${item} (${d.qtd} problema${d.qtd > 1 ? 's' : ''}).`;
     }
 
@@ -4422,7 +4537,7 @@
         descrever(p);
         if (visita) {
             const av = acaoVisita(canteiro(p));
-            if (av === 'pegar_luva' && !await perguntar(`Esse canteiro tem alarme. Usar 1 luva do Perks para passar? (você tem ${luvas()})`)) return;
+            if (av === 'pegar_luva' && !await perguntar(`Esse canteiro tem alarme. Usar 1 luva do Perks para levar a muda inteira? (você tem ${luvas()})`)) return;
             if (av) { cena.irAte(p); executarVisita(av, [p]); }
             return;
         }
@@ -4819,7 +4934,7 @@
             if (posicoes.length > 1 && !r.feitos && r.erros && Object.keys(r.erros).length) toast('Nada feito: ' + motivoErros(r.erros), 'erro');
             const pegando = acao === 'pegar' || acao === 'pegar_luva';   // fase 66: com a luva é pegar também
             if (r.feitos) som.tocar(pegando ? 'colher' : 'cuidar');
-            if (acao === 'pegar_luva' && r.feitos) toast(`${itemDe(culturas.luva_perks || { id: 'luva_perks' }, 18)} Passou pelo alarme com ${r.feitos === 1 ? '1 luva' : `${r.feitos} luvas`} do Perks!`);
+            if (acao === 'pegar_luva' && r.feitos) toast(`${itemDe(culturas.luva_perks || { id: 'luva_perks' }, 18)} Levou ${r.feitos === 1 ? 'a muda inteira' : `${r.feitos} mudas inteiras`} com a luva do Perks!`);
             Object.entries(r.resultado).forEach(([pos, qtd], n) => {
                 const c = canteiro(Number(pos));
                 const k = c && culturas[c.cultura];
@@ -4965,7 +5080,7 @@
         }
         // fase 66: os canteiros com alarme, se tiver luva do Perks (pergunta antes de gastar)
         const comAlarme = tipo === 'pegar' ? visita.canteiros.filter((c) => podeLuva(c, info(c))).map((c) => c.posicao) : [];
-        const usar = comAlarme.length && await perguntar(`${comAlarme.length} canteiro(s) com alarme. Usar ${Math.min(comAlarme.length, luvas())} luva(s) do Perks para pegar deles também? (você tem ${luvas()})`)
+        const usar = comAlarme.length && await perguntar(`${comAlarme.length} canteiro(s) com alarme. Usar ${Math.min(comAlarme.length, luvas())} luva(s) do Perks para levar essas mudas inteiras? (você tem ${luvas()})`)
             ? comAlarme.slice(0, luvas()) : [];
         if (!ps.length && !usar.length) return toast('Nada pra pegar aqui agora.', undefined, 'leve');
         if (ps.length) executarVisita(tipo, ps);
@@ -5032,7 +5147,7 @@
             el.painelTitulo.innerHTML = `${spr(9, 32)} Loja`;
             const abas = `<div class="painel-abas" role="tablist">
                 ${[['sementes', 'Sementes'], ['animais', 'Animais'], ['ajudantes', 'Ajudantes'], ['terrenos', 'Terrenos'], ['melhorias', 'Melhorias'], ['baus', 'Baús'], ['diamantes', 'Diamantes']].map(([id, txt]) =>
-                    `<button type="button" role="tab" data-aba-loja="${id}" class="${abaLoja === id ? 'ativa' : ''}">${txt}</button>`).join('')}
+                    `<button type="button" role="tab" data-aba-loja="${id}" class="${abaLoja === id ? 'ativa' : ''}">${txt}${abaLoja === id ? '' : novos.ponto('loja', id)}</button>`).join('')}
             </div>`;
             if (abaLoja === 'animais') corpo.innerHTML = abas + htmlLojaAnimais();
             else if (abaLoja === 'terrenos') corpo.innerHTML = abas + htmlLojaTerrenos();
@@ -5041,6 +5156,7 @@
             else if (abaLoja === 'diamantes') corpo.innerHTML = abas + htmlLojaDiamantes();
             else if (abaLoja === 'baus') corpo.innerHTML = abas + htmlLojaBaus();
             else corpo.innerHTML = abas + htmlLojaSementes();
+            novos.contadores();
         } else if (nome === 'missoes') {
             el.painelTitulo.innerHTML = `${ico('missao', 26)} Missões do dia`;
             corpo.innerHTML = htmlMissoes();
@@ -5270,16 +5386,7 @@
                         </div>
                     </div>
 
-                    <div class="som-bloco">
-                        <b>Escolher Música</b>
-                        <div class="som-faixas">
-                            ${som.faixas.map((f, idx) => `
-                                <button type="button" class="botao pequeno ${som.faixaAtual === idx ? 'verde' : 'creme'}" data-faixa="${idx}">
-                                    ${som.faixaAtual === idx ? '▶ ' : ''}${esc(f.nome)}
-                                </button>
-                            `).join('')}
-                        </div>
-                    </div>
+                    <div class="som-bloco">${htmlFaixas()}</div>
 
                     <div class="som-bloco som-linha-mudo">
                         <button type="button" class="botao ${som.mudo ? 'vermelho' : 'verde'}" data-som-silenciar>
@@ -5299,6 +5406,9 @@
             if (!v) { fecharPainel(); return; }
             el.painelTitulo.innerHTML = `${spr(VISITAS[v.tipo].sprite, 32, 'dungeon')} Visita na porteira`;
             corpo.innerHTML = htmlVisitante(v);
+        } else if (nome === 'radio') {   // fase 107: o rádio da feira
+            el.painelTitulo.innerHTML = `${ico('radio', 30)} Rádio da fazenda`;
+            corpo.innerHTML = htmlRadio();
         } else if (nome === 'oficinas') {   // fase 105: administrar todas as oficinas
             el.painelTitulo.innerHTML = `${ico('engrenagem', 28)} Oficinas`;
             const rolou = soAtualizar ? corpo.scrollTop : 0;
@@ -5368,7 +5478,7 @@
                     <li>A cada 10 minutos chega uma <b>visita na porteira</b>, do lado da casa (do nível 3 em diante): o feirante, a doceira e o caminhoneiro compram algo da fazenda pagando bem mais que o celeiro, e a mascate vende adubo. Toque nela para conversar. Os pedidos crescem com o seu nível, e do nível 5 em diante às vezes pedem algo que você ainda não faz: compre na feira ou peça no chat, que eles pagam o dobro. Bem de vez em quando (mais ou menos a cada 12 dias) vem o <b>mercador</b>, que troca um material raro do píer por frutos fora de época.</li>
                     <li>No nível 31 chega o <b>Litoral</b> (Loja → Terrenos): areia para construir e plantar e o mar. Na areia fica o lugar do <b>píer</b>: toque nele para ver a receita (9 peças difíceis e 100 mil moedas). Peça que falta dá para comprar com diamantes. Guarde o peixe do Velho Chico para o píer, no celeiro, para ele não ir no "Vender tudo".</li>
                     <li>Com o píer pronto, toque no <b>barco</b> para ir para o <b>alto-mar</b>: toque na água para lançar a linha, espere a boia <b>afundar de verdade</b> (às vezes o peixe só belisca) e toque de novo na hora para fisgar. Cada lançada usa 1 peixe do <b>cardume</b>, que enche sozinho com o tempo. Em <b>Melhorar</b>: barco maior (cardume maior e peixes novos), vara melhor (mais tempo para fisgar e peixes maiores) e o marinheiro <b>Seu Nonato</b>, que pesca sozinho por até 8 horas (toque no barquinho dele para recolher). 1 em cada 200 peixes vem com uma <b>pérola negra</b>.</li>
-                    <li>De vez em quando (mais ou menos uma vez a cada 18 horas) aparece o <b>Perks</b>, o 1º do ranking: ele pede muita planta fácil (tipo 1000 milhos) e paga com 4 <b>luvas do Perks</b>. Visitando um vizinho, cada luva pega 1 canteiro mesmo com alarme (só gasta no canteiro protegido). E quando uma planta murcha sem ninguém colher, o jogo diz por quê: sem colhedor, o Juca dormindo, a fazenda fechada mais de 8 h ou canteiro demais para o nível dele.</li>
+                    <li>De vez em quando (mais ou menos uma vez a cada 18 horas) aparece o <b>Perks</b>, o 1º do ranking: ele pede muita planta fácil (tipo 1000 milhos) e paga com 4 <b>luvas do Perks</b>. Visitando um vizinho, cada luva leva a muda inteira de 1 canteiro com alarme, e o canteiro dele fica arado (só gasta no canteiro protegido). E quando uma planta murcha sem ninguém colher, o jogo diz por quê: sem colhedor, o Juca dormindo, a fazenda fechada mais de 8 h ou canteiro demais para o nível dele.</li>
                     <li>Em <b>Melhorar</b>, no alto-mar, também dá para <b>tunar o barco</b> com peças que pedem moedas e materiais raros (os do mercador, a pérola negra e o marlim-azul): <b>motor</b> (o cardume enche mais rápido), <b>sonar</b> (mais peixe grande e mais pérola), <b>porão</b> (às vezes 2 peixes numa fisgada), <b>rede de arrasto</b> (o marinheiro pesca mais rápido) e o <b>kit de expedição</b>, que deixa o barco oceânico pronto para as ilhas do nível 46. A <b>pintura</b> muda a cor do casco, da faixa e a bandeira.</li>
                     <li>Toda semana tem o <b>evento</b> (no menu): de sexta às 22h até a sexta seguinte às 22h, os 3 primeiros de cada categoria ganham diamantes (30, 18 e 10) e cada um tem 50% de chance de levar um item raro: o 1º, o item que só sai do evento; o 2º e o 3º, um material do píer (no ranking, os troféus de prata e bronze). As categorias: XP ganho na semana (troféus de ouro, prata e bronze), níveis subidos, moedas ganhas, vendas e compras na barraca da feira e amigos convidados que chegaram ao nível 10 (o 1º pode levar o <b>leme dourado</b>, a peça do píer). O XP comprado com diamantes não conta no ranking nem em níveis, e na barraca uma mesma pessoa do outro lado vale no máximo 25% do total. Os troféus e as conquistas do evento ficam no perfil.</li>
                     <li>Cumpra as <b>missões do dia</b> para ganhar moedas e XP extras.</li>
@@ -5507,7 +5617,7 @@
             return `<button type="button" class="item${k.id === semente ? ' selecionada' : ''}${travada ? ' travada' : ''}" data-semente="${esc(k.id)}" ${travada ? 'aria-disabled="true"' : ''}>
                 <span class="ico${k.nivel_min <= S.jogador.nivel && travada ? ' fora' : ''}">${k.nivel_min > S.jogador.nivel ? ico('cadeado', 28) : spr(A.cultura(k.id).item, 44)}</span>
                 <span>
-                    <span class="nome">${esc(k.nome)}${k.estacao ? ` <small class="tag-estacao${daEstacao(k) ? ' agora' : temEstufa() ? ' estufa' : ''}">${daEstacao(k) ? 'da estação!' : temEstufa() ? 'só na estufa' : 'só ' + naEstacao(k.estacao) + (faltaParaEstacao(k.estacao) ? ' · em ' + fmtTempo(faltaParaEstacao(k.estacao)) : '')}</small>` : ''}</span>
+                    <span class="nome">${esc(k.nome)}${novos.selo('c:' + k.id, k.nivel_min <= S.jogador.nivel)}${k.estacao ? ` <small class="tag-estacao${daEstacao(k) ? ' agora' : temEstufa() ? ' estufa' : ''}">${daEstacao(k) ? 'da estação!' : temEstufa() ? 'só na estufa' : 'só ' + naEstacao(k.estacao) + (faltaParaEstacao(k.estacao) ? ' · em ' + fmtTempo(faltaParaEstacao(k.estacao)) : '')}</small>` : ''}</span>
                     <span class="det">
                         <span>cresce em ${fmtDuracao(k.tempo_seg)}</span>
                         <span>+${k.xp} ${ico('xp', 13)} por colheita</span>
@@ -5534,7 +5644,7 @@
             return `<div class="item${travado ? ' travada' : ''}">
                 <span class="ico">${travado ? ico('cadeado', 28) : spr(A.ANIMAL[t.id], 44)}</span>
                 <span>
-                    <span class="nome">${esc(t.nome)} <small class="qtd">${tem}/${t.maximo}</small></span>
+                    <span class="nome">${esc(t.nome)}${novos.selo('a:' + t.id, !travado)} <small class="qtd">${tem}/${t.maximo}</small></span>
                     <span class="det">
                         <span>come ${t.racao_qtd} ${racao ? itemDe(racao, 16) + esc(nomeRacao(racao, t.racao_qtd)) : ''}</span>
                         <span>dá ${produto ? itemDe(produto, 16) + esc(produto.nome.toLowerCase()) : ''} a cada ${fmtDuracao(t.tempo_seg)}</span>
@@ -5586,7 +5696,7 @@
             return `<div class="item${travado ? ' travada' : ''}">
                 <span class="ico">${travado ? ico('cadeado', 28) : retratoAjudante(t.id, 44)}</span>
                 <span>
-                    <span class="nome">${esc(t.nome)} <small class="qtd">${esc(t.papel)}</small></span>
+                    <span class="nome">${esc(t.nome)}${novos.selo('j:' + t.id, t.nivel_min <= S.jogador.nivel)} <small class="qtd">${esc(t.papel)}</small></span>
                     <span class="det"><span>${esc(t.descricao)}</span></span>
                     <span class="det"><span class="estrelas">${nivel ? estrelas : ''}</span><span>${ritmo}</span></span>
                 </span>
@@ -6406,6 +6516,7 @@
     }
 
     function fecharPainel() {
+        novos.limpar();
         el.painel.classList.remove('aberto');
         painelAtual = null;
         if (ultimoFoco && ultimoFoco.focus) ultimoFoco.focus();
@@ -6544,6 +6655,15 @@
         }
         if (e.target.closest('[data-mar-ir]')) { if (mar) fecharPainel(); else abrirMar(); return; }   // fase 62: o alto-mar
         if (e.target.closest('[data-invasao-entrar]')) { abrirInvasao(); return; }   // fase 94
+        const rd = e.target.closest('[data-radio]');   // fase 107: o rádio
+        if (rd) {
+            const a = rd.dataset.radio;
+            if (a === 'menos' || a === 'mais') som.definirVolMusica(som.volMusica + (a === 'mais' ? 10 : -10));
+            else if (a === 'dia' || a === 'noite') { som.escolher(a); toast(`${ico('radio', 16)} ${a === 'dia' ? 'De dia' : 'À noite'} agora toca: <b>${esc(som.faixaDe(a).nome)}</b>`); }
+            else if (a === 'mudo') { som.alternar(); atualizarBotaoSom(); }
+            abrirPainel('radio', true);
+            return;
+        }
         const of = e.target.closest('[data-of-pegar],[data-of-encher],[data-of-abrir],[data-of-ir],[data-of-massa],[data-of-filtro]');   // fase 105: as oficinas
         if (of) {
             const d = of.dataset;
@@ -6871,6 +6991,7 @@
         }
         const abaL = e.target.closest('[data-aba-loja]');
         if (abaL) {
+            if (abaLoja !== abaL.dataset.abaLoja) novos.limpar();
             abaLoja = abaL.dataset.abaLoja;
             abrirPainel('loja', true);
             return;
@@ -7091,8 +7212,9 @@
         }
         const bFaixa = e.target.closest('[data-faixa]');
         if (bFaixa) {
-            som.trocarFaixa(Number(bFaixa.dataset.faixa));
-            abrirPainel('som', true);
+            const [per, n] = bFaixa.dataset.faixa.split(':');   // fase 107: dia:0, noite:0...
+            som.escolher(per, Number(n));
+            abrirPainel(painelAtual || 'som', true);
             return;
         }
         const bSom = e.target.closest('[data-som]');
@@ -7309,7 +7431,7 @@
     }
     el.barraConstr.addEventListener('click', (e) => {
         const aba = e.target.closest('[data-constr-aba]');
-        if (aba) { constr.aba = aba.dataset.constrAba; desenharPaleta(); return; }
+        if (aba) { if (constr.aba !== aba.dataset.constrAba) novos.limpar(); constr.aba = aba.dataset.constrAba; desenharPaleta(); return; }
         const item = e.target.closest('[data-item]');
         if (item) {
             const it = tipoItem(item.dataset.item);

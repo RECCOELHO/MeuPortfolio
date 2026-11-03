@@ -3364,3 +3364,64 @@ body.construindo .status {
     .hud-botoes em { display: none; }
     .hud-botoes .botao { padding: 6px 9px; }
 }
+
+/* fase 107: o rádio da feira */
+.radio-volume { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 8px 0; }
+
+/* ---------- selo "Novo" (o que liberou e você ainda não viu) ---------- */
+.selo-novo {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 5px 2px;
+    vertical-align: 2px;
+    font: 800 10px/1 Nunito, sans-serif;
+    letter-spacing: .3px;
+    text-transform: uppercase;
+    color: #fff6ea;
+    background: var(--vermelho);
+    box-shadow: 0 -2px 0 var(--o), 0 2px 0 var(--o), -2px 0 0 var(--o), 2px 0 0 var(--o);
+    animation: selo-novo 1.6s steps(2) infinite;
+}
+.paleta-item { position: relative; }
+.paleta-item .selo-novo {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    padding: 1px 3px 2px;
+    box-shadow: none;
+    margin: 0;
+    font-size: 9px;
+    z-index: 1;
+}
+.ponto-novo {
+    display: inline-grid;
+    place-items: center;
+    min-width: 16px;
+    height: 16px;
+    margin-left: 5px;
+    padding: 0 3px;
+    font: 800 10px/1 Nunito, sans-serif;
+    font-style: normal;
+    color: #fff6ea;
+    background: var(--vermelho);
+    box-shadow: 0 -2px 0 var(--o), 0 2px 0 var(--o), -2px 0 0 var(--o), 2px 0 0 var(--o);
+    vertical-align: 1px;
+}
+.selo-botao {
+    position: absolute;
+    top: -10px;
+    left: -8px;
+    padding: 2px 5px 3px;
+    font: 800 10px/1 Nunito, sans-serif;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: #fff6ea;
+    background: var(--vermelho);
+    box-shadow: 0 -2px 0 var(--o), 0 2px 0 var(--o), -2px 0 0 var(--o), 2px 0 0 var(--o);
+    pointer-events: none;
+    z-index: 2;
+    animation: selo-novo 1.6s steps(2) infinite;
+}
+.selo-botao[hidden] { display: none; }
+@keyframes selo-novo { 50% { transform: translateY(-2px); } }
+@media (prefers-reduced-motion: reduce) { .selo-novo, .selo-botao { animation: none; } }
