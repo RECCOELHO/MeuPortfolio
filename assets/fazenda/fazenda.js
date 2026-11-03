@@ -1516,6 +1516,11 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-11-03-oficinas-jeito', data: '03/11', titulo: 'Oficinas com cara do que fazem, oficina dupla e janelas acesas', itens: [
+            'Cada oficina mostra o que fabrica: a padaria tem forno de barro aceso, a forja tem bigorna e fogo, a adega tem barris e parreira, a queijaria tem as rodas de queijo, a peixaria tem peixe no varal, a tecelagem tem rolos de pano, a cafeteria tem sacos de café, e por aí vai.',
+            '<b>Duas oficinas iguais lado a lado</b> (na mesma fileira, encostadas) viram <b>uma oficina dupla</b>: maior, com frontão, placa grande, portão duplo e quatro janelas. Cada uma continua funcionando do mesmo jeito.',
+            'As <b>barracas da feira</b> foram redesenhadas: toldo listrado de cada cor, balcão de tábua e caixotes de fruta.',
+            'De noite, as <b>janelas acendem</b> (casa, celeiro, casinhas e oficinas). A casa e as casinhas precisam de energia, como os lampiões.'] },
         { id: '2026-11-03-casas', data: '03/11', titulo: 'Casas novas, com mais detalhe', itens: [
             'A <b>casa da fazenda</b>, o <b>celeiro</b>, as casinhas e as <b>43 oficinas</b> foram redesenhados à mão, com mais detalhe: telhas, tábuas e pedras, janelas com floreira, venezianas, chaminé, varandinha, lampião e degrau de pedra.',
             'Cada oficina tem a sua cor e uma <b>placa com o produto</b> dela; as de comida ganharam toldo listrado. O celeiro tem o cata-vento de galo, o palheiro com feno e a porta grande com o X.',
