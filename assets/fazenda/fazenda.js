@@ -1516,6 +1516,9 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-11-03-bichos', data: '03/11', titulo: 'Bichos e fazendeiro redesenhados', itens: [
+            'Os <b>bichos</b> foram redesenhados, maiores e com mais detalhe, e mexem as pernas quando andam: a vaca com as manchas e o úbere, a búfala com os chifres curvos, a ovelha fofinha, o porco com o rabinho enrolado, a cabra com a barbicha, a galinha com a crista, o pato e o coelho de orelha comprida.',
+            'O <b>fazendeiro</b> e a <b>fazendeira</b> ganharam desenho novo, com sombra no chapéu, na camisa, no macacão e no vestido. As cores que você escolheu continuam valendo.'] },
         { id: '2026-11-03-pesca', data: '03/11', titulo: 'Pescaria nova no alto-mar', itens: [
             'Agora a pescaria é uma <b>briga com o peixe</b>: quando a boia afundar, toque para fisgar e aparece a barra. <b>Segure (ou toque no ritmo)</b> para subir a zona verde e mantenha o peixe dentro dela até encher a barra de captura. Peixe grande foge mais rápido; vara melhor dá zona maior.',
             'O <b>peixe do mar vale no mínimo 5 mil</b>: sardinha 5.000, cavala 5.600, robalo 6.200, garoupa 7.000, dourado 8.000 e atum 9.500. Os pratos de peixe das oficinas valem o triplo dos ingredientes (sardinha em lata 60.780, sashimi 28.542 e caldeirada 39.690).',
