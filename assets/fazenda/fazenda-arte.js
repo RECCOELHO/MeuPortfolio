@@ -97,14 +97,36 @@
         // fase 78: a faixa da direita (x 48 a 63), do nível 29, comprada à parte dos de 1 a 7
         { n: 8, x: 48, y: 0, w: 16, h: 11, placa: { x: 49, y: 5 }, direita: true },
         { n: 9, x: 48, y: 11, w: 16, h: 11, placa: { x: 49, y: 16 }, direita: true },
-        { n: 10, x: 48, y: 22, w: 16, h: 10, placa: { x: 49, y: 26 }, direita: true }
+        { n: 10, x: 48, y: 22, w: 16, h: 10, placa: { x: 49, y: 26 }, direita: true },
+        // fase 106: os 3 da ilha, do outro lado do mar (igual a fazenda_zonas e fazenda_livre no SQL)
+        { n: 11, x: 14, y: 56, w: 32, h: 10, placa: { x: 29, y: 56 }, ilha: true },
+        { n: 12, x: 6, y: 66, w: 26, h: 16, placa: { x: 18, y: 66 }, ilha: true },
+        { n: 13, x: 32, y: 66, w: 26, h: 16, placa: { x: 45, y: 66 }, ilha: true }
     ];
-    let zonasAtuais = 0, direitaAtuais = 0;   // terrenos da fazenda que está na tela (a sua ou a do vizinho)
+    /* fase 106: a Ilha da Caveira Dourada (em quadrados do mapa). A costa vai de x0 a x1 e de y0 a y1; o morro
+       (a oeste) e a vila do porto (a leste) ficam fora dos terrenos; cada obra tem o lugar dela. Do y 45 para
+       baixo é a ilha (para a câmera e para quem anda: atravessa de barco). */
+    const ILHA = { x0: 0, x1: 64, y0: 49, y1: 90, morro: { x: 5, y: 55, w: 9, h: 11 }, vila: { x: 46, y: 53, w: 14, h: 13 } };
+    const Y_ILHA = 45;
+    // as ruas de terra da vila: a principal desce do cais, a do meio corta a vila e a de baixo vai até o portão
+    const RUAS_ILHA = new Set();
+    for (let y = 54; y <= 65; y++) RUAS_ILHA.add('50,' + y);
+    for (let x = 46; x <= 58; x++) RUAS_ILHA.add(x + ',58');
+    for (let x = 46; x <= 50; x++) RUAS_ILHA.add(x + ',61');
+    const OBRAS_ILHA = {
+        cais: { x: 50, y: 45, w: 2, h: 8 }, trapiche: { x: 46, y: 53, w: 11, h: 1 }, armazem: { x: 47, y: 55, w: 3, h: 3 },
+        muralha: { x: 59, y: 55, w: 1, h: 10 }, taverna: { x: 51, y: 55, w: 4, h: 3 }, portao: { x: 46, y: 60, w: 1, h: 2 },
+        farol: { x: 57, y: 54, w: 2, h: 3 }, vigia: { x: 56, y: 59, w: 2, h: 2 }, mercado: { x: 47, y: 59, w: 3, h: 2 },
+        toldo: { x: 51, y: 59, w: 3, h: 2 }, ancora: { x: 54, y: 60, w: 2, h: 2 }, canhoes: { x: 56, y: 62, w: 3, h: 1 },
+        sereia: { x: 51, y: 62, w: 2, h: 2 }, cartografo: { x: 47, y: 62, w: 3, h: 3 }, bandeira: { x: 9, y: 55, w: 1, h: 2 }
+    };
+    let zonasAtuais = 0, direitaAtuais = 0, ilhaAtuais = 0;   // terrenos da fazenda que está na tela (a sua ou a do vizinho)
     const dentroRet = (r, x, y) => x >= r.x && y >= r.y && x < r.x + r.w && y < r.y + r.h;
-    const zonaMinha = (z, zonas = zonasAtuais, direita = direitaAtuais) => (z.direita ? z.n - 7 <= direita : z.n <= zonas);
-    const areasDoTerreno = (zonas = zonasAtuais, direita = direitaAtuais) => [BASE, ...ZONAS.filter((z) => zonaMinha(z, zonas, direita))];
-    function noTerreno(x, y, zonas = zonasAtuais, direita = direitaAtuais) {
-        return areasDoTerreno(zonas, direita).some((r) => dentroRet(r, x, y));
+    const zonaMinha = (z, zonas = zonasAtuais, direita = direitaAtuais, ilha = ilhaAtuais) =>
+        (z.ilha ? z.n - 10 <= ilha : z.direita ? z.n - 7 <= direita : z.n <= zonas);
+    const areasDoTerreno = (zonas = zonasAtuais, direita = direitaAtuais, ilha = ilhaAtuais) => [BASE, ...ZONAS.filter((z) => zonaMinha(z, zonas, direita, ilha))];
+    function noTerreno(x, y, zonas = zonasAtuais, direita = direitaAtuais, ilha = ilhaAtuais) {
+        return areasDoTerreno(zonas, direita, ilha).some((r) => dentroRet(r, x, y));
     }
     // dá para construir/pôr canteiro em (x, y)? (dentro do terreno e fora das áreas fixas)
     function livre(x, y) {
@@ -2283,7 +2305,8 @@
         let EST = estacao();   // muda junto com a estação do servidor (definirEstacao)
 
         // mundo inteiro em pixels do jogo (terreno + mata em volta)
-        const MW = (MAPA.w + MARGEM * 2) * T, MH = (MAPA.h + MARGEM * 2) * T;
+        const MW = (MAPA.w + MARGEM * 2) * T, MH_FAZENDA = (MAPA.h + MARGEM * 2) * T, MH_ILHA = (MARGEM + ILHA.y1 + 5) * T;
+        let MH = MH_FAZENDA;   // fase 106: com a ilha, o mundo vai até ela (crescerMundo)
         const mundo = document.createElement('canvas');
         mundo.width = MW; mundo.height = MH;
         const q = mundo.getContext('2d');
@@ -2307,6 +2330,9 @@
         let vendaTocada = null;                            // a placa tocada agora (o número do terreno)
         let pierPronto = false;                            // fase 61: o píer já foi construído?
         let pausada = false;                               // fase 62: no alto-mar, a fazenda para de desenhar
+        let lugar = 'fazenda';                             // fase 106: a câmera na fazenda ou na ilha
+        let ilhaInfo = null;                               // { feitas: [obras], proxima, x: {x, y} do baú }
+        let viagem = null;                                 // { t0, dur, de: {x, y}, para: {x, y}, ida }
         let clima = null;                                  // sol | nublado | chuva | calor | vento
         let lago = null;                                   // { prontos, max } do seu lago, ou null
         // visita na porteira: { tipo, item (tile do balão), x, y, tx, ty, saindo }
@@ -2338,7 +2364,9 @@
         }
         // retângulo que contém todo o terreno da fazenda (em quadrados)
         function caixaTerreno() {
-            const a = areasDoTerreno();
+            const naIlha = lugar === 'ilha';
+            const a = areasDoTerreno().filter((r) => (r.y >= Y_ILHA) === naIlha);
+            if (naIlha) a.push({ x: ILHA.morro.x, y: OBRAS_ILHA.cais.y + 3, w: ILHA.vila.x + ILHA.vila.w - ILHA.morro.x, h: ILHA.morro.y + ILHA.morro.h - OBRAS_ILHA.cais.y - 3 });   // o morro, a vila e o cais sempre
             return {
                 x0: Math.min(...a.map((r) => r.x)), y0: Math.min(...a.map((r) => r.y)),
                 x1: Math.max(...a.map((r) => r.x + r.w)), y1: Math.max(...a.map((r) => r.y + r.h))
@@ -2446,22 +2474,24 @@
         function faixaCamera() {
             const borda = T * 2;   // um pouco de mata (e a placa do terreno à venda)
             const topo = margem.topo / escala, base = margem.base / escala;
-            const cx = caixaTerreno();
-            let minX = Math.min(wx(cx.x0) - borda, wx(MAPA.feira.x - 1)), maxX = wx(cx.x1) + borda - vw;   // (até a feira, na mata à esquerda)
+            const cx = caixaTerreno(), naIlha = lugar === 'ilha';
+            let minX = naIlha ? wx(cx.x0) - borda : Math.min(wx(cx.x0) - borda, wx(MAPA.feira.x - 1)), maxX = wx(cx.x1) + borda - vw;   // (até a feira, na mata à esquerda)
             let minY = wy(cx.y0) - borda - topo, maxY = wy(cx.y1) + borda + base - vh;
             // fase 78: a placa de cada terreno à venda sempre aparece inteira, com um pouco de mata em volta
             for (const zv of zonasVenda) {
+                if ((zv.y >= Y_ILHA) !== naIlha) continue;   // fase 106: a da ilha só na ilha
                 minX = Math.min(minX, wx(zv.placa.x - 2)); maxX = Math.max(maxX, wx(zv.placa.x + 3) - vw);
                 minY = Math.min(minY, wy(zv.placa.y - 2) - topo); maxY = Math.max(maxY, wy(zv.placa.y + 3) + base - vh);
             }
             // fase 67: terreno que chega no litoral deixa descer até a areia e um pouco do mar (no
             // celular a tela é baixa e a praia sumia; no computador ela já aparecia)
-            if (cx.y1 >= AREIA_Y && cx.y1 < MAPA.mar.y + 3) maxY = Math.max(maxY, wy(MAPA.mar.y + 3) + base - vh);
+            if (!naIlha && cx.y1 >= AREIA_Y && cx.y1 < MAPA.mar.y + 3) maxY = Math.max(maxY, wy(MAPA.mar.y + 3) + base - vh);
             if (maxX < minX) minX = maxX = (minX + maxX) / 2;
             if (maxY < minY) minY = maxY = (minY + maxY) / 2;
             return { minX, maxX, minY, maxY };
         }
         function limitarCamera() {
+            if (viagem) return;   // fase 106: atravessando o mar, a câmera vai junto com o navio
             const f = faixaCamera();
             cam.x = Math.min(Math.max(cam.x, f.minX), f.maxX);
             cam.y = Math.min(Math.max(cam.y, f.minY), f.maxY);
@@ -2489,7 +2519,7 @@
             rolagem.appendChild(espaco);
             canvas.after(rolagem);
             rolagem.addEventListener('scroll', () => {
-                if (ajustandoRolagem) return;
+                if (ajustandoRolagem || viagem) return;
                 const f = faixaCamera();
                 cam.x = f.minX + rolagem.scrollLeft / escala;
                 cam.y = f.minY + rolagem.scrollTop / escala;
@@ -2560,7 +2590,8 @@
             const chao = CHAO[EST] || CHAO.primavera;
             prepararAtlasDaEstacao(EST);
             // fase 104 (textura nova, nível 2): o chão pintado pixel a pixel
-            pintarChaoNovo(f, MW, MH, EST, r);
+            f.clearRect(0, 0, MW, MH);
+            pintarChaoNovo(f, MW, MH_FAZENDA, EST, r);   // (fase 106: a ilha tem o chão dela; o resto é mar)
 
             // terra batida do galinheiro (fase 104: a terra nova, com borda orgânica)
             const g = MAPA.galinheiro, retTerra = (q0, x0, y0, w0, h0) => {
@@ -2572,6 +2603,7 @@
             retTerra(f, g.x, g.y, g.w, g.h);
 
             desenharLitoral();   // fase 61: a areia da praia e o mar (a mata do terreno à venda vem por cima)
+            if (MH === MH_ILHA) desenharIlhaChao();   // fase 106
 
             // mata em volta do terreno. Fase 103 (textura nova, nível 1): árvores grandes desenhadas em pixel
             // art detalhada (mataNova), com sombra no chão. Elas ocupam mais de um quadrado: se a copa fosse
@@ -2666,6 +2698,7 @@
                 desenharLago();
             }
             if (zonasAtuais >= 7) desenharPier();   // fase 61
+            if (MH === MH_ILHA) desenharIlhaCoisas(retTerra);   // fase 106: a mata, o morro e as obras da ilha
         }
 
         /* ---- fase 61: o litoral. Areia de y 32 a 36 (com a beirada molhada) e o mar de y 37 até a
@@ -2964,10 +2997,23 @@
             return cv;
         }
         // onde o navio fica: o casco começa logo depois do píer e a linha d'água fica na fileira 40
-        const navioPos = (cv) => ({ x: wx(MAPA.pier.x + MAPA.pier.w) + 4 - cv.ml, y: wy(40) + 11 - cv.agua });
+        const navioNoPier = (cv) => ({ x: wx(MAPA.pier.x + MAPA.pier.w) + 4 - cv.ml, y: wy(40) + 11 - cv.agua });
+        const navioNaIlha = (cv) => ({ x: wx(OBRAS_ILHA.cais.x + OBRAS_ILHA.cais.w) + 4 - cv.ml, y: wy(OBRAS_ILHA.cais.y + 4) + 11 - cv.agua });   // fase 106
+        // fase 106: atravessando o mar, o navio vai do píer até o cais da ilha (ou volta)
+        function navioPos(cv) {
+            if (viagem) {
+                const u = Math.min(1, (performance.now() - viagem.t0) / viagem.dur), e = u < 0.5 ? 2 * u * u : 1 - (-2 * u + 2) ** 2 / 2;
+                const a = viagem.ida ? navioNoPier(cv) : navioNaIlha(cv), b = viagem.ida ? navioNaIlha(cv) : navioNoPier(cv);
+                return { x: a.x + (b.x - a.x) * e, y: a.y + (b.y - a.y) * e + Math.sin(u * Math.PI) * T * 2 };
+            }
+            return lugar === 'ilha' ? navioNaIlha(cv) : navioNoPier(cv);
+        }
         function desenharNavio(pe, tempo) {
             if (!barcoInfo || !pierPronto || zonasAtuais < 7) return;
             const cv = navioCanvas(barcoInfo), p = navioPos(cv), sobe = Math.round(Math.sin(tempo / 760) * 0.7);
+            if (viagem) {   // a esteira atrás do navio
+                for (let k = 0; k < 14; k++) { q.fillStyle = k % 3 ? '#e8f2fb' : '#bcd8f2'; q.fillRect(Math.round(p.x + cv.casco.x0 - 4 - k * 3), Math.round(p.y + cv.agua - 1 - k * 1.2 + Math.sin(tempo / 120 + k) ), 3, 1); }
+            }
             // a sombra do casco na água e a espuma batendo, que não sobem junto
             const { x0, x1, fundo } = cv.casco;
             q.globalAlpha = 0.28; q.fillStyle = '#1a2a4a';
@@ -3031,6 +3077,349 @@
             const rx = x0 - 12, ry = wy(36) + 6;
             ret(rx - 1, ry - 1, 10, 7, OL); ret(rx, ry, 8, 5, '#d8c8a0'); ret(rx + 2, ry + 1, 4, 3, '#a8986a'); ret(rx + 3, ry + 2, 2, 1, '#6e5a48');
             // (fase 104: o barco atracado agora é o navio, desenhado a cada quadro em desenharNavio)
+        }
+
+        /* ---- fase 106: a Ilha da Caveira Dourada, do outro lado do mar (ao sul da fazenda) ----
+           O mundo cresce para baixo só para quem já pode zarpar (crescerMundo). A costa é uma curva
+           com ondinhas (montarCosta): areia molhada na beira, areia seca e a grama tropical dentro. Nos
+           terrenos da ilha que ainda não são seus, mata fechada com coqueiros; o morro da Caveira Dourada
+           (a pedra que dá nome à ilha) fica a oeste e a vila do porto a leste, com as 15 obras nos lugares
+           fixos delas (OBRAS_ILHA). O navio atraca no cais, e a câmera mostra a fazenda ou a ilha (lugar). */
+        let costa = null;
+        function montarCosta() {
+            const cx = wx((ILHA.x0 + ILHA.x1) / 2), cy = wy((ILHA.y0 + ILHA.y1) / 2);
+            const rx = ((ILHA.x1 - ILHA.x0) / 2) * T, ry = ((ILHA.y1 - ILHA.y0) / 2) * T;
+            const curva = (encolhe) => {
+                const pts = [];
+                for (let k = 0; k < 900; k++) {
+                    const a = (k / 900) * Math.PI * 2, c = Math.cos(a), s = Math.sin(a);
+                    const e = 1 + 0.02 * Math.sin(3 * a + 0.6) + 0.015 * Math.sin(7 * a + 2) + 0.008 * Math.sin(13 * a + 1);
+                    pts.push([cx + (rx * e - encolhe) * Math.sign(c) * Math.abs(c) ** 0.55, cy + (ry * e - encolhe) * Math.sign(s) * Math.abs(s) ** 0.55]);
+                }
+                // cada linha de pixels: onde a curva começa e termina
+                const linhas = new Map();
+                for (let k = 0; k < pts.length; k++) {
+                    const [ax, ay] = pts[k], [bx, by] = pts[(k + 1) % pts.length];
+                    const y0 = Math.ceil(Math.min(ay, by) - 0.5), y1 = Math.floor(Math.max(ay, by) - 0.5);
+                    for (let y = y0; y <= y1; y++) {
+                        const yc = y + 0.5;
+                        if ((yc - ay) * (yc - by) > 0 || ay === by) continue;
+                        const x = ax + ((yc - ay) / (by - ay)) * (bx - ax), l = linhas.get(y);
+                        if (!l) linhas.set(y, [x, x]); else { l[0] = Math.min(l[0], x); l[1] = Math.max(l[1], x); }
+                    }
+                }
+                return { pts, linhas };
+            };
+            costa = { beira: curva(0), seca: curva(5), grama: curva(T * 2.1) };
+        }
+        const naIlhaPx = (x, y, qual = 'beira') => { const l = costa && costa[qual].linhas.get(Math.floor(y)); return !!l && x >= l[0] && x <= l[1]; };
+        const naAreiaDaIlha = (tx, ty) => naIlhaPx(wx(tx) + T / 2, wy(ty) + T / 2) && !naIlhaPx(wx(tx) + T / 2, wy(ty) + T / 2, 'grama');
+        const regiao = (py) => (MH === MH_ILHA && py >= wy(Y_ILHA) ? 'ilha' : 'fazenda');
+
+        function crescerMundo(com) {
+            const alvo = com ? MH_ILHA : MH_FAZENDA;
+            if (MH === alvo) return false;
+            MH = alvo;
+            mundo.height = MH; fundo.height = MH; fundoGrama.height = MH;
+            noiteCache.chave = null;   // a noite tem o tamanho do mundo
+            if (com && !costa) montarCosta();
+            return true;
+        }
+
+        // o chão: a areia (molhada na beira) e a grama tropical (a do verão, o ano todo)
+        let gramaIlha = null;
+        function desenharIlhaChao() {
+            const X0 = wx(ILHA.x0 - 1), Y0 = wy(ILHA.y0 - 1), W = (ILHA.x1 - ILHA.x0 + 2) * T, H = (ILHA.y1 - ILHA.y0 + 2) * T;
+            if (!gramaIlha) {
+                gramaIlha = document.createElement('canvas'); gramaIlha.width = W; gramaIlha.height = H;
+                pintarChaoNovo(gramaIlha.getContext('2d'), W, H, 'verao', rng(4646));
+            }
+            const r = rng(4747);
+            for (const [y, [xl, xr]] of costa.beira.linhas) {
+                f.fillStyle = '#d2b06c'; f.fillRect(Math.round(xl), y, Math.round(xr - xl) + 1, 1);
+                const s = costa.seca.linhas.get(y);
+                if (s) {
+                    f.fillStyle = '#ecd59a'; f.fillRect(Math.round(s[0]), y, Math.round(s[1] - s[0]) + 1, 1);
+                    for (let k = 0; k < (s[1] - s[0]) / 14; k++) { f.fillStyle = r() < 0.5 ? '#d9bd7c' : '#f6e6b8'; f.fillRect(Math.round(s[0] + r() * (s[1] - s[0])), y, 1, 1); }
+                }
+                const gr = costa.grama.linhas.get(y);
+                if (gr) {
+                    // a beirada da grama não é reta: uns tufos entram na areia
+                    const a = Math.round(gr[0] + Math.sin(y / 3.1) * 1.5), b = Math.round(gr[1] + Math.sin(y / 2.7 + 1) * 1.5);
+                    f.drawImage(gramaIlha, a - X0, y - Y0, b - a + 1, 1, a, y, b - a + 1, 1);
+                }
+            }
+            // as ruas de terra da vila (a mesma terra com borda orgânica dos caminhos da fazenda)
+            for (const k of RUAS_ILHA) {
+                const [tx, ty] = k.split(',').map(Number);
+                f.drawImage(terraNova(vizinhosTerra((dx, dy) => RUAS_ILHA.has((tx + dx) + ',' + (ty + dy))), 'verao'), wx(tx), wy(ty));
+            }
+        }
+
+        // o morro da Caveira Dourada: um platô de mata com o paredão de pedra na frente e a caveira de ouro
+        function caveiraCanvas() {
+            const c = document.createElement('canvas'); c.width = 44; c.height = 40;
+            const g = c.getContext('2d'), R = (x, y, w, h, cor) => { g.fillStyle = cor; g.fillRect(x, y, w, h); };
+            const disco = (cx, cy, r, cor) => { for (let dy = -r; dy <= r; dy++) { const w = Math.round(Math.sqrt(r * r - dy * dy)); R(cx - w, cy + dy, w * 2 + 1, 1, cor); } };
+            disco(22, 17, 16, '#5a3a14'); disco(22, 17, 15, '#d8b04a'); disco(26, 20, 10, '#b8902e'); disco(17, 11, 7, '#f4d878'); disco(15, 9, 3, '#fff0b0');
+            R(11, 28, 23, 10, '#5a3a14'); R(12, 28, 21, 9, '#c9a040'); R(12, 28, 21, 2, '#e0bc5a');
+            for (let k = 14; k <= 31; k += 3) R(k, 30, 1, 7, '#5a3a14');   // os dentes (a boca é a entrada da caverna)
+            R(13, 33, 19, 4, '#2a1a10');
+            disco(15, 18, 4, '#2a1a10'); disco(29, 18, 4, '#2a1a10'); R(14, 17, 2, 2, '#6a4a20');
+            R(21, 22, 3, 4, '#2a1a10'); R(22, 21, 1, 1, '#2a1a10');
+            return c;
+        }
+        let artesIlha = null, mataIlha = null;
+        function mataTropical() {
+            if (mataIlha) return mataIlha;
+            const v = (f, n, s0) => Array.from({ length: n }, (_, i) => f(s0 + i * 977));
+            mataIlha = { grande: v((x) => arvoreCopa('verao', x, true), 5, 8081), media: v((x) => arvoreCopa('verao', x, false), 4, 9091), arbusto: v((x) => arbustoNovo('verao', x), 3, 7071) };
+            return mataIlha;
+        }
+        function desenharMorro(arvores) {
+            const M = ILHA.morro, x0 = wx(M.x), y0 = wy(M.y), w = M.w * T, h = M.h * T, r = rng(5555);
+            const R = (x, y, ww, hh, cor) => { f.fillStyle = cor; f.fillRect(Math.round(x), Math.round(y), Math.max(1, Math.round(ww)), Math.max(1, Math.round(hh))); };
+            const PAREDE = 34, py0 = y0 + h - PAREDE, X0 = wx(ILHA.x0 - 1), Y0 = wy(ILHA.y0 - 1);
+            const borda = (y) => { const k = Math.max(0, 10 - y); return Math.round(k * k * 0.12); };   // o alto arredondado
+            // a sombra do morro no chão, à direita e na frente
+            f.fillStyle = 'rgba(18, 34, 16, 0.28)'; f.fillRect(x0 + 6, py0 + PAREDE, w, 6); f.fillRect(x0 + w, y0 + 12, 6, h - 12);
+            // o alto: a grama (um pouco mais escura) com a beirada clara
+            for (let y = 0; y < h - PAREDE; y++) {
+                const xl = x0 + borda(y) + Math.round(Math.sin(y / 4) * 1.2), xr = x0 + w - borda(y) + Math.round(Math.sin(y / 5 + 2) * 1.2);
+                f.drawImage(gramaIlha, xl - X0, y0 + y - Y0, xr - xl, 1, xl, y0 + y, xr - xl, 1);
+                R(xl, y0 + y, xr - xl, 1, 'rgba(20, 60, 24, 0.22)');
+                R(xl, y0 + y, 2, 1, '#3e7a3c'); R(xr - 2, y0 + y, 2, 1, '#2f5e30');
+                if (y < 2) R(xl, y0 + y, xr - xl, 1, '#9ad57d');
+            }
+            // o paredão de pedra (de frente), com camadas, rachaduras e o musgo pendurado
+            for (let y = 0; y < PAREDE; y++) for (let x = 0; x < w; x += 2) {
+                const cam = Math.floor((y + Math.sin(x / 7) * 2) / 6), luz = x < 6 ? 1.12 : x > w - 8 ? 0.82 : 1;
+                const cor = ['#9a8c80', '#8b7d72', '#a39388', '#7a6c62', '#8b7d72', '#6e6058'][cam % 6];
+                R(x0 + x, py0 + y, 2, 1, luz === 1 ? cor : luz > 1 ? '#b0a294' : '#5e5249');
+                if (r() < 0.035) R(x0 + x, py0 + y, 2, 1, '#4e443c');
+            }
+            for (let x = 0; x < w; x += 2) { R(x0 + x, py0, 2, 2 + ((x * 7) % 5 === 0 ? 4 : x % 6 === 0 ? 2 : 0), '#4e8a3c'); R(x0 + x, py0 + PAREDE - 2, 2, 2, '#5e5249'); }
+            const cav = artesIlha.caveira;
+            f.drawImage(cav, Math.round(x0 + w / 2 - cav.width / 2), py0 + PAREDE - cav.height + 2);
+            // as árvores e os coqueiros no alto do morro (atrás, sem tampar a caveira)
+            const nova = mataTropical();
+            for (let k = 0; k < 14; k++) {
+                const grande = k % 3 === 0, lista = nova[grande ? 'grande' : 'media'], a = lista[Math.floor(r() * lista.length)];
+                const bx = x0 + 12 + r() * (w - 24), by = y0 + 12 + r() * (h - PAREDE - 18);
+                arvores.push({ nova: a, x: Math.round(bx - a.w / 2), y: Math.round(by - a.h + 1), base: by, cx: bx });
+            }
+        }
+
+        /* as 15 obras, vistas de cima (o telhado em cima e a parede da frente embaixo, como as casas) */
+        function obraCanvas(id) {
+            if (artesIlha.obras[id]) return artesIlha.obras[id];
+            const O = OBRAS_ILHA[id], W = O.w * T, extra = { farol: 26, vigia: 10, bandeira: 18, taverna: 6, cartografo: 8, armazem: 4 }[id] || 0, H = O.h * T + extra;
+            const c = document.createElement('canvas'); c.width = W; c.height = H;
+            const g = c.getContext('2d'), OL = '#3f2631', r = rng(hash('obra' + id));
+            const R = (x, y, w, h, cor) => { g.fillStyle = cor; g.fillRect(Math.round(x), Math.round(y), Math.max(1, Math.round(w)), Math.max(1, Math.round(h))); };
+            const disco = (cx, cy, rr, cor) => { for (let dy = -rr; dy <= rr; dy++) { const w = Math.round(Math.sqrt(rr * rr - dy * dy)); R(cx - w, cy + dy, w * 2 + 1, 1, cor); } };
+            const tom = (hx, k) => { const v = [1, 3, 5].map((i) => parseInt(hx.slice(i, i + 2), 16)); return '#' + v.map((n) => Math.max(0, Math.min(255, Math.round(n * k))).toString(16).padStart(2, '0')).join(''); };
+            // casa: telhado (com as telhas e a cumeeira), a parede da frente com porta, janelas e a placa
+            const casa = (cor, parede, o = {}) => {
+                const ph = o.parede || 16, th = H - ph - 2;
+                R(1, th - 2, W - 2, ph + 3, OL);
+                R(2, th, W - 4, ph, parede);
+                for (let x = 4; x < W - 3; x += 4) R(x, th, 1, ph, tom(parede, 0.88));   // as tábuas
+                R(2, th + ph - 3, W - 4, 3, tom(parede, 0.7));
+                R(0, 1, W, th, OL);
+                for (let y = 2; y < th - 1; y++) R(1, y, W - 2, 1, (y >> 1) % 2 ? cor : tom(cor, 0.86));   // as fileiras de telha
+                for (let y = 4; y < th - 1; y += 4) for (let x = 2 + ((y >> 2) % 2) * 3; x < W - 2; x += 6) R(x, y, 1, 2, tom(cor, 0.7));
+                R(1, 2, W - 2, 2, tom(cor, 1.25)); R(1, th - 2, W - 2, 1, tom(cor, 0.6));
+                const porta = Math.round(W / 2) - 3;
+                R(porta, th + ph - 11, 7, 11, OL); R(porta + 1, th + ph - 10, 5, 10, '#8a4a2b'); R(porta + 4, th + ph - 6, 1, 1, '#fdbe53');
+                for (const jx of o.janelas || [6, W - 12]) { R(jx, th + 3, 6, 5, OL); R(jx + 1, th + 4, 4, 3, '#79a7e8'); R(jx + 1, th + 4, 2, 1, '#cfe4f6'); R(jx - 1, th + 8, 8, 1, tom(parede, 0.6)); }
+                return { th, ph };
+            };
+            if (id === 'cais') {   // as tábuas entrando no mar, com os pilares e os frades
+                for (let y = 0; y < H; y += 16) for (const px of [2, W - 5]) { R(px - 1, y + 4, 5, 13, OL); R(px, y + 5, 3, 11, '#6e3d1b'); R(px, y + 12, 3, 2, '#4e7a3a'); }
+                R(3, 0, W - 6, H - 2, OL);
+                for (let y = 1; y < H - 3; y += 4) { R(4, y, W - 8, 3, ['#b8692f', '#a95f2a', '#c27838'][Math.floor(r() * 3)]); R(4, y, W - 8, 1, '#d08a48'); R(4, y + 3, W - 8, 1, '#6e3d1b'); }
+                for (let y = 10; y < H - 8; y += 22) { R(W - 9, y, 5, 5, OL); R(W - 8, y + 1, 3, 2, '#e38628'); }
+            } else if (id === 'trapiche') {   // a passarela de tábuas na beira, com o corrimão de corda
+                R(0, 3, W, 12, OL);
+                for (let x = 0; x < W; x += 3) { R(x, 4, 2, 10, (x / 3) % 2 ? '#c98a4a' : '#b4783e'); R(x + 2, 4, 1, 10, '#6e3d1b'); }
+                for (let x = 2; x < W; x += 16) { R(x, 0, 2, 6, OL); R(x, 0, 1, 5, '#8a5a32'); }
+                for (let x = 0; x < W; x++) R(x, 1 + Math.round(Math.sin((x % 16) / 16 * Math.PI)), 1, 1, '#d8c8a0');
+            } else if (id === 'armazem') {
+                casa('#c34b35', '#b4804e', { janelas: [5, W - 11] });
+                R(W / 2 - 9, 6, 18, 6, '#f4ecd8'); R(W / 2 - 7, 8, 14, 2, OL);   // a placa
+                for (const [bx, cor] of [[2, '#9a5a32'], [W - 9, '#c98a4a']]) { R(bx, H - 9, 8, 9, OL); R(bx + 1, H - 8, 6, 7, cor); R(bx + 1, H - 5, 6, 1, '#5a3a28'); }
+            } else if (id === 'muralha') {   // o muro de pedra na beira, com as ameias
+                for (let y = 0; y < H; y += 6) for (let x = 0; x < W; x += 8) {
+                    const ox = (y / 6) % 2 ? 4 : 0; R(x - ox, y, 8, 6, OL); R(x - ox + 1, y + 1, 6, 4, (x + y) % 16 ? '#a39388' : '#8b7d72'); R(x - ox + 1, y + 1, 3, 1, '#c8bcb2');
+                }
+                for (let y = 2; y < H; y += 12) { R(W - 4, y, 4, 6, OL); R(W - 3, y + 1, 2, 4, '#b8aca2'); }
+            } else if (id === 'taverna') {
+                casa('#5d6b80', '#e8d8b0', { janelas: [6, 20, W - 14] });
+                R(W - 14, 0, 6, 9, OL); R(W - 13, 0, 4, 8, '#8b7d72');   // a chaminé
+                R(W - 4, H - 22, 1, 10, OL); R(W - 9, H - 20, 8, 7, OL); R(W - 8, H - 19, 6, 5, '#fdbe53'); R(W - 7, H - 18, 3, 3, '#f4ecd8');   // a placa da caneca
+                R(2, H - 7, 6, 7, OL); R(3, H - 6, 4, 6, '#8a5a32');   // o barril
+            } else if (id === 'portao') {   // dois pilares de pedra e a grade de ferro
+                R(0, 0, W, 8, OL); R(1, 1, W - 2, 6, '#8b7d72'); R(1, 1, W - 2, 2, '#b8aca2');
+                R(0, H - 8, W, 8, OL); R(1, H - 7, W - 2, 6, '#8b7d72'); R(1, H - 7, W - 2, 2, '#b8aca2');
+                for (let y = 8; y < H - 8; y += 3) { R(3, y, W - 6, 1, '#566c86'); }
+                R(W / 2 - 1, 8, 2, H - 16, '#3a4a5e'); R(W / 2 - 2, H / 2 - 1, 4, 2, '#fdbe53');
+            } else if (id === 'farol') {   // a torre listrada em cima das pedras, com a lanterna
+                for (let k = 0; k < 6; k++) { const px = 1 + k * 5, py = H - 8 - (k % 2) * 3; R(px, py, 7, 7, OL); R(px + 1, py + 1, 5, 5, '#8b7d72'); R(px + 1, py + 1, 3, 1, '#b8aca2'); }
+                const cx = W / 2;
+                for (let y = 14; y < H - 8; y++) { const w = 12 - Math.floor((y - 14) / 12); R(cx - w / 2 - 1, y, w + 2, 1, OL); R(cx - w / 2, y, w, 1, Math.floor((y - 14) / 7) % 2 ? '#d9452f' : '#f4f1e6'); R(cx - w / 2, y, 2, 1, Math.floor((y - 14) / 7) % 2 ? '#e8735a' : '#ffffff'); }
+                R(cx - 8, 12, 16, 3, OL); R(cx - 5, 4, 10, 9, OL); R(cx - 4, 5, 8, 7, '#ffe08a'); R(cx - 3, 6, 2, 4, '#fff8d0'); R(cx - 7, 1, 14, 4, OL); R(cx - 6, 2, 12, 2, '#d9452f'); R(cx - 1, 0, 2, 2, OL);
+            } else if (id === 'vigia') {   // a cabana no alto das estacas, com a escada
+                for (const px of [3, W - 6]) { R(px, 16, 3, H - 16, OL); R(px + 1, 16, 1, H - 17, '#8a5a32'); }
+                for (let y = 20; y < H; y += 4) R(W / 2 - 3, y, 6, 1, '#6e3d1b');
+                R(1, 6, W - 2, 12, OL); R(2, 7, W - 4, 10, '#b4804e'); R(W / 2 - 3, 9, 6, 5, OL); R(W / 2 - 2, 10, 4, 3, '#79a7e8');
+                R(0, 0, W, 8, OL); for (let y = 1; y < 7; y++) R(1, y, W - 2, 1, y % 2 ? '#4e8a4c' : '#3e7a3c');
+                R(W - 3, 0, 1, 6, OL); R(W - 2, 0, 3, 2, '#d9452f');
+            } else if (id === 'mercado') {   // duas barracas de lona listrada, com frutas e peixe
+                for (let k = 0; k < 2; k++) {
+                    const bx = k * (W / 2), cor = k ? '#3b6fb6' : '#d9452f', bw = W / 2 - 2;
+                    R(bx, 0, bw + 2, 14, OL); for (let x = 1; x <= bw; x++) R(bx + x, 1, 1, 12, Math.floor(x / 3) % 2 ? '#ffffff' : cor);
+                    for (let x = 1; x <= bw; x += 3) R(bx + x, 13, 2, 2, cor);
+                    R(bx + 1, 15, 1, H - 22, OL); R(bx + bw, 15, 1, H - 22, OL);
+                    R(bx, H - 9, bw + 2, 9, OL); R(bx + 1, H - 8, bw, 7, '#b4804e'); R(bx + 1, H - 8, bw, 1, '#d08a48');
+                    for (let j = 0; j < 4; j++) disco(bx + 5 + j * 5, H - 10, 2, ['#e8434a', '#fdbe53', '#6ab04c', '#f4b7c4'][(j + k) % 4]);
+                }
+            } else if (id === 'toldo') {   // o toldo feito de vela velha, com a mesa e os bancos
+                R(0, 0, W, 12, OL); for (let x = 1; x < W - 1; x++) R(x, 1, 1, 10, x % 8 < 4 ? '#f4ecd8' : '#d6c8a8');
+                for (let x = 1; x < W - 1; x += 8) R(x, 11, 4, 2, '#d6c8a8');
+                R(1, 12, 2, H - 12, OL); R(W - 3, 12, 2, H - 12, OL);
+                R(10, H - 14, W - 20, 6, OL); R(11, H - 13, W - 22, 4, '#b4804e'); R(13, H - 16, 3, 3, '#e8434a'); R(W - 17, H - 16, 3, 3, '#f4ecd8');
+                R(8, H - 5, W - 16, 3, OL); R(9, H - 4, W - 18, 1, '#8a5a32');
+            } else if (id === 'ancora') {   // a âncora gigante cravada na praça, com as correntes
+                const c2 = '#566c86', c3 = '#8aa0bc';
+                R(W / 2 - 12, H - 6, 24, 5, '#8b7d72'); R(W / 2 - 12, H - 6, 24, 1, '#b8aca2');
+                R(W / 2 - 2, 4, 5, H - 12, OL); R(W / 2 - 1, 5, 3, H - 14, c3);
+                R(W / 2 - 10, 8, 21, 4, OL); R(W / 2 - 9, 9, 19, 2, c2);
+                disco(W / 2, 3, 3, OL); disco(W / 2, 3, 1, c3);
+                R(W / 2 - 13, H - 12, 27, 4, OL); R(W / 2 - 12, H - 11, 25, 2, c2); R(W / 2 - 14, H - 18, 4, 7, OL); R(W / 2 + 10, H - 18, 4, 7, OL); R(W / 2 - 13, H - 17, 2, 5, c3); R(W / 2 + 11, H - 17, 2, 5, c3);
+                for (let k = 0; k < 6; k++) { R(W / 2 + 4 + k * 2, 14 + k * 3, 2, 2, '#9aa8b8'); }
+            } else if (id === 'canhoes') {   // três canhões nas rodas, virados para o mar
+                for (let k = 0; k < 3; k++) {
+                    const cx = 3 + k * 16;
+                    R(cx, 4, 12, 6, OL); R(cx + 1, 5, 10, 4, '#2b2b38'); R(cx + 1, 5, 8, 1, '#5a5a6e'); R(cx + 9, 3, 4, 8, OL); R(cx + 10, 4, 2, 6, '#3a3a48');
+                    disco(cx + 3, 11, 3, OL); disco(cx + 3, 11, 2, '#8a5a32'); disco(cx + 8, 11, 3, OL); disco(cx + 8, 11, 2, '#8a5a32');
+                }
+            } else if (id === 'sereia') {   // a sereia dourada no pedestal, com olhos de pérola
+                const ou = '#ffd75e', ou2 = '#e8a640';
+                R(4, H - 9, W - 8, 9, OL); R(5, H - 8, W - 10, 7, '#a39388'); R(5, H - 8, W - 10, 2, '#c8bcb2');
+                R(W / 2 - 4, H - 18, 12, 9, OL); R(W / 2 - 3, H - 17, 10, 7, ou2); R(W / 2 + 6, H - 14, 5, 4, OL); R(W / 2 + 7, H - 13, 3, 2, ou);
+                R(W / 2 - 4, H - 30, 8, 13, OL); R(W / 2 - 3, H - 29, 6, 12, ou); R(W / 2 - 3, H - 29, 2, 12, '#fff0a0');
+                R(W / 2 - 8, H - 28, 4, 6, OL); R(W / 2 - 7, H - 27, 2, 4, ou);
+                disco(W / 2, H - 31, 4, OL); disco(W / 2, H - 31, 3, ou); R(W / 2 - 1, H - 32, 1, 1, '#f4f1e6'); R(W / 2 + 1, H - 32, 1, 1, '#f4f1e6');
+                R(W / 2 - 5, H - 35, 3, 10, ou2);
+            } else if (id === 'cartografo') {
+                casa('#3b6fb6', '#f1e4c8', { janelas: [5, W - 11] });
+                disco(W - 8, 6, 5, OL); disco(W - 8, 6, 4, '#79a7e8'); R(W - 10, 4, 3, 2, '#6ab04c'); R(W - 7, 7, 2, 2, '#6ab04c');   // o globo no telhado
+                R(6, 8, 14, 5, '#c9a46a'); R(7, 9, 12, 1, '#8a4a2b'); R(9, 11, 6, 1, '#8a4a2b');   // o mapa
+            } else if (id === 'bandeira') {   // a bandeira pirata no alto do morro
+                R(2, 0, 2, H, OL); R(1, 0, 4, 3, '#fdbe53');
+                R(4, 3, 11, 9, '#1a1630');
+                R(7, 5, 5, 3, '#f4f1e6'); R(8, 8, 3, 1, '#f4f1e6'); R(8, 6, 1, 1, '#1a1630'); R(10, 6, 1, 1, '#1a1630');
+                R(5, 10, 9, 1, '#e8a640');
+            }
+            artesIlha.obras[id] = c;
+            return c;
+        }
+
+        // a vegetação da ilha (mata nos terrenos que não são seus; coqueiros, pedras e conchas na areia),
+        // o morro e as obras: tudo no fundo, de trás para a frente
+        function desenharIlhaCoisas(retTerra) {
+            if (!artesIlha) artesIlha = { caveira: caveiraCanvas(), obras: {} };
+            const arvores = [], nova = mataTropical(), r = rng(9191);
+            const minha = (tx, ty) => noTerreno(tx, ty);
+            const daIlha = ZONAS.filter((z) => z.ilha);
+            const fechada = (tx, ty) => daIlha.some((z) => dentroRet(z, tx, ty) && !zonaMinha(z));
+            const placaPerto = (tx, ty) => zonasVenda.some((zv) => Math.abs(tx - zv.placa.x) <= 1 && ty >= zv.placa.y - 1 && ty <= zv.placa.y + 1);
+            const fixo = (tx, ty) => dentroRet({ x: ILHA.morro.x - 1, y: ILHA.morro.y - 1, w: ILHA.morro.w + 2, h: ILHA.morro.h + 4 }, tx, ty)   // o morro e a clareira da frente
+                || dentroRet({ x: ILHA.vila.x - 1, y: ILHA.vila.y - 1, w: ILHA.vila.w + 2, h: ILHA.vila.h + 2 }, tx, ty);
+            for (let ty = ILHA.y0; ty < ILHA.y1; ty++) for (let tx = ILHA.x0; tx < ILHA.x1; tx++) {
+                if (fixo(tx, ty) || placaPerto(tx, ty) || minha(tx, ty)) continue;
+                const cx = wx(tx) + T / 2, cy = wy(ty) + T / 2;
+                if (!naIlhaPx(cx, cy)) continue;
+                const v = r(), w = r(), jx = Math.floor((r() - 0.5) * 8), jy = Math.floor((r() - 0.5) * 5);
+                if (fechada(tx, ty)) {   // a mata fechada: árvores e coqueiros
+                    if (v < 0.3) arvores.push({ p: 'propria', i: PRAIA.coqueiro.i, topo: PRAIA.coqueiro.topo, x: wx(tx) + jx, y: wy(ty) + jy });
+                    else if (v < 0.68) {
+                        const lista = nova[w < 0.6 ? 'grande' : w < 0.85 ? 'media' : 'arbusto'], a = lista[Math.floor(r() * lista.length)];
+                        const by = wy(ty) + T - 1 + jy, bx = cx + jx;
+                        arvores.push({ nova: a, x: Math.round(bx - a.w / 2), y: by - a.h + 1, base: by, cx: bx });
+                    }
+                } else if (naAreiaDaIlha(tx, ty)) {   // a areia: coqueiros, pedras, troncos e conchas
+                    if (!naIlhaPx(cx, cy, 'seca')) continue;
+                    const peca = v < 0.1 ? 'coqueiro' : v < 0.15 ? 'pedra' : v < 0.17 ? 'tronco' : v < 0.21 ? 'concha' : null;
+                    if (peca) { const k = PRAIA[peca]; arvores.push({ p: 'propria', i: k.i, topo: k.topo, x: wx(tx) + jx, y: wy(ty) + jy }); }
+                }
+            }
+            desenharMorro(arvores);
+            // as obras prontas (a placa da próxima é desenhada a cada quadro)
+            const feitas = (ilhaInfo && ilhaInfo.feitas) || [];
+            for (const id of feitas) {
+                const O = OBRAS_ILHA[id]; if (!O) continue;
+                const cv = obraCanvas(id), bx = wx(O.x), by = wy(O.y + O.h);
+                if (id !== 'cais' && id !== 'trapiche' && id !== 'bandeira') sombraArvore(f, bx + cv.width / 2, by, cv.width * 1.1);
+                arvores.push({ obra: cv, x: bx, y: by - cv.height, base: id === 'cais' ? by - cv.height : by });
+            }
+            for (const [id, O] of Object.entries(OBRAS_ILHA)) {   // o lugar de cada obra que falta: as estacas com a fita
+                if (feitas.includes(id) || ['cais', 'trapiche', 'muralha', 'bandeira'].includes(id)) continue;
+                const x0 = wx(O.x) + 2, y0 = wy(O.y) + 4, x1 = wx(O.x + O.w) - 4, y1 = wy(O.y + O.h) - 3;
+                f.fillStyle = 'rgba(232,166,64,0.75)';
+                for (let x = x0; x < x1; x += 2) { f.fillRect(x, y0 + 1, 1, 1); f.fillRect(x, y1 + 1, 1, 1); }
+                for (let y = y0; y < y1; y += 2) { f.fillRect(x0 + 1, y, 1, 1); f.fillRect(x1 + 1, y, 1, 1); }
+                for (const [x, y] of [[x0, y0], [x1, y0], [x0, y1], [x1, y1]]) { f.fillStyle = '#3f2631'; f.fillRect(x, y - 3, 3, 6); f.fillStyle = '#c98a4a'; f.fillRect(x + 1, y - 2, 1, 4); }
+            }
+            if (!feitas.includes('cais')) {   // as estacas do cais, esperando
+                const O = OBRAS_ILHA.cais;
+                for (const [x, y] of [[wx(O.x) + 2, wy(O.y + 2)], [wx(O.x + O.w) - 5, wy(O.y + 2)], [wx(O.x) + 2, wy(O.y + 5)], [wx(O.x + O.w) - 5, wy(O.y + 5)]]) {
+                    f.fillStyle = '#5a3a20'; f.fillRect(x, y, 3, 10); f.fillStyle = '#7a5230'; f.fillRect(x, y, 1, 10); f.fillStyle = '#bcd8f2'; f.fillRect(x - 1, y + 9, 5, 2);
+                }
+            }
+            const pe = (a) => (a.base != null ? a.base : a.y + T);
+            arvores.sort((a, b) => pe(a) - pe(b)).forEach((a) => {
+                if (a.obra) { f.drawImage(a.obra, a.x, a.y); return; }
+                if (a.nova) { sombraArvore(f, a.cx, a.base, a.nova.w); f.drawImage(a.nova.img, a.x, a.y); return; }
+                if (a.topo != null) tile(f, a.topo, a.x, a.y - T, false, a.p);
+                tile(f, a.i, a.x, a.y, false, a.p);
+            });
+        }
+
+        // a cada quadro: a espuma batendo em volta da ilha, o X do baú e a placa da próxima obra
+        function desenharIlhaViva(tempo, pe) {
+            if (!costa) return;
+            const pts = costa.beira.pts, cx = wx((ILHA.x0 + ILHA.x1) / 2), cy = wy((ILHA.y0 + ILHA.y1) / 2);
+            for (let k = 0; k < pts.length; k += 2) {
+                const [x, y] = pts[k];
+                if (x < cam.x - 4 || x > cam.x + vw + 4 || y < cam.y - 4 || y > cam.y + vh + 4) continue;
+                const nx = x - cx, ny = (y - cy) * 1.6, n = Math.hypot(nx, ny) || 1, vai = 1.5 + Math.sin(tempo / 900 + k / 9) * 1.5;
+                q.fillStyle = '#e8f2fb'; q.fillRect(Math.round(x + (nx / n) * vai), Math.round(y + (ny / n) * vai * 0.7), 2, 1);
+                if ((k / 2 + Math.floor(tempo / 400)) % 5 < 2) { q.fillStyle = '#bcd8f2'; q.fillRect(Math.round(x + (nx / n) * (vai + 3)), Math.round(y + (ny / n) * (vai + 3) * 0.7), 2, 1); }
+            }
+            if (!ilhaInfo) return;
+            if (ilhaInfo.x) {   // o X do baú enterrado: duas tábuas vermelhas cruzadas, brilhando
+                const bx = wx(ilhaInfo.x.x), by = wy(ilhaInfo.x.y);
+                q.fillStyle = 'rgba(60,30,10,0.25)'; q.fillRect(bx + 2, by + 11, 12, 3);
+                for (let k = 0; k < 10; k++) { q.fillStyle = '#7a1e14'; q.fillRect(bx + 3 + k, by + 3 + k, 2, 2); q.fillRect(bx + 12 - k, by + 3 + k, 2, 2); }
+                for (let k = 0; k < 10; k++) { q.fillStyle = '#d9452f'; q.fillRect(bx + 3 + k, by + 2 + k, 2, 1); q.fillRect(bx + 12 - k, by + 2 + k, 2, 1); }
+                if (Math.floor(tempo / 300) % 3) icone(q, 'brilho', bx + 12, by - 4 - (Math.floor(tempo / 150) % 2));
+            }
+            const prox = ilhaInfo.proxima && OBRAS_ILHA[ilhaInfo.proxima];
+            if (prox) {   // a placa da próxima obra, pulando: tocar nela abre as obras
+                const px = wx(prox.x) + Math.round((prox.w * T) / 2) - 8, py = (ilhaInfo.proxima === 'cais' ? wy(prox.y + prox.h - 1) : wy(prox.y + prox.h - 1)) - 4 + (Math.floor(tempo / 400) % 2);
+                pe.push({ img: artesIlha && (artesIlha.placa || (artesIlha.placa = placaObraCanvas())), x: px, y: py, ordem: py + 18, flip: false, bob: 0 });
+            }
+        }
+        function placaObraCanvas() {
+            const c = document.createElement('canvas'); c.width = 16; c.height = 20;
+            const g = c.getContext('2d'), R = (x, y, w, h, cor) => { g.fillStyle = cor; g.fillRect(x, y, w, h); };
+            R(7, 10, 2, 10, '#3f2631'); R(7, 10, 1, 9, '#8a5a32');
+            R(0, 0, 16, 12, '#3f2631'); R(1, 1, 14, 10, '#fdbe53'); R(1, 1, 14, 1, '#ffe08a');
+            R(4, 3, 8, 3, '#3f2631'); R(7, 6, 2, 4, '#3f2631');   // o martelo
+            for (let k = 0; k < 4; k++) R(k * 4, 11, 2, 1, '#1a1630');
+            return c;
         }
 
         /* ---- o lago: tanque com borda de pedras, água funda com sombras de peixe, rede
@@ -3216,6 +3605,11 @@
             const semPier = (sempre) => {   // o recorte do mar, sem o píer e o barco (sempre: também as estacas de antes de construir)
                 q.save(); q.beginPath(); q.rect(X0, BEIRA - 3, X1 - X0, FUNDO - BEIRA + 3);
                 if (zonasAtuais >= 7 && (pierPronto || sempre)) q.rect(wx(MAPA.pier.x) - 2, wy(MAPA.pier.y), (MAPA.pier.w + 3) * T + 4, FUNDO - wy(MAPA.pier.y));
+                if (costa && MH === MH_ILHA) {   // fase 106: a ilha e o cais ficam de fora
+                    const pts = costa.beira.pts;
+                    q.moveTo(pts[0][0], pts[0][1]); for (let k = 1; k < pts.length; k += 3) q.lineTo(pts[k][0], pts[k][1]); q.closePath();
+                    const C = OBRAS_ILHA.cais; q.rect(wx(C.x) - 4, wy(C.y), (C.w + 7) * T, (C.h + 1) * T);
+                }
                 q.clip('evenodd');
             };
             // fase 77b: a beira mexe de verdade. A cada quadro, coluna por coluna: a areia molhada até onde a
@@ -3380,6 +3774,7 @@
                     a.ty = p.y;
                     continue;
                 }
+                if (regiao(a.ty) !== regiao(a.y)) { a.x = a.tx; a.y = a.ty; continue; }   // fase 106: o outro lado do mar
                 const ex = passoSeco(a, a.vel, dt);   // (fase 79: todo mundo pode entrar na água)
                 // os sprites do pacote olham para a direita: espelha quando anda para a esquerda
                 if (Math.abs(ex) > 0.2) a.flip = ex < 0;
@@ -3395,6 +3790,7 @@
                     if (visitante.saindo) visitante = null;
                 }
             }
+            if (regiao(fazendeiro.ty) !== regiao(fazendeiro.y)) { fazendeiro.x = fazendeiro.tx; fazendeiro.y = fazendeiro.ty; }   // fase 106
             const dx = fazendeiro.tx - fazendeiro.x, dy = fazendeiro.ty - fazendeiro.y, d = Math.hypot(dx, dy);
             if (d > 0.5) fazendeiro.vista = vistaDoPasso(dx, dy, fazendeiro.vista);   // fase 108
             if (d > 0.5) {
@@ -3623,7 +4019,8 @@
 
         /* ---- modo construir: grade, fantasma do item e seleção ---- */
         function desenharGrade(m, tempo) {
-            for (let ty = 0; ty < MAPA.h; ty++) {
+            const naIlha = lugar === 'ilha';   // fase 106
+            for (let ty = naIlha ? Y_ILHA : 0; ty < (naIlha ? ILHA.y1 : MAPA.h); ty++) {
                 for (let tx = 0; tx < MAPA.w; tx++) {
                     if (!noTerreno(tx, ty)) continue;
                     const x = wx(tx), y = wy(ty);
@@ -3686,6 +4083,22 @@
         function quadroAnim(agora) {
             const dt = Math.min(100, agora - ultimo);
             ultimo = agora;
+            if (viagem) {   // fase 106: a câmera vai até o navio, segue ele pelo mar e para no cais
+                const u = Math.min(1, (performance.now() - viagem.t0) / viagem.dur);
+                const cv = barcoInfo ? navioCanvas(barcoInfo) : null, np = cv ? navioPos(cv) : null;
+                const meioY = (margem.topo + (innerHeight - margem.topo - margem.base) / 2) / escala;
+                const segue = np ? { x: np.x + cv.width / 2 - vw / 2, y: np.y + cv.height / 2 - meioY } : viagem.para;
+                const mix = (a, b, k) => ({ x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k }), suave = (k) => k * k * (3 - 2 * k);
+                const c = u < 0.15 ? mix(viagem.de, segue, suave(u / 0.15)) : u > 0.85 ? mix(segue, viagem.para, suave((u - 0.85) / 0.15)) : segue;
+                cam.x = c.x; cam.y = c.y;
+                precisaDesenhar = true;
+                if (u >= 1) {
+                    const fim = viagem.fim;
+                    viagem = null;
+                    limitarCamera(); sincronizarRolagem();
+                    if (fim) fim();
+                }
+            }
             mover(dt);
             const deslizando = !toque && (Math.abs(inercia.vx) + Math.abs(inercia.vy)) > 0.002;
             if (deslizando) {
@@ -3733,6 +4146,7 @@
             const m = mapaConstrucoes(todas);   // (os vizinhos de cerca e cano vêm da lista toda)
             const lista = todas.filter((c) => naTela(c.x, c.y));
             const pe = [];   // coisas "em pé", ordenadas pela altura
+            if (MH === MH_ILHA) desenharIlhaViva(tempo, pe);   // fase 106
             const pares = paresOficinas(todas);   // fase 106: duas oficinas iguais lado a lado viram uma só
             const atlasCasas = (atlasDaEstacao && atlasDaEstacao.casas) || atlas.casas;
             for (const c of lista) {
@@ -3932,6 +4346,8 @@
             } else if (hover === 'celeiro') {
                 const c = retCeleiro();
                 moldura(c.x, c.y + T, c.w, c.h - T);
+            } else if (hover === 'ilha-x' && ilhaInfo && ilhaInfo.x) {   // fase 106
+                moldura(wx(ilhaInfo.x.x), wy(ilhaInfo.x.y), T, T);
             } else if (hover === 'feira') {
                 moldura(wx(FEIRA.x), wy(FEIRA.y), FEIRA.w * T, FEIRA.h * T);
             } else if (typeof hover === 'string' && hover.startsWith('a:')) {
@@ -3988,6 +4404,17 @@
                 } else if (c.tipo === 'estufa') {
                     L.push({ x: x + T, y: y + T, r: 3 * T, cor: '205, 165, 255', f: 0.4, ilumina: 0.55 });
                 }
+            }
+            // fase 106: as luzes da vila da ilha (o farol forte; as janelas e os lampiões do cais) e os olhos da caveira
+            if (ilhaInfo && MH === MH_ILHA) {
+                const LUZ_OBRA = { farol: [1, 0.3, 8, 0.5, 1], taverna: [2, 2.2, 4, 0.4, 0.8], armazem: [1.5, 2.2, 3.5, 0.35, 0.7], cartografo: [1.5, 2.2, 3.5, 0.35, 0.7],
+                                   vigia: [1, 1, 2.5, 0.3, 0.6], mercado: [1.5, 1.2, 3, 0.2, 0.45], toldo: [1.5, 1.2, 2.5, 0.2, 0.4], cais: [1, 7, 3.5, 0.25, 0.55] };
+                for (const id of ilhaInfo.feitas || []) {
+                    const k = LUZ_OBRA[id], O = OBRAS_ILHA[id];
+                    if (k && O) L.push({ x: wx(O.x) + k[0] * T, y: wy(O.y) + k[1] * T, r: k[2] * T, cor: id === 'farol' ? '255, 236, 170' : LUZ_QUENTE, f: k[3], ilumina: k[4] });
+                }
+                const M = ILHA.morro;
+                L.push({ x: wx(M.x) + (M.w * T) / 2, y: wy(M.y + M.h) - 18, r: 2.5 * T, cor: '255, 214, 94', f: 0.35, ilumina: 0.35 });
             }
             return L;
         }
@@ -4821,8 +5248,20 @@
                 const topo = a.v && a.v.estado !== 'produzindo' ? a.y - 22 : a.y;
                 if (px >= a.x - 1 && px < a.x + T + 1 && py >= topo && py < a.y + T) return 'a:' + a.id;
             }
+            // fase 106: na ilha, o X do baú, as obras (a placa da próxima ou as prontas) e o navio no cais
+            if (ilhaInfo && MH === MH_ILHA && ty >= Y_ILHA) {
+                if (ilhaInfo.x && Math.abs(px - wx(ilhaInfo.x.x) - T / 2) <= T * 0.9 && py >= wy(ilhaInfo.x.y) - T * 0.6 && py <= wy(ilhaInfo.x.y) + T * 1.2) return 'ilha-x';   // (um pouco maior que o X: dedo)
+                for (const id of [ilhaInfo.proxima, ...(ilhaInfo.feitas || [])]) {
+                    const O = OBRAS_ILHA[id];
+                    if (O && id !== 'cais' && tx >= O.x && ty >= O.y - 1 && tx < O.x + O.w && ty < O.y + O.h) return 'ilha-obra';
+                }
+                const C = OBRAS_ILHA.cais;
+                if (ilhaInfo.proxima === 'cais' && tx >= C.x && tx < C.x + C.w && ty >= C.y + C.h - 2 && ty < C.y + C.h) return 'ilha-obra';
+                if (lugar === 'ilha' && pierPronto && tx >= C.x + C.w && ty >= C.y + 1 && ty <= C.y + 5
+                    && tx <= C.x + C.w + Math.ceil(((NAVIOS[(barcoInfo && barcoInfo.nivel) || 1] || NAVIOS[1]).L) / T)) return 'barco';
+            }
             // fase 62: o barco atracado leva para o alto-mar; o píer (ou o lugar dele) abre a tela do píer
-            if (zonasAtuais >= 7 && pierPronto && tx >= MAPA.pier.x + MAPA.pier.w && ty >= 37 && ty <= 40
+            if (lugar === 'fazenda' && zonasAtuais >= 7 && pierPronto && tx >= MAPA.pier.x + MAPA.pier.w && ty >= 37 && ty <= 40
                 && tx <= MAPA.pier.x + MAPA.pier.w + Math.ceil(((NAVIOS[(barcoInfo && barcoInfo.nivel) || 1] || NAVIOS[1]).L) / T)) return 'barco';   // fase 104: o casco do navio
             if (zonasAtuais >= 7 && dentroRet(MAPA.pier, tx, ty)) return 'pier';   // fase 61
             const cant = listaCanteiros().find((k) => k.x === tx && k.y === ty);
@@ -4943,6 +5382,7 @@
         // um toque/clique sem arrastar: aciona o que estiver embaixo
         function acionar(clientX, clientY) {
             if (performance.now() < ignorarCliqueAte) return;   // acabou de segurar um item
+            if (viagem) return;   // fase 106: atravessando o mar
             const bruto = alvoEm(clientX, clientY);
             const alvo = traduzir(bruto);
             hover = bruto;
@@ -4956,7 +5396,9 @@
             else if (alvo === 'lago') { if (cb.aoLago) cb.aoLago(); }
             else if (alvo === 'visitante') { if (cb.aoVisitante) cb.aoVisitante(); }
             else if (alvo === 'pier') { if (cb.aoPier) cb.aoPier(); }
-            else if (alvo === 'casa') { if (cb.aoCasa) cb.aoCasa(); }   // fase 66: quem está dormindo na casa da fazenda
+            else if (alvo === 'casa') { if (cb.aoCasa) cb.aoCasa(); }
+            else if (alvo === 'ilha-x') { if (cb.aoIlhaX) cb.aoIlhaX(); }   // fase 106
+            else if (alvo === 'ilha-obra') { if (cb.aoIlhaObra) cb.aoIlhaObra(); }   // fase 66: quem está dormindo na casa da fazenda
             else if (alvo === 'barco') { if (cb.aoBarco) cb.aoBarco(); else if (cb.aoPier) cb.aoPier(); }   // fase 62
             else if (typeof alvo === 'object' && alvo.construcao) { if (cb.aoConstrucao) cb.aoConstrucao(alvo.construcao.x, alvo.construcao.y); }
             else if (typeof alvo === 'object') { if (cb.aoAnimal) cb.aoAnimal(alvo.animal); }
@@ -5046,11 +5488,12 @@
             definirCanteiros(fn) { canteirosFn = fn; },
             // terrenos da fazenda na tela e os à venda (números das zonas; fase 78: até dois, e os da direita)
             definirTerreno(t) {
-                const zonas = (t && t.zonas) || 0, direita = (t && t.direita) || 0;
+                const zonas = (t && t.zonas) || 0, direita = (t && t.direita) || 0, ilha = (t && t.ilha) || 0;
                 const venda = ZONAS.filter((z) => [].concat((t && t.venda) || []).includes(z.n));
-                if (zonas === zonasAtuais && direita === direitaAtuais && venda.map((z) => z.n).join() === zonasVenda.map((z) => z.n).join()) return;
+                if (zonas === zonasAtuais && direita === direitaAtuais && ilha === ilhaAtuais && venda.map((z) => z.n).join() === zonasVenda.map((z) => z.n).join()) return;
                 zonasAtuais = zonas;
                 direitaAtuais = direita;
+                ilhaAtuais = ilha;   // fase 106
                 zonasVenda = venda;
                 montarFundo();
                 ajustarEscala();
@@ -5067,6 +5510,33 @@
             definirLago(l) { lago = l || null; },
             definirPier(pronto) { if (!!pronto === pierPronto) return; pierPronto = !!pronto; montarFundo(); precisaDesenhar = true; },   // fase 61
             definirBarco(info) { barcoInfo = info || null; precisaDesenhar = true; },   // fase 104: o navio no píer
+            // fase 106: a ilha. info = null (sem ilha: o mundo volta ao tamanho da fazenda) ou
+            // { feitas: [ids das obras prontas], proxima: id, x: {x, y} do baú do dia }
+            definirIlha(info) {
+                const antes = ilhaInfo ? (ilhaInfo.feitas || []).join() : null;
+                const cresceu = crescerMundo(!!info);
+                ilhaInfo = info || null;
+                if (!info && lugar === 'ilha') lugar = 'fazenda';
+                if (cresceu || (info && (info.feitas || []).join() !== antes)) { montarFundo(); limitarCamera(); sincronizarRolagem(); }
+                precisaDesenhar = true;
+            },
+            lugar: () => lugar,
+            // vai para a ilha ou volta para a fazenda: o navio atravessa o mar e a câmera vai junto (fim: ao chegar)
+            irPara(destino, fim, animar = true) {
+                if (destino === lugar || (destino === 'ilha' && MH !== MH_ILHA)) { if (fim) fim(); return; }
+                const de = { x: cam.x, y: cam.y };
+                lugar = destino;
+                const C = OBRAS_ILHA.cais;
+                if (destino === 'ilha') { fazendeiro.x = fazendeiro.tx = wx(C.x); fazendeiro.y = fazendeiro.ty = wy(C.y + C.h); }
+                else { fazendeiro.x = fazendeiro.tx = wx(MAPA.pier.x + 1); fazendeiro.y = fazendeiro.ty = wy(MAPA.pier.y); }
+                ajustarEscala();
+                if (destino === 'ilha') focar(wx(C.x + 1), wy(C.y + C.h + 2)); else focar(wx(MAPA.pier.x + 2), wy(MAPA.pier.y));
+                const para = { x: cam.x, y: cam.y };
+                if (!animar) { if (fim) fim(); precisaDesenhar = true; return; }
+                cam.x = de.x; cam.y = de.y;
+                viagem = { t0: performance.now(), dur: 3600, de, para, ida: destino === 'ilha', fim };
+            },
+            viajando: () => !!viagem,
             navioCanvas,   // fase 104 (para a prévia e os testes)
             pausar(sim) { pausada = !!sim; if (!pausada) precisaDesenhar = true; },   // fase 62
             // avatar do fazendeiro que anda na fazenda (null = o do pacote)
@@ -5133,6 +5603,8 @@
                 fazendeiro.tx = wx(MAPA.fazendeiro.x);
                 fazendeiro.ty = wy(MAPA.fazendeiro.y);
             },
+            // fase 106: onde um quadrado do mapa aparece na tela (o meio dele)
+            telaDoTile(tx, ty) { return { x: (wx(tx) + T / 2 - cam.x) * escala, y: (wy(ty) + T / 2 - cam.y) * escala }; },
             telaDoCanteiro(p) {
                 const { x, y } = posCanteiro(p);
                 return { x: (x + T / 2 - cam.x) * escala, y: (y - 2 - cam.y) * escala };
@@ -5172,6 +5644,7 @@
         htmlAjudante,
         MAPA,
         ZONAS,
+        ILHA, OBRAS_ILHA,   // fase 106
         noTerreno,
         livre,
         estacao,

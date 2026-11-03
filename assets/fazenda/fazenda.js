@@ -305,7 +305,7 @@
         inApelido: $('inApelido'), inCodigo: $('inCodigo'),
         painel: $('painel'), painelTitulo: $('painelTitulo'), painelCorpo: $('painelCorpo'), painelFechar: $('painelFechar'),
         faixaVisita: $('faixaVisita'), visitaApelido: $('visitaApelido'), visitaNivel: $('visitaNivel'),
-        btnVoltarCasa: $('btnVoltarCasa'), acoesVisita: $('acoesVisita'), acoesCasa: $('acoesCasa'),
+        btnVoltarCasa: $('btnVoltarCasa'), acoesVisita: $('acoesVisita'), acoesCasa: $('acoesCasa'), btnIlha: $('btnIlha'),
         diarioCont: $('hudDiario'), missoesCont: $('hudMissoes'),
         barraConstr: $('barraConstr'), constrAbas: $('constrAbas'), constrItens: $('constrItens'),
         constrFerramentas: $('constrFerramentas'), btnConstruir: $('btnConstruir'), construirCont: $('hudConstruir'),
@@ -561,22 +561,26 @@
     const direitaDaTela = () => (visita ? visita.direita : S && S.jogador.direita) || 0;   // fase 78: os terrenos da direita
     const zonasVenda = () => (S && S.zonas_venda) || [];
     const ehDireita = (z) => z.lado === 'direita';
-    const zonaComprada = (z) => (ehDireita(z) ? z.n - 7 <= ((S && S.jogador.direita) || 0) : z.n <= ((S && S.jogador.zonas) || 0));
-    // o próximo de cada lado: o da fila (1 a 7) e o da direita (8 a 10)
-    const proximaDoLado = (dir) => zonasVenda().find((z) => ehDireita(z) === dir && !zonaComprada(z)) || null;
+    const ehIlha = (z) => z.lado === 'ilha';   // fase 106: os 3 da ilha (11 a 13)
+    const zonaComprada = (z) => (ehIlha(z) ? z.n - 10 <= ((S && S.jogador.ilha_terrenos) || 0)
+        : ehDireita(z) ? z.n - 7 <= ((S && S.jogador.direita) || 0) : z.n <= ((S && S.jogador.zonas) || 0));
+    // o próximo de cada lado: o da fila (1 a 7), o da direita (8 a 10) e o da ilha (11 a 13)
+    const ladoDe = (z) => (ehIlha(z) ? 'ilha' : ehDireita(z) ? 'direita' : 'fila');
+    const proximaDoLado = (dir) => zonasVenda().find((z) => ladoDe(z) === (dir === true ? 'direita' : dir === false ? 'fila' : dir) && !zonaComprada(z)) || null;
     // os terrenos à venda agora (só na sua fazenda; vazio quando acabou ou o banco ainda não tem o SQL)
     // (a placa da direita só aparece no nível dela, ou depois de comprar o primeiro de lá: antes fica longe da fazenda)
     const proximasZonas = () => {
         if (!S || visita) return [];
-        const dir = proximaDoLado(true);
-        return [proximaDoLado(false), dir && (S.jogador.nivel >= dir.nivel || S.jogador.direita > 0) ? dir : null].filter(Boolean);
+        const dir = proximaDoLado(true), ilha = ilhaPode() ? proximaDoLado('ilha') : null;
+        return [proximaDoLado(false), dir && (S.jogador.nivel >= dir.nivel || S.jogador.direita > 0) ? dir : null, ilha].filter(Boolean);
     };
     function atualizarTerreno() {
-        cena.definirTerreno({ zonas: zonasDaTela(), direita: direitaDaTela(), venda: proximasZonas().map((z) => z.n) });
+        cena.definirTerreno({ zonas: zonasDaTela(), direita: direitaDaTela(), ilha: visita ? 0 : (S && S.jogador.ilha_terrenos) || 0, venda: proximasZonas().map((z) => z.n) });
         cena.definirPier(!visita && !!(S && S.pier && S.pier.pronto));   // fase 61
         // fase 104: o navio atracado (o nível do barco, as peças e a pintura)
         if (cena.definirBarco) cena.definirBarco(!visita && S && S.pier && S.pier.pronto
             ? { nivel: (S.mar && S.mar.barco && S.mar.barco.valor) || 1, pecas: pecasMar(), visual: visualBarco() } : null);
+        atualizarIlha();   // fase 106
     }
     /* ---------- Estação e clima (vêm do servidor: o mesmo dia para todo mundo) ---------- */
     const NOME_ESTACAO = { primavera: 'primavera', verao: 'verão', outono: 'outono', inverno: 'inverno' };
@@ -1527,9 +1531,10 @@
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
         { id: '2026-11-03-ilha', data: '03/11', titulo: 'Zarpar para a Ilha da Caveira Dourada', itens: [
-            'O jogo agora vai até o <b>nível 60</b>. No <b>nível 46</b>, com o <b>kit de expedição</b> no barco, aparece o botão <b>Zarpar para a ilha</b> no alto-mar e no píer: o navio atravessa o mar e chega na <b>Ilha da Caveira Dourada</b>.',
-            'Na ilha você constrói o porto, <b>uma obra por nível do 46 ao 60</b>: cais, trapiche, armazém, muralha, taverna, portão, farol, cabana do vigia, mercado pirata, toldo, âncora gigante, canhões de festa, estátua da sereia, casa do cartógrafo e, por último, a bandeira no morro. Cada obra pede moedas e materiais do barco, dá XP e aparece na ilha.',
-            'Com o <b>cais</b> pronto, todo dia tem um <b>baú enterrado no X da praia</b>: moedas (de 60 mil para cima, crescendo com o nível), às vezes diamantes e, de vez em quando, um raro.',
+            'O jogo agora vai até o <b>nível 60</b>. No <b>nível 46</b>, com o <b>kit de expedição</b> no barco, aparece o botão <b>Ilha</b> (e o <b>Zarpar</b> no alto-mar e no píer): o navio sai do píer, atravessa o mar e chega na <b>Ilha da Caveira Dourada</b>, do outro lado. O botão vira <b>Fazenda</b> para voltar.',
+            'A ilha é uma <b>fazenda nova</b>: compre os 3 terrenos dela (<b>Praia do Cais</b> no 46, <b>Mata da Caveira</b> no 51 e <b>Enseada do Farol</b> no 56) e plante, ponha cercados, oficinas e enfeites como em casa. Cada terreno dá +12 canteiros.',
+            'Na <b>vila do porto</b>, <b>uma obra por nível do 46 ao 60</b>: cais, trapiche, armazém, muralha, taverna, portão, farol, cabana do vigia, mercado pirata, toldo, âncora gigante, canhões de festa, estátua da sereia, casa do cartógrafo e, por último, a bandeira no alto do morro da Caveira Dourada. Toque na placa da próxima obra: cada uma pede moedas e materiais do barco, dá XP e aparece no lugar dela.',
+            'Com o <b>cais</b> pronto, todo dia aparece um <b>X</b> num lugar diferente dos seus terrenos da ilha: toque nele e cave o baú enterrado (moedas de 60 mil para cima, às vezes diamantes e, de vez em quando, um raro).',
             'Conquistas novas nos níveis 50, 55 e 60 e na ilha completa, com diamantes.'] },
         { id: '2026-11-03-bichos', data: '03/11', titulo: 'Bichos redesenhados e o passo dos bonecos', itens: [
             'Os <b>bichos</b> foram redesenhados, maiores e com mais detalhe, e mexem as pernas quando andam: a vaca com as manchas e o úbere, a búfala com os chifres curvos, a ovelha fofinha, o porco com o rabinho enrolado, a cabra com a barbicha, a galinha com a crista, o pato e o coelho de orelha comprida.',
@@ -2382,7 +2387,7 @@
             },
             recolher: recolherMarinheiro,
             melhorar: () => abrirPainel('mar'),
-            zarpar: () => { fecharMar(); abrirIlha(); },   // fase 106
+            zarpar: () => { fecharMar(); abrirIlha(); },   // fase 106: o navio sai do mar e vai para a ilha
             sair: fecharMar
         });
     }
@@ -2396,30 +2401,39 @@
     }
 
     /* ---------- Fase 106: a Ilha da Caveira Dourada ----------
-       Do nível 46, com o kit de expedição, o navio zarpa (do alto-mar ou do píer) para a ilha
-       (fazenda-ilha.js). O servidor manda em estado.jogador.ilha as obras feitas, se pode ir, se o baú
-       de hoje já saiu e (do 45 em diante) as 15 obras, uma por nível do 46 ao 60. */
-    let ilha = null;
+       Do nível 46, com o kit de expedição, o navio zarpa (do alto-mar, do píer ou do botão Ilha) e atravessa o
+       mar até a ilha, que é um pedaço novo do mapa, ao sul (a cena desenha; cena.irPara leva a câmera junto).
+       Lá dá para comprar os 3 terrenos da ilha (11 a 13) e plantar e construir como na fazenda; a vila do porto
+       ganha as 15 obras, uma por nível do 46 ao 60 (tocar na placa da próxima abre as obras), e todo dia, com o
+       cais pronto, tem um baú enterrado num X dos seus terrenos. O servidor manda em estado.jogador.ilha as
+       obras feitas, se pode ir, o X de hoje e (do 45 em diante) a lista das obras. */
     const ilhaDe = () => (S && S.jogador && S.jogador.ilha) || { obras: 0 };
     const ilhaPode = () => !!(S && !visita && ilhaDe().pode_ir);
     const proximaObra = () => { const d = ilhaDe(); return (d.partes || [])[d.obras || 0] || null; };
-    function htmlTopoIlha() {
-        if (!S) return '';
-        const j = S.jogador, d = ilhaDe(), p = proximaObra();
-        const pct = j.nivel >= NIVEL_MAX ? 100 : Math.floor(100 * (j.xp - j.xp_nivel) / Math.max(1, j.xp_proximo - j.xp_nivel));
-        return `<button type="button" class="botao pequeno creme" data-ilha-sair>← Fazenda</button>
-            <span class="chip">${ico('moeda', 14)} ${numero(j.moedas)}</span>
-            <button type="button" class="botao pequeno verde mar-direita" data-ilha-obras>Obras</button>
-            <span class="mar-linha">
-                <span class="chip">${ico('xp', 14)} Nível ${j.nivel}${j.nivel < NIVEL_MAX ? ` · ${pct}%` : ''}</span>
-                <span class="chip">${d.obras || 0}/15 obras${p ? ` · próxima: ${esc(p.nome)} (nível ${p.nivel})` : ' · ilha completa'}</span>
-            </span>`;
+    const naIlha = () => !!(cena.lugar && cena.lugar() === 'ilha');
+    // o que a cena precisa saber da ilha (null: o mundo fica só com a fazenda)
+    function atualizarIlha() {
+        if (!cena.definirIlha) return;
+        const d = ilhaDe();
+        if (!S || visita || !(d.pode_ir || (S.jogador.ilha_terrenos || 0) > 0)) { cena.definirIlha(null); }
+        else {
+            const feitas = (d.partes || []).slice(0, d.obras || 0).map((o) => o.id);
+            const p = proximaObra();
+            cena.definirIlha({ feitas, proxima: p && S.jogador.nivel >= p.nivel ? p.id : null, x: d.x || null });
+        }
+        const b = el.btnIlha;
+        if (b) {
+            b.hidden = !ilhaPode();
+            const em = b.querySelector('em');
+            if (em) em.textContent = naIlha() ? 'Fazenda' : 'Ilha';
+            b.title = naIlha() ? 'Voltar de navio para a fazenda' : 'Zarpar para a Ilha da Caveira Dourada';
+        }
     }
     // no píer: o convite (ou o que falta) para a ilha
     function htmlIlhaChamada() {
         if (!S || !S.mar) return '';
         const d = ilhaDe();
-        if (d.pode_ir) return `<p class="aviso">${itemDe(culturas.leme_dourado || { id: 'leme_dourado' }, 16)} A <b>Ilha da Caveira Dourada</b> está aberta: ${d.obras || 0} de 15 obras prontas${d.obras && !d.bau_hoje ? ', e o baú de hoje está esperando no X da praia' : ''}.</p>`;
+        if (d.pode_ir) return `<p class="aviso">${itemDe(culturas.leme_dourado || { id: 'leme_dourado' }, 16)} A <b>Ilha da Caveira Dourada</b> está aberta: ${d.obras || 0} de 15 obras prontas${d.x ? ', e o baú de hoje está esperando num X da ilha' : ''}.</p>`;
         return `<p class="aviso">No nível 46, com o <b>kit de expedição</b> no barco (Melhorias do mar), o navio zarpa para a <b>Ilha da Caveira Dourada</b>.</p>`;
     }
     function htmlIlhaObras() {
@@ -2437,44 +2451,42 @@
                     ${proxima ? `<span class="det materiais">${htmlMateriais(o.itens)}</span>` : ''}
                 </span>
                 ${feita ? `<span class="preco">${ico('check', 14)} Pronta</span>`
-                    : !proxima ? `<span class="preco">Nível ${o.nivel}</span>`
-                    : j.nivel < o.nivel ? `<span class="preco">Nível ${o.nivel}</span>`
+                    : !proxima || j.nivel < o.nivel ? `<span class="preco">Nível ${o.nivel}</span>`
                     : `<button type="button" class="botao pequeno verde" data-ilha-construir="${esc(o.id)}"${pode ? '' : ' disabled'}>${ico('moeda', 14)} ${numero(o.moedas)}</button>`}
             </div>`;
         }).join('');
-        return `<p class="fala">O porto da ilha vai sendo construído aos poucos: uma obra por nível, do 46 ao 60. Cada obra dá XP e aparece na ilha.</p>
+        return `<p class="fala">A vila do porto vai sendo construída aos poucos: uma obra por nível, do 46 ao 60. Cada obra dá XP e aparece no lugar dela, na ilha.</p>
             <div class="lista">${linhas}</div>
-            <p class="aviso">Os materiais são os do píer e do barco: toras, tábuas, cravos, velas, cordas e cartas náuticas das oficinas e da feira, e os raros do mercador. Com o <b>cais</b> pronto, todo dia tem um <b>baú enterrado</b> no X da praia (moedas, às vezes diamantes e um raro). As 15 obras prontas fincam a bandeira no morro.</p>
-            <div class="rodape-painel"><button type="button" class="botao verde" data-ilha-ir>${ilha ? 'Voltar para a ilha' : 'Zarpar para a ilha'}</button></div>`;
+            <p class="aviso">Os materiais são os do píer e do barco: toras, tábuas, cravos, velas, cordas e cartas náuticas das oficinas e da feira, e os raros do mercador. Com o <b>cais</b> pronto, todo dia tem um <b>baú enterrado</b> num X da ilha (moedas, às vezes diamantes e um raro). Os <b>terrenos da ilha</b> (Loja → Terrenos, ou a placa no mapa) são para plantar e construir como na fazenda. As 15 obras prontas fincam a bandeira no morro.</p>
+            <div class="rodape-painel"><button type="button" class="botao verde" data-ilha-ir>${naIlha() ? 'Ver a ilha' : 'Zarpar para a ilha'}</button></div>`;
     }
+    // zarpar: o navio sai do píer e a câmera atravessa o mar junto com ele
     function abrirIlha() {
-        if (!S || visita || ilha) return;
+        if (!S || visita) return;
         if (!ilhaPode()) { toast(ERROS.ilha_fechada, 'erro'); return; }
-        if (!window.FazendaIlha) { toast('A ilha ainda está carregando. Tente de novo.', 'erro'); return; }
+        if (!cena.irPara || (cena.viajando && cena.viajando())) return;
         fecharPainel();
         fecharMar();
         if (constr.ativo) fecharConstrucao();
-        cena.pausar(true);
-        document.body.classList.add('no-mar');
+        if (naIlha()) return;
         som.tocar('festa');
-        ilha = window.FazendaIlha.criar({
-            dados: () => ({ ...ilhaDe(), proxima: proximaObra() }),
-            agora,
-            navio: () => (cena.navioCanvas ? cena.navioCanvas({ nivel: (S.mar && S.mar.barco && S.mar.barco.valor) || 1, pecas: pecasMar(), visual: visualBarco() }) : null),
-            htmlTopo: htmlTopoIlha,
-            painelAberto: () => !!painelAtual,
-            obras: () => abrirPainel('ilha'),
-            bau: cavarBauIlha,
-            sair: fecharIlha
+        mostrarStatus(`${itemDe(culturas.leme_dourado || { id: 'leme_dourado' }, 18)} Zarpando para a Ilha da Caveira Dourada...`);
+        cena.irPara('ilha', () => {
+            atualizarIlha();
+            const d = ilhaDe(), p = proximaObra();
+            mostrarStatus(!(S.jogador.ilha_terrenos > 0) ? 'Chegou na ilha! Compre a Praia do Cais (a placa no mapa) para plantar e construir aqui.'
+                : d.x ? 'Tem um X na ilha hoje: toque nele para cavar o baú.'
+                : p && S.jogador.nivel >= p.nivel ? `Toque na placa da obra para construir: ${p.nome}.` : 'Chegou na ilha!');
         });
+        atualizarIlha();
     }
-    function fecharIlha() {
-        if (!ilha) return;
-        ilha.fechar();
-        ilha = null;
-        cena.pausar(false);
-        document.body.classList.remove('no-mar');
-        if (painelAtual === 'ilha') fecharPainel();
+    function voltarDaIlha() {
+        if (!naIlha() || (cena.viajando && cena.viajando())) return;
+        fecharPainel();
+        if (constr.ativo) fecharConstrucao();
+        mostrarStatus('Voltando para a fazenda...');
+        cena.irPara('fazenda', () => { atualizarIlha(); mostrarStatus('De volta na fazenda.'); });
+        atualizarIlha();
     }
     async function construirIlha(id, botao) {
         const o = (ilhaDe().partes || []).find((x) => x.id === id);
@@ -2485,22 +2497,23 @@
             const r = await rpc('fazenda_ilha_construir', { p_token: token, p_obra: id });
             aplicarEstado(r.estado);
             som.tocar('festa');
+            fecharPainel();
             toast(`${itemDe(culturas.leme_dourado || { id: 'leme_dourado' }, 20)} <b>${esc(o.nome)}</b> pronto na ilha! +${numero(r.xp)} ${ico('xp', 14)}${ilhaDe().obras >= 15 ? ' A bandeira está fincada no morro: a ilha é sua!' : ''}`, 'festa');
-            if (ilha) { fecharPainel(); ilha.avisar(`${o.nome} pronto!`); }
+            const O = A.OBRAS_ILHA && A.OBRAS_ILHA[id];
+            if (O && naIlha()) cena.focarTile(O.x + Math.floor(O.w / 2), O.y + Math.floor(O.h / 2));
         }).finally(() => { if (botao) botao.disabled = false; });
     }
     function cavarBauIlha() {
         const d = ilhaDe();
         if (!d.obras) return toast(ERROS.ilha_sem_cais);
-        if (d.bau_hoje) return toast(ERROS.ilha_bau_hoje);
+        if (!d.x) return toast(ERROS.ilha_bau_hoje);
         som.tocar('colher');
         enfileirar([], async () => {
             const r = await rpc('fazenda_ilha_bau', { p_token: token });
             aplicarEstado(r.estado);
             const raro = r.raro ? culturas[r.raro] || { id: r.raro, nome: r.raro } : null;
-            toast(`Baú da praia: ${moeda(numero(r.moedas))}${r.diamantes ? ` e ${r.diamantes} ${ico('diamante', 14)}` : ''}${raro ? ` e ${itemDe(raro, 18)} <b>${esc(raro.nome)}</b>` : ''}!`, 'festa');
+            toast(`Baú enterrado: ${moeda(numero(r.moedas))}${r.diamantes ? ` e ${r.diamantes} ${ico('diamante', 14)}` : ''}${raro ? ` e ${itemDe(raro, 18)} <b>${esc(raro.nome)}</b>` : ''}!`, 'festa');
             som.tocar(r.diamantes || raro ? 'festa' : 'moeda');
-            if (ilha) ilha.avisar(`Baú cavado: ${numero(r.moedas)} moedas${r.diamantes ? ` e ${r.diamantes} diamantes` : ''}${raro ? ` e ${raro.nome}` : ''}!`);
         });
     }
     // lançar e fisgar: na fila das ações (a busca de 60 s não passa por cima); o erro vira aviso
@@ -3626,7 +3639,9 @@
         aoLago: () => { if (S && !painelAtual && !visita) pescar(); },
         aoVisitante: () => { if (S && !painelAtual && visitaAgora()) abrirPainel('visitante'); },
         aoPier: () => { if (S && !painelAtual && !visita) abrirPainel('pier'); },   // fase 61
-        aoBarco: () => { if (S && !painelAtual && !visita) abrirMar(); },   // fase 62: o barco atracado leva para o alto-mar
+        aoBarco: () => { if (S && !painelAtual && !visita) { if (naIlha()) voltarDaIlha(); else abrirMar(); } },   // fase 62: o barco atracado leva para o alto-mar (fase 106: na ilha, de volta para a fazenda)
+        aoIlhaX: () => { if (S && !painelAtual && !visita) cavarBauIlha(); },   // fase 106: o X do baú enterrado
+        aoIlhaObra: () => { if (S && !painelAtual && !visita) abrirPainel('ilha'); },
         aoConstrucao: (x, y) => {
             if (!S || painelAtual) return;
             descreverConstrucao(x, y);
@@ -4382,7 +4397,7 @@
         }
         if (['loja', 'celeiro', 'missoes', 'oficina', 'energia', 'canteiro', 'bau', 'ajudante', 'pier', 'mar', 'ilha'].includes(painelAtual)) abrirPainel(painelAtual, true);
         if (mar) { if (!S.mar || visita) fecharMar(); else mar.atualizar(); }   // fase 62
-        if (ilha) { if (!ilhaPode() || visita) fecharIlha(); else ilha.atualizar(); }   // fase 106
+
     }
 
     /* ---------- Diário: quem passou pela sua fazenda ---------- */
@@ -5874,7 +5889,7 @@
         const lista = zonasVenda();
         if (!lista.length) return '<p class="vazio-msg">Os terrenos chegam em breve.</p>';
         // uma lista só; os da direita (fase 78) são comprados em ordem entre eles, sem precisar dos da fazenda
-        const proximos = [proximaDoLado(false), proximaDoLado(true)].filter(Boolean).map((z) => z.n);
+        const proximos = [proximaDoLado(false), proximaDoLado(true), ilhaPode() ? proximaDoLado('ilha') : null].filter(Boolean).map((z) => z.n);
         return '<div class="lista">' + lista.map((z) => {
             const comprado = zonaComprada(z);
             const proximo = proximos.includes(z.n);
@@ -5883,13 +5898,13 @@
                 <span class="ico">${travado ? ico('cadeado', 28) : spr(comprado ? 1 : 39, 44)}</span>
                 <span>
                     <span class="nome">${esc(z.nome)}</span>
-                    <span class="det"><span>${z.w}×${z.h} quadrados</span><span>+${z.canteiros || 6} canteiros</span>${z.lago ? '<span>com lago e pescador!</span>' : ''}${z.mar ? '<span>praia e mar: o lugar do píer!</span>' : ''}${ehDireita(z) ? '<span>à direita da fazenda</span>' : ''}${!comprado && !proximo ? '<span>depois do anterior</span>' : ''}</span>
+                    <span class="det"><span>${z.w}×${z.h} quadrados</span><span>+${z.canteiros || 6} canteiros</span>${z.lago ? '<span>com lago e pescador!</span>' : ''}${z.mar ? '<span>praia e mar: o lugar do píer!</span>' : ''}${ehDireita(z) ? '<span>à direita da fazenda</span>' : ''}${ehIlha(z) ? '<span>na Ilha da Caveira Dourada (com o kit de expedição)</span>' : ''}${!comprado && !proximo ? '<span>depois do anterior</span>' : ''}</span>
                 </span>
                 ${comprado ? '<span class="preco">Comprado</span>'
                     : !proximo || S.jogador.nivel < z.nivel ? `<span class="preco">Nível ${z.nivel}</span>`
                     : `<button type="button" class="botao pequeno verde" data-comprar="terreno:${z.n}"${S.jogador.moedas < z.custo ? ' disabled' : ''}>${ico('moeda', 14)} ${z.custo.toLocaleString('pt-BR')}</button>`}
             </div>`;
-        }).join('') + '</div><p class="aviso">Cada terreno abre um pedaço da mata em volta: mais espaço para canteiros, cercados, máquinas e enfeites, e mais canteiros no seu limite. Os 3 à direita da fazenda (do nível 29) não precisam do litoral: são comprados em ordem entre eles. Também dá para tocar na placa no mapa.</p>';
+        }).join('') + '</div><p class="aviso">Cada terreno abre um pedaço da mata em volta: mais espaço para canteiros, cercados, máquinas e enfeites, e mais canteiros no seu limite. Os 3 à direita da fazenda (do nível 29) não precisam do litoral: são comprados em ordem entre eles. Os 3 da ilha (do nível 46) pedem o kit de expedição no barco. Também dá para tocar na placa no mapa.</p>';
     }
 
     /* ---------- Baús da sorte (fase 73): para gastar as moedas que sobram ----------
@@ -6818,7 +6833,7 @@
             return;
         }
         if (e.target.closest('[data-mar-ir]')) { if (mar) fecharPainel(); else abrirMar(); return; }   // fase 62: o alto-mar
-        if (e.target.closest('[data-ilha-ir]')) { if (ilha) fecharPainel(); else abrirIlha(); return; }   // fase 106: a ilha
+        if (e.target.closest('[data-ilha-ir]')) { if (naIlha()) fecharPainel(); else abrirIlha(); return; }   // fase 106: a ilha
         const ic = e.target.closest('[data-ilha-construir]');
         if (ic) { construirIlha(ic.dataset.ilhaConstruir, ic); return; }
         if (e.target.closest('[data-invasao-entrar]')) { abrirInvasao(); return; }   // fase 94
@@ -7254,7 +7269,8 @@
                     toast(`${spr(39, 22)} ${esc(nome)} é seu! A fazenda cresceu e ganhou +${(zonasVenda().find((k) => k.n === Number(tipo)) || {}).canteiros || 6} canteiros.`, 'festa');
                     som.tocar('festa');
                     fecharPainel();
-                    if (z) cena.focarTile(z.x + Math.floor(z.w / 2), z.y + Math.floor(z.h / 2));
+                    if (z && z.ilha && !naIlha()) abrirIlha();   // fase 106: o terreno da ilha: zarpa para lá
+                    else if (z) cena.focarTile(z.x + Math.floor(z.w / 2), z.y + Math.floor(z.h / 2));
                     mostrarStatus(`${A.htmlItem('canteiro', 22)} Use o botão Construir para pôr canteiros, máquinas e enfeites no terreno novo.`);
                     return;
                 } else if (categoria === 'melhoria') {   // fase 57
@@ -7582,6 +7598,7 @@
     $('tutPular').addEventListener('click', encerrarTutorial);
 
     el.btnConstruir.addEventListener('click', abrirConstrucao);
+    if (el.btnIlha) el.btnIlha.addEventListener('click', () => (naIlha() ? voltarDaIlha() : abrirIlha()));   // fase 106
     if (el.clima) el.clima.addEventListener('click', () => { if (S && !visita) abrirPainel('clima'); else descreverClima(); });   // fase 77: a tela do clima
     $('hudDiamantesBtn').addEventListener('click', () => {
         if (!S || visita) return;
@@ -7655,7 +7672,7 @@
 
     function sair(apagarCodigo) {
         fecharMar();   // fase 62
-        fecharIlha();   // fase 106
+        if (naIlha() && cena.irPara) cena.irPara('fazenda', null, false);   // fase 106
         fecharInvasao();   // fase 94
         if (constr.ativo) fecharConstrucao();
         token = null;

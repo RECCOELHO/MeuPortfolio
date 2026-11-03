@@ -40,6 +40,10 @@ create table if not exists public.fazenda_jogadores (
   criado_em    timestamptz not null default now(),
   visto_em     timestamptz not null default now()
 );
+-- fase 106: a ilha (as obras do porto, o baú do dia e os terrenos 11 a 13)
+alter table public.fazenda_jogadores add column if not exists ilha_obras smallint not null default 0;
+alter table public.fazenda_jogadores add column if not exists ilha_bau_dia date;
+alter table public.fazenda_jogadores add column if not exists ilha_terrenos smallint not null default 0;
 
 -- Um jogador pode ter várias sessões (um token por aparelho)
 create table if not exists public.fazenda_sessoes (
@@ -1068,20 +1072,27 @@ returns jsonb language sql immutable as $$
            {"n":7,"nome":"Litoral","x":0,"y":32,"w":64,"h":10,"custo":750000,"nivel":31,"canteiros":10,"mar":true},
            {"n":8,"nome":"Serra do leste","x":48,"y":0,"w":16,"h":11,"custo":250000,"nivel":29,"canteiros":10,"lado":"direita"},
            {"n":9,"nome":"Planalto do leste","x":48,"y":11,"w":16,"h":11,"custo":500000,"nivel":33,"canteiros":10,"lado":"direita"},
-           {"n":10,"nome":"Cerrado do leste","x":48,"y":22,"w":16,"h":10,"custo":1000000,"nivel":38,"canteiros":10,"lado":"direita"}]'::jsonb;
+           {"n":10,"nome":"Cerrado do leste","x":48,"y":22,"w":16,"h":10,"custo":1000000,"nivel":38,"canteiros":10,"lado":"direita"},
+           {"n":11,"nome":"Praia do Cais","x":14,"y":56,"w":32,"h":10,"custo":1500000,"nivel":46,"canteiros":12,"lado":"ilha"},
+           {"n":12,"nome":"Mata da Caveira","x":6,"y":66,"w":26,"h":16,"custo":3000000,"nivel":51,"canteiros":12,"lado":"ilha"},
+           {"n":13,"nome":"Enseada do Farol","x":32,"y":66,"w":26,"h":16,"custo":5000000,"nivel":56,"canteiros":12,"lado":"ilha"}]'::jsonb;
+   -- fase 106: os 3 da ilha (11 a 13), do outro lado do mar, comprados em ordem com o kit de expedição
    -- fase 61 (fase 72: do 20 em diante, 2,5x). Fase 78: os 3 da direita (8 a 10), comprados à parte,
    -- e o litoral vai até a ponta da direita (x 63)
 $$;
 
 -- fase 78: os terrenos de um jogador num número só: zonas (de 1 a 7, em ordem) + 10 x direita (de 8 a 10,
--- em ordem entre eles). É o que as funções de terreno recebem em p_zonas.
+-- em ordem entre eles). É o que as funções de terreno recebem em p_zonas. Fase 106: quem precisa da ilha
+-- soma 100 x ilha_terrenos (de 11 a 13).
 create or replace function public.fazenda_terrenos(p_zonas int, p_direita int)
 returns int language sql immutable as $$
   select coalesce(p_zonas, 0) + 10 * coalesce(p_direita, 0);
 $$;
 create or replace function public.fazenda_zona_minha(p_n int, p_terrenos int)
 returns boolean language sql immutable as $$
-  select case when p_n <= 7 then p_n <= p_terrenos % 10 else p_n - 7 <= p_terrenos / 10 end;
+  -- fase 106: + 100 x ilha (os terrenos 11 a 13)
+  select case when p_n <= 7 then p_n <= p_terrenos % 10 when p_n <= 10 then p_n - 7 <= (p_terrenos / 10) % 10
+              else p_n - 10 <= p_terrenos / 100 end;
 $$;
 
 -- (x, y) fica dentro do terreno de quem já comprou p_zonas terrenos?
@@ -1101,7 +1112,7 @@ $$;
 -- Igual a maxConstrucoes em fazenda.js.
 create or replace function public.fazenda_max_construcoes(p_zonas int)
 returns int language sql immutable as $$
-  select 250 + 150 * greatest(coalesce(p_zonas, 0) % 10 + coalesce(p_zonas, 0) / 10, 0);   -- (fase 78: os da direita também)
+  select 250 + 150 * greatest(coalesce(p_zonas, 0) % 10 + (coalesce(p_zonas, 0) / 10) % 10 + coalesce(p_zonas, 0) / 100, 0);   -- (fase 78: os da direita também; fase 106: e os da ilha)
 $$;
 
 -- fase 69: +2 por nível até o último (era até o 25: o limite parava em 54)
@@ -1450,6 +1461,7 @@ returns jsonb language sql stable security definer set search_path = public as $
     select jsonb_build_object('tipo', 'terreno', 'id', z->>'n', 'nivel', (z->>'nivel')::int,
              'feito', fazenda_zona_minha((z->>'n')::int, (select ter from j)))
       from jsonb_array_elements(fazenda_zonas()) z where (z->>'nivel')::int <= p_nivel
+       and z->>'lado' is distinct from 'ilha'   -- fase 106: os da ilha não travam o nível
     union all
     select jsonb_build_object('tipo', 'canteiros', 'id', 'canteiros', 'nivel', p_nivel,
              'feito', mx.tem >= mx.max, 'tem', mx.tem, 'max', mx.max)
@@ -1514,7 +1526,7 @@ begin
   end if;
   v_omite := v_leve and fazenda_catalogos_ver(v_nivel) = current_setting('fazenda.cat_ver', true);   -- fase 89
   -- canteiros não aparecem mais sozinhos: o jogador coloca no modo construir até este limite
-  v_max := fazenda_limite_canteiros(v_nivel, fazenda_terrenos(j.zonas, j.direita));
+  v_max := fazenda_limite_canteiros(v_nivel, fazenda_terrenos(j.zonas, j.direita) + 100 * j.ilha_terrenos);
   -- fase 49: as metas de nível; com todas em dia, o bônus de XP vale neste nível (só grava se mudou)
   v_metas := fazenda_metas(p_jogador, v_nivel);
   -- (fase 62: até o 44; era até o 29, quando o 30 era o último nível)
@@ -1565,14 +1577,15 @@ begin
       'xp_proximo', fazenda_xp_nivel(v_nivel + 1),
       'bonus_nivel', v_bonus,   -- fase 49: +50% de XP neste nível (metas em dia)
       'max_canteiros', v_max,
-      'max_construcoes', fazenda_max_construcoes(fazenda_terrenos(j.zonas, j.direita)),
+      'max_construcoes', fazenda_max_construcoes(fazenda_terrenos(j.zonas, j.direita) + 100 * j.ilha_terrenos),
       'zonas', j.zonas,
       'direita', j.direita,   -- fase 78: os terrenos da direita
+      'ilha_terrenos', j.ilha_terrenos,   -- fase 106: os da ilha
       'beleza', fazenda_beleza(p_jogador),
       'bonus_venda', fazenda_bonus_venda(p_jogador),
       -- fase 106: a ilha (pode zarpar? quantas obras; do 45 em diante, a lista; o baú de hoje já foi aberto?)
       'ilha', jsonb_build_object('obras', coalesce(j.ilha_obras, 0), 'pode_ir', fazenda_ilha_pode(p_jogador, v_nivel),
-                                 'bau_hoje', j.ilha_bau_dia = fazenda_hoje(),
+                                 'bau_hoje', j.ilha_bau_dia = fazenda_hoje(), 'x', fazenda_ilha_x(p_jogador),
                                  'partes', case when v_nivel >= 45 then fazenda_ilha_obras() end)
     ),
     'zonas_venda', case when not v_omite then fazenda_zonas() end,
@@ -4464,17 +4477,23 @@ begin
   elsif p_categoria = 'terreno' then
     -- de 1 a 7, sempre o próximo da fila; fase 78: p_tipo 8 a 10 = o próximo da direita (à parte,
     -- do nível 29). Sem p_tipo (jogo antigo), o próximo da fila.
-    if coalesce(nullif(p_tipo, ''), '0')::int >= 8 then
+    if coalesce(nullif(p_tipo, ''), '0')::int >= 11 then   -- fase 106: os 3 da ilha (11 a 13), em ordem, com o kit de expedição
+      if not fazenda_ilha_pode(v_id, fazenda_nivel_de(j.xp, j.nivel_trava)) then raise exception 'ilha_fechada'; end if;
+      if j.ilha_terrenos >= 3 then raise exception 'terreno_max'; end if;
+      if p_tipo::int <> 11 + j.ilha_terrenos then raise exception 'terreno_fora_de_ordem'; end if;
+    elsif coalesce(nullif(p_tipo, ''), '0')::int >= 8 then
       if j.direita >= 3 then raise exception 'terreno_max'; end if;
       if p_tipo::int <> 8 + j.direita then raise exception 'terreno_fora_de_ordem'; end if;
     elsif j.zonas >= 7 then raise exception 'terreno_max';
     end if;
     select (z->>'n')::int as n, (z->>'custo')::int as custo, (z->>'nivel')::int as nivel into a
       from jsonb_array_elements(fazenda_zonas()) z
-     where (z->>'n')::int = case when coalesce(nullif(p_tipo, ''), '0')::int >= 8 then 8 + j.direita else j.zonas + 1 end;
+     where (z->>'n')::int = case when coalesce(nullif(p_tipo, ''), '0')::int >= 11 then 11 + j.ilha_terrenos
+                                 when coalesce(nullif(p_tipo, ''), '0')::int >= 8 then 8 + j.direita else j.zonas + 1 end;
     if fazenda_nivel_de(j.xp, j.nivel_trava) < a.nivel then raise exception 'nivel_insuficiente'; end if;
     if j.moedas < a.custo then raise exception 'moedas_insuficientes'; end if;
-    if a.n >= 8 then update fazenda_jogadores set moedas = moedas - a.custo, direita = direita + 1 where id = v_id;
+    if a.n >= 11 then update fazenda_jogadores set moedas = moedas - a.custo, ilha_terrenos = ilha_terrenos + 1 where id = v_id;
+    elsif a.n >= 8 then update fazenda_jogadores set moedas = moedas - a.custo, direita = direita + 1 where id = v_id;
     else update fazenda_jogadores set moedas = moedas - a.custo, zonas = zonas + 1 where id = v_id; end if;
 
   elsif p_categoria = 'melhoria' then
@@ -4591,11 +4610,13 @@ $$;
      sem cercado (quem já tinha antes do cercado obrigatório): ver fazenda_checar_lugar */
 create or replace function public.fazenda_livre(p_x int, p_y int)
 returns boolean language sql immutable as $$
-  select p_x between 0 and 63 and p_y between 0 and 36            -- fase 61: o litoral vai até a areia (y 36); fase 78: até x 63
+  select (p_x between 0 and 63 and p_y between 0 and 36            -- fase 61: o litoral vai até a areia (y 36); fase 78: até x 63
      and not (p_x between 1 and 3  and p_y between 1 and 6)     -- celeiro
      and not (p_x between 5 and 7  and p_y between 1 and 3)     -- casa
      and not (p_x between 24 and 29 and p_y between 14 and 18)  -- lago
-     and not (p_x between 22 and 24 and p_y between 35 and 36); -- fase 61: o lugar do píer (o resto dele é no mar, y 37 a 41)
+     and not (p_x between 22 and 24 and p_y between 35 and 36)) -- fase 61: o lugar do píer (o resto dele é no mar, y 37 a 41)
+      -- fase 106: a ilha (os 3 terrenos dela; o morro e a vila do porto ficam de fora deles)
+      or (p_x between 6 and 57 and p_y between 56 and 81);
 $$;
 
 -- Fase 19: o galinheiro cresce com os bichos pequenos (galinha, pato, coelho): 2 fileiras
@@ -4696,10 +4717,10 @@ begin
   -- canteiro: não é item da loja, é um lugar de plantar (limite pelo nível e terrenos)
   if p_tipo = 'canteiro' then
     if (select count(*) from fazenda_canteiros where jogador_id = v_id)
-       >= fazenda_limite_canteiros(fazenda_nivel_de(j.xp, j.nivel_trava), fazenda_terrenos(j.zonas, j.direita)) then
+       >= fazenda_limite_canteiros(fazenda_nivel_de(j.xp, j.nivel_trava), fazenda_terrenos(j.zonas, j.direita) + 100 * j.ilha_terrenos) then
       raise exception 'limite_canteiros';
     end if;
-    perform fazenda_checar_lugar(v_id, fazenda_terrenos(j.zonas, j.direita), p_x, p_y, 1, 1);
+    perform fazenda_checar_lugar(v_id, fazenda_terrenos(j.zonas, j.direita) + 100 * j.ilha_terrenos, p_x, p_y, 1, 1);
     select min(g) into v_pos from generate_series(0, 299) g   -- fase 56: eram 0..99
      where not exists (select 1 from fazenda_canteiros where jogador_id = v_id and posicao = g);
     if v_pos is null then raise exception 'limite_canteiros'; end if;
@@ -4711,7 +4732,7 @@ begin
   select * into i from fazenda_itens where id = p_tipo;
   if not found then raise exception 'item_invalido'; end if;
   if fazenda_nivel_de(j.xp, j.nivel_trava) < i.nivel_min then raise exception 'nivel_insuficiente'; end if;
-  perform fazenda_checar_lugar(v_id, fazenda_terrenos(j.zonas, j.direita), p_x, p_y, i.largura, i.altura);
+  perform fazenda_checar_lugar(v_id, fazenda_terrenos(j.zonas, j.direita) + 100 * j.ilha_terrenos, p_x, p_y, i.largura, i.altura);
   -- fase 73: o que é da praia só vai na areia do Litoral (y 32 a 36)
   if i.categoria = 'praia' and not (p_y >= 32 and p_y + i.altura - 1 <= 36) then raise exception 'so_na_areia'; end if;
   if i.limite is not null   -- fase 57: painel solar e turbina sobem com o nível
@@ -4729,7 +4750,7 @@ begin
                   else i.por_terreno * (1 + j.zonas + j.direita) end) then
     raise exception 'limite_terreno';
   end if;
-  if (select count(*) from fazenda_construcoes where jogador_id = v_id) >= fazenda_max_construcoes(fazenda_terrenos(j.zonas, j.direita)) then
+  if (select count(*) from fazenda_construcoes where jogador_id = v_id) >= fazenda_max_construcoes(fazenda_terrenos(j.zonas, j.direita) + 100 * j.ilha_terrenos) then
     raise exception 'limite_construcoes';
   end if;
   -- fase 45: quem já tinha o bicho antes do cercado obrigatório ganha o primeiro cercado dele
@@ -4768,7 +4789,7 @@ begin
   -- canteiro (mesmo plantado: a planta vai junto)
   select posicao into v_pos from fazenda_canteiros where jogador_id = v_id and x = p_x and y = p_y;
   if v_pos is not null then
-    perform fazenda_checar_lugar(v_id, fazenda_terrenos(j.zonas, j.direita), p_nx, p_ny, 1, 1, null, null, v_pos);
+    perform fazenda_checar_lugar(v_id, fazenda_terrenos(j.zonas, j.direita) + 100 * j.ilha_terrenos, p_nx, p_ny, 1, 1, null, null, v_pos);
     update fazenda_canteiros set x = p_nx, y = p_ny where jogador_id = v_id and posicao = v_pos;
     if p_leve then return jsonb_build_object('ok', true, 'x', p_nx, 'y', p_ny); end if;
     return jsonb_build_object('estado', fazenda_estado(v_id));
@@ -4777,7 +4798,7 @@ begin
   select k.* into i from fazenda_construcoes c join fazenda_itens k on k.id = c.tipo
    where c.jogador_id = v_id and c.x = p_x and c.y = p_y;
   if not found then raise exception 'item_invalido'; end if;
-  perform fazenda_checar_lugar(v_id, fazenda_terrenos(j.zonas, j.direita), p_nx, p_ny, i.largura, i.altura, p_x, p_y);
+  perform fazenda_checar_lugar(v_id, fazenda_terrenos(j.zonas, j.direita) + 100 * j.ilha_terrenos, p_nx, p_ny, i.largura, i.altura, p_x, p_y);
   if i.categoria = 'praia' and not (p_ny >= 32 and p_ny + i.altura - 1 <= 36) then raise exception 'so_na_areia'; end if;   -- fase 73
   update fazenda_construcoes set x = p_nx, y = p_ny
    where jogador_id = v_id and x = p_x and y = p_y;
@@ -10257,10 +10278,10 @@ begin
   -- canteiro: não é item da loja, é um lugar de plantar (limite pelo nível e terrenos)
   if p_tipo = 'canteiro' then
     if (select count(*) from fazenda_canteiros where jogador_id = v_id)
-       >= fazenda_limite_canteiros(fazenda_nivel_de(j.xp, j.nivel_trava), fazenda_terrenos(j.zonas, j.direita)) then
+       >= fazenda_limite_canteiros(fazenda_nivel_de(j.xp, j.nivel_trava), fazenda_terrenos(j.zonas, j.direita) + 100 * j.ilha_terrenos) then
       raise exception 'limite_canteiros';
     end if;
-    perform fazenda_checar_lugar(v_id, fazenda_terrenos(j.zonas, j.direita), p_x, p_y, 1, 1);
+    perform fazenda_checar_lugar(v_id, fazenda_terrenos(j.zonas, j.direita) + 100 * j.ilha_terrenos, p_x, p_y, 1, 1);
     select min(g) into v_pos from generate_series(0, 299) g   -- fase 56: eram 0..99
      where not exists (select 1 from fazenda_canteiros where jogador_id = v_id and posicao = g);
     if v_pos is null then raise exception 'limite_canteiros'; end if;
@@ -10272,7 +10293,7 @@ begin
   select * into i from fazenda_itens where id = p_tipo;
   if not found then raise exception 'item_invalido'; end if;
   if fazenda_nivel_de(j.xp, j.nivel_trava) < i.nivel_min then raise exception 'nivel_insuficiente'; end if;
-  perform fazenda_checar_lugar(v_id, fazenda_terrenos(j.zonas, j.direita), p_x, p_y, i.largura, i.altura);
+  perform fazenda_checar_lugar(v_id, fazenda_terrenos(j.zonas, j.direita) + 100 * j.ilha_terrenos, p_x, p_y, i.largura, i.altura);
   -- fase 73: o que é da praia só vai na areia do Litoral (y 32 a 36)
   if i.categoria = 'praia' and not (p_y >= 32 and p_y + i.altura - 1 <= 36) then raise exception 'so_na_areia'; end if;
   if i.limite is not null   -- fase 57: painel solar e turbina sobem com o nível
@@ -10290,7 +10311,7 @@ begin
                   else i.por_terreno * (1 + j.zonas + j.direita) end) then
     raise exception 'limite_terreno';
   end if;
-  if (select count(*) from fazenda_construcoes where jogador_id = v_id) >= fazenda_max_construcoes(fazenda_terrenos(j.zonas, j.direita)) then
+  if (select count(*) from fazenda_construcoes where jogador_id = v_id) >= fazenda_max_construcoes(fazenda_terrenos(j.zonas, j.direita) + 100 * j.ilha_terrenos) then
     raise exception 'limite_construcoes';
   end if;
   -- fase 95: tem um igual guardado no depósito? sai dele, de graça (e guarda o que foi pago na época)
@@ -10857,6 +10878,37 @@ select public.fazenda_cache_montar();
 -- ------------------------------------------------------------
 alter table public.fazenda_jogadores add column if not exists ilha_obras smallint not null default 0;
 alter table public.fazenda_jogadores add column if not exists ilha_bau_dia date;
+alter table public.fazenda_jogadores add column if not exists ilha_terrenos smallint not null default 0;   -- os terrenos da ilha (11 a 13)
+
+-- o X do baú do dia: um quadrado livre dos terrenos da ilha, sorteado por jogador e dia (sem terreno, na
+-- areia da vila). Null quando não tem baú hoje (sem o cais, ou já cavado).
+create or replace function public.fazenda_ilha_x(p_jogador uuid)
+returns jsonb
+language plpgsql stable security definer
+set search_path = public, extensions
+as $$
+declare
+  j record;
+  v jsonb;
+begin
+  select ilha_terrenos, ilha_obras, ilha_bau_dia into j from fazenda_jogadores where id = p_jogador;
+  if coalesce(j.ilha_obras, 0) < 1 or j.ilha_bau_dia = fazenda_hoje() then return null; end if;
+  select jsonb_build_object('x', c.gx, 'y', c.gy) into v
+    from (select gx, gy
+            from jsonb_array_elements(fazenda_zonas()) z,
+                 generate_series((z->>'x')::int, (z->>'x')::int + (z->>'w')::int - 1) gx,
+                 generate_series((z->>'y')::int, (z->>'y')::int + (z->>'h')::int - 1) gy
+           where (z->>'n')::int between 11 and 10 + coalesce(j.ilha_terrenos, 0)
+           order by md5(p_jogador::text || fazenda_hoje()::text || gx || ',' || gy)
+           limit 40) c
+   where not exists (select 1 from fazenda_canteiros k where k.jogador_id = p_jogador and k.x = c.gx and k.y = c.gy)
+     and not exists (select 1 from fazenda_construcoes k join fazenda_itens i on i.id = k.tipo
+                      where k.jogador_id = p_jogador and c.gx >= k.x and c.gx < k.x + i.largura
+                        and c.gy >= k.y and c.gy < k.y + i.altura)
+   limit 1;
+  return coalesce(v, jsonb_build_object('x', 52, 'y', 55));
+end;
+$$;
 
 create or replace function public.fazenda_ilha_obras()
 returns jsonb language sql immutable as $$
@@ -10994,5 +11046,5 @@ update public.fazenda_jogadores set nivel_trava = greatest(public.fazenda_nivel_
 
 select public.fazenda_cache_montar();
 
-revoke execute on function public.fazenda_ilha_obras(), public.fazenda_ilha_pode(uuid, int) from public, anon, authenticated;
+revoke execute on function public.fazenda_ilha_obras(), public.fazenda_ilha_pode(uuid, int), public.fazenda_ilha_x(uuid) from public, anon, authenticated;
 grant execute on function public.fazenda_ilha_construir(text, text), public.fazenda_ilha_bau(text) to anon, authenticated;
