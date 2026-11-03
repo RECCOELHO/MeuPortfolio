@@ -959,6 +959,25 @@
         cacheAvatar.set(chave, cv);
         return cv;
     }
+    // fase 108: o visitante da porteira (um desenho do Tiny Dungeon): o mesmo boneco, com as vistas e o passo
+    const cacheVisitante = new Map();
+    function visitanteCanvas(i) {
+        if (cacheVisitante.has(i)) return cacheVisitante.get(i);
+        const img = atlas.dungeon;
+        if (!img.complete || !img.naturalWidth) return null;
+        const cv = document.createElement('canvas'); cv.width = cv.height = T;
+        const g = cv.getContext('2d');
+        g.drawImage(img, (i % COLS) * T, Math.floor(i / COLS) * T, T, T, 0, 0, T, T);
+        const dados = g.getImageData(0, 0, T, T), sem = { regioes: {} };
+        cv.vistas = {};
+        for (const nome of ['lado', 'costas']) {
+            const c = document.createElement('canvas'); c.width = c.height = T;
+            c.getContext('2d').putImageData(vistaDe(dados, sem, nome), 0, 0);
+            cv.vistas[nome] = c;
+        }
+        cacheVisitante.set(i, cv);
+        return cv;
+    }
     function pintarAvatar(d, tipo, cfg) {
         for (const [regiao, r] of Object.entries(tipo.regioes)) {
             const n = cfg[regiao] | 0;
@@ -984,11 +1003,14 @@
         const out = new ImageData(new Uint8ClampedArray(dados.data), T, T), d = out.data;
         const hex = (k) => ((d[k] << 16) | (d[k + 1] << 8) | d[k + 2]).toString(16).padStart(6, '0');
         const vazio = (x, y) => x < 0 || y < 0 || x >= T || y >= T || d[(y * T + x) * 4 + 3] < 128;
-        const corpo = Math.min(...['roupa', 'calca'].map((r) => (tipo.regioes[r] ? tipo.regioes[r].y[0] : T)));
+        let corpo = Math.min(...['roupa', 'calca'].map((r) => (tipo.regioes[r] ? tipo.regioes[r].y[0] : T)));
+        const temPele = (y) => { for (let x = 0; x < T; x++) if (!vazio(x, y) && PELES.has(hex((y * T + x) * 4))) return true; return false; };
         // as linhas do rosto: as que têm pele acima da roupa
         let topo = T;
-        for (let y = 0; y < corpo; y++) for (let x = 0; x < T; x++) if (!vazio(x, y) && PELES.has(hex((y * T + x) * 4))) { topo = Math.min(topo, y); break; }
+        for (let y = 0; y < corpo; y++) if (temPele(y)) { topo = y; break; }
         if (topo >= corpo) return out;
+        // sem a região da roupa (o visitante, desenho do pacote): o rosto vai até a primeira linha sem pele
+        if (corpo === T) { corpo = topo + 1; while (corpo < T && corpo < topo + 7 && temPele(corpo)) corpo++; }
         // a cor do cabelo (o tom do meio da região cabelo, para a troca de cor pegar) ou a do que cobre a cabeça
         let cabelo = null;
         if (tipo.regioes.cabelo) cabelo = Object.entries(tipo.regioes.cabelo.cores).sort((a, b) => Math.abs(a[1] - 1) - Math.abs(b[1] - 1))[0][0].slice(1);
@@ -3773,7 +3795,14 @@
             const vistaF = andando ? fazendeiro.vista || 'frente' : 'frente';   // parado, olha para a tela
             pe.push({ img: passoCanvas(avatarCanvas(avatarAtual), fazNada ? 0 : quadroPasso(andando, tempo), vistaF), x: fazendeiro.x, y: fazendeiro.y, flip: vistaF === 'lado' && fazendeiro.flip, bob: 0, nadando: fazNada });   // fase 107/108: o passo e a direção
             if (lago && lagoNaTela()) pe.push({ p: 'factory', i: 120, x: wx(LAGO.x) + 1, y: wy(LAGO.y + 2), flip: false, bob: Math.floor(tempo / 700) % 2 ? -1 : 0 });
-            if (visitante) { const vn = naAgua(visitante.x, visitante.y); pe.push({ p: 'dungeon', i: VISITANTE_ARTE[visitante.tipo] || 86, x: visitante.x, y: visitante.y, flip: visitante.flip, bob: !vn && visitante.andando && Math.floor(tempo / 140) % 2 ? -1 : 0, nadando: vn }); }
+            if (visitante) {
+                const vn = naAgua(visitante.x, visitante.y), vcv = visitanteCanvas(VISITANTE_ARTE[visitante.tipo] || 86);
+                if (vcv) {   // fase 108: andando nas 4 direções, com o passo
+                    if (visitante.andando) visitante.vista = vistaDoPasso(visitante.tx - visitante.x, visitante.ty - visitante.y, visitante.vista);
+                    const vv = visitante.andando ? visitante.vista || 'frente' : 'frente';
+                    pe.push({ img: passoCanvas(vcv, vn ? 0 : quadroPasso(visitante.andando, tempo), vv), x: visitante.x, y: visitante.y, flip: vv === 'lado' && visitante.flip, bob: 0, nadando: vn });
+                } else pe.push({ p: 'dungeon', i: VISITANTE_ARTE[visitante.tipo] || 86, x: visitante.x, y: visitante.y, flip: visitante.flip, bob: !vn && visitante.andando && Math.floor(tempo / 140) % 2 ? -1 : 0, nadando: vn });
+            }
             desenharNavio(pe, tempo);   // fase 104: o navio no píer
             pe.sort((a, b) => (a.ordem != null ? a.ordem : a.y) - (b.ordem != null ? b.ordem : b.y)).forEach((a) => {
                 const x = Math.round(a.x), y = Math.round(a.y) + a.bob;
@@ -5120,6 +5149,7 @@
 
     window.FazendaArte = {
         montarCasas,
+        visitanteCanvas,   // fase 108 (para a prévia e os testes)
         passoCanvas,   // fase 107 (para a prévia e os testes)
         bichoCanvas,   // fase 107 (para a prévia e os testes)   // fase 105 (para a prévia e os testes)
         mataNova,   // fase 103: as árvores novas (para a prévia)
