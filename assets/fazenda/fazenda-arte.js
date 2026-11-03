@@ -1208,10 +1208,10 @@
        Só a grama ligada à borda da peça (preenchimento a partir das bordas): o que está
        dentro do contorno (telhado verde do celeiro, folhas) continua igual. */
     const GRAMA_PECA = { '84c669': 'grama', '65a556': 'tufo', '8bd87d': 'ponto', 'c6e58d': 'ponto', '4e974c': 'tufo', '479f4a': 'tufo' };
-    const PECAS_COM_GRAMA = { town: [0, 1, 2, 12, 13, 14, 24, 25, 26, 36, 37, 38, 39, 40, 41, 42, 43], farm: [83], factory: [99, 100, 101] };
-    let atlasDaEstacao = null, estacaoDoAtlas = 'primavera';
+    const PECAS_COM_GRAMA = { town: [0, 1, 2, 12, 13, 14, 24, 25, 26, 36, 37, 38, 39, 40, 41, 42, 43], farm: [0, 1, 83], factory: [99, 100, 101] };
+    let atlasDaEstacao = null, estacaoDoAtlas = null;
     const rgbDe = (hex) => [1, 3, 5].map((k) => parseInt(hex.slice(k, k + 2), 16));
-    function pintarGrama(dados, x0, y0, w, h, chao) {
+    function pintarGrama(dados, x0, y0, w, h, chao, fundo, transparente) {
         const W = dados.width, d = dados.data, novo = {};
         for (const [hex, papel] of Object.entries(GRAMA_PECA)) novo[hex] = rgbDe(chao[papel]);
         const visto = new Uint8Array(w * h), fila = [];
@@ -1225,7 +1225,9 @@
             if (d[k + 3] < 200) continue;
             const n = novo[((d[k] << 16) | (d[k + 1] << 8) | d[k + 2]).toString(16).padStart(6, '0')];
             if (!n) continue;
-            d[k] = n[0]; d[k + 1] = n[1]; d[k + 2] = n[2];
+            if (transparente) d[k + 3] = 0;   // fase 104: a grama da peça some e aparece a do chão
+            else if (fundo) { const j = (y * w + x) * 4; d[k] = fundo.data[j]; d[k + 1] = fundo.data[j + 1]; d[k + 2] = fundo.data[j + 2]; }
+            else { d[k] = n[0]; d[k + 1] = n[1]; d[k + 2] = n[2]; }
             fila.push(x + 1, y, x - 1, y, x, y + 1, x, y - 1);
         }
     }
@@ -1247,7 +1249,6 @@
     function prepararAtlasDaEstacao(est) {
         if (est === estacaoDoAtlas) return;
         estacaoDoAtlas = est;
-        if (est === 'primavera') { atlasDaEstacao = null; return; }   // a grama original já é a da primavera
         const chao = CHAO[est], novo = {};
         for (const [p, lista] of Object.entries({ ...PECAS_COM_GRAMA, town: [...PECAS_COM_GRAMA.town] })) {
             const img = atlas[p], c = document.createElement('canvas');
@@ -1255,7 +1256,7 @@
             const g = c.getContext('2d');
             g.drawImage(img, 0, 0);
             const dados = g.getImageData(0, 0, c.width, c.height);
-            for (const i of lista) pintarGrama(dados, (i % COLS) * T, Math.floor(i / COLS) * T, T, T, chao);
+            for (const i of lista) pintarGrama(dados, (i % COLS) * T, Math.floor(i / COLS) * T, T, T, chao, null, true);   // fase 104
             if (est === 'inverno' && p === 'town') for (const i of TELHADOS) nevarTelhado(dados, (i % COLS) * T, Math.floor(i / COLS) * T);
             g.putImageData(dados, 0, 0);
             novo[p] = c;
@@ -1516,6 +1517,140 @@
         ctx.fill();
         ctx.restore();
     }
+
+    /* ---------- Textura nova, nível 2: o chão ----------
+       A grama é pintada pixel a pixel: 4 tons misturados por manchas grandes e pequenas (com pontilhado nas
+       fronteiras), tufos com a ponta clara, campinhos de flores na primavera, capim seco no verão, folhas
+       caídas no outono e neve com sombras azuis no inverno. A terra (caminhos, galinheiro, feira) tem borda
+       orgânica: cantos arredondados, aro escuro, pedrinhas e a grama invadindo a beirada. */
+    const CHAO_TONS = {
+        primavera: ['#5d9b44', '#6eb04f', '#84c669', '#9ad57d'],
+        verao: ['#6e9c3b', '#80ae49', '#97c95c', '#add86f'],
+        outono: ['#878843', '#9a9c4d', '#adb35c', '#c2c56e'],
+        inverno: ['#c4d2e3', '#d8e3ef', '#ecf2f8', '#ffffff']
+    };
+    const FLORES_CHAO = { primavera: ['#ffffff', '#f7a9c4', '#fdd85d', '#a6c8ff', '#ffd1e1'], verao: ['#fdd85d', '#ffffff', '#f0a24a'], outono: [], inverno: [] };
+    // ruído suave (valor em grade, interpolado) para as manchas
+    function ruidoSuave(x, y, cel, s) {
+        const gx = Math.floor(x / cel), gy = Math.floor(y / cel), fx = x / cel - gx, fy = y / cel - gy;
+        const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+        const a = ruido(gx, gy, s), b = ruido(gx + 1, gy, s), c = ruido(gx, gy + 1, s), d = ruido(gx + 1, gy + 1, s);
+        return (a + (b - a) * sx) + ((c + (d - c) * sx) - (a + (b - a) * sx)) * sy;
+    }
+    function pintarChaoNovo(ctx, W, H, est, r) {
+        const tons = (CHAO_TONS[est] || CHAO_TONS.primavera).map((h) => [1, 3, 5].map((k) => parseInt(h.slice(k, k + 2), 16)));
+        const img = ctx.createImageData(W, H), d = img.data;
+        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+            const v = ruidoSuave(x, y, 46, 1) * 0.55 + ruidoSuave(x, y, 13, 2) * 0.3 + ruido(x, y, 3) * 0.15;
+            const t = tons[Math.max(0, Math.min(3, Math.floor(v * 4 + (BAYER[y & 1][x & 1] / 4 - 0.375) * 0.8)))];
+            const i = (y * W + x) * 4;
+            d[i] = t[0]; d[i + 1] = t[1]; d[i + 2] = t[2]; d[i + 3] = 255;
+        }
+        ctx.putImageData(img, 0, 0);
+        const px = (x, y, cor) => { ctx.fillStyle = cor; ctx.fillRect(Math.round(x), Math.round(y), 1, 1); };
+        const [escuro, medio, base, claro] = CHAO_TONS[est] || CHAO_TONS.primavera;
+        if (est === 'inverno') {
+            // neve: sombras azuis em ondas, brilhinhos e a ponta da grama aparecendo
+            for (let n = 0; n < (W * H) / 70; n++) {
+                const x = r() * W, y = r() * H, w = 3 + Math.floor(r() * 6);
+                ctx.fillStyle = '#b7c8dd'; ctx.fillRect(Math.round(x), Math.round(y), w, 1);
+                ctx.fillStyle = '#ffffff'; ctx.fillRect(Math.round(x) + 1, Math.round(y) - 1, w - 2, 1);
+            }
+            for (let n = 0; n < (W * H) / 260; n++) { const x = r() * W, y = r() * H; px(x, y, '#3e6c48'); px(x + 1, y - 1, '#56875a'); px(x + 2, y, '#3e6c48'); }
+            for (let n = 0; n < (W * H) / 120; n++) px(r() * W, r() * H, '#ffffff');
+        } else {
+            // tufos: um "v" de capim com a base escura e as pontas claras
+            for (let n = 0; n < (W * H) / 26; n++) {
+                const x = Math.floor(r() * W), y = Math.floor(r() * H), alto = r() < 0.4;
+                px(x, y, escuro); px(x - 1, y - 1, medio); px(x + 1, y - 1, medio);
+                if (alto) { px(x - 1, y - 2, claro); px(x + 1, y - 2, claro); px(x, y - 1, base); }
+                else { px(x - 1, y - 2, base); px(x + 1, y - 2, base); }
+            }
+            // capim seco (verão e outono)
+            if (est === 'verao' || est === 'outono') for (let n = 0; n < (W * H) / 140; n++) { const x = r() * W, y = r() * H; px(x, y, '#c9b65c'); px(x + 1, y - 1, '#e0cf7a'); }
+            // folhas caídas no outono: em montinhos
+            if (est === 'outono') {
+                const cores = ['#e38628', '#c34b35', '#fdbe53', '#aa2c23', '#b8643a'];
+                for (let m = 0; m < (W * H) / 1400; m++) {
+                    const cx = r() * W, cy = r() * H;
+                    for (let k = 0; k < 6 + r() * 10; k++) {
+                        const x = cx + (r() - 0.5) * 16, y = cy + (r() - 0.5) * 10, c = cores[Math.floor(r() * cores.length)];
+                        px(x, y, c); px(x + 1, y, c); px(x, y + 1, '#6b3a1c');
+                    }
+                }
+            }
+            // campinhos de flores: várias juntas da mesma cor, com a sombrinha embaixo
+            const flores = FLORES_CHAO[est] || [];
+            if (flores.length) for (let m = 0; m < (W * H) / (est === 'primavera' ? 900 : 2400); m++) {
+                const cx = r() * W, cy = r() * H, cor = flores[Math.floor(r() * flores.length)], n = 3 + Math.floor(r() * 6);
+                for (let k = 0; k < n; k++) {
+                    const x = Math.round(cx + (r() - 0.5) * 14), y = Math.round(cy + (r() - 0.5) * 9);
+                    px(x, y + 2, escuro);
+                    px(x, y - 1, cor); px(x - 1, y, cor); px(x + 1, y, cor); px(x, y + 1, cor);
+                    px(x, y, cor === '#fdd85d' ? '#e38628' : '#fdd85d');
+                }
+            }
+            // trevinhos e pedrinhas
+            for (let n = 0; n < (W * H) / 900; n++) { const x = r() * W, y = r() * H; px(x, y, '#a49a8a'); px(x + 1, y, '#c9c0b0'); px(x, y + 1, '#6f675c'); }
+        }
+    }
+
+    // a terra com borda orgânica: uma peça 16x16 para cada combinação de vizinhos (8 bits), guardada
+    const TERRA_NOVA = {};
+    const TONS_TERRA = ['#6e4630', '#8f6142', '#a97650', '#c08c60', '#d4a575'];
+    function terraNova(viz, est) {
+        const chave = est + viz;
+        if (TERRA_NOVA[chave]) return TERRA_NOVA[chave];
+        const tem = (b) => !!(viz & b), N = tem(1), S = tem(2), O = tem(4), L = tem(8), NO = tem(16), NE = tem(32), SO = tem(64), SE = tem(128);
+        const c = document.createElement('canvas'); c.width = T; c.height = T;
+        const g = c.getContext('2d'), img = g.createImageData(T, T), d = img.data;
+        const borda = 2, raio = 3;
+        // quanto falta para a borda (negativo: fora da terra)
+        const dentro = (x, y) => {
+            const jit = (ruido(x, y, 61 + viz) - 0.5) * 1.4;
+            let dist = 99;
+            if (!N) dist = Math.min(dist, y - borda + jit);
+            if (!S) dist = Math.min(dist, T - 1 - borda - y + jit);
+            if (!O) dist = Math.min(dist, x - borda + jit);
+            if (!L) dist = Math.min(dist, T - 1 - borda - x + jit);
+            // cantos de fora redondos
+            // (sx, sy: para que lado fica o canto; só vale do lado de fora do centro do arredondado)
+            const canto = (cx, cy, sx, sy, ok) => { if (ok && (x - cx) * sx > 0 && (y - cy) * sy > 0) dist = Math.min(dist, raio - Math.hypot(x - cx, y - cy) + jit); };
+            const a0 = borda + raio, a1 = T - 1 - borda - raio;
+            canto(a0, a0, -1, -1, !N && !O); canto(a1, a0, 1, -1, !N && !L);
+            canto(a0, a1, -1, 1, !S && !O); canto(a1, a1, 1, 1, !S && !L);
+            // cantos de dentro: um tufinho de grama no canto quando falta só o vizinho da diagonal
+            const dentroC = (cx, cy, ok) => { if (ok) dist = Math.min(dist, Math.hypot(x - cx, y - cy) - 2.2 + jit); };
+            dentroC(0, 0, N && O && !NO); dentroC(T - 1, 0, N && L && !NE); dentroC(0, T - 1, S && O && !SO); dentroC(T - 1, T - 1, S && L && !SE);
+            return dist;
+        };
+        const tons = TONS_TERRA.map((h) => [1, 3, 5].map((k) => parseInt(h.slice(k, k + 2), 16)));
+        const grama = (CHAO_TONS[est] || CHAO_TONS.primavera).map((h) => [1, 3, 5].map((k) => parseInt(h.slice(k, k + 2), 16)));
+        for (let y = 0; y < T; y++) for (let x = 0; x < T; x++) {
+            const k = dentro(x, y), i = (y * T + x) * 4;
+            let cor = null;
+            if (k >= 1) {
+                // a terra: tons em manchinhas, pedrinha clara com sombra, mais escura perto da borda
+                let v = 0.55 + (ruido(x >> 1, y >> 1, 71) - 0.5) * 0.5 + (ruido(x, y, 72) - 0.5) * 0.25 - (k < 2.2 ? 0.35 : 0);
+                let t = Math.max(1, Math.min(4, Math.floor(v * 4 + (BAYER[y & 1][x & 1] / 4 - 0.375) * 0.8)));
+                if (ruido(x, y, 73) < 0.035) t = 4;
+                cor = tons[t];
+                if (est === 'inverno' && ruido(x >> 1, y >> 1, 74) < 0.2) cor = ruido(x, y, 77) < 0.5 ? [236, 242, 248] : [255, 255, 255];   // floquinhos de neve   // neve por cima
+            } else if (k >= 0) {
+                cor = tons[0];   // o aro escuro da beirada
+            } else if (k > -1.6 && ruido(x, y, 75) < 0.55) {
+                cor = grama[ruido(x, y, 76) < 0.5 ? 0 : 1];   // a grama encostando (um pouco mais escura, na sombra)
+            }
+            if (!cor) continue;
+            d[i] = cor[0]; d[i + 1] = cor[1]; d[i + 2] = cor[2]; d[i + 3] = 255;
+        }
+        g.putImageData(img, 0, 0);
+        TERRA_NOVA[chave] = c;
+        return c;
+    }
+    // os 8 vizinhos de um quadrado de terra (igual(dx, dy) diz se o vizinho também é terra)
+    const vizinhosTerra = (igual) => (igual(0, -1) ? 1 : 0) | (igual(0, 1) ? 2 : 0) | (igual(-1, 0) ? 4 : 0) | (igual(1, 0) ? 8 : 0)
+        | (igual(-1, -1) ? 16 : 0) | (igual(1, -1) ? 32 : 0) | (igual(-1, 1) ? 64 : 0) | (igual(1, 1) ? 128 : 0);
 
     const CELEIRO = [
         [null, 82, null],
@@ -1810,54 +1945,17 @@
             const r = rng(20261007);
             const chao = CHAO[EST] || CHAO.primavera;
             prepararAtlasDaEstacao(EST);
-            f.fillStyle = chao.grama;
-            f.fillRect(0, 0, MW, MH);
+            // fase 104 (textura nova, nível 2): o chão pintado pixel a pixel
+            pintarChaoNovo(f, MW, MH, EST, r);
 
-            // manchas grandes e irregulares: grama aparecendo na neve, grama seca no verão,
-            // folhas amontoadas no outono, grama mais viçosa na primavera
-            const manchas = EST === 'inverno' ? 70 : EST === 'outono' ? 90 : 45;
-            for (let n = 0; n < manchas; n++) {
-                const cx = r() * MW, cy = r() * MH, raio = 3 + r() * (EST === 'inverno' ? 5 : 7);
-                f.fillStyle = EST === 'outono' && r() < 0.35 ? '#b8643a' : chao.mancha;
-                for (let yy = -raio; yy <= raio; yy++) {
-                    for (let xx = -raio; xx <= raio; xx++) {
-                        const d = Math.hypot(xx, yy * 1.3) / raio;
-                        if (d < 1 && r() > d * d * 0.9) f.fillRect(Math.round(cx + xx), Math.round(cy + yy), 1, 1);
-                    }
+            // terra batida do galinheiro (fase 104: a terra nova, com borda orgânica)
+            const g = MAPA.galinheiro, retTerra = (q0, x0, y0, w0, h0) => {
+                for (let yy = 0; yy < h0; yy++) for (let xx = 0; xx < w0; xx++) {
+                    const viz = vizinhosTerra((dx, dy) => xx + dx >= 0 && xx + dx < w0 && yy + dy >= 0 && yy + dy < h0);
+                    q0.drawImage(terraNova(viz, EST), wx(x0 + xx), wy(y0 + yy));
                 }
-            }
-            // sombrinhas azuladas na neve
-            if (EST === 'inverno') {
-                f.fillStyle = '#d6e2ee';
-                for (let n = 0; n < (MW * MH) / 90; n++) f.fillRect(Math.floor(r() * MW), Math.floor(r() * MH), 2 + Math.floor(r() * 3), 1);
-            }
-
-            // textura: tufos, pontinhos e flores (muitas na primavera, folhas no outono)
-            for (let n = 0; n < (MW * MH) / 60; n++) {
-                const x = Math.floor(r() * MW), y = Math.floor(r() * MH);
-                const v = r();
-                if (v < 0.5) {
-                    f.fillStyle = chao.tufo;
-                    f.fillRect(x, y, 1, 1); f.fillRect(x + 2, y, 1, 1); f.fillRect(x + 1, y + 1, 1, 1);
-                } else if (v < 0.5 + (EST === 'outono' ? 0.35 : 0.2)) {
-                    f.fillStyle = EST === 'outono' ? ['#e38628', '#c34b35', '#fdbe53', '#aa2c23'][Math.floor(r() * 4)] : chao.ponto;
-                    f.fillRect(x, y, 1, 1);
-                    if (EST === 'outono') f.fillRect(x + 1, y, 1, 1);   // folhinha deitada
-                } else if (r() < chao.flores * 3) {
-                    f.fillStyle = r() < 0.4 ? PAL.y : r() < 0.5 ? PAL.w : PAL.p;
-                    f.fillRect(x, y - 1, 1, 1); f.fillRect(x - 1, y, 3, 1); f.fillRect(x, y + 1, 1, 1);
-                    f.fillStyle = PAL.Y;
-                    f.fillRect(x, y, 1, 1);
-                }
-            }
-
-            // terra batida do galinheiro (bloco 3x3 do Tiny Town)
-            const g = MAPA.galinheiro;
-            for (let yy = 0; yy < g.h; yy++) {
-                for (let xx = 0; xx < g.w; xx++) {
-                    tile(f, tileTerra(yy > 0, yy < g.h - 1, xx > 0, xx < g.w - 1), wx(g.x + xx), wy(g.y + yy), false, 'town');
-                }
-            }
+            };
+            retTerra(f, g.x, g.y, g.w, g.h);
 
             desenharLitoral();   // fase 61: a areia da praia e o mar (a mata do terreno à venda vem por cima)
 
@@ -1920,11 +2018,7 @@
                 }
             }
             // o chão de terra batida da feira
-            for (let yy = 0; yy < FEIRA.h; yy++) {
-                for (let xx = 0; xx < FEIRA.w; xx++) {
-                    tile(f, tileTerra(yy > 0, yy < FEIRA.h - 1, xx > 0, xx < FEIRA.w - 1), wx(FEIRA.x + xx), wy(FEIRA.y + yy), false, 'town');
-                }
-            }
+            retTerra(f, FEIRA.x, FEIRA.y, FEIRA.w, FEIRA.h);
             const pe = (a) => (a.nova ? a.base : a.y + T);
             arvores.sort((a, b) => pe(a) - pe(b)).forEach((a) => {
                 if (a.nova) { sombraArvore(f, a.cx, a.base, a.nova.w); f.drawImage(a.nova.img, a.x, a.y); return; }
@@ -1934,15 +2028,16 @@
 
             // celeiro e casa
             const c = retCeleiro();
+            const chaoCeleiro = f.getImageData(c.x, c.y, c.w, c.h);   // fase 104: a grama nova de baixo dele
             CELEIRO.forEach((linha, yy) => linha.forEach((cel, xx) => {
                 if (cel == null) return;
                 (Array.isArray(cel) ? cel : [cel]).forEach((i) => tile(f, i, c.x + xx * T, c.y + yy * T));
             }));
             CASA.forEach((linha, yy) => linha.forEach((i, xx) => tile(f, i, wx(MAPA.casa.x + xx), wy(MAPA.casa.y + yy), false, 'town')));
-            // o celeiro é uma peça grande (3 x 6): a grama em volta é trocada a partir da borda dele todo
-            if (EST !== 'primavera') {
+            // o celeiro é uma peça grande (3 x 6): a grama em volta volta a ser a do fundo, a partir da borda dele todo
+            {
                 const dados = f.getImageData(c.x, c.y, c.w, c.h);
-                pintarGrama(dados, 0, 0, c.w, c.h, chao);
+                pintarGrama(dados, 0, 0, c.w, c.h, chao, chaoCeleiro);
                 if (EST === 'inverno') {   // telhado verde coberto de neve
                     const d = dados.data, neve = { '84c669': [238, 243, 248], '4e974c': [201, 214, 227], 'c6e58d': [255, 255, 255] };
                     for (let k = 0; k < d.length; k += 4) {
@@ -2660,9 +2755,12 @@
                     } else {
                         const temp = new Map(m); temp.set(tx + ',' + ty, tipo);
                         const sp = spritesDe(tipo, tx, ty, temp);
-                        if (sp.topo != null) tile(q, sp.topo, x, y - T, false, sp.p);
-                        if (sp.topo2 != null) tile(q, sp.topo2, x, y - 2 * T, false, sp.p);
-                        tile(q, sp.i, x, y, false, sp.p);
+                        if (tipo === 'caminho_terra') q.drawImage(terraNova(vizinhosTerra((dx, dy) => temp.get((tx + dx) + ',' + (ty + dy)) === 'caminho_terra'), EST), x, y);   // fase 104
+                        else {
+                            if (sp.topo != null) tile(q, sp.topo, x, y - T, false, sp.p);
+                            if (sp.topo2 != null) tile(q, sp.topo2, x, y - 2 * T, false, sp.p);
+                            tile(q, sp.i, x, y, false, sp.p);
+                        }
                     }
                     q.globalAlpha = 1;
                 }
@@ -2727,7 +2825,8 @@
                 const s = spritesDe(c.tipo, c.x, c.y, m);
                 if (s.cercado) { desenharCercado(c, s, tempo); continue; }
                 if (s.cano) { desenharCano(c, tempo); continue; }
-                if (s.chao) tile(q, s.i, wx(c.x), wy(c.y), false, s.p);   // caminho/flores: chão
+                if (s.chao && c.tipo === 'caminho_terra') q.drawImage(terraNova(vizinhosTerra((dx, dy) => m.get((c.x + dx) + ',' + (c.y + dy)) === 'caminho_terra'), EST), wx(c.x), wy(c.y));   // fase 104
+                else if (s.chao) tile(q, s.i, wx(c.x), wy(c.y), false, s.p);   // caminho/flores: chão
                 else if (s.grade) pe.push({ ...s, x: wx(c.x), y: wy(c.y + s.h - 1), gy: wy(c.y), flip: false, bob: 0 });
                 else pe.push({ ...s, ...(c.sobrecarga_em && s.topo != null ? { topo: 1023 } : null),   // fase 77: em sobrecarga, a hélice para
                     x: wx(c.x), y: wy(c.y), flip: false, bob: ANIMA[c.tipo] === 'robo' && Math.floor((tempo + c.x * 97) / 380) % 2 ? -1 : 0 });
@@ -3913,6 +4012,7 @@
 
     window.FazendaArte = {
         mataNova,   // fase 103: as árvores novas (para a prévia)
+        terraNova,   // fase 104: a terra nova (para a prévia)
         faseDoDia,
         CERCADOS,
         htmlAvatar,
