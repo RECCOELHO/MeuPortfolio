@@ -814,9 +814,9 @@
         if (!AVATAR_TIPOS[cfg.tipo]) cfg = { tipo: 'fazendeiro', pele: typeof cfg.chapeu === 'string' ? cfg.pele | 0 : 0 };
         return cfg;
     }
-    /* ---- os bichos: a vaca e o porco são os da imagem de referência do Jessé (pixel por pixel; o porco virado
-       para a direita, como todos); búfala e cabra saem da vaca e a ovelha sai do porco, com as cores e os
-       detalhes de cada um. Contorno preto, cores chapadas com um tom de sombra. O segundo quadro de andar
+    /* ---- os bichos: a vaca, o porco e a búfala são os das imagens de referência do Jessé (pixel por pixel; o
+       porco e a búfala virados para a direita, como todos); a cabra sai da vaca e a ovelha sai do porco, com
+       as cores e os detalhes de cada um. Contorno preto, cores chapadas com um tom de sombra. O segundo quadro de andar
        levanta uma perna sim, outra não. ---- */
     const BICHO_PIXELS = {
         vaca: [
@@ -827,6 +827,15 @@
             '..o.okkwwwwwkwwwwwkkkwwwgggoo......', '.oo.okkwwwwwwwwwwwkkwwwwwggo.......', '.oo..okwwwoggwwwwwwwwwwwggoo.......', 'oo...owwwwoggggggoggggoggogo.......',
             'oo..ogwwwoPooogggoggggogoggo.......', '....ogwwoPppppooooggggoogggo.......', '...oggwooPoopo....gggo.oggo........', '....ogwo.oogoo....oggo.oggo........',
             '....ogwo..oggo....oggo.oggo........', '....ogwo..oggo....oggo.oggo........', '.....ooo...ooo.....ooo..ooo........', '.....ooo...oo......ooo..ooo........'],
+        bufalo: [
+            '........................ooooooo.................', '......................oollllllloo...............', '.....................olbboobllllloo.........oo..', '....................olbbohhobblllllo.......ohho.',
+            '..................oolbbohhobbbblllllo.......ohho', '.................olbbbbohhooooooooooooooooooohho', '.......oooooooooolbbbbboHhhhhhholllllllllohhhhHo', '.....oolbbbbbbbbbbbbbbbboHHHHHolbbbbbbbbbloHHHo.',
+            '....olbbbbbbbbbbbbbbbbbbboooooobbbbbbbbbbblooo..', '....obbbbbbbbbbbbbbbbbbbbbbodolbbbbbbbbbbbboo...', '....obbbdbbbbbbbbbbbbbbbbbolbobbbbbbbbbbbbbodo..', '..oolbbbbbbbbbbbbbbbbdbbbolbbobbbbbbbbbbbbboblo.',
+            '...obbbbbbbbbbbbbbbbbbbbbboooobbbbbbobbobbbooo..', '...obbbbbbbbbbbbbbbbbbbbbbdddodbbbbbobbobbbo....', '...obbbbbbbbbbbbbbbbbbbbbbbddoddbbbllbbllbdo....', '.ooobbbbbbbbbbbbbbbbbbbbbbbbddoddbbbbbbbbbo.....',
+            '.o.obbbbbbbbbbbbbbbbbbbbbbbbddoddbbbbbbbbbo.....', '.o.obbbbbbbbbbbbbbbbbbbbbbbbdddodddbbbbbbbo.....', 'o..obbbbbbbbbbbbbbbbbbbbbbbbbddodddoooooodo.....', 'o..obbbdbbbbbbbbbbbbbbbbbbbbbddodoohhhhhhoo.....',
+            'o..obdbbbbbbbbbbbbbbbbbbbbbbbdddohhhohhhoho.....', '.o.obbbbbbbdddddbbbbbbbbbbbbddddohhhhhhhhho.....', '.o.obbbbbbddddddddbbbbbbbbbdddddooohhhhhho......', '...obbbbddddddddddddbbbbbbbddddo.b.oooooo.......',
+            '...obbbddoooooooooodddbbbbddddo.................', '..odbbdooddddoo....ooddbbdddooo.................', '..odbdoodddbo........oddbdooddo.................', '..odbo.oddbo..........odbo.odbo.................',
+            '..odbo.odbo...........odbo.odbo.................', '..odbo.odbo...........odbo.odbo.................', '..oooo.oooo...........oooo.oooo.................', '..ooHo.ooHo...........ooHo.ooHo.................'],
         porco: [
             '..............ooo......ooo.', '.............orrrooooooorro', '.o....oooooooorrorrrrrrroro', 'or..oorrrrrrroroRrrrrrrrroo',
             'oRooRrrrrrrrrRoRrrrrrrrrro.', '.oRRrrrrrrrrrrrrrrorrrrroo.', '..orrrrrrrrrrrrrrrorrRRRRo.', '..orrrrrrrrrrrrrrrrrRrrrrro',
@@ -836,20 +845,16 @@
     };
     const BICHO_CORES = {
         vaca: { o: '#010101', k: '#323232', g: '#b4b4b4', w: '#ffffff', p: '#e99d96', P: '#d18785', h: '#c3aa8d' },
-        bufala: { o: '#010101', k: '#2a2630', g: '#3a3542', w: '#5a5464', p: '#6e6878', P: '#5a5464', h: '#e2d8c4' },
+        bufala: { o: '#211811', b: '#b75f15', l: '#d77e06', d: '#944115', h: '#cbc0ac', H: '#968c7d' },
         cabra: { o: '#010101', k: '#a8743e', g: '#b88a58', w: '#dcb07a', p: '#efd2b0', P: '#d2aa80', h: '#4a3a2a', b: '#fbf3e2' },
         porco: { o: '#010101', r: '#ed9fa2', R: '#d76e73', n: '#813d42' },
         ovelha: { o: '#010101', r: '#f7f5fa', R: '#cfcbd8', n: '#1c1820', f: '#4a4452', F: '#34303c', e: '#ffffff' }
     };
-    const PERNAS_DE = { vaca: 21, bufala: 21, cabra: 21, porco: 16, ovelha: 16 };   // de que linha para baixo são as pernas
+    const PERNAS_DE = { vaca: 23, bufala: 27, cabra: 23, porco: 16, ovelha: 16 };   // de que linha para baixo são as pernas
     function bichoPixels(tipo) {
-        const base = tipo === 'bufala' || tipo === 'cabra' ? 'vaca' : tipo === 'ovelha' ? 'porco' : tipo;
+        const base = tipo === 'bufala' ? 'bufalo' : tipo === 'cabra' ? 'vaca' : tipo === 'ovelha' ? 'porco' : tipo;
         const L = BICHO_PIXELS[base].map((l) => [...l]);
         const P = (x, y, c) => { if (L[y] && x >= 0 && x < L[y].length) L[y][x] = c; };
-        if (tipo === 'bufala') {   // os chifres grandes, curvados para trás
-            for (const [x, y] of [[21, 1], [20, 0], [19, 0], [18, 1], [28, 1], [29, 0], [30, 0], [31, 1]]) P(x, y, 'h');
-            for (const [x, y] of [[21, 0], [18, 0], [17, 1], [17, 2], [29, 1], [30, 1], [32, 1], [32, 2], [27, 0], [22, 0]]) P(x, y, 'o');
-        }
         if (tipo === 'cabra') {   // sem úbere, a barbicha e os chifres mais compridos
             for (let y = 18; y < L.length; y++) for (let x = 0; x < 16; x++) if (L[y][x] === 'p' || L[y][x] === 'P') L[y][x] = 'g';
             for (const [x, y] of [[29, 16], [30, 16], [29, 17], [30, 17], [30, 18]]) P(x, y, 'b');
