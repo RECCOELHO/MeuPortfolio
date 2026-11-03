@@ -1531,7 +1531,7 @@
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
         { id: '2026-11-04-bichos-chico', data: '04/11', titulo: 'Bichos novos, o Velho Chico mais valioso e a beleza até 70%', itens: [
-            'Os <b>bichos foram redesenhados</b> de novo: vaca, búfala, porco, ovelha, cabra, galinha, pato e coelho de lado, com contorno fininho, as manchas da vaca, o focinho rosa e as patinhas andando.',
+            'Os <b>bichos foram redesenhados</b>: a vaca malhada e o porquinho rosa novos, e a búfala, a cabra e a ovelha no mesmo traço (contorno preto, cores chapadas e as patinhas andando).',
             'O <b>Peixe do Velho Chico</b> vale mais a cada nível: 2.500 até o nível 10 e <b>+6,2% a cada nível</b>, até <b>50 mil no nível 60</b>.',
             'A <b>beleza da fazenda</b> volta a dar até <b>70% de bônus nas vendas</b> para todo mundo: +1% a cada 5 de beleza (o caixote dá +10 por fora).',
             'A pescaria do alto-mar ficou sem a barra: quando a boia afundar, é só tocar na hora para fisgar.'] },
