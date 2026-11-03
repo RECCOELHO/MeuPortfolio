@@ -1436,6 +1436,9 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-11-03-chao', data: '03/11', titulo: 'O chão novo', itens: [
+            'O <b>chão</b> da fazenda ganhou textura nova em pixel art: vários tons de grama, tufos com a ponta clara, campinhos de flores na primavera, capim seco no verão, folhas caídas no outono e neve com sombras no inverno.',
+            'Os <b>caminhos de terra</b> agora têm borda arredondada, com a grama invadindo a beirada e pedrinhas no meio. O galinheiro e a feira também.'] },
         { id: '2026-11-03-gerente', data: '03/11', titulo: 'Modo gerente e a mata nova', itens: [
             'Novo <b>Modo gerente</b> (no menu): todos os seus canteiros numa grade, cada um com a <b>barra de progresso</b> e o tempo que falta. Filtre os prontos, os que estão crescendo e os que precisam de você, e colha, cuide, are ou plante em lote dali mesmo.',
             'Toque num canteiro da grade e a câmera vai até ele.',
