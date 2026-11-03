@@ -2727,7 +2727,7 @@
                 if (padrao) padrao.forEach((lin, y) => [...lin].forEach((c, x) => R(p.x + 1 + x, p.y - 8 + y, 1, 1, PAL_BAND[c] || '#fff')));
                 else { R(p.x + 1, p.y - 8, 6, 3, '#d9452f'); R(p.x + 7, p.y - 8, 2, 1, '#d9452f'); R(p.x + 7, p.y - 6, 2, 1, '#d9452f'); R(p.x + 1, p.y - 8, 6, 1, '#f07a5a'); }
             }
-            cv.ml = ML; cv.agua = H - 7; cv.casco = { x0, x1, fundo };
+            cv.ml = ML; cv.agua = H - 7; cv.casco = { x0, x1, fundo }; cv.conves = Math.round(cy);
             if (cacheNavio.size > 12) cacheNavio.clear();
             cacheNavio.set(chave, cv);
             return cv;

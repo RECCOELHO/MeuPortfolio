@@ -1516,6 +1516,10 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-11-03-pesca', data: '03/11', titulo: 'Pescaria nova no alto-mar', itens: [
+            'Agora a pescaria é uma <b>briga com o peixe</b>: quando a boia afundar, toque para fisgar e aparece a barra. <b>Segure (ou toque no ritmo)</b> para subir a zona verde e mantenha o peixe dentro dela até encher a barra de captura. Peixe grande foge mais rápido; vara melhor dá zona maior.',
+            'O <b>peixe do mar vale no mínimo 5 mil</b>: sardinha 5.000, cavala 5.600, robalo 6.200, garoupa 7.000, dourado 8.000 e atum 9.500. Os pratos de peixe das oficinas valem o triplo dos ingredientes (sardinha em lata 60.780, sashimi 28.542 e caldeirada 39.690).',
+            'No mar você pesca da popa do seu <b>navio novo</b> (o mesmo do píer). A forja agora faz cravos com 4 toras + 2 óleos.'] },
         { id: '2026-11-03-oficinas-jeito', data: '03/11', titulo: 'Oficinas com cara do que fazem, oficina dupla e janelas acesas', itens: [
             'Cada oficina mostra o que fabrica: a padaria tem forno de barro aceso, a forja tem bigorna e fogo, a adega tem barris e parreira, a queijaria tem as rodas de queijo, a peixaria tem peixe no varal, a tecelagem tem rolos de pano, a cafeteria tem sacos de café, e por aí vai.',
             '<b>Duas oficinas iguais lado a lado</b> (na mesma fileira, encostadas) viram <b>uma oficina dupla</b>: maior, com frontão, placa grande, portão duplo e quatro janelas. Cada uma continua funcionando do mesmo jeito.',
@@ -2335,6 +2339,7 @@
             avatar: () => S && S.jogador.avatar,
             sprite: (id) => A.cultura(id).item,
             pecas: pecasMar,   // fase 65: as peças aparecem no barco
+            navio: (info) => (cena.navioCanvas ? cena.navioCanvas(info) : null),   // fase 105: o navio desenhado também no mar
             cardume: cardumeMar,
             cesto: cestoMar,
             proximo: () => fmtTempo(cardumeMar().proximo),
@@ -5376,7 +5381,8 @@
             corpo.innerHTML = htmlMarMelhorias();
             const cv = corpo.querySelector('[data-barco-previa]');   // fase 65: a prévia da pintura
             if (cv && window.FazendaMar && window.FazendaMar.previa) {
-                window.FazendaMar.previa(cv, { nivel: (S.mar && S.mar.barco && S.mar.barco.valor) || 1, visual: pinturaBarco || visualBarco(), pecas: pecasMar() });
+                window.FazendaMar.previa(cv, { nivel: (S.mar && S.mar.barco && S.mar.barco.valor) || 1, visual: pinturaBarco || visualBarco(), pecas: pecasMar(),
+                    navio: cena.navioCanvas ? (info) => cena.navioCanvas(info) : null });   // fase 105: a prévia com o navio
             }
         } else if (nome === 'ajudante') {   // fase 59
             const t = tipoAjudante(ajudanteAberto), h = meuAjudante(ajudanteAberto);
