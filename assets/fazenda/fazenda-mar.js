@@ -391,6 +391,7 @@
                 if (b.matches('[data-mar-sair]')) op.sair();
                 else if (b.matches('[data-mar-melhorar]')) op.melhorar();
                 else if (b.matches('[data-mar-recolher]')) op.recolher();
+                else if (b.matches('[data-mar-zarpar]') && op.zarpar) op.zarpar();   // fase 106: a ilha
                 return;
             }
         });

@@ -984,14 +984,14 @@ begin
   n := 10 + floor(ln(1 + (p_xp - 2025) * 0.22 / 700) / ln(1.22))::int;
   while fazenda_xp_nivel(n + 1) <= p_xp loop n := n + 1; end loop;    -- acerta o arredondamento
   while n > 10 and fazenda_xp_nivel(n) > p_xp loop n := n - 1; end loop;
-  return least(n, 45);   -- fase 70: o 45 é o último (passava para 46, 47... e o presente continuava)
+  return least(n, 60);   -- fase 106: o 60 é o último (fase 70: era o 45; passava para 46, 47... e o presente continuava)
 end;
 $$;
 
 -- fase 90: o nível de verdade: o do XP, mas só passa do nível N quem tem tudo o que conta dos níveis até N
 create or replace function public.fazenda_nivel_de(p_xp int, p_trava int)
 returns int language sql immutable as $$
-  select least(fazenda_nivel(p_xp), coalesce(p_trava, 45));
+  select least(fazenda_nivel(p_xp), coalesce(p_trava, 60));   -- fase 106: até o 60
 $$;
 
 -- Quem já jogava na curva antiga continua no mesmo nível e com a barra cheia na mesma
@@ -1518,7 +1518,7 @@ begin
   -- fase 49: as metas de nível; com todas em dia, o bônus de XP vale neste nível (só grava se mudou)
   v_metas := fazenda_metas(p_jogador, v_nivel);
   -- (fase 62: até o 44; era até o 29, quando o 30 era o último nível)
-  v_bonus := case when v_nivel < 45 and not exists (select 1 from jsonb_array_elements(v_metas) m where not (m->>'feito')::boolean)
+  v_bonus := case when v_nivel < 60 and not exists (select 1 from jsonb_array_elements(v_metas) m where not (m->>'feito')::boolean)
                   then v_nivel end;
   if v_bonus is distinct from j.bonus_nivel then
     update fazenda_jogadores set bonus_nivel = v_bonus where id = p_jogador;
@@ -1569,7 +1569,11 @@ begin
       'zonas', j.zonas,
       'direita', j.direita,   -- fase 78: os terrenos da direita
       'beleza', fazenda_beleza(p_jogador),
-      'bonus_venda', fazenda_bonus_venda(p_jogador)
+      'bonus_venda', fazenda_bonus_venda(p_jogador),
+      -- fase 106: a ilha (pode zarpar? quantas obras; do 45 em diante, a lista; o baú de hoje já foi aberto?)
+      'ilha', jsonb_build_object('obras', coalesce(j.ilha_obras, 0), 'pode_ir', fazenda_ilha_pode(p_jogador, v_nivel),
+                                 'bau_hoje', j.ilha_bau_dia = fazenda_hoje(),
+                                 'partes', case when v_nivel >= 45 then fazenda_ilha_obras() end)
     ),
     'zonas_venda', case when not v_omite then fazenda_zonas() end,
     'pacotes_diamantes', fazenda_pacotes_diamantes(),
@@ -5742,7 +5746,7 @@ begin
     if j.diamantes < v_preco then raise exception 'diamantes_insuficientes'; end if;
     if fazenda_diamantes_hoje(v_id, 'xp') >= (v_loja->>'por_dia')::int then raise exception 'limite_diario'; end if;
     v_nivel := fazenda_nivel_de(j.xp, j.nivel_trava);
-    if v_nivel >= 45 then raise exception 'xp_maximo'; end if;   -- fase 62: o último nível agora é o 45
+    if v_nivel >= 60 then raise exception 'xp_maximo'; end if;   -- fase 106: o último nível agora é o 60 (fase 62: 45)
     v_xp := ceil((fazenda_xp_nivel(v_nivel + 1) - fazenda_xp_nivel(v_nivel)) * (v_loja->>'pct')::int / 100.0)::int;
     perform set_config('fazenda.xp_puro', '1', true);
     perform set_config('fazenda.xp_pago', '1', true);   -- fase 70: não conta no evento
@@ -6350,7 +6354,7 @@ returns jsonb language sql immutable as $$
            {"id":"rede","nome":"Rede de arrasto","mar":true,"peca":true,"descricao":"Para o marinheiro: ele pesca mais rápido (e o cesto continua guardando 8 horas).",
             "niveis":[{"nivel":37,"custo":600000,"valor":0.15,"nome":"Rede de arrasto","itens":{"corda_naval":2,"tabua_naval":5}},
                       {"nivel":43,"custo":2400000,"valor":0.3,"nome":"Rede dupla","itens":{"corda_naval":3,"ancora":1,"vela":1}}]},
-           {"id":"expedicao","nome":"Kit de expedição","mar":true,"peca":true,"descricao":"Bússola, cartas náuticas e tanque extra: deixa o navio oceânico pronto para zarpar para as ilhas (nível 46, na próxima expansão).",
+           {"id":"expedicao","nome":"Kit de expedição","mar":true,"peca":true,"descricao":"Bússola, cartas náuticas e tanque extra: deixa o navio oceânico pronto para zarpar para a Ilha da Caveira Dourada (nível 46).",
             "niveis":[{"nivel":45,"custo":6000000,"valor":1,"nome":"Kit de expedição","itens":{"perola_negra":3,"marlim":2,"ancora":2,"carta_nautica":4,"vela":2}}]},
            {"id":"turno","nome":"Turno de 12 horas","diamante":true,"descricao":"Os ajudantes trabalham 12 horas com a barra de energia cheia (eram 8) e guardam até 12 horas de trabalho com a fazenda fechada.",
             "niveis":[{"nivel":5,"custo":0,"diamantes":150,"valor":12,"texto":"12 h de trabalho"}]},
@@ -7921,7 +7925,7 @@ declare
   v_xp    int;
 begin
   select fazenda_nivel_de(xp, nivel_trava) into v_nivel from fazenda_jogadores where id = p_jogador;
-  if v_tipo in ('xp', 'xp2') and v_nivel >= 45 then v_tipo := 'moedas'; v_qtd := 50; end if;   -- no último nível, XP não serve
+  if v_tipo in ('xp', 'xp2') and v_nivel >= 60 then v_tipo := 'moedas'; v_qtd := 50; end if;   -- no último nível (fase 106: o 60), XP não serve
   if v_tipo = 'cafe' and not exists (select 1 from fazenda_ajudantes where jogador_id = p_jogador) then v_tipo := 'moedas'; v_qtd := 20; end if;
   -- fase 84: o café e o XP em dobro viram vale (o jogador liga quando quiser); {"usar": true} liga na hora
   if v_tipo in ('cafe', 'xp2') and not coalesce((p->>'usar')::boolean, false) then
@@ -9367,8 +9371,8 @@ create or replace function public.fazenda_nivel_trava(p_jogador uuid)
 returns int language plpgsql stable security definer set search_path = public as $$
 begin
   return coalesce((select min(i.nivel_min) from fazenda_itens i
-                    where fazenda_conta_nivel(i.categoria, i.id) and i.nivel_min < 45
-                      and not exists (select 1 from fazenda_construcoes c where c.jogador_id = p_jogador and c.tipo = i.id)), 45);
+                    where fazenda_conta_nivel(i.categoria, i.id) and i.nivel_min < 60   -- fase 106: até o 60
+                      and not exists (select 1 from fazenda_construcoes c where c.jogador_id = p_jogador and c.tipo = i.id)), 60);
 end;
 $$;
 
@@ -10838,3 +10842,157 @@ update public.fazenda_itens set entradas = '{"tora": 4, "oleo": 2}'::jsonb,
  where id = 'forja';
 
 select public.fazenda_cache_montar();
+
+-- ------------------------------------------------------------
+-- Fase 106: zarpar no 46. Do nível 45 ao 60, a Ilha da Caveira Dourada.
+-- • O último nível passa do 45 para o 60 (fazenda_nivel, fazenda_nivel_de, a trava, o XP por diamante, o
+--   calendário e o bônus das metas). Quem já tinha XP de sobra no 45 fica no começo do 46 (uma vez só).
+-- • Com o nível 46 e o kit de expedição (que pede o navio oceânico), o navio zarpa para a ilha.
+-- • As 15 obras da ilha, uma por nível do 46 ao 60, na ordem (fazenda_ilha_obras): cada uma pede moedas,
+--   tábuas, cravos, velas, cartas náuticas e alguns raros, e dá 8% do XP do nível dela. A última dá a
+--   conquista "Ilha da Caveira Dourada".
+-- • O baú enterrado: com o cais pronto, 1 por dia na praia da ilha (moedas; às vezes diamantes ou um raro).
+-- • Conquistas dos níveis 50, 55 e 60.
+-- Pode rodar este arquivo de novo.
+-- ------------------------------------------------------------
+alter table public.fazenda_jogadores add column if not exists ilha_obras smallint not null default 0;
+alter table public.fazenda_jogadores add column if not exists ilha_bau_dia date;
+
+create or replace function public.fazenda_ilha_obras()
+returns jsonb language sql immutable as $$
+  select '[
+    {"n": 1,  "id": "cais",       "nivel": 46, "nome": "Cais de madeira",      "moedas": 400000,  "itens": {"tora": 12, "madeira_nobre": 1},       "descricao": "Onde o navio atraca. Com ele pronto, dá para cavar o baú da praia."},
+    {"n": 2,  "id": "trapiche",   "nivel": 47, "nome": "Trapiche",             "moedas": 500000,  "itens": {"tabua_naval": 20},                    "descricao": "A passarela do cais até a areia."},
+    {"n": 3,  "id": "armazem",    "nivel": 48, "nome": "Armazém do porto",     "moedas": 600000,  "itens": {"tabua_naval": 30, "tora": 10},         "descricao": "Para guardar a carga do navio."},
+    {"n": 4,  "id": "muralha",    "nivel": 49, "nome": "Muralha de pedra",     "moedas": 700000,  "itens": {"tabua_naval": 20, "pedra_cantaria": 1}, "descricao": "Segura o mar nos dias de ressaca."},
+    {"n": 5,  "id": "taverna",    "nivel": 50, "nome": "Taverna",              "moedas": 800000,  "itens": {"tabua_naval": 30, "cravo": 20},        "descricao": "Onde os marujos contam as histórias da ilha."},
+    {"n": 6,  "id": "portao",     "nivel": 51, "nome": "Portão de ferro",      "moedas": 900000,  "itens": {"cravo": 20, "ferro_forjado": 1},      "descricao": "A entrada do porto."},
+    {"n": 7,  "id": "farol",      "nivel": 52, "nome": "Farol",                "moedas": 1000000, "itens": {"leme_dourado": 1, "tabua_naval": 15},  "descricao": "Com o espelho dourado que guia os navios de noite."},
+    {"n": 8,  "id": "vigia",      "nivel": 53, "nome": "Cabana do vigia",      "moedas": 1100000, "itens": {"tora": 20, "cravo": 20},               "descricao": "Lá de cima dá para ver o mar todo."},
+    {"n": 9,  "id": "mercado",    "nivel": 54, "nome": "Mercado pirata",       "moedas": 1200000, "itens": {"corda_naval": 2, "vela": 2},          "descricao": "As barracas de lona da praça."},
+    {"n": 10, "id": "toldo",      "nivel": 55, "nome": "Toldo da praça",       "moedas": 1400000, "itens": {"vela": 6},                            "descricao": "Sombra feita de velas velhas."},
+    {"n": 11, "id": "ancora",     "nivel": 56, "nome": "Âncora gigante",       "moedas": 1600000, "itens": {"ancora": 1, "cravo": 30},             "descricao": "O enfeite da praça, de um navio afundado."},
+    {"n": 12, "id": "canhoes",    "nivel": 57, "nome": "Canhões de festa",     "moedas": 1800000, "itens": {"cravo": 40, "carta_nautica": 1},      "descricao": "Três canhões que só soltam confete."},
+    {"n": 13, "id": "sereia",     "nivel": 58, "nome": "Estátua da sereia",    "moedas": 2000000, "itens": {"perola_negra": 1, "tabua_naval": 20}, "descricao": "Dourada, com olhos de pérola."},
+    {"n": 14, "id": "cartografo", "nivel": 59, "nome": "Casa do cartógrafo",   "moedas": 2200000, "itens": {"carta_nautica": 5, "tabua_naval": 20},"descricao": "Com os mapas das próximas ilhas."},
+    {"n": 15, "id": "bandeira",   "nivel": 60, "nome": "Bandeira no morro",    "moedas": 2500000, "itens": {"carta_nautica": 4, "vela": 4},        "descricao": "A ilha é sua: a bandeira no alto do morro."}
+  ]'::jsonb;
+$$;
+
+-- pode zarpar: nível 46 e o kit de expedição
+create or replace function public.fazenda_ilha_pode(p_jogador uuid, p_nivel int)
+returns boolean language sql stable security definer set search_path = public as $$
+  select p_nivel >= 46 and coalesce((select nivel from fazenda_melhorias where jogador_id = p_jogador and id = 'expedicao'), 0) >= 1;
+$$;
+
+-- constrói a próxima obra (p_obra é o id dela: tocar duas vezes não constrói duas)
+create or replace function public.fazenda_ilha_construir(p_token text, p_obra text)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id    uuid := fazenda_auth(p_token);
+  j       record;
+  c       record;
+  v_p     jsonb;
+  k       text;
+  v_n     int;
+  v_nivel int;
+  v_xp    int;
+begin
+  select * into j from fazenda_jogadores where id = v_id for update;
+  v_nivel := fazenda_nivel_de(j.xp, j.nivel_trava);
+  if not fazenda_ilha_pode(v_id, v_nivel) then raise exception 'ilha_fechada'; end if;
+  v_n := coalesce(j.ilha_obras, 0) + 1;
+  select p into v_p from jsonb_array_elements(fazenda_ilha_obras()) p where (p->>'n')::int = v_n;
+  if v_p is null then raise exception 'ilha_pronta'; end if;
+  if v_p->>'id' is distinct from p_obra then raise exception 'ilha_ordem'; end if;
+  if v_nivel < (v_p->>'nivel')::int then raise exception 'nivel_insuficiente'; end if;
+  if j.moedas < (v_p->>'moedas')::int then raise exception 'moedas_insuficientes'; end if;
+  for k in select jsonb_object_keys(v_p->'itens') loop   -- só o que está livre (a reserva fica)
+    if coalesce((select quantidade from fazenda_celeiro where jogador_id = v_id and item = k), 0)
+       - coalesce((select quantidade from fazenda_reservas where jogador_id = v_id and item = k), 0) < (v_p->'itens'->>k)::int then
+      raise exception 'faltam_materiais';
+    end if;
+  end loop;
+  for k in select jsonb_object_keys(v_p->'itens') loop
+    update fazenda_celeiro set quantidade = quantidade - (v_p->'itens'->>k)::int,
+                               da_feira = least(da_feira, quantidade - (v_p->'itens'->>k)::int)
+     where jogador_id = v_id and item = k;
+  end loop;
+  v_xp := round((fazenda_xp_nivel((v_p->>'nivel')::int + 1) - fazenda_xp_nivel((v_p->>'nivel')::int)) * 0.08)::int;
+  perform set_config('fazenda.xp_puro', '1', true);
+  update fazenda_jogadores set moedas = moedas - (v_p->>'moedas')::int, ilha_obras = v_n, xp = xp + v_xp where id = v_id;
+  perform set_config('fazenda.xp_puro', '', true);
+  if v_n = jsonb_array_length(fazenda_ilha_obras()) then
+    select * into c from fazenda_conquistas_tipos where id = 'ilha_pronta';
+    insert into fazenda_conquistas (jogador_id, conquista) values (v_id, 'ilha_pronta') on conflict do nothing;
+    if found and c.id is not null then
+      update fazenda_jogadores set moedas = least(2147483647, moedas::bigint + c.recompensa)::int, diamantes = diamantes + c.diamantes
+       where id = v_id;
+    end if;
+  end if;
+  return jsonb_build_object('obra', v_p, 'xp', v_xp, 'estado', fazenda_estado(v_id));
+end;
+$$;
+
+-- o baú enterrado da praia: 1 por dia, com o cais pronto. Moedas (de 41 a 95 mil no 46; de 108 a 252 mil no 60);
+-- 1 em 4 vem com diamantes (5 a 15); 1 em 12 com um raro do píer
+create or replace function public.fazenda_ilha_bau(p_token text)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id    uuid := fazenda_auth(p_token);
+  j       record;
+  v_nivel int;
+  v_moeda int;
+  v_diam  int := 0;
+  v_raro  text;
+begin
+  select * into j from fazenda_jogadores where id = v_id for update;
+  v_nivel := fazenda_nivel_de(j.xp, j.nivel_trava);
+  if not fazenda_ilha_pode(v_id, v_nivel) then raise exception 'ilha_fechada'; end if;
+  if coalesce(j.ilha_obras, 0) < 1 then raise exception 'ilha_sem_cais'; end if;
+  if j.ilha_bau_dia = fazenda_hoje() then raise exception 'ilha_bau_hoje'; end if;
+  v_moeda := round((60000 + (v_nivel - 45) * 8000) * (0.6 + random() * 0.8))::int;
+  if random() < 0.25 then v_diam := 5 + floor(random() * 11)::int; end if;
+  if random() < 1.0 / 12 then
+    v_raro := (array['madeira_nobre', 'corda_naval', 'pedra_cantaria', 'ferro_forjado', 'perola_negra'])[1 + floor(random() * 5)::int];
+    insert into fazenda_celeiro (jogador_id, item, quantidade) values (v_id, v_raro, 1)
+    on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + 1;
+  end if;
+  update fazenda_jogadores set moedas = least(2147483647, moedas::bigint + v_moeda)::int, diamantes = diamantes + v_diam,
+         moedas_ganhas = moedas_ganhas - v_moeda,   -- (o baú não conta no evento das moedas)
+         ilha_bau_dia = fazenda_hoje()
+   where id = v_id;
+  return jsonb_build_object('moedas', v_moeda, 'diamantes', v_diam, 'raro', v_raro, 'estado', fazenda_estado(v_id));
+end;
+$$;
+
+insert into public.fazenda_conquistas_tipos (id, nome, descricao, medida, meta, recompensa, ordem) values
+  ('nivel_50',    'Mestre do mar',               'Chegue ao nível 50',                         'nivel', 50, 150000, 35),
+  ('nivel_55',    'Pirata de respeito',          'Chegue ao nível 55',                         'nivel', 55, 200000, 36),
+  ('nivel_60',    'Lenda dos sete mares',        'Chegue ao nível 60',                         'nivel', 60, 300000, 37),
+  ('ilha_pronta', 'Ilha da Caveira Dourada',     'Termine as 15 obras da ilha',                'ilha',  15, 250000, 38)
+on conflict (id) do update set nome = excluded.nome, descricao = excluded.descricao, medida = excluded.medida,
+  meta = excluded.meta, recompensa = excluded.recompensa, ordem = excluded.ordem;
+update public.fazenda_conquistas_tipos t set diamantes = v.d
+  from (values ('nivel_50', 50), ('nivel_55', 75), ('nivel_60', 150), ('ilha_pronta', 100)) v(id, d)
+ where t.id = v.id;
+
+-- fase 106: quem já tinha XP de sobra no 45 fica no começo do 46 (só quem ainda não ganhou o presente de
+-- nenhum nível depois do 45: rodar de novo não mexe em quem já passou do 46)
+select set_config('fazenda.xp_puro', '1', false);
+update public.fazenda_jogadores set xp = public.fazenda_xp_nivel(46)::int
+ where xp > public.fazenda_xp_nivel(46) and coalesce(nivel_premiado, 1) <= 45;
+select set_config('fazenda.xp_puro', '', false);
+update public.fazenda_jogadores set nivel_trava = greatest(public.fazenda_nivel_trava(id), coalesce(nivel_base, 1))
+ where nivel_trava is distinct from greatest(public.fazenda_nivel_trava(id), coalesce(nivel_base, 1));
+
+select public.fazenda_cache_montar();
+
+revoke execute on function public.fazenda_ilha_obras(), public.fazenda_ilha_pode(uuid, int) from public, anon, authenticated;
+grant execute on function public.fazenda_ilha_construir(text, text), public.fazenda_ilha_bau(text) to anon, authenticated;
