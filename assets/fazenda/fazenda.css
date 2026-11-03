@@ -3335,3 +3335,32 @@ body.construindo .status {
 .of-card .of-parada { color: #a6402c; display: block; }
 .of-botoes { display: flex; gap: 5px; flex-wrap: wrap; }
 .of-botoes .botao { padding-left: 8px; padding-right: 8px; }
+
+/* fase 106: no PC o menu de cima quebra em linhas quando não cabe (antes passava da tela e
+   Funcionários, Itens, Invasão, Evento, Perfil, Ajuda, Som e Sair ficavam de fora) */
+@media (min-width: 761px) {
+    .hud-botoes {
+        flex: 1 1 520px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 8px;
+        min-width: 0;
+    }
+
+    .hud-botoes .botao {
+        padding: 5px 10px;
+        font-size: 15px;
+        gap: 6px;
+    }
+
+    .hud-botoes .botao .px-ico,
+    .hud-botoes .botao canvas {
+        max-height: 24px;
+    }
+}
+
+/* PC com tela até 1700 px: só os ícones no menu de cima (o nome aparece ao passar o mouse) */
+@media (min-width: 761px) and (max-width: 1699px) {
+    .hud-botoes em { display: none; }
+    .hud-botoes .botao { padding: 6px 9px; }
+}

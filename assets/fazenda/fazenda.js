@@ -274,6 +274,8 @@
 
     document.querySelectorAll('[data-spr]').forEach((s) => { s.outerHTML = spr(Number(s.dataset.spr), Number(s.dataset.px) || 32, s.dataset.pack || 'farm'); });
     document.querySelectorAll('[data-ico]').forEach((s) => { s.outerHTML = ico(s.dataset.ico, Number(s.dataset.px) || 18); });
+    // fase 106: no PC estreito o menu mostra só os ícones: o nome vai na dica do mouse
+    document.querySelectorAll('#hudBotoes .botao').forEach((b) => { if (!b.title) b.title = ((b.querySelector('em') || {}).textContent || b.getAttribute('aria-label') || '').trim(); });
 
     /* ---------- Sons 8-bit e Trilha Sonora ---------- */
     const som = (() => {
