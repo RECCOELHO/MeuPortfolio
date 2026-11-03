@@ -1511,6 +1511,10 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-11-03-praia', data: '03/11', titulo: 'A praia ganhou vida', itens: [
+            'De dia, cada <b>cadeira</b> e <b>guarda-sol</b> tem o seu banhista: ele chega andando, senta, vai <b>nadar</b> no mar, volta, vai <b>comprar</b> na barraca de coco ou de milho, senta comendo e depois vai embora. Daí vem outra pessoa.',
+            'Também tem gente só <b>passeando</b> pela areia, parando na barraca ou dando um mergulho.',
+            'Quanto mais coisa você põe na praia (cadeiras, guarda-sóis, barracas, enfeites), mais gente aparece. Praia com pouca opção fica vazia.'] },
         { id: '2026-11-03-novo', data: '03/11', titulo: 'Selo de Novo na Loja e no Construir', itens: [
             'Quando você sobe de nível (ou chega coisa nova numa atualização), o que liberou aparece com o selo <b>Novo</b> na Loja (sementes, animais e ajudantes) e no Construir.',
             'Os botões da Loja e do Construir e as abas mostram quantas novidades tem para ver. Abriu, viu: o selo some na próxima vez.'] },
