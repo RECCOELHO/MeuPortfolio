@@ -1238,9 +1238,9 @@
     function podePegar(c, i) {
         return i.fase === 'maduro' && !c.ja_peguei && c.roubado < limitePegar(i.k) && !protegidoAlarme(c);
     }
-    // fase 66: a luva do Perks passa pelo alarme (1 luva por canteiro protegido)
+    // fase 66: a luva do Perks passa pelo alarme (1 luva por canteiro protegido); fase 103: leva a muda inteira
     const luvas = () => (S ? livreFeira('luva_perks') : 0);
-    const podeLuva = (c, i) => i.fase === 'maduro' && !c.ja_peguei && c.roubado < limitePegar(i.k) && protegidoAlarme(c) && luvas() > 0;
+    const podeLuva = (c, i) => i.fase === 'maduro' && !c.ja_peguei && c.roubado < i.k.rendimento && protegidoAlarme(c) && luvas() > 0;
     // fase 83: a semente que você planta na fazenda abandonada (a sua de sempre, se der; senão a mais barata que dá)
     function sementeVizinho() {
         const ok = (k) => k && k.tipo === 'cultura' && k.nivel_min <= S.jogador.nivel && daEstacao(k) && k.custo <= S.jogador.moedas;
@@ -1463,6 +1463,9 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-11-03-luva', data: '03/11', titulo: 'A luva do Perks leva a muda inteira', itens: [
+            'Visitando um vizinho, a <b>luva do Perks</b> passa pelo alarme e agora leva a <b>muda inteira</b>: tudo o que o dono colheria (a cerca não segura), e o canteiro dele fica arado.',
+            'Sem luva, pegar continua igual: 2 ou 3 por canteiro, até a metade.'] },
         { id: '2026-11-03-radio', data: '03/11', titulo: 'Músicas novas e o rádio da feira', itens: [
             '<b>Três músicas novas</b>: duas para o dia e uma para a noite. Quando o céu escurece ou clareia, a música troca sozinha.',
             'Tem um <b>rádio</b> na feira, embaixo das barracas (todo mundo tem). Toque nele para abaixar ou aumentar o volume e pular para a próxima música do dia ou da noite.'] },
@@ -1865,7 +1868,7 @@
         madeira_nobre: 'Peça do píer e das melhorias do barco.', corda_naval: 'Peça do píer e das melhorias do barco.',
         pedra_cantaria: 'Peça do píer e das melhorias do barco.', ferro_forjado: 'Peça do píer e das melhorias do barco.',
         ancora: 'Peça do píer e das melhorias do barco.', leme_dourado: 'Peça do píer (vem do evento da semana).',
-        luva_perks: 'Usa sozinha: visitando um vizinho, toque num canteiro com alarme e a luva passa por ele.'
+        luva_perks: 'Usa sozinha: visitando um vizinho, toque num canteiro com alarme e a luva leva a muda inteira.'
     };
     const itensUsaveis = () => (S ? S.culturas.filter((k) => PREMIO_EFEITO[k.id] && naCeleiro(k.id) > 0) : []);
     function htmlItens() {
@@ -2584,7 +2587,7 @@
             return `${cabeca}
                 <p class="fala">E aí! Sou o <b>Perks</b>, o 1º do ranking. Quer saber como passo pelo alarme dos vizinhos? Com estas luvas. Me traz <b>${v.qtd} ${itemDe(k, 18)} ${esc(nomeQtd(k, v.qtd))}</b> e eu te dou <b>${v.luvas} ${itemDe(luva, 18)} luvas</b>.</p>
                 <div class="oficina-conta">
-                    <span>Cada luva pega 1 canteiro com alarme</span>
+                    <span>Cada luva leva 1 muda inteira, mesmo com alarme</span>
                     <span class="lucro">Na feira, de ${moeda(numero(luva.venda))} a ${moeda(numero(luva.venda * 3))}</span>
                 </div>
                 <p class="det"><span class="txt">Você tem ${numero(tem)} ${esc(nomeQtd(k, tem))}${tem < v.qtd ? `: faltam ${numero(v.qtd - tem)}` : ''}. Ele é raro: aparece mais ou menos 1 vez a cada 4 dias.</span></p>
@@ -3935,7 +3938,7 @@
         let txt;
         if (i.fase === 'maduro') {
             if (c.ja_peguei) txt = `${item} Você já pegou desse ${esc(i.k.nome.toLowerCase())}.`;
-            else if (protegidoAlarme(c)) txt = `${item} ${esc(i.k.nome)} protegido pelo alarme antiladrão do vizinho.${luvas() ? ` Você tem ${luvas()} ${itemDe(culturas.luva_perks || { id: 'luva_perks' }, 16)} luva(s) do Perks: toque para passar (gasta 1).` : ''}`;
+            else if (protegidoAlarme(c)) txt = `${item} ${esc(i.k.nome)} protegido pelo alarme antiladrão do vizinho.${luvas() ? ` Você tem ${luvas()} ${itemDe(culturas.luva_perks || { id: 'luva_perks' }, 16)} luva(s) do Perks: toque para levar a muda inteira (gasta 1).` : ''}`;
             else if (c.roubado >= limitePegar(i.k)) txt = `${item} Já pegaram bastante desse ${esc(i.k.nome.toLowerCase())}.`;
             else txt = `${item} ${esc(i.k.nome)} maduro! Toque para pegar até 3 ${ico('mao', 16)}`;
         } else {
@@ -4179,7 +4182,7 @@
         if (d.tipo === 'colher') return `<b>${esc(d.apelido)}</b> colheu ${item} para você (está no celeiro).`;
         if (d.tipo === 'plantar') return `<b>${esc(d.apelido)}</b> plantou ${item} na sua fazenda com o dinheiro dele!`;
         return d.tipo === 'roubo'
-            ? `<b>${esc(d.apelido)}</b> pegou ${d.qtd} ${item} da sua fazenda!${d.luva ? ' Passou pelo alarme com a luva do Perks.' : ''}`
+            ? `<b>${esc(d.apelido)}</b> ${d.luva ? `levou a muda inteira de ${item} (${d.qtd}) da sua fazenda com a luva do Perks!` : `pegou ${d.qtd} ${item} da sua fazenda!`}`
             : `<b>${esc(d.apelido)}</b> cuidou do seu ${item} (${d.qtd} problema${d.qtd > 1 ? 's' : ''}).`;
     }
 
@@ -4475,7 +4478,7 @@
         descrever(p);
         if (visita) {
             const av = acaoVisita(canteiro(p));
-            if (av === 'pegar_luva' && !await perguntar(`Esse canteiro tem alarme. Usar 1 luva do Perks para passar? (você tem ${luvas()})`)) return;
+            if (av === 'pegar_luva' && !await perguntar(`Esse canteiro tem alarme. Usar 1 luva do Perks para levar a muda inteira? (você tem ${luvas()})`)) return;
             if (av) { cena.irAte(p); executarVisita(av, [p]); }
             return;
         }
@@ -4872,7 +4875,7 @@
             if (posicoes.length > 1 && !r.feitos && r.erros && Object.keys(r.erros).length) toast('Nada feito: ' + motivoErros(r.erros), 'erro');
             const pegando = acao === 'pegar' || acao === 'pegar_luva';   // fase 66: com a luva é pegar também
             if (r.feitos) som.tocar(pegando ? 'colher' : 'cuidar');
-            if (acao === 'pegar_luva' && r.feitos) toast(`${itemDe(culturas.luva_perks || { id: 'luva_perks' }, 18)} Passou pelo alarme com ${r.feitos === 1 ? '1 luva' : `${r.feitos} luvas`} do Perks!`);
+            if (acao === 'pegar_luva' && r.feitos) toast(`${itemDe(culturas.luva_perks || { id: 'luva_perks' }, 18)} Levou ${r.feitos === 1 ? 'a muda inteira' : `${r.feitos} mudas inteiras`} com a luva do Perks!`);
             Object.entries(r.resultado).forEach(([pos, qtd], n) => {
                 const c = canteiro(Number(pos));
                 const k = c && culturas[c.cultura];
@@ -5018,7 +5021,7 @@
         }
         // fase 66: os canteiros com alarme, se tiver luva do Perks (pergunta antes de gastar)
         const comAlarme = tipo === 'pegar' ? visita.canteiros.filter((c) => podeLuva(c, info(c))).map((c) => c.posicao) : [];
-        const usar = comAlarme.length && await perguntar(`${comAlarme.length} canteiro(s) com alarme. Usar ${Math.min(comAlarme.length, luvas())} luva(s) do Perks para pegar deles também? (você tem ${luvas()})`)
+        const usar = comAlarme.length && await perguntar(`${comAlarme.length} canteiro(s) com alarme. Usar ${Math.min(comAlarme.length, luvas())} luva(s) do Perks para levar essas mudas inteiras? (você tem ${luvas()})`)
             ? comAlarme.slice(0, luvas()) : [];
         if (!ps.length && !usar.length) return toast('Nada pra pegar aqui agora.', undefined, 'leve');
         if (ps.length) executarVisita(tipo, ps);
@@ -5415,7 +5418,7 @@
                     <li>A cada 10 minutos chega uma <b>visita na porteira</b>, do lado da casa (do nível 3 em diante): o feirante, a doceira e o caminhoneiro compram algo da fazenda pagando bem mais que o celeiro, e a mascate vende adubo. Toque nela para conversar. Os pedidos crescem com o seu nível, e do nível 5 em diante às vezes pedem algo que você ainda não faz: compre na feira ou peça no chat, que eles pagam o dobro. Bem de vez em quando (mais ou menos a cada 12 dias) vem o <b>mercador</b>, que troca um material raro do píer por frutos fora de época.</li>
                     <li>No nível 31 chega o <b>Litoral</b> (Loja → Terrenos): areia para construir e plantar e o mar. Na areia fica o lugar do <b>píer</b>: toque nele para ver a receita (9 peças difíceis e 100 mil moedas). Peça que falta dá para comprar com diamantes. Guarde o peixe do Velho Chico para o píer, no celeiro, para ele não ir no "Vender tudo".</li>
                     <li>Com o píer pronto, toque no <b>barco</b> para ir para o <b>alto-mar</b>: toque na água para lançar a linha, espere a boia <b>afundar de verdade</b> (às vezes o peixe só belisca) e toque de novo na hora para fisgar. Cada lançada usa 1 peixe do <b>cardume</b>, que enche sozinho com o tempo. Em <b>Melhorar</b>: barco maior (cardume maior e peixes novos), vara melhor (mais tempo para fisgar e peixes maiores) e o marinheiro <b>Seu Nonato</b>, que pesca sozinho por até 8 horas (toque no barquinho dele para recolher). 1 em cada 200 peixes vem com uma <b>pérola negra</b>.</li>
-                    <li>De vez em quando (mais ou menos uma vez a cada 18 horas) aparece o <b>Perks</b>, o 1º do ranking: ele pede muita planta fácil (tipo 1000 milhos) e paga com 4 <b>luvas do Perks</b>. Visitando um vizinho, cada luva pega 1 canteiro mesmo com alarme (só gasta no canteiro protegido). E quando uma planta murcha sem ninguém colher, o jogo diz por quê: sem colhedor, o Juca dormindo, a fazenda fechada mais de 8 h ou canteiro demais para o nível dele.</li>
+                    <li>De vez em quando (mais ou menos uma vez a cada 18 horas) aparece o <b>Perks</b>, o 1º do ranking: ele pede muita planta fácil (tipo 1000 milhos) e paga com 4 <b>luvas do Perks</b>. Visitando um vizinho, cada luva leva a muda inteira de 1 canteiro com alarme, e o canteiro dele fica arado (só gasta no canteiro protegido). E quando uma planta murcha sem ninguém colher, o jogo diz por quê: sem colhedor, o Juca dormindo, a fazenda fechada mais de 8 h ou canteiro demais para o nível dele.</li>
                     <li>Em <b>Melhorar</b>, no alto-mar, também dá para <b>tunar o barco</b> com peças que pedem moedas e materiais raros (os do mercador, a pérola negra e o marlim-azul): <b>motor</b> (o cardume enche mais rápido), <b>sonar</b> (mais peixe grande e mais pérola), <b>porão</b> (às vezes 2 peixes numa fisgada), <b>rede de arrasto</b> (o marinheiro pesca mais rápido) e o <b>kit de expedição</b>, que deixa o barco oceânico pronto para as ilhas do nível 46. A <b>pintura</b> muda a cor do casco, da faixa e a bandeira.</li>
                     <li>Toda semana tem o <b>evento</b> (no menu): de sexta às 22h até a sexta seguinte às 22h, os 3 primeiros de cada categoria ganham diamantes (30, 18 e 10) e cada um tem 50% de chance de levar um item raro: o 1º, o item que só sai do evento; o 2º e o 3º, um material do píer (no ranking, os troféus de prata e bronze). As categorias: XP ganho na semana (troféus de ouro, prata e bronze), níveis subidos, moedas ganhas, vendas e compras na barraca da feira e amigos convidados que chegaram ao nível 10 (o 1º pode levar o <b>leme dourado</b>, a peça do píer). O XP comprado com diamantes não conta no ranking nem em níveis, e na barraca uma mesma pessoa do outro lado vale no máximo 25% do total. Os troféus e as conquistas do evento ficam no perfil.</li>
                     <li>Cumpra as <b>missões do dia</b> para ganhar moedas e XP extras.</li>
