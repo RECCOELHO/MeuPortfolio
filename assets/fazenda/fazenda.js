@@ -43,6 +43,54 @@
         del(k) { try { localStorage.removeItem(k); } catch { /* ignora */ } }
     };
 
+    /* ---- selo "Novo": o que liberou (ou chegou numa atualização) e o jogador ainda não viu ---- */
+    // Guarda no aparelho as chaves já vistas. Na 1ª vez, tudo o que já está liberado conta como visto.
+    // O selo fica enquanto a tela está aberta e some na próxima vez; os contadores contam só os não vistos.
+    const ABAS_CONSTR = ['pomar', 'bichos', 'oficina', 'maquina', 'energia', 'caminho', 'natureza', 'objeto', 'construcao', 'praia'];
+    const novos = (() => {
+        const CHAVE = 'fazenda_vistos';
+        let vistos = null, timer = 0;
+        const mostrando = new Set();
+        function liberados() {
+            if (!S || !S.jogador) return [];
+            const r = [], nv = S.jogador.nivel;
+            (S.culturas || []).forEach((k) => { if (k.tipo === 'cultura' && k.nivel_min <= nv) r.push({ chave: 'c:' + k.id, onde: 'loja', aba: 'sementes' }); });
+            (S.animais_tipos || []).forEach((t) => { if (t.nivel_min <= nv) r.push({ chave: 'a:' + t.id, onde: 'loja', aba: 'animais' }); });
+            (S.ajudantes_tipos || []).forEach((t) => { if (t.nivel_min <= nv) r.push({ chave: 'j:' + t.id, onde: 'loja', aba: 'ajudantes' }); });
+            (S.itens || []).forEach((i) => { if (i.nivel_min <= nv && ABAS_CONSTR.includes(i.categoria)) r.push({ chave: 'i:' + i.id, onde: 'construir', aba: i.categoria }); });
+            return r;
+        }
+        const salvar = () => { clearTimeout(timer); timer = setTimeout(() => store.set(CHAVE, JSON.stringify([...vistos])), 400); };
+        function carregar() {
+            if (vistos || !S || !S.itens) return !!vistos;
+            try { const v = JSON.parse(store.get(CHAVE) || 'null'); if (Array.isArray(v)) vistos = new Set(v); } catch { /* ignora */ }
+            if (!vistos) { vistos = new Set(liberados().map((x) => x.chave)); salvar(); }
+            return true;
+        }
+        return {
+            // devolve o selo (e já conta como visto) ou ''
+            selo(chave, liberado) {
+                if (!liberado || !carregar()) return '';
+                if (!vistos.has(chave)) { vistos.add(chave); mostrando.add(chave); salvar(); }
+                return mostrando.has(chave) ? '<b class="selo-novo">Novo</b>' : '';
+            },
+            quantos(onde, aba) {
+                if (!carregar()) return 0;
+                return liberados().filter((x) => x.onde === onde && (!aba || x.aba === aba) && !vistos.has(x.chave)).length;
+            },
+            // bolinha com o número, para as abas
+            ponto(onde, aba) { const n = this.quantos(onde, aba); return n ? `<i class="ponto-novo" title="${n} novo${n > 1 ? 's' : ''}">${n}</i>` : ''; },
+            limpar() { mostrando.clear(); },
+            contadores() {
+                document.querySelectorAll('[data-novos]').forEach((b) => {
+                    const n = this.quantos(b.dataset.novos);
+                    b.hidden = !n;
+                    b.textContent = n ? 'Novo' + (n > 1 ? ` ${n}` : '') : '';
+                });
+            }
+        };
+    })();
+
     /* ---------- Mensagens de erro do servidor ---------- */
     const ERROS = {
         token_invalido: 'Sessão expirada. Entre de novo com seu código.',
@@ -1463,6 +1511,9 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-11-03-novo', data: '03/11', titulo: 'Selo de Novo na Loja e no Construir', itens: [
+            'Quando você sobe de nível (ou chega coisa nova numa atualização), o que liberou aparece com o selo <b>Novo</b> na Loja (sementes, animais e ajudantes) e no Construir.',
+            'Os botões da Loja e do Construir e as abas mostram quantas novidades tem para ver. Abriu, viu: o selo some na próxima vez.'] },
         { id: '2026-11-03-luva', data: '03/11', titulo: 'A luva do Perks leva a muda inteira', itens: [
             'Visitando um vizinho, a <b>luva do Perks</b> passa pelo alarme e agora leva a <b>muda inteira</b>: tudo o que o dono colheria (a cerca não segura), e o canteiro dele fica arado.',
             'Sem luva, pegar continua igual: 2 ou 3 por canteiro, até a metade.'] },
@@ -3595,6 +3646,7 @@
     }
 
     function fecharConstrucao(msg) {
+        novos.limpar();
         constr.ativo = false;
         constr.movendo = null;
         constr.rapido = false;
@@ -3613,7 +3665,7 @@
         if (constr.aba === 'guardados' && !nDep) constr.aba = 'plantacao';
         const abas = [...(nDep ? [['guardados', `${ico('caixa', 14)} Guardados (${nDep})`]] : []), ['plantacao', 'Plantação'], ['pomar', 'Pomar'], ['bichos', 'Bichos'], ['oficina', 'Oficinas'], ['maquina', 'Máquinas'], ['energia', 'Energia'], ['caminho', 'Cercas e caminhos'], ['natureza', 'Natureza'], ['objeto', 'Objetos'], ['construcao', 'Casas'], ['praia', 'Praia']];
         el.constrAbas.innerHTML = abas.map(([id, txt]) =>
-            `<button type="button" data-constr-aba="${id}" class="${constr.aba === id ? 'ativa' : ''}">${txt}</button>`).join('');
+            `<button type="button" data-constr-aba="${id}" class="${constr.aba === id ? 'ativa' : ''}">${txt}${constr.aba === id ? '' : novos.ponto('construir', id)}</button>`).join('');
         // por nível (o que já libera primeiro); no mesmo nível, a ordem do catálogo. A ordem do catálogo
         // segue a fase em que cada item entrou, e deixava oficina liberada no fim da lista
         const lista = constr.aba === 'plantacao' ? [ITEM_CANTEIRO]
@@ -3630,9 +3682,11 @@
             return `<button type="button" class="paleta-item${sel ? ' selecionado' : ''}${travado ? ' travado' : ''}${falta ? ' falta-nivel' : ''}" data-item="${esc(i.id)}" title="${esc(i.nome)}${falta ? ' (falta para passar de nível)' : contaNivel(i) ? ' (conta para passar de nível)' : ''}${i.descricao ? ': ' + esc(i.descricao) : ''}">
                 ${travado ? ico('cadeado', 18) : A.htmlItem(i.id, 32)}
                 ${dep ? `<b class="paleta-dep" title="${dep} no depósito">${ico('caixa', 10)}${dep}</b>` : ''}
+                ${ABAS_CONSTR.includes(i.categoria) ? novos.selo('i:' + i.id, !travado) : ''}
                 <small>${travado ? `Nv ${i.nivel_min}` : preco}</small>
             </button>`;
         }).join('');
+        novos.contadores();
         el.constrFerramentas.querySelectorAll('[data-ferramenta]').forEach((b) => b.classList.toggle('ativa', b.dataset.ferramenta === constr.modo));
     }
 
@@ -3839,6 +3893,7 @@
     /* ---------- HUD e status ---------- */
     function desenharHud() {
         const j = S.jogador;
+        novos.contadores();
         if (el.construirCont) {
             el.construirCont.textContent = canteirosLivres();
             el.construirCont.hidden = !canteirosLivres();
@@ -5088,7 +5143,7 @@
             el.painelTitulo.innerHTML = `${spr(9, 32)} Loja`;
             const abas = `<div class="painel-abas" role="tablist">
                 ${[['sementes', 'Sementes'], ['animais', 'Animais'], ['ajudantes', 'Ajudantes'], ['terrenos', 'Terrenos'], ['melhorias', 'Melhorias'], ['baus', 'Baús'], ['diamantes', 'Diamantes']].map(([id, txt]) =>
-                    `<button type="button" role="tab" data-aba-loja="${id}" class="${abaLoja === id ? 'ativa' : ''}">${txt}</button>`).join('')}
+                    `<button type="button" role="tab" data-aba-loja="${id}" class="${abaLoja === id ? 'ativa' : ''}">${txt}${abaLoja === id ? '' : novos.ponto('loja', id)}</button>`).join('')}
             </div>`;
             if (abaLoja === 'animais') corpo.innerHTML = abas + htmlLojaAnimais();
             else if (abaLoja === 'terrenos') corpo.innerHTML = abas + htmlLojaTerrenos();
@@ -5097,6 +5152,7 @@
             else if (abaLoja === 'diamantes') corpo.innerHTML = abas + htmlLojaDiamantes();
             else if (abaLoja === 'baus') corpo.innerHTML = abas + htmlLojaBaus();
             else corpo.innerHTML = abas + htmlLojaSementes();
+            novos.contadores();
         } else if (nome === 'missoes') {
             el.painelTitulo.innerHTML = `${ico('missao', 26)} Missões do dia`;
             corpo.innerHTML = htmlMissoes();
@@ -5557,7 +5613,7 @@
             return `<button type="button" class="item${k.id === semente ? ' selecionada' : ''}${travada ? ' travada' : ''}" data-semente="${esc(k.id)}" ${travada ? 'aria-disabled="true"' : ''}>
                 <span class="ico${k.nivel_min <= S.jogador.nivel && travada ? ' fora' : ''}">${k.nivel_min > S.jogador.nivel ? ico('cadeado', 28) : spr(A.cultura(k.id).item, 44)}</span>
                 <span>
-                    <span class="nome">${esc(k.nome)}${k.estacao ? ` <small class="tag-estacao${daEstacao(k) ? ' agora' : temEstufa() ? ' estufa' : ''}">${daEstacao(k) ? 'da estação!' : temEstufa() ? 'só na estufa' : 'só ' + naEstacao(k.estacao) + (faltaParaEstacao(k.estacao) ? ' · em ' + fmtTempo(faltaParaEstacao(k.estacao)) : '')}</small>` : ''}</span>
+                    <span class="nome">${esc(k.nome)}${novos.selo('c:' + k.id, k.nivel_min <= S.jogador.nivel)}${k.estacao ? ` <small class="tag-estacao${daEstacao(k) ? ' agora' : temEstufa() ? ' estufa' : ''}">${daEstacao(k) ? 'da estação!' : temEstufa() ? 'só na estufa' : 'só ' + naEstacao(k.estacao) + (faltaParaEstacao(k.estacao) ? ' · em ' + fmtTempo(faltaParaEstacao(k.estacao)) : '')}</small>` : ''}</span>
                     <span class="det">
                         <span>cresce em ${fmtDuracao(k.tempo_seg)}</span>
                         <span>+${k.xp} ${ico('xp', 13)} por colheita</span>
@@ -5584,7 +5640,7 @@
             return `<div class="item${travado ? ' travada' : ''}">
                 <span class="ico">${travado ? ico('cadeado', 28) : spr(A.ANIMAL[t.id], 44)}</span>
                 <span>
-                    <span class="nome">${esc(t.nome)} <small class="qtd">${tem}/${t.maximo}</small></span>
+                    <span class="nome">${esc(t.nome)}${novos.selo('a:' + t.id, !travado)} <small class="qtd">${tem}/${t.maximo}</small></span>
                     <span class="det">
                         <span>come ${t.racao_qtd} ${racao ? itemDe(racao, 16) + esc(nomeRacao(racao, t.racao_qtd)) : ''}</span>
                         <span>dá ${produto ? itemDe(produto, 16) + esc(produto.nome.toLowerCase()) : ''} a cada ${fmtDuracao(t.tempo_seg)}</span>
@@ -5636,7 +5692,7 @@
             return `<div class="item${travado ? ' travada' : ''}">
                 <span class="ico">${travado ? ico('cadeado', 28) : retratoAjudante(t.id, 44)}</span>
                 <span>
-                    <span class="nome">${esc(t.nome)} <small class="qtd">${esc(t.papel)}</small></span>
+                    <span class="nome">${esc(t.nome)}${novos.selo('j:' + t.id, t.nivel_min <= S.jogador.nivel)} <small class="qtd">${esc(t.papel)}</small></span>
                     <span class="det"><span>${esc(t.descricao)}</span></span>
                     <span class="det"><span class="estrelas">${nivel ? estrelas : ''}</span><span>${ritmo}</span></span>
                 </span>
@@ -6456,6 +6512,7 @@
     }
 
     function fecharPainel() {
+        novos.limpar();
         el.painel.classList.remove('aberto');
         painelAtual = null;
         if (ultimoFoco && ultimoFoco.focus) ultimoFoco.focus();
@@ -6930,6 +6987,7 @@
         }
         const abaL = e.target.closest('[data-aba-loja]');
         if (abaL) {
+            if (abaLoja !== abaL.dataset.abaLoja) novos.limpar();
             abaLoja = abaL.dataset.abaLoja;
             abrirPainel('loja', true);
             return;
@@ -7369,7 +7427,7 @@
     }
     el.barraConstr.addEventListener('click', (e) => {
         const aba = e.target.closest('[data-constr-aba]');
-        if (aba) { constr.aba = aba.dataset.constrAba; desenharPaleta(); return; }
+        if (aba) { if (constr.aba !== aba.dataset.constrAba) novos.limpar(); constr.aba = aba.dataset.constrAba; desenharPaleta(); return; }
         const item = e.target.closest('[data-item]');
         if (item) {
             const it = tipoItem(item.dataset.item);
