@@ -1030,6 +1030,7 @@
         chat: ['..ooooooo..', '.owwwwwwwo.', 'owwwwwwwwso', 'owBwwBwwBso', 'owwwwwwwwso', '.owwwwwwso.', '..oowooooo.', '...owo.....', '...oo......'],
         // calendário de resgate diário (fase 69): folhinha com a argola, a faixa vermelha e o dia marcado
         calendario: ['.o.o.o.o.', 'ooooooooo', 'orrrrrrro', 'ooooooooo', 'owwwwwwwo', 'owSwSwSwo', 'owwwwwwwo', 'owSwSwrwo', 'owwwwwwwo', 'ooooooooo'],
+        engrenagem: ['...ooo...', '.oosSsoo.', '.osSSSso.', 'osSSoSSso', 'oSSo.oSSo', 'osSSoSSso', '.osSSSso.', '.oosSsoo.', '...ooo...'],   // fase 105: a tela das oficinas
         gerente: ['ooooooooo', 'ogggogggo', 'ogGgogGgo', 'ooooooooo', 'oyyyogggo', 'oyYyogGgo', 'ooooooooo', 'onnnoyyyo', 'onnnoyYyo', 'ooooooooo'],   // fase 103: o modo gerente (a grade dos canteiros)
         sino: ['....o....', '...oyo...', '..oyyyo..', '..owyyo..', '..owyyo..', '.oyyyyyo.', 'oyyyyyyYo', 'ooooooooo', '...oYo...', '....o....'],
         // diamante: a moeda especial (colher na hora)

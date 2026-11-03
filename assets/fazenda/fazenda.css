@@ -3321,3 +3321,17 @@ body.construindo .status {
 .gerente-card.g-vazio, .gerente-card.g-arado { background: #f6ecdc; opacity: 0.85; }
 .gerente-card.g-murcho { background: #eadfd6; filter: grayscale(0.7); }
 .gerente-card.g-prob::after { content: '!'; position: absolute; top: -6px; right: -6px; width: 16px; height: 16px; border-radius: 50%; background: #e23b3b; color: #fff; font: 900 11px/16px Nunito, sans-serif; text-align: center; border: 2px solid var(--o); }
+
+/* fase 105: a tela das oficinas */
+.of-tipo { margin-top: 8px; }
+.of-tipo .secao-titulo { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.of-grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; margin: 6px 0 10px; }
+.of-card { border: 3px solid var(--o); border-radius: 4px; background: #fffaf2; padding: 7px 8px; display: flex; flex-direction: column; gap: 5px; }
+.of-card.of-pronta { background: #eaf8d8; box-shadow: inset 0 0 0 2px #7cc452; }
+.of-card.of-parada-card { background: #fbefe4; }
+.of-topo { display: flex; align-items: center; gap: 4px; font-size: 13px; }
+.of-topo .of-estoque { margin-left: auto; font-size: 11px; font-weight: 800; opacity: 0.75; }
+.of-card small { font-size: 12px; line-height: 1.25; display: flex; align-items: center; gap: 3px; flex-wrap: wrap; }
+.of-card .of-parada { color: #a6402c; display: block; }
+.of-botoes { display: flex; gap: 5px; flex-wrap: wrap; }
+.of-botoes .botao { padding-left: 8px; padding-right: 8px; }
