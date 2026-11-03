@@ -895,51 +895,40 @@
         return cv;
     }
 
-    /* ---- fase 107: o fazendeiro e a fazendeira redesenhados (16 x 16, com sombra). Usam as mesmas cores de
-       base que a troca de cor procura (mais um tom escuro em cada região), então o editor continua valendo. ---- */
-    const PAL_AVATAR = {
-        o: '#3f2631', H: '#cf8254', h: '#fec99c', j: '#a35f3a', S: '#f7c282', s: '#e19a65', e: '#262b44', E: '#ffffff',
-        C: '#f28462', c: '#c0563e', L: '#f8a88a', M: '#52607c', m: '#3a4558', N: '#8c9cb5', B: '#5a3a28', b: '#7a5038', y: '#ffd75e',
-        K: '#763b36', k: '#bd6c4a', q: '#4e2420', V: '#9b4ca3', v: '#d176d0', w: '#6b2f74', F: '#f5a3b0', f: '#e8434a', g: '#4e974c'
-    };
-    const AVATAR_NOVO = {
-        fazendeiro: [
-            '......oooo......',
-            '.....ohhHHo.....',
-            '....ohhHHHjo....',
-            '....ojjjjjjo....',
-            '..oohhHHHHHjjoo.',
-            '..ooooooooooooo.',
-            '....osSSSSso....',
-            '....oSeSSeSo....',
-            '....osSssSso....',
-            '...ooCyMMyCoo...',
-            '..oCCLMNNMLCco..',
-            '..oSCcMNNMcCSo..',
-            '..oooMMMMMMooo..',
-            '....oMmooMmo....',
-            '....obBoobBo....',
-            '....ooooooooo...'],
-        fazendeira: [
-            '.....ooooo......',
-            '....oKkkKKo.....',
-            '...oKkKKKKKo....',
-            '...oKKoooKKo....',
-            '..oKKoFfFoKKo...',
-            '..oKoSSSSSoKo...',
-            '..oKoSeSeSoKo...',
-            '..oKosSSSsoKo...',
-            '..oKKoSSSoKKqo..',
-            '..oqKoVVVoKqo...',
-            '..ooVvVVVVvoo...',
-            '..oSVwVvVVwSo...',
-            '...ooVVVVVVoo...',
-            '....oVwVVwVo....',
-            '....oSSooSSo....',
-            '....obBoobBo....']
-    };
-    // as regiões com o tom escuro novo (0) de cada uma
-    const ESCUROS_AVATAR = { chapeu: { '#a35f3a': 0 }, roupa: { '#c0563e': 0, '#f8a88a': 2, '#6b2f74': 0 }, calca: { '#3a4558': 0 }, cabelo: { '#4e2420': 0 } };
+    /* ---- fase 107: o passo dos bonecos (fazendeiro, ajudantes, visitantes e banhistas), feito a partir do
+       desenho que já existe: as pernas são as 4 linhas de baixo. Quadro 1: a perna esquerda levanta 1 px e o
+       corpo sobe junto; 2: as duas no chão; 3: a direita levanta; 0: parado. ---- */
+    const cachePasso = new WeakMap();
+    function passoCanvas(cv, q) {
+        if (!cv || !q) return cv;
+        let lista = cachePasso.get(cv);
+        if (!lista) {
+            const W = cv.width, H = cv.height, pe = H - 4, meio = Math.floor(W / 2);
+            const fazer = (lado) => {
+                const c = document.createElement('canvas'); c.width = W; c.height = H;
+                const g = c.getContext('2d');
+                if (lado === 0) { g.drawImage(cv, 0, 0); return c; }
+                // o corpo (até o quadril) sobe 1 px
+                g.drawImage(cv, 0, 0, W, pe, 0, -1, W, pe);
+                // a perna que dá o passo sobe junto com o corpo; a outra fica no chão, esticada 1 px para cima
+                const ax = lado < 0 ? 0 : meio, aw = lado < 0 ? meio : W - meio, bx = lado < 0 ? meio : 0, bw = W - aw;
+                g.drawImage(cv, ax, pe, aw, 4, ax, pe - 1, aw, 4);
+                g.drawImage(cv, bx, pe, bw, 4, bx, pe, bw, 4);
+                g.drawImage(cv, bx, pe, bw, 1, bx, pe - 1, bw, 1);
+                // o braço do outro lado balança: fica 1 px mais baixo que o corpo (as 5 linhas acima do quadril)
+                const bxa = lado < 0 ? W - 4 : 0;
+                g.clearRect(bxa, pe - 6, 4, 5);
+                g.drawImage(cv, bxa, pe - 6, 4, 5, bxa, pe - 6, 4, 5);
+                return c;
+            };
+            lista = [null, fazer(-1), fazer(0), fazer(1)];
+            cachePasso.set(cv, lista);
+        }
+        return lista[q] || cv;
+    }
+    // o quadro do passo agora (anda: 4 quadros em ~0,5 s; parado: o desenho inteiro)
+    const quadroPasso = (andando, tempo, k = 0) => (andando ? Math.floor((tempo + k) / 130) % 4 : 0);
+
     const cacheAvatar = new Map();
     function avatarCanvas(cfg) {
         cfg = normalizarAvatar(cfg);
@@ -949,21 +938,16 @@
         const cv = document.createElement('canvas');
         cv.width = cv.height = 16;
         const g = cv.getContext('2d');
-        const novo = AVATAR_NOVO[cfg.tipo === 'fazendeiro_ouro' ? 'fazendeiro' : cfg.tipo];   // fase 107: o desenho novo
-        if (novo) novo.forEach((linha, y) => [...linha].forEach((ch, x) => { if (PAL_AVATAR[ch]) { g.fillStyle = PAL_AVATAR[ch]; g.fillRect(x, y, 1, 1); } }));
-        else {
-            if (!img.complete || !img.naturalWidth) { cv.url = cv.toDataURL(); return cv; }   // a arte ainda não carregou
-            g.drawImage(img, (tipo.i % COLS) * T, Math.floor(tipo.i / COLS) * T, T, T, 0, 0, T, T);
-        }
+        if (!img.complete || !img.naturalWidth) { cv.url = cv.toDataURL(); return cv; }   // a arte ainda não carregou
+        g.drawImage(img, (tipo.i % COLS) * T, Math.floor(tipo.i / COLS) * T, T, T, 0, 0, T, T);
         const dados = g.getImageData(0, 0, T, T), d = dados.data;
         for (const [regiao, r] of Object.entries(tipo.regioes)) {
             const n = cfg[regiao] | 0;
             const tons = n > 0 ? AVATAR_CORES[regiao][n - 1] : tipo.base && tipo.base[regiao];   // fase 69: a cor de base do exclusivo
             if (!tons) continue;
-            const cores = novo ? { ...r.cores, ...(ESCUROS_AVATAR[regiao] || {}) } : r.cores;   // fase 107: e o tom escuro
-            const alvo = Object.fromEntries(Object.entries(cores).map(([hex, tom]) => [hex.slice(1), rgbDe(tons[tom])]));
-            for (let y = novo ? 0 : r.y[0]; y < (novo ? T : r.y[1]); y++) {
-                for (let x = r.x && !novo ? r.x[0] : 0; x < (r.x && !novo ? r.x[1] : T); x++) {
+            const alvo = Object.fromEntries(Object.entries(r.cores).map(([hex, tom]) => [hex.slice(1), rgbDe(tons[tom])]));
+            for (let y = r.y[0]; y < r.y[1]; y++) {
+                for (let x = r.x ? r.x[0] : 0; x < (r.x ? r.x[1] : T); x++) {
                     const k = (y * T + x) * 4;
                     if (d[k + 3] < 128) continue;
                     const novo = alvo[((d[k] << 16) | (d[k + 1] << 8) | d[k + 2]).toString(16).padStart(6, '0')];
@@ -3707,13 +3691,13 @@
                     const cv = bichoCanvas(a.tipo, anda ? Math.floor((tempo + a.x * 7) / 170) % 2 : 0);
                     pe.push({ img: cv, x: a.x + 8 - cv.width / 2, y: a.y + 16 - cv.height, ordem: a.y, flip: a.flip, bob: nadando ? 0 : bob, nadando });
                 } else
-                pe.push(a.visual ? { img: ajudanteCanvas(a.tipo), x: a.x, y: a.y, flip: a.flip, bob: nadando ? 0 : bob, nadando }
+                pe.push(a.visual ? { img: passoCanvas(ajudanteCanvas(a.tipo), nadando ? 0 : quadroPasso(andando, tempo, a.x * 13)), x: a.x, y: a.y, flip: a.flip, bob: andando || nadando ? 0 : bob, nadando }
                     : { p: a.p || 'farm', i: a.i, x: a.x, y: a.y, flip: a.flip, bob: nadando ? 0 : bob, nadando });
                 // ferramenta na mão do ajudante (do lado para onde ele olha; na água, a parte de baixo some junto)
                 if (a.ferramenta != null) pe.push({ p: a.ferramentaP || 'farm', i: a.ferramenta, x: a.x + (a.flip ? -7 : 7), y: a.y + 0.5, flip: a.flip, bob: nadando ? 0 : bob, corte: nadando ? Math.round(a.y) : null });
             }
             const andando = fazendeiro.passo > 0, fazNada = naAgua(fazendeiro.x, fazendeiro.y);
-            pe.push({ img: avatarCanvas(avatarAtual), x: fazendeiro.x, y: fazendeiro.y, flip: fazendeiro.flip, bob: !fazNada && andando && Math.floor(tempo / 120) % 2 ? -1 : 0, nadando: fazNada });
+            pe.push({ img: passoCanvas(avatarCanvas(avatarAtual), fazNada ? 0 : quadroPasso(andando, tempo)), x: fazendeiro.x, y: fazendeiro.y, flip: fazendeiro.flip, bob: 0, nadando: fazNada });   // fase 107: o passo
             if (lago && lagoNaTela()) pe.push({ p: 'factory', i: 120, x: wx(LAGO.x) + 1, y: wy(LAGO.y + 2), flip: false, bob: Math.floor(tempo / 700) % 2 ? -1 : 0 });
             if (visitante) { const vn = naAgua(visitante.x, visitante.y); pe.push({ p: 'dungeon', i: VISITANTE_ARTE[visitante.tipo] || 86, x: visitante.x, y: visitante.y, flip: visitante.flip, bob: !vn && visitante.andando && Math.floor(tempo / 140) % 2 ? -1 : 0, nadando: vn }); }
             desenharNavio(pe, tempo);   // fase 104: o navio no píer
@@ -4256,7 +4240,7 @@
                 const nadando = naAgua(x, y);
                 const passo = o.modo === 'andando' && Math.floor(tempo / (andaRapido ? 130 : 160) + tx * 3) % 2 ? -1 : 0;
                 const bob = o.modo === 'comprando' ? (Math.floor(tempo / 300) % 2 ? -1 : 0) : nadando ? 0 : passo;
-                pe.push({ img: avatarCanvas(cfg), x, y, flip: o.flip, bob, nadando });
+                pe.push({ img: passoCanvas(avatarCanvas(cfg), !nadando && o.modo === 'andando' ? quadroPasso(true, tempo, tx * 97) : 0), x, y, flip: o.flip, bob: o.modo === 'andando' ? 0 : bob, nadando });   // fase 107: o passo
                 if (o.item && !nadando) naMao.push({ item: o.item, x: x + (o.flip ? 0 : 9), y: y + 6 + bob });
             };
             const P = 150 + pr.vazio;
@@ -5061,6 +5045,7 @@
 
     window.FazendaArte = {
         montarCasas,
+        passoCanvas,   // fase 107 (para a prévia e os testes)
         bichoCanvas,   // fase 107 (para a prévia e os testes)   // fase 105 (para a prévia e os testes)
         mataNova,   // fase 103: as árvores novas (para a prévia)
         terraNova,   // fase 104: a terra nova (para a prévia)
