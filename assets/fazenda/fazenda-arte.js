@@ -2854,6 +2854,7 @@
                      q.globalAlpha = 0.3; tile(q, 1064, wx(b.x), wy(b.y), false, 'farm'); q.globalAlpha = 1; }
             });
 
+            const naMaoPraia = pessoasDaPraia(todas, tempo, pe, naTela);   // fase 108: a praia viva
             for (const a of atores.values()) {
                 if (a.dentro) continue;   // fase 66: dormindo dentro da casa
                 const parado = a.v && a.v.estado !== 'produzindo';
@@ -2900,6 +2901,7 @@
                 fim();
             });
 
+            for (const m of naMaoPraia) if (A_ITEM_PRAIA[m.item] != null) miniTile(A_ITEM_PRAIA[m.item], m.x, m.y, 7);
             desenharMaquinas(lista, tempo);
             desenharSono(tempo);   // fase 66: os zzz das casas (e de quem dorme na sombra)
             desenharRaios(tempo);   // fase 68: as faíscas do eletricista
@@ -3245,6 +3247,152 @@
             return { tipo: tipos[Math.floor(r() * 2)], pele: Math.floor(r() * 5), cabelo: 1 + Math.floor(r() * 6), roupa: 1 + Math.floor(r() * 8), calca: 1 + Math.floor(r() * 6) };
         }
         const deDia = () => !faseDoDia(relogio()).noite;   // o dia do jogo (o ciclo próprio, não a hora de verdade)
+
+        /* ---- fase 108: a praia viva. Cada cadeira e guarda-sol tem o seu banhista: chega andando, senta, vai
+           nadar, volta, vai comprar na barraca (se tiver), senta de novo comendo e vai embora; depois de um tempo
+           vem outra pessoa. Quanto mais coisa na praia, menos tempo ela fica vazia e mais gente passeia pela
+           areia (praia com pouca opção fica vazia). Tudo sai do relógio, sem guardar estado. ---- */
+        const ASSENTO_PRAIA = { guarda_sol: 1, cadeira_praia: 1 };
+        const BARRACA_PRAIA = { barraca_coco: 'coco', barraca_milho: 'milho' };
+        const A_ITEM_PRAIA = { coco: CULTURAS.coco.item, milho: CULTURAS.milho.item };   // o que vem na mão
+        const VEL_PRAIA = 1.5, VEL_NADO = 0.45;   // tiles por segundo
+        let cachePraia = { chave: null };
+        const cacheRoteiro = new Map();
+        function praiaDe(todas) {
+            const itens = todas.filter((c) => c.y >= AREIA_Y && c.y < MAPA.mar.y);
+            const chave = itens.map((c) => c.tipo + c.x + ',' + c.y).join(';');
+            if (cachePraia.chave === chave) return cachePraia;
+            cacheRoteiro.clear();
+            const assentos = itens.filter((c) => ASSENTO_PRAIA[c.tipo]);
+            const barracas = itens.filter((c) => BARRACA_PRAIA[c.tipo]);
+            const outros = itens.length - assentos.length - barracas.length;
+            const atrai = assentos.length + barracas.length * 2 + Math.min(outros, 8) * 0.5;
+            const xs = itens.map((c) => c.x);
+            cachePraia = {
+                chave, assentos, barracas, atrai,
+                vazio: Math.max(6, 100 - atrai * 13),                 // segundos sem ninguém entre um banhista e o próximo
+                passeantes: itens.length ? Math.min(7, Math.floor(atrai / 2)) : 0,
+                x0: xs.length ? Math.max(0, Math.min(...xs) - 7) : 0,
+                x1: xs.length ? Math.min(MAPA.w - 1, Math.max(...xs) + 7) : 0
+            };
+            return cachePraia;
+        }
+        // passos: { de, para, nado } andando (de/para em tiles) | { em, seg, modo } parado; o item fica na mão até o fim
+        function montarRoteiro(passos, total) {
+            let t = 0;
+            const r = passos.map((p) => {
+                const dur = p.para ? Math.hypot(p.para[0] - p.de[0], p.para[1] - p.de[1]) / (p.nado ? VEL_NADO : VEL_PRAIA) : p.seg;
+                const o = { ...p, ini: t, dur: Math.max(0.05, dur) };
+                t += o.dur;
+                return o;
+            });
+            if (total && t < total) r.push({ em: null, seg: total - t, modo: 'fora', ini: t, dur: total - t });
+            return { passos: r, total: Math.max(total || 0, t) };
+        }
+        function ondeNoRoteiro(rot, s) {
+            const p = rot.passos.find((x) => s < x.ini + x.dur) || rot.passos[rot.passos.length - 1];
+            if (p.para) {
+                const f = Math.min(1, Math.max(0, (s - p.ini) / p.dur));
+                return { x: p.de[0] + (p.para[0] - p.de[0]) * f, y: p.de[1] + (p.para[1] - p.de[1]) * f, modo: p.nado ? 'nadando' : 'andando',
+                         flip: p.para[0] < p.de[0], item: p.item };
+            }
+            return { x: p.em ? p.em[0] : 0, y: p.em ? p.em[1] : 0, modo: p.modo, flip: false, item: p.item };
+        }
+        const BEIRA = () => MAPA.mar.y - 0.2;
+        // o banhista do assento c, na volta n (cada volta é outra pessoa, com outro passeio)
+        function roteiroAssento(c, n, P) {
+            const k = 'a' + c.x + ',' + c.y + ':' + n;
+            if (cacheRoteiro.has(k)) return cacheRoteiro.get(k);
+            const r = rng(c.x * 4111 + c.y * 977 + n * 7919);
+            const lado = r() < 0.5 ? -1 : 1;
+            const entra = [Math.max(-2, Math.min(MAPA.w + 1, c.x + lado * (9 + Math.floor(r() * 6)))), AREIA_Y + 1.6 + r()];
+            const sai = [Math.max(-2, Math.min(MAPA.w + 1, c.x - lado * (9 + Math.floor(r() * 6)))), AREIA_Y + 1.6 + r()];
+            const sent = [c.x, c.y], frente = [c.x, c.y + 0.8];
+            const ax = c.x + Math.round((r() - 0.5) * 4), beira = [ax, BEIRA()];
+            const passos = [{ de: entra, para: frente }, { de: frente, para: sent }, { em: sent, seg: 10 + r() * 14, modo: 'sentado' }];
+            if (r() < 0.85) {   // vai nadar
+                const n1 = [ax + 1 + r() * 2, MAPA.mar.y + 0.7], n2 = [ax - 1 - r() * 2, MAPA.mar.y + 1];
+                passos.push({ de: sent, para: beira }, { de: beira, para: n1, nado: true }, { de: n1, para: n2, nado: true },
+                    { de: n2, para: [ax, MAPA.mar.y + 0.5], nado: true }, { de: [ax, MAPA.mar.y + 0.5], para: beira, nado: true },
+                    { de: beira, para: sent }, { em: sent, seg: 8 + r() * 10, modo: 'sentado' });
+            }
+            const bs = cachePraia.barracas;
+            if (bs.length && r() < 0.8) {   // vai comprar
+                const b = bs[Math.floor(r() * bs.length)], item = BARRACA_PRAIA[b.tipo], balcao = [b.x + (r() - 0.5) * 0.6, b.y + 1];
+                passos.push({ de: sent, para: balcao }, { em: balcao, seg: 3 + r() * 2, modo: 'comprando' },
+                    { de: balcao, para: sent, item }, { em: sent, seg: 12 + r() * 10, modo: 'sentado', item });
+            }
+            passos.push({ de: sent, para: frente }, { de: frente, para: sai });
+            let rot = montarRoteiro(passos, 0);
+            const pausa = cachePraia.vazio * (0.6 + r() * 0.8);
+            if (rot.total + pausa > P) {   // não coube: tira o tempo sentado
+                const sobra = P - pausa - rot.total;
+                passos.forEach((p) => { if (p.modo === 'sentado') p.seg = Math.max(3, p.seg + sobra / 3); });
+                rot = montarRoteiro(passos, 0);
+            }
+            rot = montarRoteiro(passos, P);
+            if (cacheRoteiro.size > 300) cacheRoteiro.clear();
+            cacheRoteiro.set(k, rot);
+            return rot;
+        }
+        // quem só passeia: atravessa a areia, às vezes para na barraca, às vezes dá um mergulho
+        function roteiroPasseio(i, n, P) {
+            const k = 'p' + i + ':' + n;
+            if (cacheRoteiro.has(k)) return cacheRoteiro.get(k);
+            const r = rng(i * 15731 + n * 104729 + 17), pr = cachePraia;
+            const ida = r() < 0.5, y = AREIA_Y + 2 + r() * 2.2;
+            const a = [ida ? pr.x0 - 3 : pr.x1 + 3, y], b = [ida ? pr.x1 + 3 : pr.x0 - 3, y + (r() - 0.5)];
+            const passos = [];
+            let atual = a;
+            const ir = (para, extra) => { passos.push({ de: atual, para, ...extra }); atual = para; };
+            if (pr.barracas.length && r() < 0.45) {
+                const bb = pr.barracas[Math.floor(r() * pr.barracas.length)], item = BARRACA_PRAIA[bb.tipo], balcao = [bb.x, bb.y + 1];
+                ir(balcao); passos.push({ em: balcao, seg: 3, modo: 'comprando' });
+                ir(b, { item });
+            } else if (r() < 0.5) {
+                const mx = a[0] + (b[0] - a[0]) * (0.3 + r() * 0.4);
+                ir([mx, BEIRA()]); ir([mx + (ida ? 2 : -2), MAPA.mar.y + 0.9], { nado: true }); ir([mx + (ida ? 3 : -3), BEIRA()], { nado: true }); ir(b);
+            } else ir(b);
+            const rot = montarRoteiro(passos, P);
+            cacheRoteiro.set(k, rot);
+            return rot;
+        }
+        function pessoaPraia(seed, n) { return banhistaDe(seed + n * 31, n * 17 + 3); }
+        // quem está sentado agora no assento c (para o desenho pequeno em cima da cadeira), ou null
+        function sentadoEm(c, tempo) {
+            if (!cachePraia.chave) return null;
+            const P = 150 + cachePraia.vazio, s0 = tempo / 1000 + ((c.x * 37 + c.y * 91) % 97) / 97 * P;
+            const n = Math.floor(s0 / P), o = ondeNoRoteiro(roteiroAssento(c, n, P), s0 - n * P);
+            return o.modo === 'sentado' ? { cfg: pessoaPraia(c.x * 7 + c.y, n), item: o.item } : null;
+        }
+        // põe na lista "em pé" quem está andando, nadando ou comprando (e devolve os itens na mão, para depois)
+        function pessoasDaPraia(todas, tempo, pe, naTela) {
+            const pr = praiaDe(todas);
+            const naMao = [];
+            if (!pr.chave || !deDia()) return naMao;
+            const por = (tx, ty, cfg, o, andaRapido) => {
+                if (!naTela(Math.floor(tx), Math.floor(ty))) return;
+                const x = wx(tx), y = wy(ty) - 8;
+                const nadando = naAgua(x, y);
+                const passo = o.modo === 'andando' && Math.floor(tempo / (andaRapido ? 130 : 160) + tx * 3) % 2 ? -1 : 0;
+                const bob = o.modo === 'comprando' ? (Math.floor(tempo / 300) % 2 ? -1 : 0) : nadando ? 0 : passo;
+                pe.push({ img: avatarCanvas(cfg), x, y, flip: o.flip, bob, nadando });
+                if (o.item && !nadando) naMao.push({ item: o.item, x: x + (o.flip ? 0 : 9), y: y + 6 + bob });
+            };
+            const P = 150 + pr.vazio;
+            for (const c of pr.assentos) {
+                const s0 = tempo / 1000 + ((c.x * 37 + c.y * 91) % 97) / 97 * P;
+                const n = Math.floor(s0 / P), o = ondeNoRoteiro(roteiroAssento(c, n, P), s0 - n * P);
+                if (o.modo === 'andando' || o.modo === 'nadando' || o.modo === 'comprando') por(o.x, o.y, pessoaPraia(c.x * 7 + c.y, n), o);
+            }
+            const PP = 60 + pr.vazio / 2;
+            for (let i = 0; i < pr.passeantes; i++) {
+                const s0 = tempo / 1000 + (i * 0.37 % 1) * PP;
+                const n = Math.floor(s0 / PP), o = ondeNoRoteiro(roteiroPasseio(i, n, PP), s0 - n * PP);
+                if (o.modo !== 'fora') por(o.x, o.y, pessoaPraia(900 + i * 13, n), o, true);
+            }
+            return naMao;
+        }
         let energiaFrac = 0;   // 0..1, para as luzinhas das baterias
         // a fábrica automática em uso: algum item da rede saindo dela ou chegando nela agora
         // (null parada; senão o ícone do item e o quanto ele está na porta, 0..1)
@@ -3346,7 +3494,10 @@
                 } else if (tipo === 'banhista' || tipo === 'fregues') {   // fase 97
                     if (!deDia()) continue;
                     if (tipo === 'fregues' && Math.floor(t / 4000) % 3 === 2) continue;   // o freguês vai e volta
-                    const cv = avatarCanvas(banhistaDe(c.x, c.y + (tipo === 'fregues' ? Math.floor(t / 12000) : 0)));
+                    const sent = tipo === 'banhista' ? sentadoEm(c, tempo) : null;   // fase 108: a cadeira fica vazia quando ele sai
+                    if (tipo === 'banhista' && !sent) continue;
+                    const cv = avatarCanvas(sent ? sent.cfg : banhistaDe(c.x, c.y + Math.floor(t / 12000)));
+                    if (sent && sent.item && A_ITEM_PRAIA[sent.item] != null) miniTile(A_ITEM_PRAIA[sent.item], x + 14, y + 6 + Math.round(Math.sin(t / 700)), 7);
                     const bx = tipo === 'banhista' ? x + 6 : x + 2, by = tipo === 'banhista' ? y + 3 : y + 9;
                     const pulo = tipo === 'fregues' ? Math.round(Math.abs(Math.sin(t / 260)) * 1) : Math.round(Math.sin(t / 900) * 0.6);
                     q.drawImage(cv, 0, 0, 16, 16, Math.round(bx), Math.round(by - pulo), 12, 12);
