@@ -814,105 +814,143 @@
         if (!AVATAR_TIPOS[cfg.tipo]) cfg = { tipo: 'fazendeiro', pele: typeof cfg.chapeu === 'string' ? cfg.pele | 0 : 0 };
         return cfg;
     }
-    /* ---- fase 107: os bichos desenhados aqui, com mais detalhe e maiores (vaca e búfala 26 x 20; ovelha,
-       porco e cabra 22; galinha, pato e coelho 16), em dois quadros de andar. Olham para a direita (o
-       jogo vira quando andam para a esquerda). O pato fica com 16 x 16, para nadar certo no laguinho. ---- */
+    /* ---- os bichos (refeitos no estilo da referência do Jessé): de lado, olhando para a direita, contorno
+       escuro de 1 pixel em volta de cada parte (é o que separa as pernas e a cabeça do corpo), formas
+       arredondadas, sombra embaixo e brilho em cima. Dois quadros de andar (as pernas trocam). ---- */
     const cacheBicho = new Map();
     function bichoCanvas(tipo, quadro) {
         const chave = tipo + quadro;
         if (cacheBicho.has(chave)) return cacheBicho.get(chave);
-        const TAM = { vaca: [26, 20], bufala: [26, 20], ovelha: [22, 17], porco: [22, 15], cabra: [22, 19], galinha: [16, 16], pato: [16, 16], coelho: [16, 16] };
+        const TAM = { vaca: [30, 22], bufala: [30, 22], ovelha: [26, 20], porco: [26, 19], cabra: [26, 22], galinha: [16, 16], pato: [16, 16], coelho: [16, 16] };
         const [W, H] = TAM[tipo] || [16, 16];
-        const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
-        const g = cv.getContext('2d'), OL = '#3f2631';
-        const R = (x, y, w, h, c) => { if (w > 0 && h > 0) { g.fillStyle = c; g.fillRect(x, y, w, h); } };
-        // um corpo oval com contorno e a barriga mais escura
-        const oval = (cx, cy, rx, ry, cor, sombra, luz) => {
-            for (let y = -ry; y <= ry; y++) {
-                const w = Math.round(rx * Math.sqrt(Math.max(0, 1 - (y * y) / (ry * ry + 0.5))));
-                R(cx - w - 1, cy + y, 2 * w + 3, 1, OL);
-            }
-            for (let y = -ry + 1; y <= ry - 1; y++) {
-                const w = Math.round(rx * Math.sqrt(Math.max(0, 1 - (y * y) / (ry * ry + 0.5)))) - 1;
-                R(cx - w, cy + y, 2 * w + 1, 1, y > ry * 0.35 ? sombra : cor);
-                if (luz && y < -ry * 0.3) R(cx - w + 2, cy + y, Math.max(1, w), 1, luz);
-            }
+        const cor = new Array(W * H).fill(null);
+        const OL = '#2a1f2d';
+        const put = (x, y, c) => { x = Math.round(x); y = Math.round(y); if (x >= 0 && y >= 0 && x < W && y < H) cor[y * W + x] = c; };
+        // uma parte: o contorno em volta (por cima do que já tem) e o recheio com a cor que tinta(x, y, u, v) der
+        const parte = (dentro, x0, y0, x1, y1, tinta) => {
+            const s = new Set();
+            for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) if (dentro(x, y)) s.add(x + ',' + y);
+            for (const k of s) { const [x, y] = k.split(',').map(Number); for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (!s.has((x + dx) + ',' + (y + dy))) put(x + dx, y + dy, OL); }
+            for (const k of s) { const [x, y] = k.split(',').map(Number); const c = tinta(x, y, (x - x0) / Math.max(1, x1 - x0), (y - y0) / Math.max(1, y1 - y0)); if (c) put(x, y, c); }
         };
-        const perna = (x, y, h, cor, casco) => { R(x - 1, y, 4, h + 1, OL); R(x, y, 2, h - 1, cor); R(x, y + h - 1, 2, 1, casco || OL); };
-        const pernas = (xs, y, h, cor, casco) => xs.forEach((x, k) => perna(x + (quadro && k % 2 ? 1 : 0) - (quadro && !(k % 2) ? 1 : 0), y + (quadro && k % 2 ? -1 : 0), h, cor, casco));
-        R(2, H - 2, W - 4, 2, 'rgba(30,40,20,0.25)');   // a sombra no chão
+        const elipse = (cx, cy, rx, ry) => (x, y) => ((x + 0.5 - cx) / rx) ** 2 + ((y + 0.5 - cy) / ry) ** 2 <= 1;
+        const caixa = (x0, y0, x1, y1, r) => (x, y) => {
+            if (x < x0 || x > x1 || y < y0 || y > y1) return false;
+            const cx = x < x0 + r ? x0 + r : x > x1 - r ? x1 - r : x, cy = y < y0 + r ? y0 + r : y > y1 - r ? y1 - r : y;
+            return (x - cx) ** 2 + (y - cy) ** 2 <= r * r + 0.5;
+        };
+        const sombreado = (luz, base, sombra) => (x, y, u, v) => (v < 0.18 ? luz : v > 0.72 ? sombra : base);
+        // as pernas: [x, de que altura, comprimento]; no quadro 1 as de trás e as da frente trocam de passo
+        const perna = (x, y0, alt, larg, c1, c2, casco) => parte(caixa(x, y0, x + larg - 1, y0 + alt, 0), x, y0, x + larg - 1, y0 + alt,
+            (px, py) => (py >= y0 + alt - 1 ? casco : py > y0 + alt * 0.55 ? c2 : c1));
+        const passo = (k) => (quadro ? (k % 2 ? 1 : -1) : 0);
         if (tipo === 'vaca' || tipo === 'bufala') {
-            const bu = tipo === 'bufala', cor = bu ? '#4a4450' : '#f4f1e6', sombra = bu ? '#2f2a34' : '#d8d2c8', luz = bu ? '#6a6472' : '#ffffff';
-            pernas([5, 9, 15, 19], 13, 6, bu ? '#2f2a34' : '#f4f1e6', bu ? '#1a1630' : '#5a3a28');
-            oval(12, 10, 9, 5, cor, sombra, luz);
-            if (!bu) { R(6, 7, 4, 3, '#2b2b38'); R(13, 9, 5, 3, '#2b2b38'); R(9, 12, 3, 2, '#2b2b38'); R(14, 6, 2, 2, '#2b2b38'); }   // as manchas
-            if (!bu) { R(13, 14, 4, 2, OL); R(14, 14, 2, 2, '#f5a3b0'); }   // o úbere
-            // a cabeça e o focinho
-            R(19, 4, 7, 9, OL); R(20, 5, 5, 7, cor); R(20, 5, 5, 1, luz);
-            R(21, 10, 5, 3, OL); R(21, 10, 4, 2, bu ? '#5a5560' : '#f5a3b0'); R(23, 11, 1, 1, OL);
-            R(22, 7, 1, 1, OL);   // o olho
-            if (bu) { R(17, 2, 4, 2, OL); R(18, 2, 2, 1, '#c8c0b0'); R(16, 3, 2, 2, OL); R(24, 2, 3, 2, OL); R(25, 2, 1, 1, '#c8c0b0'); }   // os chifres curvos
-            else { R(20, 3, 2, 2, OL); R(20, 3, 1, 1, '#e8dcc0'); R(24, 3, 2, 2, OL); R(24, 3, 1, 1, '#e8dcc0'); R(18, 5, 2, 2, cor); }   // os chifrinhos e a orelha
+            const bu = tipo === 'bufala';
+            const B = bu ? ['#5c5566', '#433d4c', '#2f2a37'] : ['#ffffff', '#f1eff4', '#c9c6d2'];
+            const casco = bu ? '#16121c' : '#2b2330';
+            // as pernas de trás (mais escuras, atrás do corpo)
+            perna(5 + passo(1), 14, 6, 2, B[2], B[2], casco); perna(17 + passo(1), 14, 6, 2, B[2], B[2], casco);
             // o rabo com o tufo
-            R(2, 7, 1, 6, OL); R(1, 12, 3, 2, bu ? '#1a1630' : '#2b2b38');
-            if (!bu) R(3, 6, 1, 1, OL);
-        } else if (tipo === 'ovelha') {
-            pernas([6, 9, 13, 16], 11, 5, '#2b2b38', '#1a1630');
-            // a lã: um monte de bolinhas
-            oval(10, 8, 8, 5, '#f4f1e6', '#d8d2c8', '#ffffff');
-            for (const [x, y] of [[4, 5], [8, 3], [12, 3], [15, 5], [3, 9], [17, 9], [7, 12], [13, 12]]) { R(x - 1, y - 1, 4, 4, OL); R(x, y, 2, 2, '#f4f1e6'); R(x, y, 1, 1, '#ffffff'); }
-            for (let k = 0; k < 6; k++) R(5 + k * 2, 6 + (k % 2) * 3, 1, 1, '#d8d2c8');
-            // a cara escura com a orelha
-            R(16, 4, 6, 8, OL); R(17, 5, 4, 6, '#3a3440'); R(17, 5, 4, 1, '#5a5460'); R(19, 7, 1, 1, '#ffffff'); R(20, 9, 1, 1, '#1a1630');
-            R(15, 5, 2, 2, '#3a3440');
-            R(15, 2, 4, 3, '#f4f1e6'); R(15, 2, 4, 1, '#ffffff');   // o topete de lã
+            for (let k = 0; k < 8; k++) put(2 - (k > 5 ? 1 : 0), 6 + k, OL);
+            parte(elipse(2, 15, 1.6, 2.2), 0, 12, 4, 18, () => (bu ? '#16121c' : '#2b2b33'));
+            // o corpo
+            parte(caixa(3, 5, 23, 15, 4), 3, 5, 23, 15, (x, y, u, v) => {
+                if (!bu) {   // as manchas pretas, de bordas irregulares
+                    const m = ((x - 8) ** 2) / 9 + ((y - 8) ** 2) / 5 + Math.sin(x * 1.7) * 0.25 < 1 || ((x - 16) ** 2) / 7 + ((y - 11) ** 2) / 4 + Math.cos(y * 2.1) * 0.3 < 1 || ((x - 20) ** 2) / 3 + ((y - 6) ** 2) / 2 < 1;
+                    if (m) return v > 0.75 ? '#1a1a22' : '#2b2b33';
+                }
+                return v < 0.15 ? B[0] : v > 0.7 ? B[2] : B[1];
+            });
+            if (!bu) { parte(caixa(10, 15, 13, 17, 1), 10, 15, 13, 17, (x, y) => (y === 17 ? '#d97c8c' : '#f4a6b0')); }   // o úbere
+            // as pernas da frente
+            perna(8 + passo(0), 14, 6, 2, B[1], B[2], casco); perna(20 + passo(0), 14, 6, 2, B[1], B[2], casco);
+            // a cabeça
+            parte(caixa(20, 2, 27, 11, 3), 20, 2, 27, 11, (x, y, u, v) => (!bu && x <= 22 && y <= 6 ? '#2b2b33' : v < 0.2 ? B[0] : v > 0.75 ? B[2] : B[1]));
+            // o focinho grande
+            parte(caixa(23, 8, 29, 13, 2), 23, 8, 29, 13, (x, y) => (bu ? (y >= 12 ? '#3a3440' : '#6b6474') : y >= 12 ? '#d97c8c' : '#f4a6b0'));
+            put(26, 10, bu ? '#16121c' : '#8a4a52'); put(28, 10, bu ? '#16121c' : '#8a4a52');   // as narinas
+            put(24, 6, OL); put(24, 5, bu ? '#ffffff' : OL);   // o olho
+            // a orelha e os chifres
+            parte(elipse(19, 4, 2, 1.2), 17, 3, 21, 5, () => (bu ? B[1] : '#2b2b33'));
+            if (bu) {   // os chifres grandes e curvos da búfala
+                for (const [x, y] of [[21, 1], [20, 0], [19, 0], [18, 1], [26, 1], [27, 0], [28, 0], [29, 1]]) put(x, y, '#d8cfbe');
+                for (const [x, y] of [[21, 2], [22, 1], [17, 1], [17, 2], [25, 2], [26, 2], [29, 2]]) put(x, y, OL);
+            } else {
+                parte(caixa(21, 0, 22, 1, 0), 21, 0, 22, 1, () => '#e8dcc0'); parte(caixa(25, 0, 26, 1, 0), 25, 0, 26, 1, () => '#e8dcc0');
+            }
         } else if (tipo === 'porco') {
-            pernas([6, 9, 13, 16], 10, 4, '#e98b9b', '#8a4a4a');
-            oval(11, 7, 8, 5, '#f5a3b0', '#e98b9b', '#ffc8d0');
-            // a cabeça, o focinho com os furinhos e as orelhas caídas
-            R(16, 3, 6, 8, OL); R(17, 4, 4, 6, '#f5a3b0'); R(17, 4, 4, 1, '#ffc8d0');
-            R(19, 7, 4, 3, OL); R(20, 7, 2, 2, '#e98b9b'); R(20, 8, 1, 1, '#8a4a4a'); R(21, 8, 1, 1, '#8a4a4a');
-            R(18, 5, 1, 1, OL); R(16, 2, 3, 2, OL); R(17, 2, 1, 2, '#d27688');
-            // o rabinho enrolado
-            R(1, 4, 2, 1, '#d27688'); R(1, 3, 1, 1, '#d27688'); R(2, 2, 1, 1, '#d27688'); R(3, 3, 1, 2, OL);
-            R(6, 4, 3, 1, '#ffc8d0'); R(10, 11, 2, 1, '#d27688');
+            const P = ['#ffc6d0', '#f6a5b4', '#e0849a'], casco = '#6a2c3c';
+            perna(5 + passo(1), 13, 4, 2, P[2], P[2], casco); perna(16 + passo(1), 13, 4, 2, P[2], P[2], casco);
+            for (const [x, y] of [[2, 6], [1, 5], [1, 4], [2, 3], [3, 3], [3, 4]]) put(x, y, '#d9708a');   // o rabinho enrolado
+            // o corpo e a cabeça numa peça só (como o porquinho da referência)
+            parte(caixa(3, 4, 22, 14, 4), 3, 4, 22, 14, (x, y, u, v) => (v < 0.14 ? P[0] : v > 0.72 ? P[2] : P[1]));
+            perna(8 + passo(0), 13, 4, 2, P[1], P[2], casco); perna(19 + passo(0), 13, 4, 2, P[1], P[2], casco);
+            // a orelha em pé, o focinho de disco com as narinas, o olho e o sorriso
+            parte((x, y) => y >= 1 && y <= 4 && Math.abs(x + 0.5 - 18.5) <= 0.5 + (y - 1) * 0.6, 15, 0, 22, 5, (x, y) => (y <= 2 ? '#e0849a' : P[1]));
+            parte(caixa(22, 7, 25, 11, 1), 22, 7, 25, 11, (x, y) => (y >= 11 ? '#d9708a' : '#f08aa0'));
+            put(23, 9, casco); put(24, 9, '#f08aa0'); put(25, 9, casco);
+            put(20, 7, OL); put(20, 6, '#ffffff');
+            put(21, 11, '#b05068'); put(22, 12, '#b05068');
+            for (let x = 6; x < 13; x++) put(x, 5, '#ffe0e6');   // o brilho no lombo
+        } else if (tipo === 'ovelha') {
+            perna(7 + passo(1), 13, 5, 3, '#3a3440', '#3a3440', '#16121c'); perna(16 + passo(1), 13, 5, 3, '#3a3440', '#3a3440', '#16121c');
+            // a lã fofa: bolinhas em volta
+            const la = (x, y) => elipse(12, 9, 9, 5.5)(x, y) || [[5, 5], [9, 3.5], [14, 3.5], [18, 5], [4, 10], [20, 10], [8, 13.5], [15, 13.5]].some(([cx, cy]) => (x + 0.5 - cx) ** 2 + (y + 0.5 - cy) ** 2 <= 6.5);
+            parte(la, 1, 1, 23, 16, (x, y, u, v) => (v < 0.2 ? '#ffffff' : v > 0.75 ? '#d6d2dc' : (x * 3 + y * 5) % 7 === 0 ? '#e2dfe8' : '#f5f3f8'));
+            perna(10 + passo(0), 13, 5, 3, '#4a4450', '#3a3440', '#16121c'); perna(19 + passo(0), 13, 5, 3, '#4a4450', '#3a3440', '#16121c');
+            // a cara escura com a orelha e o topete de lã
+            parte(caixa(19, 4, 25, 11, 2), 19, 4, 25, 11, (x, y, u, v) => (v < 0.2 ? '#5a5462' : '#3a3440'));
+            parte(elipse(19, 5, 2, 1.2), 16, 4, 21, 6, () => '#3a3440');
+            parte(elipse(21, 3.5, 2.6, 1.8), 18, 1, 24, 5, () => '#ffffff');
+            put(22, 7, '#ffffff'); put(23, 7, OL); put(24, 10, '#16121c');
         } else if (tipo === 'cabra') {
-            pernas([6, 9, 13, 16], 13, 5, '#d8c8a8', '#3f2631');
-            oval(10, 10, 8, 4, '#efe4cc', '#d0c0a0', '#ffffff');
-            R(3, 8, 2, 3, OL); R(3, 8, 1, 2, '#efe4cc');   // o rabinho em pé
-            // a cabeça com os chifres para trás e a barbicha
-            R(15, 4, 6, 9, OL); R(16, 5, 4, 7, '#efe4cc'); R(16, 5, 4, 1, '#ffffff');
-            R(19, 10, 3, 2, OL); R(19, 10, 2, 1, '#f5a3b0');
-            R(18, 7, 1, 1, OL);
-            R(15, 1, 2, 4, OL); R(14, 0, 2, 2, OL); R(15, 2, 1, 2, '#a89878'); R(18, 1, 2, 4, OL); R(18, 2, 1, 2, '#a89878');   // os chifres
-            R(17, 12, 2, 4, OL); R(17, 12, 1, 3, '#d0c0a0');   // a barbicha
-            R(13, 5, 3, 2, '#efe4cc'); R(13, 5, 3, 1, OL);   // a orelha
+            const C = ['#fffaf0', '#f1e6cf', '#d6c4a2'], casco = '#3a2a20';
+            perna(5 + passo(1), 14, 6, 2, C[2], C[2], casco); perna(15 + passo(1), 14, 6, 2, C[2], C[2], casco);
+            for (const [x, y] of [[3, 6], [2, 5], [3, 5]]) put(x, y, C[1]);   // o rabinho em pé
+            parte(caixa(3, 7, 19, 15, 3), 3, 7, 19, 15, sombreado(C[0], C[1], C[2]));
+            perna(8 + passo(0), 14, 6, 2, C[1], C[2], casco); perna(18 + passo(0), 14, 6, 2, C[1], C[2], casco);
+            // a cabeça comprida, a orelha caída, os chifres curvos para trás e a barbicha
+            parte(caixa(17, 3, 24, 9, 2), 17, 3, 24, 9, (x, y, u, v) => (x >= 23 && y >= 6 ? '#f4c2c8' : v < 0.2 ? C[0] : C[1]));
+            parte(elipse(17, 5.5, 2.4, 1.2), 14, 4, 19, 7, () => C[2]);
+            for (const [x, y] of [[19, 2], [18, 1], [17, 1], [16, 2], [21, 2], [20, 1], [19, 0]]) put(x, y, '#8a7a5c');
+            for (const [x, y] of [[16, 3], [15, 2]]) put(x, y, OL);
+            parte(caixa(20, 10, 21, 13, 0), 20, 10, 21, 13, (x, y) => (y === 13 ? C[2] : C[1]));
+            put(21, 5, OL); put(24, 7, '#8a4a52');
         } else if (tipo === 'galinha') {
-            pernas([6, 9], 12, 3, '#e38628', '#e38628');
-            oval(7, 8, 5, 4, '#ffffff', '#e4e8ee', null);
-            R(1, 4, 3, 3, OL); R(2, 5, 2, 2, '#ffffff'); R(1, 3, 2, 2, OL); R(1, 3, 1, 1, '#ffffff');   // o rabo de penas
-            R(5, 8, 4, 2, '#d8dee6'); R(5, 8, 4, 1, OL);   // a asa
-            // a cabeça, a crista, o bico e a barbela
-            R(9, 2, 6, 6, OL); R(10, 3, 4, 4, '#ffffff');
-            R(10, 1, 4, 2, OL); R(10, 1, 3, 1, '#e8434a'); R(11, 0, 2, 1, '#e8434a');
-            R(14, 4, 2, 2, OL); R(14, 4, 2, 1, '#fdbe53'); R(13, 6, 2, 2, '#e8434a');
-            R(12, 4, 1, 1, OL);
+            perna(6, 11, 3, 1, '#f0a030', '#f0a030', '#d07a18'); perna(9, 11, 3, 1, '#f0a030', '#f0a030', '#d07a18');
+            if (quadro) { put(6, 14, '#d07a18'); put(10, 14, '#d07a18'); }
+            parte(elipse(2.5, 6, 2.2, 3), 0, 2, 5, 9, (x, y) => (y < 5 ? '#ffffff' : '#e4e8ee'));   // o rabo de penas
+            parte(elipse(7.5, 8.5, 5.5, 3.8), 2, 4, 13, 13, sombreado('#ffffff', '#f6f7fa', '#d8dde6'));
+            parte(elipse(7, 9, 3, 1.8), 4, 7, 10, 11, (x, y) => (y > 9 ? '#c8ced8' : '#e4e8ee'));   // a asa
+            parte(elipse(11.5, 4.5, 2.8, 2.8), 8, 1, 15, 8, sombreado('#ffffff', '#ffffff', '#e4e8ee'));
+            for (const [x, y] of [[10, 0], [11, 0], [12, 1], [10, 1], [11, 1]]) put(x, y, '#e8434a');   // a crista
+            put(14, 4, '#f6b03c'); put(15, 5, '#e08a20'); put(14, 5, '#f6b03c');   // o bico
+            put(13, 6, '#e8434a'); put(13, 7, '#c8303a');   // a barbela
+            put(12, 4, OL);
         } else if (tipo === 'pato') {
-            pernas([6, 9], 12, 2, '#e38628', '#e38628');
-            oval(7, 9, 6, 3, '#ffffff', '#e4e8ee', null);
-            R(1, 7, 3, 2, OL); R(1, 6, 2, 1, OL); R(2, 7, 2, 1, '#ffffff');   // o rabinho
-            R(4, 8, 6, 2, '#d8dee6'); R(4, 8, 6, 1, OL);   // a asa
-            R(10, 3, 5, 6, OL); R(11, 4, 3, 4, '#ffffff'); R(11, 4, 3, 1, '#ffffff');
-            R(14, 6, 2, 2, OL); R(14, 6, 2, 1, '#fdbe53'); R(15, 7, 1, 1, '#e38628');   // o bico achatado
-            R(13, 5, 1, 1, OL);
+            perna(6, 11, 3, 1, '#f39a2a', '#f39a2a', '#d07a18'); perna(9, 11, 3, 1, '#f39a2a', '#f39a2a', '#d07a18');
+            if (quadro) { put(5, 14, '#d07a18'); put(10, 14, '#d07a18'); }
+            parte(elipse(7.5, 9, 6, 3.3), 1, 5, 14, 13, sombreado('#ffffff', '#f6f7fa', '#d8dde6'));
+            parte(elipse(6, 9, 3.2, 1.8), 3, 7, 10, 11, (x, y) => (y > 9 ? '#c8ced8' : '#e4e8ee'));
+            for (const [x, y] of [[1, 6], [0, 5], [1, 5]]) put(x, y, '#ffffff');
+            parte(elipse(11.5, 4, 2.6, 2.8), 8, 0, 15, 8, sombreado('#ffffff', '#ffffff', '#e4e8ee'));
+            parte(caixa(13, 4, 15, 5, 0), 13, 4, 15, 5, (x, y) => (y === 5 ? '#e08a20' : '#f6b03c'));   // o bico chato
+            put(12, 3, OL);
         } else if (tipo === 'coelho') {
-            pernas([5, 9], 12, 2, '#b4a490', '#8a7a68');
-            oval(7, 9, 5, 4, '#c8b8a0', '#a8987e', '#e0d4c0');
-            R(1, 8, 3, 3, OL); R(2, 8, 2, 2, '#ffffff');   // o rabo de algodão
-            R(9, 5, 6, 6, OL); R(10, 6, 4, 4, '#c8b8a0'); R(10, 6, 4, 1, '#e0d4c0');
-            R(10, 0, 3, 6, OL); R(11, 1, 1, 4, '#f5a3b0'); R(12, 1, 3, 5, OL); R(13, 1, 1, 4, '#c8b8a0');   // as orelhas compridas
-            R(12, 7, 1, 1, OL); R(14, 8, 1, 1, '#d27688');
+            const C = ['#e9dccb', '#cdb9a0', '#a8927a'];
+            parte(elipse(2.5, 9, 1.8, 1.8), 0, 7, 5, 11, () => '#ffffff');   // o rabinho de algodão
+            parte(elipse(7, 10, 5, 3.6), 2, 6, 12, 14, sombreado(C[0], C[1], C[2]));
+            parte(elipse(5 + (quadro ? 1 : 0), 13.5, 2.4, 1.2), 2, 12, 9, 15, () => C[2]);   // a pata de trás
+            parte(elipse(11, 7, 3, 2.8), 8, 4, 14, 10, sombreado(C[0], C[1], C[2]));
+            parte(caixa(9, 0, 10, 4, 1), 9, 0, 10, 4, (x) => (x === 10 ? '#f4b8c0' : C[1]));   // as orelhas compridas
+            parte(caixa(12, 0, 13, 4, 1), 12, 0, 13, 4, (x) => (x === 13 ? '#f4b8c0' : C[1]));
+            put(12, 6, OL); put(14, 8, '#d9708a');
+            parte(caixa(10, 12, 11, 13, 0), 10, 12, 11, 13, () => C[1]);
         }
+        const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+        const g = cv.getContext('2d');
+        g.fillStyle = 'rgba(30,40,20,0.22)'; g.fillRect(3, H - 2, W - 6, 2);   // a sombra no chão
+        for (let i = 0; i < cor.length; i++) if (cor[i]) { g.fillStyle = cor[i]; g.fillRect(i % W, Math.floor(i / W), 1, 1); }
         cacheBicho.set(chave, cv);
         return cv;
     }

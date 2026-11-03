@@ -798,13 +798,16 @@ returns int language sql stable security definer set search_path = public as $$
    where c.jogador_id = p_jogador;
 $$;
 
--- Bônus nas vendas, em %: beleza (+1% a cada 10, até 20) + caixote (+10)
+-- Bônus nas vendas, em %: beleza (fase 107: +1% a cada 5, até 70) + caixote (+10)
 -- fase 78: do nível 29 para baixo, +50% nas vendas (do 30 ao 34 vai caindo 10 por nível, sem tombo)
 create or replace function public.fazenda_bonus_venda(p_jogador uuid)
 returns int language plpgsql stable security definer set search_path = public as $$
 begin   -- (plpgsql: fazenda_nivel vem mais para baixo no arquivo)
-  return least(fazenda_beleza(p_jogador) / 10, 20) + 10 * fazenda_tem_efeito(p_jogador, 'venda')::int
-       + greatest(0, least(50, 50 - 10 * ((select fazenda_nivel_de(xp, nivel_trava) from fazenda_jogadores where id = p_jogador) - 29)));
+  -- fase 107: a beleza volta a valer até 70% para todo mundo (+1% a cada 5 de beleza; era +1% a cada 10, até 20);
+  -- a ajuda de quem está até o nível 29 soma com ela, sem passar dos 70. O caixote dá +10 por fora.
+  return least(70, fazenda_beleza(p_jogador) / 5
+       + greatest(0, least(50, 50 - 10 * ((select fazenda_nivel_de(xp, nivel_trava) from fazenda_jogadores where id = p_jogador) - 29))))
+       + 10 * fazenda_tem_efeito(p_jogador, 'venda')::int;
 end;
 $$;
 
@@ -1581,6 +1584,7 @@ begin
       'zonas', j.zonas,
       'direita', j.direita,   -- fase 78: os terrenos da direita
       'ilha_terrenos', j.ilha_terrenos,   -- fase 106: os da ilha
+      'preco_chico', fazenda_preco_chico(v_nivel),   -- fase 107: o Peixe do Velho Chico vale mais a cada nível
       'beleza', fazenda_beleza(p_jogador),
       'bonus_venda', fazenda_bonus_venda(p_jogador),
       -- fase 106: a ilha (pode zarpar? quantas obras; do 45 em diante, a lista; o baú de hoje já foi aberto?)
@@ -3392,6 +3396,7 @@ declare
   v_sem_xp int := 0;      -- fase 56: quantos itens comprados na feira foram vendidos (sem XP)
   v_cofre boolean;        -- fase 93: cofrinho de ouro ligado (+50%, menos no que veio da feira)
   v_extra int := 0;
+  v_nivel int := (select fazenda_nivel_de(xp, nivel_trava) from fazenda_jogadores where id = v_id);   -- fase 107: o preço do Velho Chico
 begin
   if p_quantidade is not null and p_quantidade <= 0 then
     raise exception 'quantidade_invalida';
@@ -3399,7 +3404,9 @@ begin
 
   -- o que está reservado para os animais fica no celeiro
   for r in
-    select ce.item, ce.quantidade - coalesce(rs.quantidade, 0) as livre, ce.da_feira, k.venda, k.tipo, k.nivel_min
+    select ce.item, ce.quantidade - coalesce(rs.quantidade, 0) as livre, ce.da_feira,
+           case when k.id = 'velho_chico' then fazenda_preco_chico(v_nivel) else k.venda end as venda,   -- fase 107
+           k.tipo, k.nivel_min
       from fazenda_celeiro ce
       join fazenda_culturas k on k.id = ce.item
       left join fazenda_reservas rs on rs.jogador_id = ce.jogador_id and rs.item = ce.item
@@ -6815,8 +6822,8 @@ $$;
 -- fisgar até 0,3 s antes da mordida conta (relógio), e a folga de 2,5 s depois da janela é a internet
 create or replace function public.fazenda_mar_regras()
 returns jsonb language sql immutable as $$
-  -- fase 105: jogo_ms = o tempo do joguinho da fisgada (a barra), que vem depois da mordida
-  select '{"perola": 200, "mordida_min": 1500, "mordida_max": 5000, "cedo_ms": 300, "folga_ms": 2500, "jogo_ms": 40000}'::jsonb;
+  -- fase 105: jogo_ms = o tempo do joguinho da fisgada (a barra); fase 107: o joguinho saiu (fisgou na hora, pegou)
+  select '{"perola": 200, "mordida_min": 1500, "mordida_max": 5000, "cedo_ms": 300, "folga_ms": 2500, "jogo_ms": 0}'::jsonb;
 $$;
 
 -- a chance (%) de cada peixe com este barco e esta vara: cada nível de vara põe +50% (dividido pela
@@ -11048,3 +11055,21 @@ select public.fazenda_cache_montar();
 
 revoke execute on function public.fazenda_ilha_obras(), public.fazenda_ilha_pode(uuid, int), public.fazenda_ilha_x(uuid) from public, anon, authenticated;
 grant execute on function public.fazenda_ilha_construir(text, text), public.fazenda_ilha_bau(text) to anon, authenticated;
+
+-- ------------------------------------------------------------
+-- Fase 107: o Peixe do Velho Chico vale mais a cada nível, a beleza volta a dar até 70% nas vendas e
+-- a pescaria sem o joguinho da barra.
+-- • O Velho Chico, no celeiro: 2.500 até o nível 10 e +6,2% a cada nível, até 50.000 no 60
+--   (2.500 × 20^((nível − 10) / 50)).
+-- • Bônus nas vendas: +1% a cada 5 de beleza, até 70% (somado à ajuda de quem está até o 29, sem passar
+--   dos 70); o caixote dá +10 por fora.
+-- • Pescaria: o joguinho da barra saiu; fisgar na hora da mordida pega o peixe (jogo_ms = 0).
+-- Pode rodar este arquivo de novo.
+-- ------------------------------------------------------------
+create or replace function public.fazenda_preco_chico(p_nivel int)
+returns int language sql immutable as $$
+  select (round(2500 * power(20::numeric, (least(greatest(coalesce(p_nivel, 1), 10), 60) - 10) / 50.0) / 10) * 10)::int;
+$$;
+
+select public.fazenda_cache_montar();
+revoke execute on function public.fazenda_preco_chico(int) from public, anon, authenticated;
