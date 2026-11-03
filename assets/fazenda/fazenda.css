@@ -3301,3 +3301,23 @@ body.construindo .status {
     font: 700 15px Nunito, sans-serif;
     color: var(--o);
 }
+
+/* fase 103: o modo gerente */
+.gerente-resumo { margin-bottom: 8px; }
+.gerente-resumo .g-alerta { background: #ffe0d6; }
+.gerente-acoes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 8px 0 10px; }
+.gerente-acoes .botao { justify-content: center; min-width: 0; }
+.gerente-grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 6px; margin: 8px 0; }
+.gerente-card {
+    display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 4px 5px;
+    border: 3px solid var(--o); border-radius: 4px; background: #fffaf2; color: var(--o);
+    font: 800 11px/1 Nunito, sans-serif; cursor: pointer; position: relative;
+}
+.gerente-card .g-arte { height: 26px; display: flex; align-items: center; }
+.gerente-card .g-barra { width: 100%; height: 6px; background: #e9d7bd; border: 1px solid var(--o); }
+.gerente-card .g-barra i { display: block; height: 100%; background: #6ab04c; }
+.gerente-card.g-maduro { background: #eaf8d8; box-shadow: inset 0 0 0 2px #7cc452; }
+.gerente-card.g-maduro .g-barra i { background: #f2c14e; }
+.gerente-card.g-vazio, .gerente-card.g-arado { background: #f6ecdc; opacity: 0.85; }
+.gerente-card.g-murcho { background: #eadfd6; filter: grayscale(0.7); }
+.gerente-card.g-prob::after { content: '!'; position: absolute; top: -6px; right: -6px; width: 16px; height: 16px; border-radius: 50%; background: #e23b3b; color: #fff; font: 900 11px/16px Nunito, sans-serif; text-align: center; border: 2px solid var(--o); }

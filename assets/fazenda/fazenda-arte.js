@@ -1030,6 +1030,7 @@
         chat: ['..ooooooo..', '.owwwwwwwo.', 'owwwwwwwwso', 'owBwwBwwBso', 'owwwwwwwwso', '.owwwwwwso.', '..oowooooo.', '...owo.....', '...oo......'],
         // calendário de resgate diário (fase 69): folhinha com a argola, a faixa vermelha e o dia marcado
         calendario: ['.o.o.o.o.', 'ooooooooo', 'orrrrrrro', 'ooooooooo', 'owwwwwwwo', 'owSwSwSwo', 'owwwwwwwo', 'owSwSwrwo', 'owwwwwwwo', 'ooooooooo'],
+        gerente: ['ooooooooo', 'ogggogggo', 'ogGgogGgo', 'ooooooooo', 'oyyyogggo', 'oyYyogGgo', 'ooooooooo', 'onnnoyyyo', 'onnnoyYyo', 'ooooooooo'],   // fase 103: o modo gerente (a grade dos canteiros)
         sino: ['....o....', '...oyo...', '..oyyyo..', '..owyyo..', '..owyyo..', '.oyyyyyo.', 'oyyyyyyYo', 'ooooooooo', '...oYo...', '....o....'],
         // diamante: a moeda especial (colher na hora)
         diamante: ['..ooooo..', '.owwbbBo.', 'owbbbbbBo', 'oBbBbBbBo', '.obbbbBo.', '..obbBo..', '...oBo...', '....o....'],
@@ -1296,6 +1297,224 @@
         let h = 2166136261;
         for (const ch of String(v)) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); }
         return h >>> 0;
+    }
+
+    /* ---------- Textura nova, nível 1: as árvores da mata em pixel art detalhada ----------
+       Desenhadas aqui (não vêm de pacote): copa feita de cachos de folha, cada cacho com contorno e luz
+       vindo do alto à esquerda (5 tons), tronco com casca e raízes, galhos com folhinhas, sombra no chão.
+       Uma família por estação: primavera e verão (verdes), outono (laranja), inverno (pinheiros com neve e
+       árvores peladas com neve nos galhos). As variações saem de uma semente, então a mata não "pula". */
+    const PAL_ARV = {
+        primavera: { folha: ['#1b3a1e', '#285a2b', '#3a7a36', '#549f44', '#7cc452', '#b5e46c'], flor: ['#ffd1e1', '#f59cbc', '#fff4c2'] },
+        verao: { folha: ['#1b3318', '#2c5522', '#43772c', '#5f9a35', '#88bd43', '#c0e06a'], flor: null },
+        outono: { folha: ['#3a180b', '#742a10', '#ad421c', '#da7428', '#f0a43e', '#ffd88a'], flor: null },
+        inverno: { folha: ['#14261c', '#1e3a2a', '#2c5238', '#3e6c48', '#56875a', '#7aa676'], flor: null },
+        florida: { folha: ['#4a1d33', '#83355a', '#bd5784', '#e486ad', '#f6b3cd', '#ffe4ef'], flor: ['#ffffff', '#fff4c2'] }   // a cerejeira da primavera
+    };
+    const PAL_TRONCO = ['#24130b', '#43271a', '#664027', '#8a5834', '#ad7a4b'];
+    const PAL_NEVE = ['#7f9bbd', '#b9cde6', '#e6f0fb', '#ffffff'];
+    const BAYER = [[0, 2], [3, 1]];
+
+    function telaArv(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
+    // ruído estável por pixel (para a textura de folha e casca)
+    const ruido = (x, y, s) => { let h = Math.imul(x * 374761393 + y * 668265263 + s * 2246822519, 1274126177); h ^= h >>> 13; h = Math.imul(h, 1597334677); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+    // um tom (0 a n-1) de um valor de luz 0..1, com pontilhado nas fronteiras
+    function tom(lum, x, y, n) { const v = Math.max(0, Math.min(0.999, lum)) * n + (BAYER[y & 1][x & 1] / 4 - 0.375) * 0.9; return Math.max(0, Math.min(n - 1, Math.floor(v))); }
+
+    // a grade de pixels: cada um guarda o que é (0 nada, 1 folha, 2 tronco, 3 neve) e o tom
+    function grade(w, h) { return { w, h, k: new Uint8Array(w * h), t: new Int8Array(w * h).fill(-1), dono: new Int16Array(w * h).fill(-1) }; }
+    function pinta(g, x, y, k, t, dono) { if (x < 0 || y < 0 || x >= g.w || y >= g.h) return; const i = y * g.w + x; g.k[i] = k; g.t[i] = t; if (dono != null) g.dono[i] = dono; }
+    const em = (g, x, y) => (x < 0 || y < 0 || x >= g.w || y >= g.h ? 0 : g.k[y * g.w + x]);
+
+    function tronco(g, cx, base, altura, larg, r) {
+        for (let y = base; y > base - altura; y--) {
+            const f = (base - y) / altura, meio = Math.max(1.5, larg * (1 - f * 0.35) / 2), raiz = y > base - 3 ? (3 - (base - y)) * 1.2 : 0;
+            const x0 = Math.round(cx - meio - raiz), x1 = Math.round(cx + meio + raiz);
+            for (let x = x0; x <= x1; x++) {
+                const u = (x - x0) / Math.max(1, x1 - x0);   // 0 à esquerda (luz) .. 1 à direita (sombra)
+                let lum = 0.85 - u * 0.75 + (ruido(x, Math.floor(y / 3), 7) - 0.5) * 0.25;
+                if (ruido(x, Math.floor(y / 4), 11) < 0.18 && u > 0.2 && u < 0.85) lum -= 0.35;   // as linhas da casca
+                pinta(g, x, y, 2, 1 + tom(lum, x, y, 4));
+            }
+        }
+    }
+    function galho(g, x0, y0, x1, y1, esp) {
+        const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
+        for (let s = 0; s <= n; s++) {
+            const x = Math.round(x0 + (x1 - x0) * s / n), y = Math.round(y0 + (y1 - y0) * s / n);
+            for (let e = 0; e < esp; e++) pinta(g, x, y + e, 2, e === 0 ? 3 : 2);
+        }
+    }
+    // a copa: cachos (bolinhas) pintados de trás para a frente; cada cacho tem luz própria e contorno
+    function copa(g, cachos, r, pal) {
+        const n = pal.folha.length - 1;   // o tom 0 é o contorno
+        cachos.sort((a, b) => a.y - b.y).forEach((b, id) => {
+            for (let y = Math.floor(b.y - b.r); y <= b.y + b.r; y++) {
+                for (let x = Math.floor(b.x - b.r); x <= b.x + b.r; x++) {
+                    const dx = (x + 0.5 - b.x) / b.r, dy = (y + 0.5 - b.y) / b.r, d2 = dx * dx + dy * dy;
+                    const borda = 1 + (ruido(x, y, 3) - 0.5) * 0.28;   // a borda irregular, de folha
+                    if (d2 > borda) continue;
+                    const luz = -0.62 * dx - 0.78 * dy;   // > 0 para o lado da luz (alto, esquerda)
+                    let lum = 0.5 + luz * 0.42 + (0.25 - Math.min(0.25, d2 * 0.25)) * 0.3;
+                    lum += (ruido(x >> 1, y >> 1, 5) - 0.5) * 0.32;   // a textura das folhas
+                    lum -= (y - g.h * 0.2) / g.h * 0.28;   // a parte de baixo da copa fica na sombra
+                    if (d2 > 0.62 && luz < -0.1) lum -= 0.22;   // o lado da sombra do cacho
+                    pinta(g, x, y, 1, 1 + tom(lum, x, y, n), id);
+                }
+            }
+        });
+        // o contorno de cada cacho por cima do de trás (é o que separa os cachos)
+        const k2 = g.dono.slice();
+        for (let y = 0; y < g.h; y++) for (let x = 0; x < g.w; x++) {
+            const i = y * g.w + x;
+            if (g.k[i] !== 1) continue;
+            const eu = k2[i];
+            for (const [ax, ay] of [[0, 1], [1, 0], [1, 1]]) {
+                const j = (y + ay) * g.w + (x + ax);
+                if (x + ax < g.w && y + ay < g.h && g.k[j] === 1 && k2[j] > eu && g.t[i] > 1) { g.t[i] = Math.max(1, g.t[i] - 2); break; }
+            }
+            // brilho: um pontinho claro no alto dos cachos
+            if (g.t[i] >= n - 1 && ruido(x, y, 9) < 0.12) g.t[i] = n;
+        }
+        if (pal.flor) for (let i = 0; i < g.k.length; i++) if (g.k[i] === 1 && g.t[i] >= 3 && ruido(i, 1, 13) < 0.025) { g.k[i] = 4; g.t[i] = Math.floor(ruido(i, 2, 17) * pal.flor.length); }
+    }
+    // neve por cima de tudo o que tem céu em cima
+    function nevar(g, grossura) {
+        for (let x = 0; x < g.w; x++) {
+            let livre = true;
+            for (let y = 0; y < g.h; y++) {
+                const k = g.k[y * g.w + x];
+                if (!k) { livre = true; continue; }
+                if (livre && k !== 3) {
+                    const gr = grossura + (ruido(x, y, 21) < 0.4 ? 1 : 0);
+                    for (let e = 0; e < gr; e++) if (y + e < g.h && g.k[(y + e) * g.w + x]) pinta(g, x, y + e, 3, e < gr - 1 ? (x + e) % 5 === 0 ? 2 : 3 : 1);
+                    if (y - 1 >= 0) pinta(g, x, y - 1, 3, 2);
+                }
+                livre = false;
+            }
+        }
+    }
+    // a grade vira imagem: contorno escuro em volta de tudo
+    function revelar(g, pal) {
+        const c = telaArv(g.w, g.h), x2 = c.getContext('2d'), img = x2.createImageData(g.w, g.h);
+        const hex = (s) => [parseInt(s.slice(1, 3), 16), parseInt(s.slice(3, 5), 16), parseInt(s.slice(5, 7), 16)];
+        for (let y = 0; y < g.h; y++) for (let x = 0; x < g.w; x++) {
+            const i = y * g.w + x, k = g.k[i];
+            let cor = null;
+            if (k) {
+                const fora = !em(g, x - 1, y) || !em(g, x + 1, y) || !em(g, x, y - 1) || !em(g, x, y + 1);
+                if (k === 1) cor = fora ? pal.folha[0] : pal.folha[g.t[i]];
+                else if (k === 2) cor = fora ? PAL_TRONCO[0] : PAL_TRONCO[g.t[i]];
+                else if (k === 3) cor = fora && g.t[i] < 3 ? PAL_NEVE[0] : PAL_NEVE[g.t[i]];
+                else if (k === 4) cor = pal.flor[g.t[i]];
+            }
+            if (!cor) continue;
+            const [r, gg, b] = hex(cor);
+            img.data.set([r, gg, b, 255], i * 4);
+        }
+        x2.putImageData(img, 0, 0);
+        return c;
+    }
+
+    // a árvore de copa redonda (grande ou média)
+    function arvoreCopa(est, semente, grande) {
+        const r = rng(semente), W = grande ? 50 : 40, H = grande ? 72 : 58, g = grade(W, H), cx = W / 2 + (r() - 0.5) * 2;
+        const alt = Math.round(H * (0.4 + r() * 0.06)), pal = PAL_ARV[est] || PAL_ARV.primavera;
+        tronco(g, cx, H - 1, alt, grande ? 7 : 6, r);
+        // galhos com um cachinho na ponta (o da esquerda mais baixo)
+        const cachos = [], yb = H - 1 - alt;
+        const ge = { x: cx - 11 - r() * 3, y: H - 1 - alt * (0.45 + r() * 0.12) }, gd = { x: cx + 10 + r() * 3, y: H - 1 - alt * (0.68 + r() * 0.1) };
+        galho(g, Math.round(cx - 2), Math.round(ge.y + 5), Math.round(ge.x + 3), Math.round(ge.y + 1), 2);
+        galho(g, Math.round(cx + 2), Math.round(gd.y + 5), Math.round(gd.x - 3), Math.round(gd.y + 1), 2);
+        cachos.push({ x: ge.x, y: ge.y - 1, r: 4.5 + r() * 1.5 }, { x: gd.x, y: gd.y - 1, r: 4 + r() * 1.5 });
+        // a copa: um anel de cachos e alguns no meio
+        const R = W * 0.36, ccy = yb - R * 0.55 + 4;
+        const n = 8 + Math.floor(r() * 3);
+        for (let k = 0; k < n; k++) {
+            const a = (k / n) * Math.PI * 2 + r() * 0.5;
+            cachos.push({ x: cx + Math.cos(a) * R * 0.62, y: ccy + Math.sin(a) * R * 0.48, r: R * (0.42 + r() * 0.16) });
+        }
+        cachos.push({ x: cx - R * 0.2, y: ccy - R * 0.25, r: R * 0.5 }, { x: cx + R * 0.15, y: ccy + R * 0.15, r: R * 0.48 }, { x: cx, y: ccy + R * 0.42, r: R * 0.42 });
+        copa(g, cachos, r, pal);
+        return { img: revelar(g, pal), w: W, h: H };
+    }
+    // o pinheiro: andares de galhos em triângulo, cada andar sombreado pelo de cima
+    function arvorePinheiro(est, semente, grande) {
+        const r = rng(semente), W = grande ? 36 : 30, H = grande ? 70 : 58, g = grade(W, H), cx = W / 2;
+        const pal = est === 'inverno' ? PAL_ARV.inverno : { folha: ['#13261a', '#1d3b26', '#2b5634', '#3c7443', '#579357', '#86b874'], flor: null };
+        tronco(g, cx, H - 1, 12, 5, r);
+        const andares = grande ? 5 : 4, topo = 3, fim = H - 9, alt = (fim - topo) / andares;
+        for (let a = andares - 1; a >= 0; a--) {
+            const y0 = Math.round(topo + a * alt * 0.92), y1 = Math.round(topo + (a + 1) * alt + 2), meia = (W / 2 - 1) * (0.42 + 0.58 * (a + 1) / andares);
+            for (let y = y0; y <= y1; y++) {
+                const f = (y - y0) / Math.max(1, y1 - y0), m = 1.5 + meia * f;
+                for (let x = Math.floor(cx - m); x <= Math.ceil(cx + m); x++) {
+                    // a barra de baixo, serrilhada (pontas dos galhos)
+                    if (y === y1 && ruido(x, a, 31) < 0.45) continue;
+                    const u = (x - (cx - m)) / Math.max(1, 2 * m);
+                    let lum = 0.78 - u * 0.62 + (ruido(x >> 1, y >> 1, 33) - 0.5) * 0.3;
+                    if (y - y0 < 4 && a > 0) lum -= 0.25;   // a sombra do andar de cima
+                    // no inverno, a neve pousada nas pontas dos galhos de cada andar
+                    if (est === 'inverno' && y >= y1 - 2 && ruido(x, y, 41) < (y === y1 ? 0.75 : 0.45)) { pinta(g, x, y, 3, ruido(x, y, 43) < 0.3 ? 2 : 3, a); continue; }
+                    pinta(g, x, y, 1, 1 + tom(lum, x, y, pal.folha.length - 1), a);
+                }
+            }
+        }
+        if (est === 'inverno') nevar(g, 4);
+        return { img: revelar(g, pal), w: W, h: H };
+    }
+    // a árvore pelada do inverno: galhos em forquilha, neve em cima
+    function arvorePelada(semente, grande) {
+        const r = rng(semente), W = grande ? 46 : 38, H = grande ? 66 : 54, g = grade(W, H), cx = W / 2;
+        const alt = Math.round(H * 0.32);
+        tronco(g, cx, H - 1, alt, grande ? 7 : 6, r);
+        const ramo = (x, y, ang, comp, esp, nivel) => {
+            const x1 = x + Math.cos(ang) * comp, y1 = y - Math.sin(ang) * comp;
+            galho(g, Math.round(x), Math.round(y), Math.round(x1), Math.round(y1), esp);
+            if (nivel <= 0 || y1 < 3) return;
+            ramo(x1, y1, ang + 0.35 + r() * 0.35, comp * (0.62 + r() * 0.15), Math.max(1, esp - 1), nivel - 1);
+            ramo(x1, y1, ang - 0.35 - r() * 0.35, comp * (0.62 + r() * 0.15), Math.max(1, esp - 1), nivel - 1);
+        };
+        const yb = H - 1 - alt;
+        ramo(cx - 1, yb + 2, Math.PI / 2 + 0.55, H * 0.24, 3, 4);
+        ramo(cx + 1, yb + 2, Math.PI / 2 - 0.5, H * 0.26, 3, 4);
+        ramo(cx, yb + 1, Math.PI / 2 + 0.05, H * 0.22, 3, 3);
+        nevar(g, 1);
+        return { img: revelar(g, PAL_ARV.inverno), w: W, h: H };
+    }
+    // o arbusto: só a copa, baixinho
+    function arbustoNovo(est, semente) {
+        const r = rng(semente), W = 24, H = 17, g = grade(W, H), cachos = [];
+        const pal = PAL_ARV[est === 'inverno' ? 'inverno' : est];
+        for (let k = 0; k < 5; k++) cachos.push({ x: 5 + k * 3.4 + (r() - 0.5) * 2, y: 10 + (r() - 0.5) * 3 - (k === 2 ? 2 : 0), r: 4.4 + r() * 1.6 });
+        copa(g, cachos, r, pal);
+        if (est === 'inverno') nevar(g, 2);
+        return { img: revelar(g, pal), w: W, h: H };
+    }
+    // as variações de cada estação (feitas uma vez e guardadas)
+    const MATA_NOVA = {};
+    function mataNova(est) {
+        if (MATA_NOVA[est]) return MATA_NOVA[est];
+        const s = hash('mata' + est), v = (f, n) => Array.from({ length: n }, (_, i) => f(s + i * 977));
+        const m = est === 'inverno'
+            ? { grande: [...v((x) => arvorePinheiro('inverno', x, true), 3), ...v((x) => arvorePelada(x, true), 2)],
+                media: [...v((x) => arvorePinheiro('inverno', x + 5, false), 2), ...v((x) => arvorePelada(x + 7, false), 2)],
+                arbusto: v((x) => arbustoNovo('inverno', x), 3) }
+            : { grande: [...v((x) => arvoreCopa(est, x, true), 4), ...v((x) => arvorePinheiro(est, x, true), 1),
+                         ...(est === 'primavera' ? v((x) => arvoreCopa('florida', x + 21, true), 2) : [])],
+                media: [...v((x) => arvoreCopa(est, x + 3, false), 3), ...v((x) => arvorePinheiro(est, x + 9, false), 1)],
+                arbusto: v((x) => arbustoNovo(est, x), 3) };
+        MATA_NOVA[est] = m;
+        return m;
+    }
+    // a sombra no chão (elipse achatada, um pouco para a direita: a luz vem da esquerda)
+    function sombraArvore(ctx, cx, by, w) {
+        ctx.save();
+        ctx.fillStyle = 'rgba(18, 34, 16, 0.26)';
+        ctx.beginPath();
+        ctx.ellipse(cx + w * 0.08, by - 1, w * 0.36, Math.max(2.5, w * 0.09), 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
     }
 
     const CELEIRO = [
@@ -1642,29 +1861,34 @@
 
             desenharLitoral();   // fase 61: a areia da praia e o mar (a mata do terreno à venda vem por cima)
 
-            // mata em volta do terreno: árvores de duas peças, conforme a estação
-            const arvores = [];
-            for (let ty = -MARGEM; ty < MAPA.h + MARGEM; ty++) {
-                for (let tx = -MARGEM; tx < MAPA.w + MARGEM; tx++) {
-                    if (dentroTerreno(tx, ty)) continue;
-                    if (ty >= AREIA_Y) continue;   // fase 61: no mar não tem árvore; fase 67: nem na areia
-                    // perto da placa do terreno à venda fica uma clareira
-                    if (zonasVenda.some((zv) => Math.abs(tx - zv.placa.x) <= 1 && ty >= zv.placa.y - 1 && ty <= zv.placa.y + 1)) continue;
+            // mata em volta do terreno. Fase 103 (textura nova, nível 1): árvores grandes desenhadas em pixel
+            // art detalhada (mataNova), com sombra no chão. Elas ocupam mais de um quadrado: se a copa fosse
+            // cobrir o seu terreno, a feira ou a placa de um terreno à venda, entra uma menor (ou nada)
+            const arvores = [], nova = mataNova(EST);
+            const livre = (tx, ty) => !dentroTerreno(tx, ty) && ty < AREIA_Y
+                && !zonasVenda.some((zv) => Math.abs(tx - zv.placa.x) <= 1 && ty >= zv.placa.y - 1 && ty <= zv.placa.y + 1)
+                && !(tx >= FEIRA.x - 1 && ty >= FEIRA.y - 1 && tx < FEIRA.x + FEIRA.w && ty <= FEIRA.y + FEIRA.h + 1);
+            const cabe = (a, bx, by) => {
+                for (let y = by - a.h + 6; y <= by; y += 8) for (let x = bx - a.w / 2 + 3; x <= bx + a.w / 2 - 3; x += 8) {
+                    if (!livre(Math.floor((x - wx(0)) / T), Math.floor((y - wy(0)) / T))) return false;
+                }
+                return true;
+            };
+            for (let ty = -MARGEM; ty < MAPA.h + MARGEM + 3; ty++) {
+                for (let tx = -MARGEM - 1; tx < MAPA.w + MARGEM + 1; tx++) {
+                    if (!livre(tx, ty)) continue;
                     const longe = distTerreno(tx, ty);
-                    const chance = longe >= 3 ? 0.9 : longe === 2 ? 0.6 : 0.3;
-                    if (r() >= chance) continue;
-                    const v = r();
-                    let a;
-                    if (EST === 'inverno') {
-                        a = v < 0.6 ? { p: 'ski', i: 18, topo: 6 } : v < 0.75 ? { p: 'ski', i: 19, topo: 7 } : v < 0.9 ? { p: 'ski', i: 30 } : { p: 'ski', i: 31 };
-                    } else if (EST === 'outono') {
-                        a = v < 0.45 ? { p: 'town', i: 15, topo: 3 } : v < 0.7 ? { p: 'farm', i: 15, topo: 3 } : v < 0.85 ? { p: 'town', i: 27 } : { p: 'town', i: 5 };
-                    } else {
-                        a = v < 0.45 ? { p: 'farm', i: 15, topo: 3 } : v < 0.75 ? { p: 'town', i: 16, topo: 4 } : v < 0.85 ? { p: 'farm', i: 27 } : v < 0.93 ? { p: 'town', i: 28 } : { p: 'town', i: 5 };
+                    const chance = longe >= 3 ? 0.5 : longe === 2 ? 0.42 : 0.34;
+                    const v = r(), w = r(), jx = Math.floor((r() - 0.5) * 8), jy = Math.floor((r() - 0.5) * 5);
+                    if (v >= chance) continue;
+                    const bx = wx(tx) + T / 2 + jx, by = wy(ty) + T - 1 + jy;
+                    const ordem = w < 0.6 ? ['grande', 'media', 'arbusto'] : w < 0.85 ? ['media', 'arbusto'] : ['arbusto'];
+                    for (const tam of ordem) {
+                        const lista = nova[tam], a = lista[Math.floor(r() * lista.length)];
+                        if (!cabe(a, bx, by)) continue;
+                        arvores.push({ nova: a, x: Math.round(bx - a.w / 2), y: by - a.h + 1, base: by, cx: bx });
+                        break;
                     }
-                    const ax = wx(tx) + Math.floor((r() - 0.5) * 6), ay = wy(ty) + Math.floor((r() - 0.5) * 4);
-                    if (tx >= FEIRA.x - 1 && ty >= FEIRA.y - 1 && tx < FEIRA.x + FEIRA.w && ty <= FEIRA.y + FEIRA.h + 1) continue;   // clareira da feira
-                    arvores.push({ ...a, x: ax, y: ay });
                 }
             }
             // fase 67: na areia, peças de praia em vez de mata. Na praia que ainda não é sua, uma barreira de
@@ -1701,7 +1925,9 @@
                     tile(f, tileTerra(yy > 0, yy < FEIRA.h - 1, xx > 0, xx < FEIRA.w - 1), wx(FEIRA.x + xx), wy(FEIRA.y + yy), false, 'town');
                 }
             }
-            arvores.sort((a, b) => a.y - b.y).forEach((a) => {
+            const pe = (a) => (a.nova ? a.base : a.y + T);
+            arvores.sort((a, b) => pe(a) - pe(b)).forEach((a) => {
+                if (a.nova) { sombraArvore(f, a.cx, a.base, a.nova.w); f.drawImage(a.nova.img, a.x, a.y); return; }
                 if (a.topo != null) tile(f, a.topo, a.x, a.y - T, false, a.p);
                 tile(f, a.i, a.x, a.y, false, a.p);
             });
@@ -3686,6 +3912,7 @@
     }
 
     window.FazendaArte = {
+        mataNova,   // fase 103: as árvores novas (para a prévia)
         faseDoDia,
         CERCADOS,
         htmlAvatar,
