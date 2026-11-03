@@ -220,6 +220,7 @@
     const ANIMAL = { galinha: 122, vaca: 121, ovelha: 120, porco: 1000, pato: 1001, coelho: 1002, cabra: 1146, bufala: 1147 };   // (fase 74: cabra e búfala)
     // bichos pequenos ficam no galinheiro; os grandes, no pasto
     const PEQUENOS = ['galinha', 'pato', 'coelho'];
+    const BICHOS_NOVOS = new Set(['galinha', 'pato', 'coelho', 'vaca', 'ovelha', 'porco', 'cabra', 'bufala']);   // fase 107
 
     /* ---------- Arte própria (desenhada aqui, no estilo do Kenney) ----------
        Os pacotes não têm porco, pato nem coelho: cada sprite é um 16 x 16 em
@@ -791,6 +792,147 @@
         if (!AVATAR_TIPOS[cfg.tipo]) cfg = { tipo: 'fazendeiro', pele: typeof cfg.chapeu === 'string' ? cfg.pele | 0 : 0 };
         return cfg;
     }
+    /* ---- fase 107: os bichos desenhados aqui, com mais detalhe e maiores (vaca e búfala 26 x 20; ovelha,
+       porco e cabra 22; galinha, pato e coelho 16), em dois quadros de andar. Olham para a direita (o
+       jogo vira quando andam para a esquerda). O pato fica com 16 x 16, para nadar certo no laguinho. ---- */
+    const cacheBicho = new Map();
+    function bichoCanvas(tipo, quadro) {
+        const chave = tipo + quadro;
+        if (cacheBicho.has(chave)) return cacheBicho.get(chave);
+        const TAM = { vaca: [26, 20], bufala: [26, 20], ovelha: [22, 17], porco: [22, 15], cabra: [22, 19], galinha: [16, 16], pato: [16, 16], coelho: [16, 16] };
+        const [W, H] = TAM[tipo] || [16, 16];
+        const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+        const g = cv.getContext('2d'), OL = '#3f2631';
+        const R = (x, y, w, h, c) => { if (w > 0 && h > 0) { g.fillStyle = c; g.fillRect(x, y, w, h); } };
+        // um corpo oval com contorno e a barriga mais escura
+        const oval = (cx, cy, rx, ry, cor, sombra, luz) => {
+            for (let y = -ry; y <= ry; y++) {
+                const w = Math.round(rx * Math.sqrt(Math.max(0, 1 - (y * y) / (ry * ry + 0.5))));
+                R(cx - w - 1, cy + y, 2 * w + 3, 1, OL);
+            }
+            for (let y = -ry + 1; y <= ry - 1; y++) {
+                const w = Math.round(rx * Math.sqrt(Math.max(0, 1 - (y * y) / (ry * ry + 0.5)))) - 1;
+                R(cx - w, cy + y, 2 * w + 1, 1, y > ry * 0.35 ? sombra : cor);
+                if (luz && y < -ry * 0.3) R(cx - w + 2, cy + y, Math.max(1, w), 1, luz);
+            }
+        };
+        const perna = (x, y, h, cor, casco) => { R(x - 1, y, 4, h + 1, OL); R(x, y, 2, h - 1, cor); R(x, y + h - 1, 2, 1, casco || OL); };
+        const pernas = (xs, y, h, cor, casco) => xs.forEach((x, k) => perna(x + (quadro && k % 2 ? 1 : 0) - (quadro && !(k % 2) ? 1 : 0), y + (quadro && k % 2 ? -1 : 0), h, cor, casco));
+        R(2, H - 2, W - 4, 2, 'rgba(30,40,20,0.25)');   // a sombra no chão
+        if (tipo === 'vaca' || tipo === 'bufala') {
+            const bu = tipo === 'bufala', cor = bu ? '#4a4450' : '#f4f1e6', sombra = bu ? '#2f2a34' : '#d8d2c8', luz = bu ? '#6a6472' : '#ffffff';
+            pernas([5, 9, 15, 19], 13, 6, bu ? '#2f2a34' : '#f4f1e6', bu ? '#1a1630' : '#5a3a28');
+            oval(12, 10, 9, 5, cor, sombra, luz);
+            if (!bu) { R(6, 7, 4, 3, '#2b2b38'); R(13, 9, 5, 3, '#2b2b38'); R(9, 12, 3, 2, '#2b2b38'); R(14, 6, 2, 2, '#2b2b38'); }   // as manchas
+            if (!bu) { R(13, 14, 4, 2, OL); R(14, 14, 2, 2, '#f5a3b0'); }   // o úbere
+            // a cabeça e o focinho
+            R(19, 4, 7, 9, OL); R(20, 5, 5, 7, cor); R(20, 5, 5, 1, luz);
+            R(21, 10, 5, 3, OL); R(21, 10, 4, 2, bu ? '#5a5560' : '#f5a3b0'); R(23, 11, 1, 1, OL);
+            R(22, 7, 1, 1, OL);   // o olho
+            if (bu) { R(17, 2, 4, 2, OL); R(18, 2, 2, 1, '#c8c0b0'); R(16, 3, 2, 2, OL); R(24, 2, 3, 2, OL); R(25, 2, 1, 1, '#c8c0b0'); }   // os chifres curvos
+            else { R(20, 3, 2, 2, OL); R(20, 3, 1, 1, '#e8dcc0'); R(24, 3, 2, 2, OL); R(24, 3, 1, 1, '#e8dcc0'); R(18, 5, 2, 2, cor); }   // os chifrinhos e a orelha
+            // o rabo com o tufo
+            R(2, 7, 1, 6, OL); R(1, 12, 3, 2, bu ? '#1a1630' : '#2b2b38');
+            if (!bu) R(3, 6, 1, 1, OL);
+        } else if (tipo === 'ovelha') {
+            pernas([6, 9, 13, 16], 11, 5, '#2b2b38', '#1a1630');
+            // a lã: um monte de bolinhas
+            oval(10, 8, 8, 5, '#f4f1e6', '#d8d2c8', '#ffffff');
+            for (const [x, y] of [[4, 5], [8, 3], [12, 3], [15, 5], [3, 9], [17, 9], [7, 12], [13, 12]]) { R(x - 1, y - 1, 4, 4, OL); R(x, y, 2, 2, '#f4f1e6'); R(x, y, 1, 1, '#ffffff'); }
+            for (let k = 0; k < 6; k++) R(5 + k * 2, 6 + (k % 2) * 3, 1, 1, '#d8d2c8');
+            // a cara escura com a orelha
+            R(16, 4, 6, 8, OL); R(17, 5, 4, 6, '#3a3440'); R(17, 5, 4, 1, '#5a5460'); R(19, 7, 1, 1, '#ffffff'); R(20, 9, 1, 1, '#1a1630');
+            R(15, 5, 2, 2, '#3a3440');
+            R(15, 2, 4, 3, '#f4f1e6'); R(15, 2, 4, 1, '#ffffff');   // o topete de lã
+        } else if (tipo === 'porco') {
+            pernas([6, 9, 13, 16], 10, 4, '#e98b9b', '#8a4a4a');
+            oval(11, 7, 8, 5, '#f5a3b0', '#e98b9b', '#ffc8d0');
+            // a cabeça, o focinho com os furinhos e as orelhas caídas
+            R(16, 3, 6, 8, OL); R(17, 4, 4, 6, '#f5a3b0'); R(17, 4, 4, 1, '#ffc8d0');
+            R(19, 7, 4, 3, OL); R(20, 7, 2, 2, '#e98b9b'); R(20, 8, 1, 1, '#8a4a4a'); R(21, 8, 1, 1, '#8a4a4a');
+            R(18, 5, 1, 1, OL); R(16, 2, 3, 2, OL); R(17, 2, 1, 2, '#d27688');
+            // o rabinho enrolado
+            R(1, 4, 2, 1, '#d27688'); R(1, 3, 1, 1, '#d27688'); R(2, 2, 1, 1, '#d27688'); R(3, 3, 1, 2, OL);
+            R(6, 4, 3, 1, '#ffc8d0'); R(10, 11, 2, 1, '#d27688');
+        } else if (tipo === 'cabra') {
+            pernas([6, 9, 13, 16], 13, 5, '#d8c8a8', '#3f2631');
+            oval(10, 10, 8, 4, '#efe4cc', '#d0c0a0', '#ffffff');
+            R(3, 8, 2, 3, OL); R(3, 8, 1, 2, '#efe4cc');   // o rabinho em pé
+            // a cabeça com os chifres para trás e a barbicha
+            R(15, 4, 6, 9, OL); R(16, 5, 4, 7, '#efe4cc'); R(16, 5, 4, 1, '#ffffff');
+            R(19, 10, 3, 2, OL); R(19, 10, 2, 1, '#f5a3b0');
+            R(18, 7, 1, 1, OL);
+            R(15, 1, 2, 4, OL); R(14, 0, 2, 2, OL); R(15, 2, 1, 2, '#a89878'); R(18, 1, 2, 4, OL); R(18, 2, 1, 2, '#a89878');   // os chifres
+            R(17, 12, 2, 4, OL); R(17, 12, 1, 3, '#d0c0a0');   // a barbicha
+            R(13, 5, 3, 2, '#efe4cc'); R(13, 5, 3, 1, OL);   // a orelha
+        } else if (tipo === 'galinha') {
+            pernas([6, 9], 12, 3, '#e38628', '#e38628');
+            oval(7, 8, 5, 4, '#ffffff', '#e4e8ee', null);
+            R(1, 4, 3, 3, OL); R(2, 5, 2, 2, '#ffffff'); R(1, 3, 2, 2, OL); R(1, 3, 1, 1, '#ffffff');   // o rabo de penas
+            R(5, 8, 4, 2, '#d8dee6'); R(5, 8, 4, 1, OL);   // a asa
+            // a cabeça, a crista, o bico e a barbela
+            R(9, 2, 6, 6, OL); R(10, 3, 4, 4, '#ffffff');
+            R(10, 1, 4, 2, OL); R(10, 1, 3, 1, '#e8434a'); R(11, 0, 2, 1, '#e8434a');
+            R(14, 4, 2, 2, OL); R(14, 4, 2, 1, '#fdbe53'); R(13, 6, 2, 2, '#e8434a');
+            R(12, 4, 1, 1, OL);
+        } else if (tipo === 'pato') {
+            pernas([6, 9], 12, 2, '#e38628', '#e38628');
+            oval(7, 9, 6, 3, '#ffffff', '#e4e8ee', null);
+            R(1, 7, 3, 2, OL); R(1, 6, 2, 1, OL); R(2, 7, 2, 1, '#ffffff');   // o rabinho
+            R(4, 8, 6, 2, '#d8dee6'); R(4, 8, 6, 1, OL);   // a asa
+            R(10, 3, 5, 6, OL); R(11, 4, 3, 4, '#ffffff'); R(11, 4, 3, 1, '#ffffff');
+            R(14, 6, 2, 2, OL); R(14, 6, 2, 1, '#fdbe53'); R(15, 7, 1, 1, '#e38628');   // o bico achatado
+            R(13, 5, 1, 1, OL);
+        } else if (tipo === 'coelho') {
+            pernas([5, 9], 12, 2, '#b4a490', '#8a7a68');
+            oval(7, 9, 5, 4, '#c8b8a0', '#a8987e', '#e0d4c0');
+            R(1, 8, 3, 3, OL); R(2, 8, 2, 2, '#ffffff');   // o rabo de algodão
+            R(9, 5, 6, 6, OL); R(10, 6, 4, 4, '#c8b8a0'); R(10, 6, 4, 1, '#e0d4c0');
+            R(10, 0, 3, 6, OL); R(11, 1, 1, 4, '#f5a3b0'); R(12, 1, 3, 5, OL); R(13, 1, 1, 4, '#c8b8a0');   // as orelhas compridas
+            R(12, 7, 1, 1, OL); R(14, 8, 1, 1, '#d27688');
+        }
+        cacheBicho.set(chave, cv);
+        return cv;
+    }
+
+    /* ---- fase 107: o passo dos bonecos (fazendeiro, ajudantes, visitantes e banhistas), feito a partir do
+       desenho que já existe: as pernas são as 4 linhas de baixo. Quadro 1: a perna esquerda levanta 1 px e o
+       corpo sobe junto; 2: as duas no chão; 3: a direita levanta; 0: parado. ---- */
+    const cachePasso = new WeakMap();
+    function passoCanvas(cv, q, vista) {
+        if (cv && vista && vista !== 'frente' && cv.vistas && cv.vistas[vista]) cv = cv.vistas[vista];   // fase 108: de lado / de costas
+        if (!cv || !q) return cv;
+        let lista = cachePasso.get(cv);
+        if (!lista) {
+            const W = cv.width, H = cv.height, pe = H - 4, meio = Math.floor(W / 2);
+            const fazer = (lado) => {
+                const c = document.createElement('canvas'); c.width = W; c.height = H;
+                const g = c.getContext('2d');
+                if (lado === 0) { g.drawImage(cv, 0, 0); return c; }
+                // o corpo (até o quadril) sobe 1 px
+                g.drawImage(cv, 0, 0, W, pe, 0, -1, W, pe);
+                // a perna que dá o passo sobe junto com o corpo; a outra fica no chão, esticada 1 px para cima
+                const ax = lado < 0 ? 0 : meio, aw = lado < 0 ? meio : W - meio, bx = lado < 0 ? meio : 0, bw = W - aw;
+                g.drawImage(cv, ax, pe, aw, 4, ax, pe - 1, aw, 4);
+                g.drawImage(cv, bx, pe, bw, 4, bx, pe, bw, 4);
+                g.drawImage(cv, bx, pe, bw, 1, bx, pe - 1, bw, 1);
+                // o braço do outro lado balança: fica 1 px mais baixo que o corpo (as 5 linhas acima do quadril)
+                const bxa = lado < 0 ? W - 4 : 0;
+                g.clearRect(bxa, pe - 6, 4, 5);
+                g.drawImage(cv, bxa, pe - 6, 4, 5, bxa, pe - 6, 4, 5);
+                return c;
+            };
+            lista = [null, fazer(-1), fazer(0), fazer(1)];
+            cachePasso.set(cv, lista);
+        }
+        return lista[q] || cv;
+    }
+    // o quadro do passo agora (anda: 4 quadros em ~0,5 s; parado: o desenho inteiro)
+    const quadroPasso = (andando, tempo, k = 0) => (andando ? Math.floor((tempo + k) / 130) % 4 : 0);
+    // fase 108: para onde está andando: de lado (o flip vira para a esquerda), de costas (subindo) ou de frente
+    const vistaDoPasso = (dx, dy, antes) => (Math.abs(dx) < 0.3 && Math.abs(dy) < 0.3 ? antes || 'frente'
+        : Math.abs(dx) >= Math.abs(dy) * 0.8 ? 'lado' : dy < 0 ? 'costas' : 'frente');
+
     const cacheAvatar = new Map();
     function avatarCanvas(cfg) {
         cfg = normalizarAvatar(cfg);
@@ -802,7 +944,41 @@
         const g = cv.getContext('2d');
         if (!img.complete || !img.naturalWidth) { cv.url = cv.toDataURL(); return cv; }   // a arte ainda não carregou
         g.drawImage(img, (tipo.i % COLS) * T, Math.floor(tipo.i / COLS) * T, T, T, 0, 0, T, T);
-        const dados = g.getImageData(0, 0, T, T), d = dados.data;
+        const dados = g.getImageData(0, 0, T, T);
+        // fase 108: de lado e de costas, feitos do desenho de frente (antes das cores do jogador)
+        const vistas = { frente: dados, lado: vistaDe(dados, tipo, 'lado'), costas: vistaDe(dados, tipo, 'costas') };
+        for (const dd of Object.values(vistas)) pintarAvatar(dd.data, tipo, cfg);
+        g.putImageData(dados, 0, 0);
+        cv.vistas = {};
+        for (const nome of ['lado', 'costas']) {
+            const c = document.createElement('canvas'); c.width = c.height = T;
+            c.getContext('2d').putImageData(vistas[nome], 0, 0);
+            cv.vistas[nome] = c;
+        }
+        cv.url = cv.toDataURL();
+        cacheAvatar.set(chave, cv);
+        return cv;
+    }
+    // fase 108: o visitante da porteira (um desenho do Tiny Dungeon): o mesmo boneco, com as vistas e o passo
+    const cacheVisitante = new Map();
+    function visitanteCanvas(i) {
+        if (cacheVisitante.has(i)) return cacheVisitante.get(i);
+        const img = atlas.dungeon;
+        if (!img.complete || !img.naturalWidth) return null;
+        const cv = document.createElement('canvas'); cv.width = cv.height = T;
+        const g = cv.getContext('2d');
+        g.drawImage(img, (i % COLS) * T, Math.floor(i / COLS) * T, T, T, 0, 0, T, T);
+        const dados = g.getImageData(0, 0, T, T), sem = { regioes: {} };
+        cv.vistas = {};
+        for (const nome of ['lado', 'costas']) {
+            const c = document.createElement('canvas'); c.width = c.height = T;
+            c.getContext('2d').putImageData(vistaDe(dados, sem, nome), 0, 0);
+            cv.vistas[nome] = c;
+        }
+        cacheVisitante.set(i, cv);
+        return cv;
+    }
+    function pintarAvatar(d, tipo, cfg) {
         for (const [regiao, r] of Object.entries(tipo.regioes)) {
             const n = cfg[regiao] | 0;
             const tons = n > 0 ? AVATAR_CORES[regiao][n - 1] : tipo.base && tipo.base[regiao];   // fase 69: a cor de base do exclusivo
@@ -817,10 +993,57 @@
                 }
             }
         }
-        g.putImageData(dados, 0, 0);
-        cv.url = cv.toDataURL();
-        cacheAvatar.set(chave, cv);
-        return cv;
+    }
+    /* ---- fase 108: a vista de costas e a de lado de um boneco, a partir do desenho de frente.
+       O rosto fica nas linhas acima da roupa: de costas, a pele e os olhos viram cabelo (o tom do cabelo do
+       boneco, que depois ganha a cor escolhida; sem cabelo, a cor do chapéu/capacete; com chapéu de palha, um
+       castanho). De lado (virado para a direita), só a metade de trás do rosto vira cabelo: sobra um olho. ---- */
+    const PELES = new Set(['e19a65', 'f7c282', 'eaa56c']);
+    function vistaDe(dados, tipo, vista) {
+        const out = new ImageData(new Uint8ClampedArray(dados.data), T, T), d = out.data;
+        const hex = (k) => ((d[k] << 16) | (d[k + 1] << 8) | d[k + 2]).toString(16).padStart(6, '0');
+        const vazio = (x, y) => x < 0 || y < 0 || x >= T || y >= T || d[(y * T + x) * 4 + 3] < 128;
+        let corpo = Math.min(...['roupa', 'calca'].map((r) => (tipo.regioes[r] ? tipo.regioes[r].y[0] : T)));
+        const temPele = (y) => { for (let x = 0; x < T; x++) if (!vazio(x, y) && PELES.has(hex((y * T + x) * 4))) return true; return false; };
+        // as linhas do rosto: as que têm pele acima da roupa
+        let topo = T;
+        for (let y = 0; y < corpo; y++) if (temPele(y)) { topo = y; break; }
+        if (topo >= corpo) return out;
+        // sem a região da roupa (o visitante, desenho do pacote): o rosto vai até a primeira linha sem pele
+        if (corpo === T) { corpo = topo + 1; while (corpo < T && corpo < topo + 7 && temPele(corpo)) corpo++; }
+        // a cor do cabelo (o tom do meio da região cabelo, para a troca de cor pegar) ou a do que cobre a cabeça
+        let cabelo = null;
+        if (tipo.regioes.cabelo) cabelo = Object.entries(tipo.regioes.cabelo.cores).sort((a, b) => Math.abs(a[1] - 1) - Math.abs(b[1] - 1))[0][0].slice(1);
+        else if (tipo.regioes.chapeu) cabelo = '763b36';
+        else {
+            const conta = {};
+            for (let y = 0; y < topo; y++) for (let x = 0; x < T; x++) {
+                const k = (y * T + x) * 4; if (d[k + 3] < 128) continue;
+                const h = hex(k); if (h === '3f2631' || PELES.has(h)) continue;
+                conta[h] = (conta[h] || 0) + 1;
+            }
+            cabelo = Object.entries(conta).sort((a, b) => b[1] - a[1])[0];
+            cabelo = cabelo ? cabelo[0] : '763b36';
+        }
+        const [cr, cg, cb] = rgbDe('#' + cabelo), escuro = rgbDe('#' + cabelo).map((v) => Math.round(v * 0.72));
+        const pinta = (k, c) => { d[k] = c[0]; d[k + 1] = c[1]; d[k + 2] = c[2]; };
+        for (let y = topo; y < corpo; y++) {
+            // a pele desta linha (de onde a onde)
+            let x0 = T, x1 = -1;
+            for (let x = 0; x < T; x++) if (!vazio(x, y) && PELES.has(hex((y * T + x) * 4))) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); }
+            if (x1 < 0) continue;
+            const meio = Math.floor((x0 + x1) / 2);
+            for (let x = x0; x <= x1; x++) {
+                const k = (y * T + x) * 4;
+                if (d[k + 3] < 128) continue;
+                const h = hex(k), interno = !vazio(x - 1, y) && !vazio(x + 1, y) && !vazio(x, y - 1) && !vazio(x, y + 1);
+                const ePele = PELES.has(h), eOlho = (h === '3f2631' || h === '262b44') && interno;
+                if (!ePele && !eOlho) continue;
+                if (vista === 'costas' || x < meio) pinta(k, y === corpo - 1 || x === x0 ? escuro : [cr, cg, cb]);
+                else if (eOlho && vista === 'lado' && x === meio) pinta(k, [cr, cg, cb]);
+            }
+        }
+        return out;
     }
     function htmlAvatar(cfg, px = 32) {
         return `<span class="px-spr" style="background-image:url('${avatarCanvas(cfg).url}');width:${px}px;height:${px}px;background-size:${px}px ${px}px;background-position:0 0" aria-hidden="true"></span>`;
@@ -868,9 +1091,17 @@
         cv.width = cv.height = T;
         const g = cv.getContext('2d');
         g.drawImage(base, 0, 0);
-        (ACESSORIOS[v.extra] || []).forEach((linha, y) => [...linha].forEach((ch, x) => {
-            if (PAL_PROPRIA[ch]) { g.fillStyle = PAL_PROPRIA[ch]; g.fillRect(x, y, 1, 1); }
+        const acessorio = (gg) => (ACESSORIOS[v.extra] || []).forEach((linha, y) => [...linha].forEach((ch, x) => {
+            if (PAL_PROPRIA[ch]) { gg.fillStyle = PAL_PROPRIA[ch]; gg.fillRect(x, y, 1, 1); }
         }));
+        acessorio(g);
+        cv.vistas = {};   // fase 108
+        for (const nome of ['lado', 'costas']) {
+            if (!base.vistas || !base.vistas[nome]) continue;
+            const c = document.createElement('canvas'); c.width = c.height = T;
+            const gg = c.getContext('2d'); gg.drawImage(base.vistas[nome], 0, 0); acessorio(gg);
+            cv.vistas[nome] = c;
+        }
         cv.url = cv.toDataURL();
         cacheAjudante.set(tipo, cv);
         return cv;
@@ -3165,6 +3396,7 @@
                 }
             }
             const dx = fazendeiro.tx - fazendeiro.x, dy = fazendeiro.ty - fazendeiro.y, d = Math.hypot(dx, dy);
+            if (d > 0.5) fazendeiro.vista = vistaDoPasso(dx, dy, fazendeiro.vista);   // fase 108
             if (d > 0.5) {
                 const ex = passoSeco(fazendeiro, 56, dt);   // fase 74b: contorna o lago
                 if (Math.abs(ex) > 0.2) fazendeiro.flip = ex < 0;
@@ -3548,15 +3780,29 @@
                 const bob = (parado && Math.floor(tempo / 600) % 2) || (andando && Math.floor(tempo / 140) % 2) ? -1 : 0;
                 // fase 76: o pato nadando fica com metade do corpo dentro da água (fase 79: e todo mundo que entra nela)
                 const nadando = naAgua(a.x, a.y);
-                pe.push(a.visual ? { img: ajudanteCanvas(a.tipo), x: a.x, y: a.y, flip: a.flip, bob: nadando ? 0 : bob, nadando }
+                const vistaA = andando ? (a.vista = vistaDoPasso(a.tx - a.x, a.ty - a.y, a.vista)) : 'frente';   // fase 108
+                if (!a.visual && a.v && BICHOS_NOVOS.has(a.tipo)) {   // fase 107: os bichos desenhados, andando
+                    const anda = Math.hypot(a.tx - a.x, a.ty - a.y) > 0.5;
+                    const cv = bichoCanvas(a.tipo, anda ? Math.floor((tempo + a.x * 7) / 170) % 2 : 0);
+                    pe.push({ img: cv, x: a.x + 8 - cv.width / 2, y: a.y + 16 - cv.height, ordem: a.y, flip: a.flip, bob: nadando ? 0 : bob, nadando });
+                } else
+                pe.push(a.visual ? { img: passoCanvas(ajudanteCanvas(a.tipo), nadando ? 0 : quadroPasso(andando, tempo, a.x * 13), vistaA), x: a.x, y: a.y, flip: vistaA === 'lado' ? a.flip : false, bob: andando || nadando ? 0 : bob, nadando }
                     : { p: a.p || 'farm', i: a.i, x: a.x, y: a.y, flip: a.flip, bob: nadando ? 0 : bob, nadando });
                 // ferramenta na mão do ajudante (do lado para onde ele olha; na água, a parte de baixo some junto)
                 if (a.ferramenta != null) pe.push({ p: a.ferramentaP || 'farm', i: a.ferramenta, x: a.x + (a.flip ? -7 : 7), y: a.y + 0.5, flip: a.flip, bob: nadando ? 0 : bob, corte: nadando ? Math.round(a.y) : null });
             }
             const andando = fazendeiro.passo > 0, fazNada = naAgua(fazendeiro.x, fazendeiro.y);
-            pe.push({ img: avatarCanvas(avatarAtual), x: fazendeiro.x, y: fazendeiro.y, flip: fazendeiro.flip, bob: !fazNada && andando && Math.floor(tempo / 120) % 2 ? -1 : 0, nadando: fazNada });
+            const vistaF = andando ? fazendeiro.vista || 'frente' : 'frente';   // parado, olha para a tela
+            pe.push({ img: passoCanvas(avatarCanvas(avatarAtual), fazNada ? 0 : quadroPasso(andando, tempo), vistaF), x: fazendeiro.x, y: fazendeiro.y, flip: vistaF === 'lado' && fazendeiro.flip, bob: 0, nadando: fazNada });   // fase 107/108: o passo e a direção
             if (lago && lagoNaTela()) pe.push({ p: 'factory', i: 120, x: wx(LAGO.x) + 1, y: wy(LAGO.y + 2), flip: false, bob: Math.floor(tempo / 700) % 2 ? -1 : 0 });
-            if (visitante) { const vn = naAgua(visitante.x, visitante.y); pe.push({ p: 'dungeon', i: VISITANTE_ARTE[visitante.tipo] || 86, x: visitante.x, y: visitante.y, flip: visitante.flip, bob: !vn && visitante.andando && Math.floor(tempo / 140) % 2 ? -1 : 0, nadando: vn }); }
+            if (visitante) {
+                const vn = naAgua(visitante.x, visitante.y), vcv = visitanteCanvas(VISITANTE_ARTE[visitante.tipo] || 86);
+                if (vcv) {   // fase 108: andando nas 4 direções, com o passo
+                    if (visitante.andando) visitante.vista = vistaDoPasso(visitante.tx - visitante.x, visitante.ty - visitante.y, visitante.vista);
+                    const vv = visitante.andando ? visitante.vista || 'frente' : 'frente';
+                    pe.push({ img: passoCanvas(vcv, vn ? 0 : quadroPasso(visitante.andando, tempo), vv), x: visitante.x, y: visitante.y, flip: vv === 'lado' && visitante.flip, bob: 0, nadando: vn });
+                } else pe.push({ p: 'dungeon', i: VISITANTE_ARTE[visitante.tipo] || 86, x: visitante.x, y: visitante.y, flip: visitante.flip, bob: !vn && visitante.andando && Math.floor(tempo / 140) % 2 ? -1 : 0, nadando: vn });
+            }
             desenharNavio(pe, tempo);   // fase 104: o navio no píer
             pe.sort((a, b) => (a.ordem != null ? a.ordem : a.y) - (b.ordem != null ? b.ordem : b.y)).forEach((a) => {
                 const x = Math.round(a.x), y = Math.round(a.y) + a.bob;
@@ -3578,7 +3824,7 @@
                 };
                 if (a.recorte) { q.drawImage(a.img, a.recorte[0], a.recorte[1], a.recorte[2], a.recorte[3], x, y, a.recorte[2], a.recorte[3]); return; }   // fase 106
                 if (a.img) {   // avatar (desenhado na hora, fora dos pacotes)
-                    if (a.flip) { q.save(); q.translate(x + T, y + dy); q.scale(-1, 1); q.drawImage(a.img, 0, 0); q.restore(); }
+                    if (a.flip) { q.save(); q.translate(x + a.img.width, y + dy); q.scale(-1, 1); q.drawImage(a.img, 0, 0); q.restore(); }
                     else q.drawImage(a.img, x, y + dy);
                     fim();
                     return;
@@ -4015,7 +4261,7 @@
             if (p.para) {
                 const f = Math.min(1, Math.max(0, (s - p.ini) / p.dur));
                 return { x: p.de[0] + (p.para[0] - p.de[0]) * f, y: p.de[1] + (p.para[1] - p.de[1]) * f, modo: p.nado ? 'nadando' : 'andando',
-                         flip: p.para[0] < p.de[0], item: p.item };
+                         flip: p.para[0] < p.de[0], item: p.item, vista: vistaDoPasso(p.para[0] - p.de[0], p.para[1] - p.de[1]) };
             }
             return { x: p.em ? p.em[0] : 0, y: p.em ? p.em[1] : 0, modo: p.modo, flip: false, item: p.item };
         }
@@ -4097,7 +4343,8 @@
                 const nadando = naAgua(x, y);
                 const passo = o.modo === 'andando' && Math.floor(tempo / (andaRapido ? 130 : 160) + tx * 3) % 2 ? -1 : 0;
                 const bob = o.modo === 'comprando' ? (Math.floor(tempo / 300) % 2 ? -1 : 0) : nadando ? 0 : passo;
-                pe.push({ img: avatarCanvas(cfg), x, y, flip: o.flip, bob, nadando });
+                const vistaB = o.modo === 'andando' ? o.vista : o.modo === 'nadando' ? 'costas' : 'frente';   // fase 108
+                pe.push({ img: passoCanvas(avatarCanvas(cfg), !nadando && o.modo === 'andando' ? quadroPasso(true, tempo, tx * 97) : 0, vistaB), x, y, flip: vistaB === 'lado' && o.flip, bob: o.modo === 'andando' ? 0 : bob, nadando });   // fase 107/108
                 if (o.item && !nadando) naMao.push({ item: o.item, x: x + (o.flip ? 0 : 9), y: y + 6 + bob });
             };
             const P = 150 + pr.vazio;
@@ -4901,7 +5148,10 @@
     }
 
     window.FazendaArte = {
-        montarCasas,   // fase 105 (para a prévia e os testes)
+        montarCasas,
+        visitanteCanvas,   // fase 108 (para a prévia e os testes)
+        passoCanvas,   // fase 107 (para a prévia e os testes)
+        bichoCanvas,   // fase 107 (para a prévia e os testes)   // fase 105 (para a prévia e os testes)
         mataNova,   // fase 103: as árvores novas (para a prévia)
         terraNova,   // fase 104: a terra nova (para a prévia)
         faseDoDia,
