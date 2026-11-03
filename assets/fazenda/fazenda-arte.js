@@ -2134,6 +2134,121 @@
         if (est === 'inverno') nevar(g, 2);
         return { img: revelar(g, pal), w: W, h: H };
     }
+    /* ---------- fase 106: a selva da Ilha da Caveira Dourada (só dela) ----------
+       Cores próprias, mais verde-azuladas e úmidas que as da fazenda, e plantas que não existem lá:
+       a palmeira de coco (tronco com anéis e as folhas em leque caindo), a bananeira (folhas largas
+       rasgadas e o cacho de banana), a árvore da selva (copa larga em guarda-chuva, com flores), a
+       samambaia e a helicônia (as flores vermelhas e amarelas em bico). */
+    const PAL_SELVA = {
+        folha: ['#0b2420', '#123f36', '#1a5c4a', '#25805c', '#3fa76a', '#86d983'], flor: ['#ff4f7b', '#ffd34d', '#ff8a3d', '#ffffff'],
+        tronco: ['#1e140c', '#3e2a1a', '#5e4128', '#7e5a38', '#9e7650']
+    };
+    const PAL_PALMA = {
+        folha: ['#10281a', '#1d4a26', '#2f7232', '#49983c', '#78c24e', '#bde67a'], flor: ['#6b3a14', '#8f5220', '#b06a2a'],
+        tronco: ['#2a1e14', '#5a4630', '#86704f', '#a89070', '#c8b48e']
+    };
+    const PAL_BANANA = {
+        folha: ['#132a10', '#24521a', '#3c7f26', '#5fae34', '#92d44a', '#d2f07c'], flor: ['#fbe14a', '#e0b62a', '#9a7414'],
+        tronco: ['#1e2a10', '#34501c', '#4e7028', '#6a8f36', '#8aae4a']
+    };
+    const PAL_HELICONIA = { folha: PAL_BANANA.folha, flor: ['#e8342e', '#ffcf3a', '#ff7a2a', '#b81e2a'] };
+    // revelar com o tronco da paleta (a palmeira e a bananeira não têm o tronco marrom das outras)
+    function revelarSelva(g, pal) {
+        const antes = PAL_TRONCO.slice();
+        if (pal.tronco) for (let k = 0; k < 5; k++) PAL_TRONCO[k] = pal.tronco[k];
+        try { return revelar(g, pal); } finally { for (let k = 0; k < 5; k++) PAL_TRONCO[k] = antes[k]; }
+    }
+    // uma folha comprida (de palmeira ou bananeira) do ponto (x0, y0) seguindo o ângulo e caindo na ponta
+    function folhaLonga(g, x0, y0, ang, comp, larg, cai, rasgada, r, dono) {
+        let x = x0, y = y0, vx = Math.cos(ang), vy = Math.sin(ang);
+        const n = Math.round(comp);
+        for (let s = 0; s <= n; s++) {
+            const f = s / n, w = larg * Math.sin(Math.min(1, f * 1.15) * Math.PI) * (1 - f * 0.25);
+            vy += cai / n; const m = Math.hypot(vx, vy); vx /= m; vy /= m;
+            x += vx; y += vy;
+            const px = -vy, py = vx;   // de lado
+            for (let e = -w; e <= w; e += 0.5) {
+                if (rasgada && Math.abs(e) > 1 && ruido(s >> 1, e > 0 ? 1 : 2, 61 + dono) < 0.18) continue;   // os rasgos da folha
+                const qx = Math.round(x + px * e), qy = Math.round(y + py * e);
+                const luz = (e < 0 ? 0.15 : -0.12) - vy * 0.25 + (1 - f) * 0.1 + (ruido(qx, qy, 63) - 0.5) * 0.18;
+                pinta(g, qx, qy, 1, 1 + tom(0.55 + luz, qx, qy, 5), dono);
+            }
+            if (s % 2 === 0) pinta(g, Math.round(x), Math.round(y), 1, 5, dono);   // a nervura clara
+        }
+    }
+    function palmeira(semente, grande) {
+        const r = rng(semente), W = grande ? 54 : 44, H = grande ? 74 : 60, g = grade(W, H);
+        const alt = Math.round(H * (0.58 + r() * 0.08)), inclina = (r() - 0.5) * 12, base = H - 1;
+        let topo = { x: W / 2, y: base - alt };
+        // o tronco curvo, com os anéis
+        for (let y = base; y > base - alt; y--) {
+            const f = (base - y) / alt, cx = W / 2 + inclina * f * f, meio = (grande ? 2.6 : 2.2) * (1 - f * 0.25) + (y > base - 3 ? 1 : 0);
+            for (let x = Math.round(cx - meio); x <= Math.round(cx + meio); x++) {
+                const u = (x - (cx - meio)) / (2 * meio), anel = (base - y) % 4 === 0;
+                pinta(g, x, y, 2, 1 + tom(0.9 - u * 0.75 - (anel ? 0.3 : 0), x, y, 4));
+            }
+            topo = { x: cx, y };
+        }
+        // as folhas em leque, caindo; as de trás primeiro
+        const n = grande ? 9 : 7;
+        const angs = Array.from({ length: n }, (_, k) => -Math.PI + (k / (n - 1)) * Math.PI + (r() - 0.5) * 0.25);
+        angs.sort((a, b) => Math.sin(a) - Math.sin(b)).forEach((a, k) => folhaLonga(g, topo.x, topo.y, a, (grande ? 21 : 17) * (0.85 + r() * 0.3), 2.6, 1.6, false, r, k));
+        for (const [dx, dy] of [[-2, 2], [1, 3], [3, 1]]) { pinta(g, Math.round(topo.x + dx), Math.round(topo.y + dy), 4, 1); pinta(g, Math.round(topo.x + dx + 1), Math.round(topo.y + dy), 4, 0); pinta(g, Math.round(topo.x + dx), Math.round(topo.y + dy + 1), 4, 0); }   // os cocos
+        return { img: revelarSelva(g, PAL_PALMA), w: W, h: H };
+    }
+    function bananeira(semente) {
+        const r = rng(semente), W = 44, H = 46, g = grade(W, H), base = H - 1, cx = W / 2;
+        for (const dx of [-3, 3]) for (let y = base; y > base - 16; y--) for (let x = cx + dx - 1.5; x <= cx + dx + 1.5; x++) pinta(g, Math.round(x), y, 2, 1 + tom(0.8 - (x - cx - dx + 1.5) / 3 * 0.6, Math.round(x), y, 4));
+        const topo = { x: cx, y: base - 15 };
+        const angs = [-2.6, -2.1, -1.5, -0.95, -0.45, -3.05, 0.0];
+        angs.forEach((a, k) => folhaLonga(g, topo.x + (k % 2 ? 2 : -2), topo.y, a + (r() - 0.5) * 0.2, 15 + r() * 5, 4.2, 1.1, true, r, k));
+        // o cacho de banana pendurado, com o coração roxo embaixo
+        for (let k = 0; k < 4; k++) for (let x = 0; x < 5; x++) pinta(g, cx + 4 + x, topo.y + 4 + k * 2, 4, x === 0 ? 2 : x < 3 ? 0 : 1);
+        pinta(g, cx + 6, topo.y + 13, 1, 0); pinta(g, cx + 6, topo.y + 12, 1, 1);
+        return { img: revelarSelva(g, PAL_BANANA), w: W, h: H };
+    }
+    function arvoreSelva(semente, grande) {
+        const r = rng(semente), W = grande ? 60 : 46, H = grande ? 76 : 60, g = grade(W, H), cx = W / 2;
+        const alt = Math.round(H * (0.46 + r() * 0.06));
+        tronco(g, cx, H - 1, alt, grande ? 6 : 5, r);
+        // as raízes de tábua (as aletas da árvore da selva)
+        for (const dx of [-1, 1]) for (let k = 0; k < 6; k++) pinta(g, Math.round(cx + dx * (3 + k)), H - 1 - Math.max(0, 4 - k), 2, 2);
+        const yb = H - 1 - alt, cachos = [];
+        // a copa em guarda-chuva: larga e achatada, em dois andares
+        for (let k = 0; k < 9; k++) cachos.push({ x: cx + (k - 4) * W * 0.09 + (r() - 0.5) * 3, y: yb - 6 + Math.abs(k - 4) * 1.3 + (r() - 0.5) * 2, r: W * (0.13 + r() * 0.04) });
+        for (let k = 0; k < 5; k++) cachos.push({ x: cx + (k - 2) * W * 0.11 + (r() - 0.5) * 3, y: yb - 14 + Math.abs(k - 2) * 1.5, r: W * (0.12 + r() * 0.04) });
+        copa(g, cachos, r, PAL_SELVA);
+        // as flores (mais que nas árvores da fazenda) e um cipó pendurado
+        for (let i = 0; i < g.k.length; i++) if (g.k[i] === 1 && g.t[i] >= 3 && ruido(i, 5, 71) < 0.03) { g.k[i] = 4; g.t[i] = Math.floor(ruido(i, 6, 73) * 3); }
+        for (const vx of [cx - W * 0.28, cx + W * 0.22]) { const comp = 8 + Math.floor(r() * 8); for (let k = 0; k < comp; k++) pinta(g, Math.round(vx + Math.sin(k / 3) * 0.8), Math.round(yb + k), 1, k % 3 ? 2 : 3); }
+        return { img: revelarSelva(g, PAL_SELVA), w: W, h: H };
+    }
+    function samambaia(semente) {
+        const r = rng(semente), W = 26, H = 18, g = grade(W, H);
+        for (let k = 0; k < 7; k++) folhaLonga(g, W / 2, H - 2, -Math.PI + (k / 6) * Math.PI + (r() - 0.5) * 0.2, 9 + r() * 3, 1.6, 1.4, true, r, k);
+        return { img: revelarSelva(g, PAL_SELVA), w: W, h: H };
+    }
+    function heliconia(semente) {
+        const r = rng(semente), W = 26, H = 28, g = grade(W, H), base = H - 1;
+        for (let k = 0; k < 4; k++) folhaLonga(g, W / 2 + (k - 1.5) * 2, base, -Math.PI / 2 + (k - 1.5) * 0.45, 13 + r() * 4, 2.6, 0.5, false, r, k);
+        // as flores em bico, em zigue-zague, vermelhas com a ponta amarela
+        for (let k = 0; k < 5; k++) { const x = W / 2 + (k % 2 ? 2 : -2), y = 6 + k * 3; pinta(g, x, y, 4, 0); pinta(g, x + (k % 2 ? 1 : -1), y, 4, 0); pinta(g, x + (k % 2 ? 2 : -2), y - 1, 4, 1); pinta(g, x, y + 1, 4, 3); }
+        return { img: revelarSelva(g, PAL_HELICONIA), w: W, h: H };
+    }
+    let SELVA = null;
+    function selvaDaIlha() {
+        if (SELVA) return SELVA;
+        const v = (f, n, s0) => Array.from({ length: n }, (_, i) => f(s0 + i * 977));
+        SELVA = {
+            palmeira: [...v((s) => palmeira(s, true), 3, 3101), ...v((s) => palmeira(s, false), 3, 3301)],
+            arvore: [...v((s) => arvoreSelva(s, true), 3, 4101), ...v((s) => arvoreSelva(s, false), 3, 4301)],
+            bananeira: v((s) => bananeira(s), 3, 5101),
+            samambaia: v((s) => samambaia(s), 3, 6101),
+            heliconia: v((s) => heliconia(s), 2, 7101)
+        };
+        return SELVA;
+    }
+
     // as variações de cada estação (feitas uma vez e guardadas)
     const MATA_NOVA = {};
     function mataNova(est) {
@@ -2169,9 +2284,10 @@
         primavera: ['#5d9b44', '#6eb04f', '#84c669', '#9ad57d'],
         verao: ['#6e9c3b', '#80ae49', '#97c95c', '#add86f'],
         outono: ['#878843', '#9a9c4d', '#adb35c', '#c2c56e'],
-        inverno: ['#c4d2e3', '#d8e3ef', '#ecf2f8', '#ffffff']
+        inverno: ['#c4d2e3', '#d8e3ef', '#ecf2f8', '#ffffff'],
+        tropical: ['#2b7446', '#388c52', '#4ca660', '#6cc06c']   // fase 106: a ilha
     };
-    const FLORES_CHAO = { primavera: ['#ffffff', '#f7a9c4', '#fdd85d', '#a6c8ff', '#ffd1e1'], verao: ['#fdd85d', '#ffffff', '#f0a24a'], outono: [], inverno: [] };
+    const FLORES_CHAO = { primavera: ['#ffffff', '#f7a9c4', '#fdd85d', '#a6c8ff', '#ffd1e1'], verao: ['#fdd85d', '#ffffff', '#f0a24a'], outono: [], inverno: [], tropical: ['#ff4f7b', '#ffd34d', '#ff8a3d', '#ffffff', '#c86bff'] };
     // ruído suave (valor em grade, interpolado) para as manchas
     function ruidoSuave(x, y, cel, s) {
         const gx = Math.floor(x / cel), gy = Math.floor(y / cel), fx = x / cel - gx, fy = y / cel - gy;
@@ -3110,7 +3226,7 @@
                 }
                 return { pts, linhas };
             };
-            costa = { beira: curva(0), seca: curva(5), grama: curva(T * 2.1) };
+            costa = { beira: curva(0), seca: curva(5), grama: curva(T * 2.1), raso: curva(-T * 1.6), raso2: curva(-T * 0.7) };
         }
         const naIlhaPx = (x, y, qual = 'beira') => { const l = costa && costa[qual].linhas.get(Math.floor(y)); return !!l && x >= l[0] && x <= l[1]; };
         const naAreiaDaIlha = (tx, ty) => naIlhaPx(wx(tx) + T / 2, wy(ty) + T / 2) && !naIlhaPx(wx(tx) + T / 2, wy(ty) + T / 2, 'grama');
@@ -3132,15 +3248,23 @@
             const X0 = wx(ILHA.x0 - 1), Y0 = wy(ILHA.y0 - 1), W = (ILHA.x1 - ILHA.x0 + 2) * T, H = (ILHA.y1 - ILHA.y0 + 2) * T;
             if (!gramaIlha) {
                 gramaIlha = document.createElement('canvas'); gramaIlha.width = W; gramaIlha.height = H;
-                pintarChaoNovo(gramaIlha.getContext('2d'), W, H, 'verao', rng(4646));
+                pintarChaoNovo(gramaIlha.getContext('2d'), W, H, 'tropical', rng(4646));
             }
             const r = rng(4747);
+            // a água rasa e turquesa em volta (com a areia do fundo aparecendo)
+            for (const [y, [xl, xr]] of costa.raso.linhas) {
+                f.fillStyle = '#3f9fc4'; f.fillRect(Math.round(xl), y, Math.round(xr - xl) + 1, 1);
+                const b = costa.raso2.linhas.get(y);
+                if (b) { f.fillStyle = '#56c2cf'; f.fillRect(Math.round(b[0]), y, Math.round(b[1] - b[0]) + 1, 1); }
+                for (let k = 0; k < (xr - xl) / 30; k++) { f.fillStyle = r() < 0.5 ? '#7fd6d8' : '#4bb0c8'; f.fillRect(Math.round(xl + r() * (xr - xl)), y, 2, 1); }
+            }
+            // a areia da ilha: mais clara e fina que a da praia da fazenda
             for (const [y, [xl, xr]] of costa.beira.linhas) {
-                f.fillStyle = '#d2b06c'; f.fillRect(Math.round(xl), y, Math.round(xr - xl) + 1, 1);
+                f.fillStyle = '#dcc79a'; f.fillRect(Math.round(xl), y, Math.round(xr - xl) + 1, 1);
                 const s = costa.seca.linhas.get(y);
                 if (s) {
-                    f.fillStyle = '#ecd59a'; f.fillRect(Math.round(s[0]), y, Math.round(s[1] - s[0]) + 1, 1);
-                    for (let k = 0; k < (s[1] - s[0]) / 14; k++) { f.fillStyle = r() < 0.5 ? '#d9bd7c' : '#f6e6b8'; f.fillRect(Math.round(s[0] + r() * (s[1] - s[0])), y, 1, 1); }
+                    f.fillStyle = '#f6ead0'; f.fillRect(Math.round(s[0]), y, Math.round(s[1] - s[0]) + 1, 1);
+                    for (let k = 0; k < (s[1] - s[0]) / 12; k++) { f.fillStyle = r() < 0.5 ? '#e6d4ae' : '#fff8e8'; f.fillRect(Math.round(s[0] + r() * (s[1] - s[0])), y, 1, 1); }
                 }
                 const gr = costa.grama.linhas.get(y);
                 if (gr) {
@@ -3169,13 +3293,7 @@
             R(21, 22, 3, 4, '#2a1a10'); R(22, 21, 1, 1, '#2a1a10');
             return c;
         }
-        let artesIlha = null, mataIlha = null;
-        function mataTropical() {
-            if (mataIlha) return mataIlha;
-            const v = (f, n, s0) => Array.from({ length: n }, (_, i) => f(s0 + i * 977));
-            mataIlha = { grande: v((x) => arvoreCopa('verao', x, true), 5, 8081), media: v((x) => arvoreCopa('verao', x, false), 4, 9091), arbusto: v((x) => arbustoNovo('verao', x), 3, 7071) };
-            return mataIlha;
-        }
+        let artesIlha = null;
         function desenharMorro(arvores) {
             const M = ILHA.morro, x0 = wx(M.x), y0 = wy(M.y), w = M.w * T, h = M.h * T, r = rng(5555);
             const R = (x, y, ww, hh, cor) => { f.fillStyle = cor; f.fillRect(Math.round(x), Math.round(y), Math.max(1, Math.round(ww)), Math.max(1, Math.round(hh))); };
@@ -3202,9 +3320,9 @@
             const cav = artesIlha.caveira;
             f.drawImage(cav, Math.round(x0 + w / 2 - cav.width / 2), py0 + PAREDE - cav.height + 2);
             // as árvores e os coqueiros no alto do morro (atrás, sem tampar a caveira)
-            const nova = mataTropical();
-            for (let k = 0; k < 14; k++) {
-                const grande = k % 3 === 0, lista = nova[grande ? 'grande' : 'media'], a = lista[Math.floor(r() * lista.length)];
+            const selva = selvaDaIlha();
+            for (let k = 0; k < 16; k++) {
+                const lista = selva[k % 4 === 0 ? 'palmeira' : k % 4 === 1 ? 'bananeira' : 'arvore'], a = lista[Math.floor(r() * lista.length)];
                 const bx = x0 + 12 + r() * (w - 24), by = y0 + 12 + r() * (h - PAREDE - 18);
                 arvores.push({ nova: a, x: Math.round(bx - a.w / 2), y: Math.round(by - a.h + 1), base: by, cx: bx });
             }
@@ -3330,7 +3448,7 @@
         // o morro e as obras: tudo no fundo, de trás para a frente
         function desenharIlhaCoisas(retTerra) {
             if (!artesIlha) artesIlha = { caveira: caveiraCanvas(), obras: {} };
-            const arvores = [], nova = mataTropical(), r = rng(9191);
+            const arvores = [], selva = selvaDaIlha(), r = rng(9191);
             const minha = (tx, ty) => noTerreno(tx, ty);
             const daIlha = ZONAS.filter((z) => z.ilha);
             const fechada = (tx, ty) => daIlha.some((z) => dentroRet(z, tx, ty) && !zonaMinha(z));
@@ -3342,18 +3460,21 @@
                 const cx = wx(tx) + T / 2, cy = wy(ty) + T / 2;
                 if (!naIlhaPx(cx, cy)) continue;
                 const v = r(), w = r(), jx = Math.floor((r() - 0.5) * 8), jy = Math.floor((r() - 0.5) * 5);
-                if (fechada(tx, ty)) {   // a mata fechada: árvores e coqueiros
-                    if (v < 0.3) arvores.push({ p: 'propria', i: PRAIA.coqueiro.i, topo: PRAIA.coqueiro.topo, x: wx(tx) + jx, y: wy(ty) + jy });
-                    else if (v < 0.68) {
-                        const lista = nova[w < 0.6 ? 'grande' : w < 0.85 ? 'media' : 'arbusto'], a = lista[Math.floor(r() * lista.length)];
-                        const by = wy(ty) + T - 1 + jy, bx = cx + jx;
-                        arvores.push({ nova: a, x: Math.round(bx - a.w / 2), y: by - a.h + 1, base: by, cx: bx });
-                    }
-                } else if (naAreiaDaIlha(tx, ty)) {   // a areia: coqueiros, pedras, troncos e conchas
+                const planta = (tipo) => {   // uma planta da selva com o pé no meio do quadrado
+                    const lista = selva[tipo], a = lista[Math.floor(r() * lista.length)], by = wy(ty) + T - 1 + jy, bx = cx + jx;
+                    arvores.push({ nova: a, x: Math.round(bx - a.w / 2), y: by - a.h + 1, base: by, cx: bx });
+                };
+                if (fechada(tx, ty)) {   // a selva fechada: árvores com flores e cipó, palmeiras, bananeiras e o mato baixo
+                    if (v < 0.3) planta('arvore');
+                    else if (v < 0.48) planta('palmeira');
+                    else if (v < 0.6) planta('bananeira');
+                    else if (v < 0.72) planta(w < 0.6 ? 'samambaia' : 'heliconia');
+                } else if (naAreiaDaIlha(tx, ty)) {   // a areia: palmeiras, pedras, troncos e conchas
                     if (!naIlhaPx(cx, cy, 'seca')) continue;
-                    const peca = v < 0.1 ? 'coqueiro' : v < 0.15 ? 'pedra' : v < 0.17 ? 'tronco' : v < 0.21 ? 'concha' : null;
-                    if (peca) { const k = PRAIA[peca]; arvores.push({ p: 'propria', i: k.i, topo: k.topo, x: wx(tx) + jx, y: wy(ty) + jy }); }
-                }
+                    const peca = v < 0.09 ? 'palmeira' : v < 0.14 ? 'pedra' : v < 0.16 ? 'tronco' : v < 0.2 ? 'concha' : null;
+                    if (peca === 'palmeira') planta('palmeira');
+                    else if (peca) { const k = PRAIA[peca]; arvores.push({ p: 'propria', i: k.i, topo: k.topo, x: wx(tx) + jx, y: wy(ty) + jy }); }
+                } else if (v < 0.035) planta(w < 0.5 ? 'samambaia' : 'heliconia');   // um pouco de mato no seu terreno (fora dele)
             }
             desenharMorro(arvores);
             // as obras prontas (a placa da próxima é desenhada a cada quadro)

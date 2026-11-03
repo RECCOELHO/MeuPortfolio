@@ -1532,6 +1532,7 @@
     const NOVIDADES = [
         { id: '2026-11-03-ilha', data: '03/11', titulo: 'Zarpar para a Ilha da Caveira Dourada', itens: [
             'O jogo agora vai até o <b>nível 60</b>. No <b>nível 46</b>, com o <b>kit de expedição</b> no barco, aparece o botão <b>Ilha</b> (e o <b>Zarpar</b> no alto-mar e no píer): o navio sai do píer, atravessa o mar e chega na <b>Ilha da Caveira Dourada</b>, do outro lado. O botão vira <b>Fazenda</b> para voltar.',
+            'A ilha tem a <b>selva só dela</b>: palmeiras de coco, bananeiras, árvores de copa larga com flores e cipó, samambaias e helicônias, com a areia branquinha e a água rasa turquesa em volta.',
             'A ilha é uma <b>fazenda nova</b>: compre os 3 terrenos dela (<b>Praia do Cais</b> no 46, <b>Mata da Caveira</b> no 51 e <b>Enseada do Farol</b> no 56) e plante, ponha cercados, oficinas e enfeites como em casa. Cada terreno dá +12 canteiros.',
             'Na <b>vila do porto</b>, <b>uma obra por nível do 46 ao 60</b>: cais, trapiche, armazém, muralha, taverna, portão, farol, cabana do vigia, mercado pirata, toldo, âncora gigante, canhões de festa, estátua da sereia, casa do cartógrafo e, por último, a bandeira no alto do morro da Caveira Dourada. Toque na placa da próxima obra: cada uma pede moedas e materiais do barco, dá XP e aparece no lugar dela.',
             'Com o <b>cais</b> pronto, todo dia aparece um <b>X</b> num lugar diferente dos seus terrenos da ilha: toque nele e cave o baú enterrado (moedas de 60 mil para cima, às vezes diamantes e, de vez em quando, um raro).',
