@@ -1518,7 +1518,7 @@
     const NOVIDADES = [
         { id: '2026-11-03-bichos', data: '03/11', titulo: 'Bichos redesenhados e o passo dos bonecos', itens: [
             'Os <b>bichos</b> foram redesenhados, maiores e com mais detalhe, e mexem as pernas quando andam: a vaca com as manchas e o úbere, a búfala com os chifres curvos, a ovelha fofinha, o porco com o rabinho enrolado, a cabra com a barbicha, a galinha com a crista, o pato e o coelho de orelha comprida.',
-            'O <b>fazendeiro</b>, os <b>ajudantes</b> e os <b>banhistas</b> agora <b>andam de verdade</b>: as pernas dão o passo, o corpo sobe um pouquinho e o braço balança.'] },
+            'O <b>fazendeiro</b>, os <b>ajudantes</b> e os <b>banhistas</b> agora <b>andam de verdade</b>, nas <b>4 direções</b>: de frente, de costas (a nuca e o cabelo) e de lado (de perfil), com as pernas dando o passo, o corpo subindo um pouquinho e o braço balançando.'] },
         { id: '2026-11-03-pesca', data: '03/11', titulo: 'Pescaria nova no alto-mar', itens: [
             'Agora a pescaria é uma <b>briga com o peixe</b>: quando a boia afundar, toque para fisgar e aparece a barra. <b>Segure (ou toque no ritmo)</b> para subir a zona verde e mantenha o peixe dentro dela até encher a barra de captura. Peixe grande foge mais rápido; vara melhor dá zona maior.',
             'O <b>peixe do mar vale no mínimo 5 mil</b>: sardinha 5.000, cavala 5.600, robalo 6.200, garoupa 7.000, dourado 8.000 e atum 9.500. Os pratos de peixe das oficinas valem o triplo dos ingredientes (sardinha em lata 60.780, sashimi 28.542 e caldeirada 39.690).',

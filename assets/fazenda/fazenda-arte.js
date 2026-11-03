@@ -899,7 +899,8 @@
        desenho que já existe: as pernas são as 4 linhas de baixo. Quadro 1: a perna esquerda levanta 1 px e o
        corpo sobe junto; 2: as duas no chão; 3: a direita levanta; 0: parado. ---- */
     const cachePasso = new WeakMap();
-    function passoCanvas(cv, q) {
+    function passoCanvas(cv, q, vista) {
+        if (cv && vista && vista !== 'frente' && cv.vistas && cv.vistas[vista]) cv = cv.vistas[vista];   // fase 108: de lado / de costas
         if (!cv || !q) return cv;
         let lista = cachePasso.get(cv);
         if (!lista) {
@@ -928,6 +929,9 @@
     }
     // o quadro do passo agora (anda: 4 quadros em ~0,5 s; parado: o desenho inteiro)
     const quadroPasso = (andando, tempo, k = 0) => (andando ? Math.floor((tempo + k) / 130) % 4 : 0);
+    // fase 108: para onde está andando: de lado (o flip vira para a esquerda), de costas (subindo) ou de frente
+    const vistaDoPasso = (dx, dy, antes) => (Math.abs(dx) < 0.3 && Math.abs(dy) < 0.3 ? antes || 'frente'
+        : Math.abs(dx) >= Math.abs(dy) * 0.8 ? 'lado' : dy < 0 ? 'costas' : 'frente');
 
     const cacheAvatar = new Map();
     function avatarCanvas(cfg) {
@@ -940,7 +944,22 @@
         const g = cv.getContext('2d');
         if (!img.complete || !img.naturalWidth) { cv.url = cv.toDataURL(); return cv; }   // a arte ainda não carregou
         g.drawImage(img, (tipo.i % COLS) * T, Math.floor(tipo.i / COLS) * T, T, T, 0, 0, T, T);
-        const dados = g.getImageData(0, 0, T, T), d = dados.data;
+        const dados = g.getImageData(0, 0, T, T);
+        // fase 108: de lado e de costas, feitos do desenho de frente (antes das cores do jogador)
+        const vistas = { frente: dados, lado: vistaDe(dados, tipo, 'lado'), costas: vistaDe(dados, tipo, 'costas') };
+        for (const dd of Object.values(vistas)) pintarAvatar(dd.data, tipo, cfg);
+        g.putImageData(dados, 0, 0);
+        cv.vistas = {};
+        for (const nome of ['lado', 'costas']) {
+            const c = document.createElement('canvas'); c.width = c.height = T;
+            c.getContext('2d').putImageData(vistas[nome], 0, 0);
+            cv.vistas[nome] = c;
+        }
+        cv.url = cv.toDataURL();
+        cacheAvatar.set(chave, cv);
+        return cv;
+    }
+    function pintarAvatar(d, tipo, cfg) {
         for (const [regiao, r] of Object.entries(tipo.regioes)) {
             const n = cfg[regiao] | 0;
             const tons = n > 0 ? AVATAR_CORES[regiao][n - 1] : tipo.base && tipo.base[regiao];   // fase 69: a cor de base do exclusivo
@@ -955,10 +974,54 @@
                 }
             }
         }
-        g.putImageData(dados, 0, 0);
-        cv.url = cv.toDataURL();
-        cacheAvatar.set(chave, cv);
-        return cv;
+    }
+    /* ---- fase 108: a vista de costas e a de lado de um boneco, a partir do desenho de frente.
+       O rosto fica nas linhas acima da roupa: de costas, a pele e os olhos viram cabelo (o tom do cabelo do
+       boneco, que depois ganha a cor escolhida; sem cabelo, a cor do chapéu/capacete; com chapéu de palha, um
+       castanho). De lado (virado para a direita), só a metade de trás do rosto vira cabelo: sobra um olho. ---- */
+    const PELES = new Set(['e19a65', 'f7c282', 'eaa56c']);
+    function vistaDe(dados, tipo, vista) {
+        const out = new ImageData(new Uint8ClampedArray(dados.data), T, T), d = out.data;
+        const hex = (k) => ((d[k] << 16) | (d[k + 1] << 8) | d[k + 2]).toString(16).padStart(6, '0');
+        const vazio = (x, y) => x < 0 || y < 0 || x >= T || y >= T || d[(y * T + x) * 4 + 3] < 128;
+        const corpo = Math.min(...['roupa', 'calca'].map((r) => (tipo.regioes[r] ? tipo.regioes[r].y[0] : T)));
+        // as linhas do rosto: as que têm pele acima da roupa
+        let topo = T;
+        for (let y = 0; y < corpo; y++) for (let x = 0; x < T; x++) if (!vazio(x, y) && PELES.has(hex((y * T + x) * 4))) { topo = Math.min(topo, y); break; }
+        if (topo >= corpo) return out;
+        // a cor do cabelo (o tom do meio da região cabelo, para a troca de cor pegar) ou a do que cobre a cabeça
+        let cabelo = null;
+        if (tipo.regioes.cabelo) cabelo = Object.entries(tipo.regioes.cabelo.cores).sort((a, b) => Math.abs(a[1] - 1) - Math.abs(b[1] - 1))[0][0].slice(1);
+        else if (tipo.regioes.chapeu) cabelo = '763b36';
+        else {
+            const conta = {};
+            for (let y = 0; y < topo; y++) for (let x = 0; x < T; x++) {
+                const k = (y * T + x) * 4; if (d[k + 3] < 128) continue;
+                const h = hex(k); if (h === '3f2631' || PELES.has(h)) continue;
+                conta[h] = (conta[h] || 0) + 1;
+            }
+            cabelo = Object.entries(conta).sort((a, b) => b[1] - a[1])[0];
+            cabelo = cabelo ? cabelo[0] : '763b36';
+        }
+        const [cr, cg, cb] = rgbDe('#' + cabelo), escuro = rgbDe('#' + cabelo).map((v) => Math.round(v * 0.72));
+        const pinta = (k, c) => { d[k] = c[0]; d[k + 1] = c[1]; d[k + 2] = c[2]; };
+        for (let y = topo; y < corpo; y++) {
+            // a pele desta linha (de onde a onde)
+            let x0 = T, x1 = -1;
+            for (let x = 0; x < T; x++) if (!vazio(x, y) && PELES.has(hex((y * T + x) * 4))) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); }
+            if (x1 < 0) continue;
+            const meio = Math.floor((x0 + x1) / 2);
+            for (let x = x0; x <= x1; x++) {
+                const k = (y * T + x) * 4;
+                if (d[k + 3] < 128) continue;
+                const h = hex(k), interno = !vazio(x - 1, y) && !vazio(x + 1, y) && !vazio(x, y - 1) && !vazio(x, y + 1);
+                const ePele = PELES.has(h), eOlho = (h === '3f2631' || h === '262b44') && interno;
+                if (!ePele && !eOlho) continue;
+                if (vista === 'costas' || x < meio) pinta(k, y === corpo - 1 || x === x0 ? escuro : [cr, cg, cb]);
+                else if (eOlho && vista === 'lado' && x === meio) pinta(k, [cr, cg, cb]);
+            }
+        }
+        return out;
     }
     function htmlAvatar(cfg, px = 32) {
         return `<span class="px-spr" style="background-image:url('${avatarCanvas(cfg).url}');width:${px}px;height:${px}px;background-size:${px}px ${px}px;background-position:0 0" aria-hidden="true"></span>`;
@@ -1006,9 +1069,17 @@
         cv.width = cv.height = T;
         const g = cv.getContext('2d');
         g.drawImage(base, 0, 0);
-        (ACESSORIOS[v.extra] || []).forEach((linha, y) => [...linha].forEach((ch, x) => {
-            if (PAL_PROPRIA[ch]) { g.fillStyle = PAL_PROPRIA[ch]; g.fillRect(x, y, 1, 1); }
+        const acessorio = (gg) => (ACESSORIOS[v.extra] || []).forEach((linha, y) => [...linha].forEach((ch, x) => {
+            if (PAL_PROPRIA[ch]) { gg.fillStyle = PAL_PROPRIA[ch]; gg.fillRect(x, y, 1, 1); }
         }));
+        acessorio(g);
+        cv.vistas = {};   // fase 108
+        for (const nome of ['lado', 'costas']) {
+            if (!base.vistas || !base.vistas[nome]) continue;
+            const c = document.createElement('canvas'); c.width = c.height = T;
+            const gg = c.getContext('2d'); gg.drawImage(base.vistas[nome], 0, 0); acessorio(gg);
+            cv.vistas[nome] = c;
+        }
         cv.url = cv.toDataURL();
         cacheAjudante.set(tipo, cv);
         return cv;
@@ -3303,6 +3374,7 @@
                 }
             }
             const dx = fazendeiro.tx - fazendeiro.x, dy = fazendeiro.ty - fazendeiro.y, d = Math.hypot(dx, dy);
+            if (d > 0.5) fazendeiro.vista = vistaDoPasso(dx, dy, fazendeiro.vista);   // fase 108
             if (d > 0.5) {
                 const ex = passoSeco(fazendeiro, 56, dt);   // fase 74b: contorna o lago
                 if (Math.abs(ex) > 0.2) fazendeiro.flip = ex < 0;
@@ -3686,18 +3758,20 @@
                 const bob = (parado && Math.floor(tempo / 600) % 2) || (andando && Math.floor(tempo / 140) % 2) ? -1 : 0;
                 // fase 76: o pato nadando fica com metade do corpo dentro da água (fase 79: e todo mundo que entra nela)
                 const nadando = naAgua(a.x, a.y);
+                const vistaA = andando ? (a.vista = vistaDoPasso(a.tx - a.x, a.ty - a.y, a.vista)) : 'frente';   // fase 108
                 if (!a.visual && a.v && BICHOS_NOVOS.has(a.tipo)) {   // fase 107: os bichos desenhados, andando
                     const anda = Math.hypot(a.tx - a.x, a.ty - a.y) > 0.5;
                     const cv = bichoCanvas(a.tipo, anda ? Math.floor((tempo + a.x * 7) / 170) % 2 : 0);
                     pe.push({ img: cv, x: a.x + 8 - cv.width / 2, y: a.y + 16 - cv.height, ordem: a.y, flip: a.flip, bob: nadando ? 0 : bob, nadando });
                 } else
-                pe.push(a.visual ? { img: passoCanvas(ajudanteCanvas(a.tipo), nadando ? 0 : quadroPasso(andando, tempo, a.x * 13)), x: a.x, y: a.y, flip: a.flip, bob: andando || nadando ? 0 : bob, nadando }
+                pe.push(a.visual ? { img: passoCanvas(ajudanteCanvas(a.tipo), nadando ? 0 : quadroPasso(andando, tempo, a.x * 13), vistaA), x: a.x, y: a.y, flip: vistaA === 'lado' ? a.flip : false, bob: andando || nadando ? 0 : bob, nadando }
                     : { p: a.p || 'farm', i: a.i, x: a.x, y: a.y, flip: a.flip, bob: nadando ? 0 : bob, nadando });
                 // ferramenta na mão do ajudante (do lado para onde ele olha; na água, a parte de baixo some junto)
                 if (a.ferramenta != null) pe.push({ p: a.ferramentaP || 'farm', i: a.ferramenta, x: a.x + (a.flip ? -7 : 7), y: a.y + 0.5, flip: a.flip, bob: nadando ? 0 : bob, corte: nadando ? Math.round(a.y) : null });
             }
             const andando = fazendeiro.passo > 0, fazNada = naAgua(fazendeiro.x, fazendeiro.y);
-            pe.push({ img: passoCanvas(avatarCanvas(avatarAtual), fazNada ? 0 : quadroPasso(andando, tempo)), x: fazendeiro.x, y: fazendeiro.y, flip: fazendeiro.flip, bob: 0, nadando: fazNada });   // fase 107: o passo
+            const vistaF = andando ? fazendeiro.vista || 'frente' : 'frente';   // parado, olha para a tela
+            pe.push({ img: passoCanvas(avatarCanvas(avatarAtual), fazNada ? 0 : quadroPasso(andando, tempo), vistaF), x: fazendeiro.x, y: fazendeiro.y, flip: vistaF === 'lado' && fazendeiro.flip, bob: 0, nadando: fazNada });   // fase 107/108: o passo e a direção
             if (lago && lagoNaTela()) pe.push({ p: 'factory', i: 120, x: wx(LAGO.x) + 1, y: wy(LAGO.y + 2), flip: false, bob: Math.floor(tempo / 700) % 2 ? -1 : 0 });
             if (visitante) { const vn = naAgua(visitante.x, visitante.y); pe.push({ p: 'dungeon', i: VISITANTE_ARTE[visitante.tipo] || 86, x: visitante.x, y: visitante.y, flip: visitante.flip, bob: !vn && visitante.andando && Math.floor(tempo / 140) % 2 ? -1 : 0, nadando: vn }); }
             desenharNavio(pe, tempo);   // fase 104: o navio no píer
@@ -4158,7 +4232,7 @@
             if (p.para) {
                 const f = Math.min(1, Math.max(0, (s - p.ini) / p.dur));
                 return { x: p.de[0] + (p.para[0] - p.de[0]) * f, y: p.de[1] + (p.para[1] - p.de[1]) * f, modo: p.nado ? 'nadando' : 'andando',
-                         flip: p.para[0] < p.de[0], item: p.item };
+                         flip: p.para[0] < p.de[0], item: p.item, vista: vistaDoPasso(p.para[0] - p.de[0], p.para[1] - p.de[1]) };
             }
             return { x: p.em ? p.em[0] : 0, y: p.em ? p.em[1] : 0, modo: p.modo, flip: false, item: p.item };
         }
@@ -4240,7 +4314,8 @@
                 const nadando = naAgua(x, y);
                 const passo = o.modo === 'andando' && Math.floor(tempo / (andaRapido ? 130 : 160) + tx * 3) % 2 ? -1 : 0;
                 const bob = o.modo === 'comprando' ? (Math.floor(tempo / 300) % 2 ? -1 : 0) : nadando ? 0 : passo;
-                pe.push({ img: passoCanvas(avatarCanvas(cfg), !nadando && o.modo === 'andando' ? quadroPasso(true, tempo, tx * 97) : 0), x, y, flip: o.flip, bob: o.modo === 'andando' ? 0 : bob, nadando });   // fase 107: o passo
+                const vistaB = o.modo === 'andando' ? o.vista : o.modo === 'nadando' ? 'costas' : 'frente';   // fase 108
+                pe.push({ img: passoCanvas(avatarCanvas(cfg), !nadando && o.modo === 'andando' ? quadroPasso(true, tempo, tx * 97) : 0, vistaB), x, y, flip: vistaB === 'lado' && o.flip, bob: o.modo === 'andando' ? 0 : bob, nadando });   // fase 107/108
                 if (o.item && !nadando) naMao.push({ item: o.item, x: x + (o.flip ? 0 : 9), y: y + 6 + bob });
             };
             const P = 150 + pr.vazio;
