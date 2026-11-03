@@ -3364,3 +3364,6 @@ body.construindo .status {
     .hud-botoes em { display: none; }
     .hud-botoes .botao { padding: 6px 9px; }
 }
+
+/* fase 107: o rádio da feira */
+.radio-volume { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 8px 0; }

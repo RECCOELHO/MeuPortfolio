@@ -1030,6 +1030,7 @@
         chat: ['..ooooooo..', '.owwwwwwwo.', 'owwwwwwwwso', 'owBwwBwwBso', 'owwwwwwwwso', '.owwwwwwso.', '..oowooooo.', '...owo.....', '...oo......'],
         // calendário de resgate diário (fase 69): folhinha com a argola, a faixa vermelha e o dia marcado
         calendario: ['.o.o.o.o.', 'ooooooooo', 'orrrrrrro', 'ooooooooo', 'owwwwwwwo', 'owSwSwSwo', 'owwwwwwwo', 'owSwSwrwo', 'owwwwwwwo', 'ooooooooo'],
+        radio: ['........o..', '.......o...', 'ooooooooooo', 'orrrrrrrrro', 'owwoyyyowwo', 'owSwoyowSwo', 'owwoyyyowwo', 'orrrrrrrrro', 'ooooooooooo'],   // fase 107: o rádio da feira
         engrenagem: ['...ooo...', '.oosSsoo.', '.osSSSso.', 'osSSoSSso', 'oSSo.oSSo', 'osSSoSSso', '.osSSSso.', '.oosSsoo.', '...ooo...'],   // fase 105: a tela das oficinas
         gerente: ['ooooooooo', 'ogggogggo', 'ogGgogGgo', 'ooooooooo', 'oyyyogggo', 'oyYyogGgo', 'ooooooooo', 'onnnoyyyo', 'onnnoyYyo', 'ooooooooo'],   // fase 103: o modo gerente (a grade dos canteiros)
         sino: ['....o....', '...oyo...', '..oyyyo..', '..owyyo..', '..owyyo..', '.oyyyyyo.', 'oyyyyyyYo', 'ooooooooo', '...oYo...', '....o....'],
@@ -1940,6 +1941,8 @@
         const dentroTerreno = (tx, ty) => noTerreno(tx, ty);
         // fase 51: a feira (barracas: quantas tem; vende: o que está à venda; vagas: mostra as que dá para comprar)
         const FEIRA = MAPA.feira;
+        const RADIO = { x: FEIRA.x + 2, y: FEIRA.y + FEIRA.h - 1 };   // fase 107: embaixo das barracas da feira
+        let radioTocando = false;
         let feira = { barracas: 1, vende: [], vagas: false };
 
         function montarFundo() {
@@ -2837,6 +2840,14 @@
             for (const c of canteiros) if (naTela(c.x, c.y)) desenharCanteiro(c, tempo, mc);
             desenharViagens();
             if (zonasVenda.length) desenharPlacaVenda(tempo);
+            // fase 107: o rádio da feira (todo mundo tem), com as notinhas subindo quando a música toca
+            pe.push({ img: icones.radio, x: wx(RADIO.x) + 2, y: wy(RADIO.y) + 6, flip: false, bob: radioTocando && Math.floor(tempo / 420) % 2 ? -1 : 0 });
+            if (radioTocando) for (let k = 0; k < 3; k++) {
+                const u = ((tempo / 2200) + k / 3) % 1, nx = wx(RADIO.x) + 8 + Math.sin(u * 6 + k) * 4, ny = wy(RADIO.y) + 6 - u * 18;
+                q.globalAlpha = Math.sin(u * Math.PI) * 0.9; q.fillStyle = ['#7cc452', '#fdbe53', '#f59cbc'][k];
+                q.fillRect(Math.round(nx), Math.round(ny), 2, 2); q.fillRect(Math.round(nx) + 1, Math.round(ny) - 3, 1, 3); q.fillRect(Math.round(nx) + 2, Math.round(ny) - 3, 1, 1);
+                q.globalAlpha = 1;
+            }
             FEIRA.barracas.forEach((b, k) => {
                 if (k < feira.barracas) pe.push({ p: 'farm', i: 1064, x: wx(b.x), y: wy(b.y), flip: false, bob: 0 });
                 else if (feira.vagas && (k < 4 || k === feira.barracas)) {   // (fase 82: das de diamante, só a próxima)
@@ -3708,6 +3719,7 @@
             // terreno à venda: a placa ou qualquer pedaço de mata dele
             const zv = zonasVenda.find((z) => dentroRet(z, tx, ty));
             if (zv) { vendaTocada = zv.n; return 'venda'; }
+            if (tx === RADIO.x && ty === RADIO.y) return 'radio';   // fase 107: o rádio, embaixo das barracas
             if (dentroRet(FEIRA, tx, ty)) return 'feira';
             return null;
         }
@@ -3819,6 +3831,7 @@
             if (typeof alvo === 'object' && 'tx' in alvo) { if (cb.aoTile) cb.aoTile(alvo.tx, alvo.ty); }
             else if (alvo === 'celeiro') { if (cb.aoCeleiro) cb.aoCeleiro(); }
             else if (alvo === 'venda') { if (cb.aoVenda) cb.aoVenda(vendaTocada); }
+            else if (alvo === 'radio') { if (cb.aoRadio) cb.aoRadio(); }
             else if (alvo === 'feira') { if (cb.aoFeira) cb.aoFeira(); }
             else if (alvo === 'lago') { if (cb.aoLago) cb.aoLago(); }
             else if (alvo === 'visitante') { if (cb.aoVisitante) cb.aoVisitante(); }
@@ -3926,6 +3939,7 @@
                 precisaDesenhar = true;
             },
             focarTile(tx, ty) { focar(wx(tx) + T / 2, wy(ty) + T / 2); },
+            radio(tocando) { radioTocando = !!tocando; precisaDesenhar = true; },   // fase 107: as notinhas saem do rádio
             definirClima(c) { clima = c || null; precisaDesenhar = true; },
             definirRelogio(fn) { if (typeof fn === 'function') relogio = fn; },
             definirViagens(fn) { if (typeof fn === 'function') viagensFn = fn; },

@@ -284,12 +284,19 @@
         let pausado = false;   // durante o anúncio
         let volMusica = store.get(LS.volMusica) !== null ? Math.max(0, Math.min(100, Number(store.get(LS.volMusica)))) : 35;
         let volEfeitos = store.get(LS.volEfeitos) !== null ? Math.max(0, Math.min(100, Number(store.get(LS.volEfeitos)))) : 80;
-        let faixaAtual = Number(store.get(LS.faixaMusica)) || 0; // 0: Tema da Roça 1, 1: Tema da Roça 2
-
-        const FAIXAS = [
-            { nome: 'Fazenda Secreta (Tema 1)', src: 'assets/music/fazenda-tema-1.mp3?v=20261030' },
-            { nome: 'Fazenda Secreta (Tema 2)', src: 'assets/music/fazenda-tema-2.mp3?v=20261030' }
-        ];
+        // fase 107: uma lista de músicas para o dia e outra para a noite (o dia do jogo, de 2 em 2 horas);
+        // quando o céu vira, a música troca sozinha (some devagar e a outra entra). O rádio da feira escolhe a próxima.
+        const FAIXAS = {
+            dia: [{ nome: 'Over the Garden Fence', src: 'assets/music/fazenda-dia-1.mp3?v=20261103' },
+                  { nome: 'The Porch Swing at Three', src: 'assets/music/fazenda-dia-2.mp3?v=20261103' }],
+            noite: [{ nome: 'Starlight Over the Acre', src: 'assets/music/fazenda-noite-1.mp3?v=20261103' }]
+        };
+        const faixaGuardada = (per) => Math.max(0, Number(store.get('fazenda_faixa_' + per)) || 0) % FAIXAS[per].length;
+        const faixaIdx = { dia: faixaGuardada('dia'), noite: faixaGuardada('noite') };
+        const periodo = () => (A && A.faseDoDia && A.faseDoDia(Date.now()).noite ? 'noite' : 'dia');
+        const faixaDaVez = () => { const per = periodo(); return FAIXAS[per][faixaIdx[per] % FAIXAS[per].length]; };
+        let fade = 1;   // 0..1: a música sumindo ou voltando na troca
+        let periodoTocando = null, aoMudar = null;
 
         let musicaAudio = null;
         let desbloqueado = false;
@@ -306,7 +313,7 @@
 
         function aplicarVolumeMusica() {
             if (!musicaAudio) return;
-            musicaAudio.volume = (mudo || pausado) ? 0 : (volMusica / 100);
+            musicaAudio.volume = (mudo || pausado) ? 0 : (volMusica / 100) * fade;
         }
 
         function tocarMusica() {
@@ -315,7 +322,8 @@
                 musicaAudio.loop = true;
                 musicaAudio.preload = 'auto';
             }
-            const faixa = FAIXAS[faixaAtual] || FAIXAS[0];
+            const faixa = faixaDaVez();
+            periodoTocando = periodo();
             const srcAtual = musicaAudio.getAttribute('src');
             if (srcAtual !== faixa.src) {
                 musicaAudio.src = faixa.src;
@@ -328,6 +336,22 @@
                 }
             }
         }
+
+        // some devagar, troca a música e volta (1,2 s para cada lado)
+        let trocando = null;
+        function trocarSuave() {
+            if (!musicaAudio || !desbloqueado) { periodoTocando = periodo(); return; }
+            if (trocando) clearInterval(trocando);
+            trocando = setInterval(() => {
+                fade = Math.max(0, fade - 0.1); aplicarVolumeMusica();
+                if (fade > 0) return;
+                clearInterval(trocando);
+                tocarMusica();
+                trocando = setInterval(() => { fade = Math.min(1, fade + 0.1); aplicarVolumeMusica(); if (fade >= 1) { clearInterval(trocando); trocando = null; } }, 120);
+            }, 120);
+            if (aoMudar) aoMudar();
+        }
+        setInterval(() => { if (desbloqueado && periodoTocando && periodo() !== periodoTocando) trocarSuave(); }, 5000);
 
         function desbloquearAudio() {
             if (desbloqueado) return;
@@ -415,22 +439,23 @@
                 volEfeitos = Math.max(0, Math.min(100, Number(v) || 0));
                 store.set(LS.volEfeitos, String(volEfeitos));
             },
-            trocarFaixa(idx) {
-                faixaAtual = (idx >= 0 && idx < FAIXAS.length) ? idx : 0;
-                store.set(LS.faixaMusica, String(faixaAtual));
-                if (musicaAudio) {
-                    musicaAudio.src = FAIXAS[faixaAtual].src;
-                    aplicarVolumeMusica();
-                    if (!mudo && !pausado && volMusica > 0) {
-                        musicaAudio.play().catch(() => {});
-                    }
-                }
+            // fase 107: escolhe uma música da lista do dia ou da noite (n = null: a próxima)
+            escolher(per, n) {
+                const lista = FAIXAS[per];
+                faixaIdx[per] = n == null ? (faixaIdx[per] + 1) % lista.length : Math.max(0, Math.min(lista.length - 1, n));
+                store.set('fazenda_faixa_' + per, String(faixaIdx[per]));
+                if (per === periodo()) { if (musicaAudio && desbloqueado) trocarSuave(); }
+                else if (aoMudar) aoMudar();
             },
+            get periodo() { return periodo(); },
+            get tocando() { return !!musicaAudio && !musicaAudio.paused && !mudo && volMusica > 0; },
+            faixaDe(per) { return FAIXAS[per][faixaIdx[per] % FAIXAS[per].length]; },
+            indice(per) { return faixaIdx[per]; },
+            set aoMudar(fn) { aoMudar = fn; },
             desbloquear: desbloquearAudio,
             get mudo() { return mudo; },
             get volMusica() { return volMusica; },
             get volEfeitos() { return volEfeitos; },
-            get faixaAtual() { return faixaAtual; },
             get faixas() { return FAIXAS; }
         };
     })();
@@ -1438,6 +1463,9 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-11-03-radio', data: '03/11', titulo: 'Músicas novas e o rádio da feira', itens: [
+            '<b>Três músicas novas</b>: duas para o dia e uma para a noite. Quando o céu escurece ou clareia, a música troca sozinha.',
+            'Tem um <b>rádio</b> na feira, embaixo das barracas (todo mundo tem). Toque nele para abaixar ou aumentar o volume e pular para a próxima música do dia ou da noite.'] },
         { id: '2026-11-03-oficinas', data: '03/11', titulo: 'Tela das oficinas', itens: [
             'Nova tela <b>Oficinas</b> (no menu): todas as suas oficinas, separadas por tipo, com o que cada uma está fazendo, o tempo que falta, o estoque e <b>por que parou</b>.',
             '<b>Pegar tudo</b> leva os produtos prontos de todas para o celeiro, e <b>Encher todas</b> reparte os ingredientes do celeiro entre elas (as que dão mais lucro primeiro).',
@@ -3127,6 +3155,29 @@
             </div>`;
     }
 
+    /* ---------- fase 107: o rádio da feira e as músicas de dia e de noite ---------- */
+    function htmlFaixas() {
+        const bloco = (per, titulo) => `<b>${titulo}</b><div class="som-faixas">${som.faixas[per].map((f, i) => {
+            const sel = som.indice(per) === i, agoraToca = sel && som.periodo === per;
+            return `<button type="button" class="botao pequeno ${sel ? 'verde' : 'creme'}" data-faixa="${per}:${i}">${agoraToca ? '▶ ' : ''}${esc(f.nome)}</button>`;
+        }).join('')}</div>`;
+        return `${bloco('dia', 'Músicas do dia')}${bloco('noite', 'Músicas da noite')}<p class="det">A música troca sozinha quando o céu escurece ou clareia.</p>`;
+    }
+    function htmlRadio() {
+        const per = som.periodo, f = som.faixaDe(per);
+        return `<p class="fala">${som.tocando ? `Tocando agora (${per === 'noite' ? 'noite' : 'dia'}): <b>${esc(f.nome)}</b>` : som.mudo ? 'O rádio está <b>mudo</b>.' : 'Toque em qualquer lugar para o rádio começar a tocar.'}</p>
+            <div class="radio-volume"><button type="button" class="botao creme" data-radio="menos">Abaixar</button>
+                <span class="chip">Volume ${som.volMusica}%</span><button type="button" class="botao creme" data-radio="mais">Aumentar</button></div>
+            <div class="gerente-acoes">
+                <button type="button" class="botao verde" data-radio="dia">Próxima música de dia</button>
+                <button type="button" class="botao verde" data-radio="noite">Próxima música à noite</button>
+            </div>
+            ${htmlFaixas()}
+            <div class="rodape-painel"><button type="button" class="botao ${som.mudo ? 'verde' : 'creme'}" data-radio="mudo">${ico(som.mudo ? 'som' : 'mudo', 18)} ${som.mudo ? 'Ligar o som' : 'Desligar o som'}</button><button type="button" class="botao creme" data-fechar>Fechar</button></div>`;
+    }
+    som.aoMudar = () => { if (painelAtual === 'radio' || painelAtual === 'som') abrirPainel(painelAtual, true); };
+    setInterval(() => { if (typeof cena !== 'undefined' && cena.radio) cena.radio(som.tocando); }, 1000);
+
     /* ---------- fase 105: administrar as oficinas ----------
        Todas as oficinas numa tela só, por tipo: o que cada uma está fazendo, o que está pronto, o estoque e
        por que parou. Pegar e encher uma por uma ou todas de uma vez (o encher reparte o que tem no celeiro). */
@@ -3349,6 +3400,7 @@
         aoCeleiro: () => { if (S && !painelAtual) abrirPainel('celeiro'); },
         aoCasa: () => { if (S && !painelAtual && !visita) descreverCasa('casa'); },   // fase 66: quem dorme na casa da fazenda
         aoVenda: () => { if (S && !painelAtual && !visita) { abaLoja = 'terrenos'; abrirPainel('loja'); } },
+        aoRadio: () => { if (!painelAtual) abrirPainel('radio'); },   // fase 107: o rádio da feira
         aoFeira: () => {   // fase 51: a pracinha da feira, na mata
             if (!S || painelAtual) return;
             abaFeira = !visita && S.feira && S.feira.meus.length ? 'meus' : 'comprar';
@@ -3368,6 +3420,7 @@
         aoPassar: (alvo, venda) => {
             if (!S || alvo == null) return;
             if (alvo === 'celeiro') mostrarStatus(`${spr(11, 22)} Celeiro: toque para ver e vender a colheita.`);
+            else if (alvo === 'radio') mostrarStatus(`${ico('radio', 20)} <b>Rádio</b>: ${som.tocando ? `tocando ${esc(som.faixaDe(som.periodo).nome)}. ` : ''}Toque para trocar a música ou mexer no volume.`);
             else if (alvo === 'feira') mostrarStatus(visita ? `${A.htmlItem('barraca', 22)} <b>Feira</b>: toque para comprar dos outros jogadores.`
                 : `${A.htmlItem('barraca', 22)} <b>Feira</b>: ${barracas()} barraca${barracas() > 1 ? 's' : ''}, até ${limiteFeira()} anúncios. Toque para comprar e vender com outros jogadores.`);
             else if (alvo === 'venda') descreverVenda(venda);
@@ -5270,16 +5323,7 @@
                         </div>
                     </div>
 
-                    <div class="som-bloco">
-                        <b>Escolher Música</b>
-                        <div class="som-faixas">
-                            ${som.faixas.map((f, idx) => `
-                                <button type="button" class="botao pequeno ${som.faixaAtual === idx ? 'verde' : 'creme'}" data-faixa="${idx}">
-                                    ${som.faixaAtual === idx ? '▶ ' : ''}${esc(f.nome)}
-                                </button>
-                            `).join('')}
-                        </div>
-                    </div>
+                    <div class="som-bloco">${htmlFaixas()}</div>
 
                     <div class="som-bloco som-linha-mudo">
                         <button type="button" class="botao ${som.mudo ? 'vermelho' : 'verde'}" data-som-silenciar>
@@ -5299,6 +5343,9 @@
             if (!v) { fecharPainel(); return; }
             el.painelTitulo.innerHTML = `${spr(VISITAS[v.tipo].sprite, 32, 'dungeon')} Visita na porteira`;
             corpo.innerHTML = htmlVisitante(v);
+        } else if (nome === 'radio') {   // fase 107: o rádio da feira
+            el.painelTitulo.innerHTML = `${ico('radio', 30)} Rádio da fazenda`;
+            corpo.innerHTML = htmlRadio();
         } else if (nome === 'oficinas') {   // fase 105: administrar todas as oficinas
             el.painelTitulo.innerHTML = `${ico('engrenagem', 28)} Oficinas`;
             const rolou = soAtualizar ? corpo.scrollTop : 0;
@@ -6544,6 +6591,15 @@
         }
         if (e.target.closest('[data-mar-ir]')) { if (mar) fecharPainel(); else abrirMar(); return; }   // fase 62: o alto-mar
         if (e.target.closest('[data-invasao-entrar]')) { abrirInvasao(); return; }   // fase 94
+        const rd = e.target.closest('[data-radio]');   // fase 107: o rádio
+        if (rd) {
+            const a = rd.dataset.radio;
+            if (a === 'menos' || a === 'mais') som.definirVolMusica(som.volMusica + (a === 'mais' ? 10 : -10));
+            else if (a === 'dia' || a === 'noite') { som.escolher(a); toast(`${ico('radio', 16)} ${a === 'dia' ? 'De dia' : 'À noite'} agora toca: <b>${esc(som.faixaDe(a).nome)}</b>`); }
+            else if (a === 'mudo') { som.alternar(); atualizarBotaoSom(); }
+            abrirPainel('radio', true);
+            return;
+        }
         const of = e.target.closest('[data-of-pegar],[data-of-encher],[data-of-abrir],[data-of-ir],[data-of-massa],[data-of-filtro]');   // fase 105: as oficinas
         if (of) {
             const d = of.dataset;
@@ -7091,8 +7147,9 @@
         }
         const bFaixa = e.target.closest('[data-faixa]');
         if (bFaixa) {
-            som.trocarFaixa(Number(bFaixa.dataset.faixa));
-            abrirPainel('som', true);
+            const [per, n] = bFaixa.dataset.faixa.split(':');   // fase 107: dia:0, noite:0...
+            som.escolher(per, Number(n));
+            abrirPainel(painelAtual || 'som', true);
             return;
         }
         const bSom = e.target.closest('[data-som]');
