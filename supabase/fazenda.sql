@@ -6790,7 +6790,8 @@ $$;
 -- fisgar até 0,3 s antes da mordida conta (relógio), e a folga de 2,5 s depois da janela é a internet
 create or replace function public.fazenda_mar_regras()
 returns jsonb language sql immutable as $$
-  select '{"perola": 200, "mordida_min": 1500, "mordida_max": 5000, "cedo_ms": 300, "folga_ms": 2500}'::jsonb;
+  -- fase 105: jogo_ms = o tempo do joguinho da fisgada (a barra), que vem depois da mordida
+  select '{"perola": 200, "mordida_min": 1500, "mordida_max": 5000, "cedo_ms": 300, "folga_ms": 2500, "jogo_ms": 40000}'::jsonb;
 $$;
 
 -- a chance (%) de cada peixe com este barco e esta vara: cada nível de vara põe +50% (dividido pela
@@ -6944,7 +6945,8 @@ begin
   if now() < l.mordida_em - make_interval(secs => (v_g->>'cedo_ms')::int / 1000.0) then
     return jsonb_build_object('pegou', false, 'motivo', 'cedo', 'mar', fazenda_mar_estado(v_id));
   end if;
-  if now() > l.mordida_em + make_interval(secs => (l.janela_ms + (v_g->>'folga_ms')::int) / 1000.0) then
+  -- fase 105: depois de fisgar, o jogo da barra (até jogo_ms) decide; só então o jogo chama aqui
+  if now() > l.mordida_em + make_interval(secs => (l.janela_ms + (v_g->>'folga_ms')::int + coalesce((v_g->>'jogo_ms')::int, 0)) / 1000.0) then
     return jsonb_build_object('pegou', false, 'motivo', 'tarde', 'mar', fazenda_mar_estado(v_id));
   end if;
   v_qtd := case when random() < fazenda_melhoria(v_id, 'porao') then 2 else 1 end;   -- fase 65: o porão
@@ -10779,7 +10781,7 @@ to anon, authenticated;
 insert into public.fazenda_culturas (id, nome, emoji, tempo_seg, custo, venda, rendimento, xp, nivel_min, ordem, tipo) values
   ('tora',          'Tora de ipê',     '🪵', 1, 0,  300, 1,  30, 32, 112, 'produto'),
   ('tabua_naval',   'Tábua naval',     '🪵', 1, 0,  490, 1,  49, 33, 113, 'produto'),
-  ('cravo',         'Cravo de ferro',  '🔩', 1, 0, 1940, 1, 190, 36, 114, 'produto'),
+  ('cravo',         'Cravo de ferro',  '🔩', 1, 0,  490, 1,  49, 36, 114, 'produto'),
   ('vela',          'Vela de navio',   '⛵', 1, 0, 6220, 1, 620, 39, 115, 'produto'),
   ('carta_nautica', 'Carta náutica',   '🗺️', 1, 0, 1380, 1, 138, 42, 116, 'produto')
 on conflict (id) do update set
@@ -10797,7 +10799,7 @@ on conflict (id) do update set
 insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem, largura, altura,
                                   produz, produz_seg, produz_qtd, entradas, limite, beleza, descricao) values
   ('serraria_naval', 'Serraria naval', 'oficina', 160000, 33, 99, 2, 3, 'tabua_naval',   14400, 3, '{"tora": 2, "oleo": 1}', 2, 5, '2 toras de ipê + 1 óleo → 3 tábuas navais.'),
-  ('forja',          'Forja',          'oficina', 200000, 36, 99, 2, 3, 'cravo',         18000, 6, '{"tora": 3, "sardinha_lata": 1}', 2, 5, '3 toras (o carvão) + 1 sardinha em lata (o ferro da lata) → 6 cravos de ferro.'),
+  ('forja',          'Forja',          'oficina', 200000, 36, 99, 2, 3, 'cravo',         18000, 6, '{"tora": 4, "oleo": 2}', 2, 5, '4 toras (o carvão) + 2 óleos (a têmpera) → 6 cravos de ferro.'),
   ('velaria',        'Velaria',        'oficina', 240000, 39, 99, 2, 3, 'vela',          10800, 1, '{"tecido": 2, "fio": 3}', 2, 5, '2 tecidos + 3 fios → 1 vela de navio.'),
   ('cartografia',    'Cartografia',    'oficina', 280000, 42, 99, 2, 3, 'carta_nautica', 10800, 1, '{"acai": 6, "algodao": 6}', 2, 5, '6 açaís (a tinta) + 6 algodões (o papel) → 1 carta náutica.')
 on conflict (id) do update set
@@ -10809,5 +10811,30 @@ on conflict (id) do update set
 -- fase 104: a trava de cada um com os itens novos (ipê e as 4 oficinas contam para passar de nível)
 update public.fazenda_jogadores set nivel_trava = greatest(public.fazenda_nivel_trava(id), coalesce(nivel_base, 1))
  where nivel_trava is distinct from greatest(public.fazenda_nivel_trava(id), coalesce(nivel_base, 1));
+
+select public.fazenda_cache_montar();
+
+-- ------------------------------------------------------------
+-- Fase 105: a pescaria do alto-mar vira um joguinho (como no Stardew Valley) e o peixe do mar vale mais.
+-- • Depois que o peixe morde e você fisga, abre a barra: segure (ou toque no ritmo) para subir a zona
+--   verde e mantenha o peixe dentro dela até encher a barra de captura. Peixe maior foge mais rápido;
+--   vara melhor dá zona maior. O jogo da barra roda no aparelho; o servidor aceita a fisgada até jogo_ms
+--   depois da janela (fazenda_mar_regras, fazenda_mar_fisgar).
+-- • Peixe do mar vale no mínimo 5 mil: sardinha 5.000, cavala 5.600, robalo 6.200, garoupa 7.000,
+--   dourado-do-mar 8.000, atum 9.500 (o marlim continua 30 mil).
+-- • Os pratos de peixe valem o triplo do que custam os ingredientes: sardinha em lata 60.780, sashimi
+--   28.542, caldeirada 39.690.
+-- • A forja não usa mais sardinha em lata (ficaria caríssima): 4 toras + 2 óleos → 6 cravos (cravo: 490).
+-- Pode rodar este arquivo de novo.
+-- ------------------------------------------------------------
+update public.fazenda_culturas c set venda = v.venda, xp = v.xp
+  from (values ('sardinha', 5000, 40), ('cavala', 5600, 60), ('robalo', 6200, 90), ('garoupa', 7000, 130),
+               ('dourado_mar', 8000, 180), ('atum', 9500, 260),
+               ('sardinha_lata', 60780, 1200), ('sashimi', 28542, 900), ('caldeirada', 39690, 1100),
+               ('cravo', 490, 49)) v(id, venda, xp)
+ where c.id = v.id;
+update public.fazenda_itens set entradas = '{"tora": 4, "oleo": 2}'::jsonb,
+       descricao = '4 toras (o carvão) + 2 óleos (a têmpera) → 6 cravos de ferro.'
+ where id = 'forja';
 
 select public.fazenda_cache_montar();
