@@ -1436,6 +1436,10 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-11-03-oficinas', data: '03/11', titulo: 'Tela das oficinas', itens: [
+            'Nova tela <b>Oficinas</b> (no menu): todas as suas oficinas, separadas por tipo, com o que cada uma está fazendo, o tempo que falta, o estoque e <b>por que parou</b>.',
+            '<b>Pegar tudo</b> leva os produtos prontos de todas para o celeiro, e <b>Encher todas</b> reparte os ingredientes do celeiro entre elas (as que dão mais lucro primeiro).',
+            'Dá para melhorar o nível de cada tipo, encher uma por uma, ver os detalhes ou ir até ela na fazenda.'] },
         { id: '2026-11-03-chao', data: '03/11', titulo: 'O chão novo', itens: [
             'O <b>chão</b> da fazenda ganhou textura nova em pixel art: vários tons de grama, tufos com a ponta clara, campinhos de flores na primavera, capim seco no verão, folhas caídas no outono e neve com sombras no inverno.',
             'Os <b>caminhos de terra</b> agora têm borda arredondada, com a grama invadindo a beirada e pedrinhas no meio. O galinheiro e a feira também.'] },
@@ -3120,6 +3124,101 @@
                 <button type="button" class="botao creme" data-fechar>Fechar</button>
             </div>`;
     }
+
+    /* ---------- fase 105: administrar as oficinas ----------
+       Todas as oficinas numa tela só, por tipo: o que cada uma está fazendo, o que está pronto, o estoque e
+       por que parou. Pegar e encher uma por uma ou todas de uma vez (o encher reparte o que tem no celeiro). */
+    let oficinasFiltro = 'todas';
+    const minhasOficinas = () => (S && !visita ? (S.construcoes || []) : []).map((c) => ({ c, o: infoOficina(c) })).filter((x) => x.o);
+    // quantas receitas cabem e dá para guardar agora, descontando o que já foi reservado para as outras (disp)
+    function receitasPossiveis(o, disp) {
+        const max = (S && S.estoque_max) || 10, cabe = Math.max(0, max - o.estoque - (o.estado === 'trabalhando' ? 1 : 0));
+        const tem = Math.min(...Object.entries(o.it.entradas).map(([item, qtd]) => Math.floor((disp && disp[item] != null ? disp[item] : livreCeleiro(item)) / qtd)));
+        return Math.max(0, Math.min(cabe, tem));
+    }
+    function motivoParada(o) {
+        if (o.ligada && (o.rede.baus.length || o.rede.celeiro)) return motivoRede(o) || 'os ingredientes estão vindo pelo cano';
+        const falta = faltaParaReceita(o.it);
+        return falta.length ? `falta ${listaFalta(falta)} no celeiro` : 'estoque vazio: toque em Encher';
+    }
+    const lucroReceita = (o) => o.produto.venda * o.it.produz_qtd - valorReceita(o.it);
+    function htmlOficinas() {
+        const todas = minhasOficinas();
+        if (!todas.length) return '<p class="vazio-msg">Você ainda não tem oficinas. Construa uma em Construir → Oficinas.</p>';
+        const max = (S && S.estoque_max) || 10;
+        const nTrab = todas.filter((x) => x.o.estado === 'trabalhando').length, nPar = todas.length - nTrab;
+        const nPronta = todas.filter((x) => x.o.prontos > 0).length, nProd = todas.reduce((a, x) => a + x.o.prontos, 0);
+        const encher = todas.filter((x) => receitasPossiveis(x.o) > 0).length;
+        const filtros = { todas: () => true, paradas: (x) => x.o.estado !== 'trabalhando', prontas: (x) => x.o.prontos > 0 };
+        const abas = [['todas', `Todas ${todas.length}`], ['paradas', `Paradas ${nPar}`], ['prontas', `Com produto ${nPronta}`]];
+        const tipos = {};
+        for (const x of todas.filter(filtros[oficinasFiltro] || filtros.todas)) (tipos[x.c.tipo] = tipos[x.c.tipo] || []).push(x);
+        const blocos = Object.entries(tipos).sort((a, b) => b[1].length - a[1].length).map(([tipo, lista]) => {
+            const it = lista[0].o.it, niv = oficinaNivel(it.id), prox = regrasOficinaNivel()[niv - 1];
+            const cartoes = lista.sort((a, b) => a.c.y - b.c.y || a.c.x - b.c.x).map(({ c, o }, k) => {
+                const ocup = o.estoque + (o.estado === 'trabalhando' ? 1 : 0), pode = receitasPossiveis(o), xy = `${c.x},${c.y}`;
+                const estado = o.estado === 'trabalhando'
+                    ? `<span class="barrinha"><i style="width:${Math.round(o.progresso * 100)}%"></i></span><small>${itemDe(o.produto, 14)} em ${fmtTempo(o.falta)}${o.estoque ? ` · depois mais ${o.estoque}` : ''}</small>`
+                    : `<small class="of-parada">Parada: ${motivoParada(o)}</small>`;
+                return `<div class="of-card${o.prontos ? ' of-pronta' : ''}${o.estado !== 'trabalhando' ? ' of-parada-card' : ''}">
+                    <div class="of-topo"><b>${lista.length > 1 ? `nº ${k + 1}` : esc(it.nome)}</b>${o.ligada ? ` ${A.htmlItem('cano', 12)}` : ''}<span class="of-estoque">estoque ${ocup}/${max}</span></div>
+                    ${estado}
+                    <div class="of-botoes">
+                        ${o.prontos ? `<button type="button" class="botao pequeno verde" data-of-pegar="${xy}">Pegar ${o.prontos} ${itemDe(o.produto, 14)}</button>` : ''}
+                        <button type="button" class="botao pequeno creme" data-of-encher="${xy}"${pode ? '' : ' disabled'}>Encher${pode ? ` +${pode}` : ''}</button>
+                        <button type="button" class="botao pequeno creme" data-of-abrir="${xy}">Ver</button>
+                        <button type="button" class="botao pequeno creme" data-of-ir="${xy}" title="Ver na fazenda">Ir</button>
+                    </div></div>`;
+            }).join('');
+            return `<div class="of-tipo"><h3 class="secao-titulo">${A.htmlItem(tipo, 24)} ${esc(it.nome)}${lista.length > 1 ? ` <small class="qtd">${lista.length}</small>` : ''} <small class="qtd">nível ${niv}</small></h3>
+                <p class="det">${receitaHtml(it)} · lucro ${moeda(curto(lucroReceita(lista[0].o)))} por receita${prox ? ` · <button type="button" class="botao pequeno verde" data-comprar="oficina:${esc(it.id)}"${S.jogador.moedas >= prox.custo ? '' : ' disabled'}>Nível ${prox.nivel}: ${ico('moeda', 12)} ${curto(prox.custo)}</button>` : ''}</p>
+                <div class="of-grade">${cartoes}</div></div>`;
+        }).join('');
+        return `<div class="chips gerente-resumo"><span class="chip"><b>${nTrab}</b> trabalhando</span><span class="chip${nPar ? ' g-alerta' : ''}"><b>${nPar}</b> paradas</span>${nProd ? `<span class="chip"><b>${nProd}</b> produtos prontos</span>` : ''}</div>
+            <div class="gerente-acoes">
+                <button type="button" class="botao verde" data-of-massa="pegar"${nPronta ? '' : ' disabled'}>Pegar tudo${nProd ? ` (${nProd})` : ''}</button>
+                <button type="button" class="botao creme" data-of-massa="encher"${encher ? '' : ' disabled'}>Encher todas${encher ? ` (${encher})` : ''}</button>
+            </div>
+            <div class="painel-abas" role="tablist">${abas.map(([id, t]) => `<button type="button" role="tab" data-of-filtro="${id}" class="${oficinasFiltro === id ? 'ativa' : ''}">${t}</button>`).join('')}</div>
+            ${blocos || '<p class="vazio-msg">Nenhuma oficina aqui.</p>'}`;
+    }
+    const oficinaEm = (xy) => { const [x, y] = xy.split(',').map(Number); return (S.construcoes || []).find((k) => k.x === x && k.y === y); };
+    function guardarNaOficina(c, n, botao) {
+        if (botao) botao.disabled = true;
+        enfileirar([], async () => {
+            const r = await rpc('fazenda_estoque', { p_token: token, p_x: c.x, p_y: c.y, p_receitas: n });
+            som.tocar('construir');
+            toast(`Guardou ${r.receitas} receita(s) no estoque.`);
+            aplicarEstado(r.estado);
+            if (painelAtual === 'oficinas') abrirPainel('oficinas', true);
+        });
+    }
+    // encher todas: reparte o que tem no celeiro, uma oficina depois da outra (as que dão mais lucro primeiro)
+    function encherTodas(botao) {
+        const disp = {}, plano = [];
+        const lista = minhasOficinas().sort((a, b) => lucroReceita(b.o) - lucroReceita(a.o));
+        for (const { c, o } of lista) {
+            for (const item of Object.keys(o.it.entradas)) if (disp[item] == null) disp[item] = livreCeleiro(item);
+            const n = receitasPossiveis(o, disp);
+            if (!n) continue;
+            for (const [item, qtd] of Object.entries(o.it.entradas)) disp[item] -= qtd * n;
+            plano.push({ c, n });
+        }
+        if (!plano.length) return toast('Não tem ingrediente no celeiro para nenhuma oficina.', undefined, 'leve');
+        if (botao) botao.disabled = true;
+        enfileirar([], async () => {
+            let total = 0, feitas = 0, r = null;
+            for (const { c, n } of plano) {
+                try { r = await rpc('fazenda_estoque', { p_token: token, p_x: c.x, p_y: c.y, p_receitas: n }); total += r.receitas; feitas++; }
+                catch (e) { if (e.code === 'rede' || e.code === 'lento') throw e; }   // (uma que não coube não para as outras)
+            }
+            if (r) aplicarEstado(r.estado);
+            som.tocar('construir');
+            toast(`Encheu ${feitas} oficina(s) com ${total} receita(s).`);
+            if (painelAtual === 'oficinas') abrirPainel('oficinas', true);
+        });
+    }
+    setInterval(() => { if (painelAtual === 'oficinas' && !document.hidden) abrirPainel('oficinas', true); }, 1500);
 
     /* ---------- fase 97: a praia com vendedores ----------
        As barracas vendem do celeiro para os banhistas (igual a fazenda_praia_regras): por hora, 6 + o conforto
@@ -5198,6 +5297,11 @@
             if (!v) { fecharPainel(); return; }
             el.painelTitulo.innerHTML = `${spr(VISITAS[v.tipo].sprite, 32, 'dungeon')} Visita na porteira`;
             corpo.innerHTML = htmlVisitante(v);
+        } else if (nome === 'oficinas') {   // fase 105: administrar todas as oficinas
+            el.painelTitulo.innerHTML = `${ico('engrenagem', 28)} Oficinas`;
+            const rolou = soAtualizar ? corpo.scrollTop : 0;
+            corpo.innerHTML = htmlOficinas();
+            corpo.scrollTop = rolou;
         } else if (nome === 'oficina') {
             const c = oficinaDoPainel(), o = c && infoOficina(c);
             if (!o) { fecharPainel(); return; }
@@ -6438,6 +6542,19 @@
         }
         if (e.target.closest('[data-mar-ir]')) { if (mar) fecharPainel(); else abrirMar(); return; }   // fase 62: o alto-mar
         if (e.target.closest('[data-invasao-entrar]')) { abrirInvasao(); return; }   // fase 94
+        const of = e.target.closest('[data-of-pegar],[data-of-encher],[data-of-abrir],[data-of-ir],[data-of-massa],[data-of-filtro]');   // fase 105: as oficinas
+        if (of) {
+            const d = of.dataset;
+            if (d.ofFiltro) { oficinasFiltro = d.ofFiltro; abrirPainel('oficinas', true); return; }
+            if (d.ofMassa === 'encher') { encherTodas(of); return; }
+            if (d.ofMassa === 'pegar') { for (const { c, o } of minhasOficinas()) if (o.prontos > 0) pegarOficina(c, o); setTimeout(() => { if (painelAtual === 'oficinas') abrirPainel('oficinas', true); }, 600); return; }
+            const c = oficinaEm(d.ofPegar || d.ofEncher || d.ofAbrir || d.ofIr), o = c && infoOficina(c);
+            if (!o) return;
+            if (d.ofPegar) { if (o.prontos) pegarOficina(c, o); abrirPainel('oficinas', true); return; }
+            if (d.ofEncher) { const n = receitasPossiveis(o); if (n) guardarNaOficina(c, n, of); return; }
+            if (d.ofAbrir) { oficinaAberta = { x: c.x, y: c.y }; abrirPainel('oficina'); return; }
+            if (d.ofIr) { fecharPainel(); cena.focarTile(c.x, c.y); return; }
+        }
         const gIr = e.target.closest('[data-gerente-ir]');   // fase 103: o modo gerente
         if (gIr) { const [gx, gy] = gIr.dataset.gerenteIr.split(',').map(Number); fecharPainel(); cena.focarTile(gx, gy); return; }
         const gF = e.target.closest('[data-gerente-filtro]');
