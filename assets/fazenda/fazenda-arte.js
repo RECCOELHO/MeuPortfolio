@@ -689,64 +689,7 @@
         // 159 carta náutica
         ['................', '................', '..aaaaaaaaaaaa..', '.awxxxxxxxxxxwa.', '.awxBBxxxxxxxwa.', '.awBBBBxxxtxxwa.',
          '.awxBBxxxtxxxwa.', '.awxxxxxtxxxxwa.', '.awxxxxtxxxXxwa.', '.awxxxtxxxXxXwa.', '.awxxxxxxxxXxwa.', '.awxxxxxxxXxXwa.',
-         '..aaaaaaaaaaaa..', '................', '................', '................'],
-        // fase 109: as máquinas desenhadas (os pontos das animações ficam onde eram)
-        // 160 irrigador
-        ['................', '.......aa.......', '......afBa......', '..aaaaaBdaaaaa..', '..allllaalllla..', '..aa..aKa...aa..',
-         '.......aKa......', '.......aKa......', '.....aaaKaa.....', '....aEEEEEEa....', '....aBdBBBEa....', '....aKKKKKKa....',
-         '....aEEEEEFa....', '....aBEEEEFa....', '....aKKKKKKa....', '.....aaaaaa.....'],
-        // 161 aspersor
-        ['................', '.......aa.......', '......aBBa......', '.....aBddBa.....', '....aaaffaaa....', '.......aKa......',
-         '.......aKa......', '.......aKa......', '..aaaaaaKaaaaa..', '.aTTTTTTTTTTTTa.', '.aTYYTTTTTTTSSa.', '.aaaaaaaaaaaaaa.',
-         '...aKa....aKa...', '...aKa....aKa...', '..aaaaa..aaaaa..', '................'],
-        // 162 pulverizador
-        ['................', '......aaaa......', '.....aWWWWa.....', '....aWhhhhWa....', '....aWhvvhWa....', '....aWhhhhWa....',
-         '.....aaaaaa.....', '......aKKa......', '....aaaKKaaa....', '...avvvvvvvva...', '...avhhvvvvLa...', '...avvvvvvvLa...',
-         '...aKKKKKKKKa...', '...avvvvvvvLa...', '....aaaaaaaa....', '................'],
-        // 163 alarme
-        ['......aaaa......', '.....aXrrXa.....', '.....aXdrXa.....', '.....aZXXZa.....', '....aaaaaaaa....', '....aKKKKKKa....',
-         '.....aKllKa.....', '......aKKa......', '......aKKa......', '......aKKa......', '....aaaKKaaa....', '...affffffffa...',
-         '...afeeeeeefa...', '...afeWWeXefa...', '...affffffffa...', '....aaaaaaaa....'],
-        // 164 robo_capina
-        ['........a.......', '.......aWa......', '........a.......', '.....aaaaaa.....', '....affffffa....', '....afeBeBfa....',
-         '....affffffa....', '...aaaaaaaaaa...', '..avvvvvvvvvva..', '..avhvvvvvvvLa..', '..aKKKKKKKKKKa..', '..aaffaaaaffaa..',
-         '.alllllaallllla.', '.alKlKlaalKlKla.', '..aaaaa..aaaaa..', '................'],
-        // 165 robo_colheita
-        ['........a.......', '.......aWa......', '........a.......', '....aaaaaaaa....', '...affffffffa...', '...afeBeeBefa...',
-         '...affffffffa...', '.aaaaaaaaaaaaaa.', 'agEgggggggggggga', 'agggggggggggggHa', 'aKKKKKKKKKKKKKKa', '.aaGGaaaaaaGGaa.',
-         '.allllla.alllla.', '.alKlKla.alKlKa.', '..aaaaa...aaaa..', '................'],
-        // 166 trator
-        ['................', '...aa...........', '...aKa..........', '...aKa.aaaaaa...', '...aKaafddddfa..', '...aaaafBBBBfa..',
-         '..aXXXXafffffa..', '.aXrrrXXXXXXXXa.', '.aXXXXXXXXXXZXa.', '.aaaaaXXXXXXZaa.', 'aeeeaaaaaaaeeeea', 'aeKea.....aeKKea',
-         'aeeea.....aeKKea', '.aaa......aeeeea', '...........aaaa.', '................'],
-        // 167 colheitadeira
-        ['................', '...aa...........', '...aKa.aaaaaaa..', '...aKaafddddfa..', '...aaaafBBBBfa..', '..agggggaffffa..',
-         '.aggGGgggggggga.', '.agggggggggggHa.', 'aaaaaaaaaaaaaaaa', 'alflflflflflflfa', 'aaaaaaaaaaaaaaaa', '.aeeea....aeeea.',
-         '.aeKea....aeKea.', '.aeeea....aeeea.', '..aaa......aaa..', '................'],
-        // 168 bateria
-        ['................', '....aaa..aaa....', '....aXa..aea....', '..aaaaaaaaaaaa..', '..aKKKKKKKKKKa..', '..aKllllllaaKa..',
-         '..aKllllllaeKa..', '..aKlllllla.Ka..', '..aKllllllaeKa..', '..aKllWWllaeKa..', '..aKllWWllaeKa..', '..aKlllllla.Ka..',
-         '..aKllllllaeKa..', '..aKKKKKKKKKKa..', '..aaaaaaaaaaaa..', '................'],
-        // 169 supercap
-        ['................', '.....aaaaaa.....', '....aEEEEEEa....', '...aEBBEEEEFa...', '...aEBEEEEEFa...', '...aEEEEEEEaa...',
-         '...aEEEEEEEaea..', '...aEEWWEEEa.a..', '...aEEWWEEEaea..', '...aEEEEEEEa.a..', '...aEEEEEEEaea..', '...aFFFFFFFa.a..',
-         '...aaaaaaaaaaa..', '...aKKKKKKKKKa..', '....aaaaaaaaa...', '................'],
-        // 170 gerador_bio
-        ['................', '.....aaaaaa.....', '....avvvvvva....', '...avhhvvvvLa...', '...avvvvvvvLa...', '..aaaaaaaaaaaa..',
-         '..aKKKKKKKKKKa..', '..aKyyyyyyyyKa..', '..aKyhvhyiyyKa..', '..aKyyyyyyyyKa..', '..aKKKKKKKKKKa..', '..aKllaaaallKa..',
-         '..aKlaXXXalKKa..', '..aKKaiiiaKKKa..', '..aaaaaaaaaaaa..', '................'],
-        // 171 triturador
-        ['................', '..aaaaaaaaaaaa..', '..aKfKfKfKfKfa..', '...aKlKlKlKla...', '....aaaaaaaa....', '...aiiiiiiiia...',
-         '..aiOOiiiiiiNa..', '..aiiiaaaaiiNa..', '..aiiaeeeeaiNa..', '..aiiaeKKeaiNa..', '..aiiiaaaaiiNa..', '..aNNNNNNNNNNa..',
-         '..aaaaaaaaaaaa..', '..aKa......aKa..', '..aaa......aaa..', '................'],
-        // 172 painel_solar
-        ['................', '................', 'aaaaaaaaaaaaaaa.', 'aIEEaIEEaIEEaIa.', 'aEBEaEBEaEBEaEa.', 'aaaaaaaaaaaaaaa.',
-         'aIEEaIEEaIEEaIa.', 'aEBEaEBEaEBEaEa.', 'aaaaaaaaaaaaaaa.', 'aIEEaIEEaIEEaIa.', 'aEEEaEEEaEEEaEa.', 'aaaaaaaaaaaaaaa.',
-         '......aKa.......', '......aKa.......', '....aaaaaaa.....', '................'],
-        // 173 estufa
-        ['................', '.......aa.......', '......aYYa......', '.....aYddYa.....', '....aYYYYYYa....', '...aYYdYYYYYa...',
-         '..aYYYYYYYYYYa..', '.aaaaaaaaaaaaaa.', '.aYhYaYYYaYhYYa.', '.aYvhaYhYaYvhYa.', '.aYvvaYvhaYvvYa.', '.aaaaaaaaaaaaaa.',
-         '.aYMhaYhvaYMhYa.', '.ayyyyyyyyyyyya.', '.aaaaaaaaaaaaaa.', '................']
+         '..aaaaaaaaaaaa..', '................', '................', '................']
     ];
     const atlasProprio = document.createElement('canvas');
     atlasProprio.width = 12 * 16;
@@ -1292,24 +1235,24 @@
             case 'cercado_vaca': case 'cercado_ovelha': case 'cercado_porco':
                 return { p: 'town', w: CERCADOS[id].w, h: CERCADOS[id].h, grade: gradeCercado(id), cercado: CERCADOS[id] };
             case 'cano': return { p: 'farm', i: 1048, cano: true };
-            case 'irrigador': return { p: 'farm', i: 1160 };   // fase 109
-            case 'pulverizador': return { p: 'farm', i: 1162 };
-            case 'alarme': return { p: 'farm', i: 1163 };
-            case 'robo_capina': return { p: 'farm', i: 1164 };
-            case 'trator': return { p: 'farm', i: 1166 };
-            case 'colheitadeira': return { p: 'farm', i: 1167 };
+            case 'irrigador': return { p: 'factory', i: 91 };
+            case 'pulverizador': return { p: 'factory', i: 126 };
+            case 'alarme': return { p: 'factory', i: 129 };
+            case 'robo_capina': return { p: 'factory', i: 110 };
+            case 'trator': return { p: 'factory', i: 98 };
+            case 'colheitadeira': return { p: 'factory', i: 100 };
             // energia (nível 16+): arte própria e Tiny Factory
-            case 'painel_solar': return { p: 'farm', i: 1172 };
-            case 'bateria': return { p: 'farm', i: 1168 };
+            case 'painel_solar': return { p: 'farm', i: 1021 };
+            case 'bateria': return { p: 'factory', i: 84 };
             case 'turbina': return { p: 'farm', i: 1022, topo: quadroHelice ? 1024 : 1023 };
-            case 'estufa': return { p: 'farm', i: 1173 };
-            case 'gerador_bio': return { p: 'farm', i: 1170 };
+            case 'estufa': return { p: 'farm', i: 1025 };
+            case 'gerador_bio': return { p: 'factory', i: 75 };
             case 'hidreletrica': return { p: 'factory', i: 112 };   // fase 78: a pequena central (a roda gira em desenharMaquinas)
-            case 'triturador': return { p: 'farm', i: 1171 };
-            case 'supercap': return { p: 'farm', i: 1169 };
+            case 'triturador': return { p: 'factory', i: 101 };
+            case 'supercap': return { p: 'factory', i: 86 };
             case 'fabrica_auto': return { p: 'factory', w: 2, h: 2, grade: [[76, 77], [88, 89]] };
-            case 'robo_colheita': return { p: 'farm', i: 1165 };
-            case 'aspersor': return { p: 'farm', i: 1161 };
+            case 'robo_colheita': return { p: 'factory', i: 108 };
+            case 'aspersor': return { p: 'factory', i: 94 };
             case 'reator': return { p: 'farm', w: 2, h: 2, grade: [[1026, 1027], [1028, 1029]] };
             case 'estatua_chico': return { p: 'farm', i: 1038, topo: 1037, topo2: 1039 };
             default: return { p: 'farm', i: 89, desconhecido: true };   // (fase 59: o jogo vê que falta arte)
