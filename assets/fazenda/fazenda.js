@@ -1530,6 +1530,11 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-11-04-bichos-chico', data: '04/11', titulo: 'Bichos novos, o Velho Chico mais valioso e a beleza até 70%', itens: [
+            'Os <b>bichos foram redesenhados</b>: a vaca malhada, o porquinho rosa e a búfala de chifres grandes novos, e a cabra e a ovelha no mesmo traço (contorno preto, cores chapadas e as patinhas andando).',
+            'O <b>Peixe do Velho Chico</b> vale mais a cada nível: 2.500 até o nível 10 e <b>+6,2% a cada nível</b>, até <b>50 mil no nível 60</b>.',
+            'A <b>beleza da fazenda</b> volta a dar até <b>70% de bônus nas vendas</b> para todo mundo: +1% a cada 5 de beleza (o caixote dá +10 por fora).',
+            'A pescaria do alto-mar ficou sem a barra: quando a boia afundar, é só tocar na hora para fisgar.'] },
         { id: '2026-11-03-ilha', data: '03/11', titulo: 'Zarpar para a Ilha da Caveira Dourada', itens: [
             'O jogo agora vai até o <b>nível 60</b>. No <b>nível 46</b>, com o <b>kit de expedição</b> no barco, aparece o botão <b>Ilha</b> (e o <b>Zarpar</b> no alto-mar e no píer): o navio sai do píer, atravessa o mar e chega na <b>Ilha da Caveira Dourada</b>, do outro lado. O botão vira <b>Fazenda</b> para voltar.',
             'A ilha tem a <b>selva só dela</b>: palmeiras de coco, bananeiras, árvores de copa larga com flores e cipó, samambaias e helicônias, com a areia branquinha e a água rasa turquesa em volta.',
@@ -4339,6 +4344,8 @@
         if (!antes) setTimeout(() => carregarInvasao(), 1500);   // fase 94: a invasão (e o prêmio esperando)
         culturas = {};
         for (const k of estado.culturas) culturas[k.id] = k;
+        // fase 107: o Peixe do Velho Chico vale mais a cada nível (o servidor manda o preço de agora)
+        if (culturas.velho_chico && estado.jogador && estado.jogador.preco_chico) culturas.velho_chico = { ...culturas.velho_chico, venda: estado.jogador.preco_chico };
         if (!culturas[semente] || culturas[semente].tipo !== 'cultura') semente = 'alface';   // (amora deixou de ser semente)
 
         if (antes && antes.conquistas && estado.conquistas) {
@@ -5441,7 +5448,7 @@
                     </div>
                 </div>
                 ${boasVindas ? '' : `<p><button type="button" class="botao pequeno creme" data-painel-ir="niveis">${ico('xp', 14)} Ver o caminho dos níveis</button></p>
-                <p>${spr(83, 18)} Beleza da fazenda: <b>${S.jogador.beleza || 0}</b> · bônus nas vendas: <b>+${S.jogador.bonus_venda || 0}%</b>${S.jogador.nivel <= 33 ? ` <small>(com a ajuda de +${Math.max(0, Math.min(50, 50 - 10 * (S.jogador.nivel - 29)))}% para quem está até o nível 29, que cai 10 por nível do 30 ao 34)</small>` : ''}</p>`}
+                <p>${spr(83, 18)} Beleza da fazenda: <b>${S.jogador.beleza || 0}</b> · bônus nas vendas: <b>+${S.jogador.bonus_venda || 0}%</b> <small>(+1% a cada 5 de beleza, até 70%; o caixote dá +10)</small>${S.jogador.nivel <= 33 ? ` <small>(com a ajuda de +${Math.max(0, Math.min(50, 50 - 10 * (S.jogador.nivel - 29)))}% para quem está até o nível 29, que cai 10 por nível do 30 ao 34)</small>` : ''}</p>`}
                 ${boasVindas ? '' : `
                 <h3 class="secao-titulo">Conquistas (${minhas.length}/${(S.conquistas_tipos || []).length})</h3>
                 ${htmlConquistas(minhas)}

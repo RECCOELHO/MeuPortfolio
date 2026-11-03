@@ -222,10 +222,6 @@
         let aneis = [];              // ondinhas em volta da boia
         let dica = null;             // { texto, tipo, ate }
         let vivo = true;
-        // fase 105: a briga com o peixe (como no Stardew): a zona verde sobe enquanto segura (ou a cada toque)
-        // e cai quando solta; com o peixe dentro dela, a barra de captura enche; fora, esvazia
-        let briga = null;            // { z, vz, zs, f, vf, alvoF, troca, p, t0 }
-        let apertando = false;
 
         function mostrarDica(texto, tipo, ms) { dica = { texto, tipo: tipo || '', ate: ms ? performance.now() + ms : 0 }; pintarDica(); }
         function pintarDica() {
@@ -237,7 +233,6 @@
                     texto = !d ? 'O mar está fechado.' : c.n > 0 ? 'Toque no mar para lançar a linha.' : 'O cardume acabou: ele enche sozinho com o tempo.';
                 } else if (estado === 'lancando' || estado === 'esperando') texto = 'Espere a boia afundar...';
                 else if (estado === 'mordendo') { texto = 'AGORA! Toque para fisgar!'; tipo = 'agora'; }
-                else if (estado === 'brigando') { texto = 'Segure (ou toque no ritmo) para manter o peixe na zona verde!'; tipo = 'agora'; }
                 else if (estado === 'puxando') texto = 'Puxando...';
                 else texto = '';
             }
@@ -291,69 +286,8 @@
             estado = 'escapou'; tFim = performance.now() + 1300;
             espirrar(alvo.x, alvo.y, 6, 0.6);
             op.som('erro');
-            briga = null; apertando = false;
             mostrarDica(motivo === 'cedo' ? 'Cedo demais: o peixe fugiu! Espere a boia afundar.'
-                : motivo === 'fugiu' ? 'O peixe escapou da linha! Mantenha ele dentro da zona verde.' : 'Escapou! Toque logo que a boia afundar.', 'erro', 2400);
-        }
-
-        // fisgou na hora: começa a briga. A zona é maior com vara melhor; o peixe grande corre mais
-        function iniciarBriga() {
-            const zs = Math.max(0.18, Math.min(0.36, 0.2 + (janela - 900) / 900 * 0.14));
-            briga = { z: 0.05, vz: 0, zs, f: 0.05 + zs / 2, vf: 0, alvoF: 0.05 + zs / 2, troca: performance.now() + 900, p: 0.35, t0: performance.now(), ult: performance.now() };
-            window.__briga = briga;   // (para os testes)
-            estado = 'brigando';
-            op.som('cuidar');
-            pintarDica();
-        }
-        function passoBriga(agora) {
-            const b = briga, dt = Math.min(0.05, (agora - b.ult) / 1000);
-            b.ult = agora;
-            // a zona: segurando sobe, solta cai, e quica de leve no fundo
-            b.vz += (apertando ? 2.6 : -1.9) * dt;
-            b.vz = Math.max(-1.3, Math.min(1.4, b.vz));
-            b.z += b.vz * dt;
-            if (b.z < 0) { b.z = 0; b.vz = -b.vz * 0.35; }
-            if (b.z > 1 - b.zs) { b.z = 1 - b.zs; b.vz = 0; }
-            // o peixe: escolhe um ponto e vai; o grande troca mais vezes e dá arrancadas
-            if (agora > b.troca) {
-                const longe = Math.random() < 0.12 * tamanho;
-                b.alvoF = longe ? (b.f > 0.5 ? Math.random() * 0.25 : 0.75 + Math.random() * 0.25) : Math.random();
-                b.troca = agora + (1700 - tamanho * 170) * (0.5 + Math.random());
-            }
-            const vel = 0.22 + tamanho * 0.11;
-            b.vf += ((b.alvoF - b.f) * 6 - b.vf * 3) * dt;
-            b.vf = Math.max(-vel, Math.min(vel, b.vf));
-            b.f = Math.max(0, Math.min(1, b.f + b.vf * dt));
-            // a captura
-            const dentro = b.f >= b.z - 0.02 && b.f <= b.z + b.zs + 0.02;
-            b.p += (dentro ? 0.28 : -(0.12 + tamanho * 0.02)) * dt;
-            if (dentro && Math.random() < dt * 6) espirrar(alvo.x + (Math.random() - 0.5) * 6, alvo.y, 1, 0.4);
-            if (b.p >= 1) { briga = null; fisgar(); }
-            else if (b.p <= 0 || agora - b.t0 > 30000) { briga = null; escapar('fugiu'); }
-        }
-        function desenharBriga() {
-            const b = briga;
-            if (!b) return;
-            const H = Math.min(126, Math.round(LH * 0.46)), W = 18, x0 = LW - W - 12, y0 = Math.round(LH * 0.14);
-            // a moldura de madeira
-            ret(x0 - 3, y0 - 3, W + 6 + 8, H + 6, '#3f2631'); ret(x0 - 2, y0 - 2, W + 4 + 8, H + 4, '#9a5a32'); ret(x0 - 2, y0 - 2, W + 12, 1, '#c98a4a');
-            // a água dentro, mais escura no fundo
-            for (let y = 0; y < H; y++) ret(x0, y0 + y, W, 1, misturar('#3a7cc4', '#163a6a', y / H));
-            // a zona verde
-            const zy = y0 + Math.round((1 - b.z - b.zs) * H), zh = Math.max(4, Math.round(b.zs * H));
-            g.globalAlpha = 0.6; ret(x0 + 1, zy, W - 2, zh, '#7ad957'); g.globalAlpha = 1;
-            ret(x0 + 1, zy, W - 2, 1, '#d6ffb0'); ret(x0 + 1, zy + zh - 1, W - 2, 1, '#3e8e2e');
-            ret(x0, zy, 1, zh, '#d6ffb0'); ret(x0 + W - 1, zy, 1, zh, '#3e8e2e');
-            // o peixe (silhueta: quem é ele só aparece quando sair da água)
-            const fy = y0 + Math.round((1 - b.f) * (H - 6)), fx = x0 + 4 + Math.round(Math.sin(t / 120) * 1.5);
-            const cor = tamanho >= 6 ? '#e8a640' : tamanho >= 4 ? '#c0cbdc' : '#9fd3f5';
-            ret(fx, fy + 1, 8, 4, '#1a1630'); ret(fx + 1, fy + 2, 6, 2, cor); ret(fx + 8, fy, 2, 6, '#1a1630'); ret(fx + 8, fy + 1, 1, 4, cor);
-            ret(fx + 2, fy + 2, 1, 1, '#1a1630');
-            // a barra de captura do lado
-            const px = x0 + W + 3, ph = Math.round(b.p * H);
-            ret(px, y0, 4, H, '#3f2631');
-            ret(px + 1, y0 + H - ph, 2, ph, b.p < 0.3 ? '#e8434a' : b.p < 0.7 ? '#fdbe53' : '#6ee68c');
-            // a vara envergando conforme a briga
+                : 'Escapou! Toque logo que a boia afundar.', 'erro', 2400);
         }
 
         async function fisgar() {
@@ -381,8 +315,7 @@
             }
             if (estado === 'parado') lancar(cx, cy);
             else if (estado === 'esperando') escapar('cedo');
-            else if (estado === 'mordendo') iniciarBriga();   // fase 105: fisgou: agora é a briga
-            else if (estado === 'brigando' && briga) { briga.vz = Math.min(1.4, briga.vz + 0.55); }   // cada toque dá um empurrão para cima
+            else if (estado === 'mordendo') fisgar();   // (a briga da barra saiu: fisgou na hora, pegou)
         }
 
         raiz.addEventListener('click', (e) => {
@@ -395,20 +328,14 @@
                 return;
             }
         });
-        canvas.addEventListener('pointerdown', (e) => { e.preventDefault(); apertando = true; tocar(e.clientX, e.clientY); });
-        const largar = () => { apertando = false; };
-        document.addEventListener('pointerup', largar);
-        document.addEventListener('pointercancel', largar);
-        const teclaSolta = (e) => { if (e.key === ' ' || e.key === 'Enter') apertando = false; };
-        document.addEventListener('keyup', teclaSolta, true);
+        canvas.addEventListener('pointerdown', (e) => { e.preventDefault(); tocar(e.clientX, e.clientY); });
         function tecla(e) {
             if (op.painelAberto && op.painelAberto()) return;
             if (e.key === 'Escape') { op.sair(); return; }
             if (e.key === ' ' || e.key === 'Enter') {
                 if (document.activeElement && document.activeElement.closest && document.activeElement.closest('button')) return;
                 e.preventDefault();
-                if (e.repeat) return;   // segurar a tecla é "apertando", não vários toques
-                apertando = true;
+                if (e.repeat) return;   // segurar a tecla não vira vários toques
                 const r = canvas.getBoundingClientRect();
                 tocar(r.left + r.width * 0.72, r.top + r.height * 0.75);
             }
@@ -665,7 +592,6 @@
                 pintarDica();
             }
             if (estado === 'mordendo' && agora > tMordida + janela) escapar('tarde');
-            if (estado === 'brigando' && briga) passoBriga(agora);
             if ((estado === 'pegou' || estado === 'escapou') && agora >= tFim) { estado = 'parado'; pintarDica(); }
             if (dica && dica.ate && agora >= dica.ate) { dica = null; pintarDica(); }
 
@@ -678,7 +604,6 @@
             const ponta = desenharBarco(noite);
             desenharLinha(ponta);
             desenharEfeitos();
-            if (estado === 'brigando') desenharBriga();
 
             ctx.imageSmoothingEnabled = false;
             ctx.drawImage(buf, 0, 0, LW, LH, 0, 0, LW * escala * dpr, LH * escala * dpr);
@@ -697,9 +622,6 @@
                 document.removeEventListener('keydown', tecla, true);
                 document.removeEventListener('pointerup', soltar);
                 document.removeEventListener('pointercancel', soltar);
-                document.removeEventListener('pointerup', largar);
-                document.removeEventListener('pointercancel', largar);
-                document.removeEventListener('keyup', teclaSolta, true);
                 raiz.remove();
             }
         };
