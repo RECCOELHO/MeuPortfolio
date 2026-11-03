@@ -195,6 +195,7 @@
         coco: { item: 1121 }, caju: { item: 1122 }, acai: { item: 1123 }, cupuacu: { item: 1124 }, castanha: { item: 1125 },
         leite_cabra: { item: 1148 }, leite_bufala: { item: 1149 }, mussarela: { item: 1150 },   // fase 74
         sardinha_lata: { item: 1151 }, sashimi: { item: 1152 }, caldeirada: { item: 1153 },
+        tora: { item: 1155 }, tabua_naval: { item: 1156 }, cravo: { item: 1157 }, vela: { item: 1158 }, carta_nautica: { item: 1159 },   // fase 104
         cocada: { item: 1126 }, cajuina: { item: 1127 }, acai_tigela: { item: 1128 }, creme_cupuacu: { item: 1129 }, pacoca: { item: 1130 },
         maracuja: { fases: [52, 53, 1135], murcho: 55, item: 1131, semente: 1131 },
         mexerica: { fases: [52, 53, 1136], murcho: 55, item: 1132, semente: 1132 },
@@ -666,7 +667,28 @@
         // 154 carrinho de milho (fase 97: o vendedor da praia)
         ['................', '.aaaaaaaaaaaaaa.', '.aGXGXGXGXGXGXa.', '.aaaaaaaaaaaaaa.', '..u..........u..', '..u.aG.aG.aG.u..',
          '..uaGGaGGaGGau..', '..uavvavvavvau..', '..aaaaaaaaaaaa..', '..agggggggggga..', '..agHHgHHgHHga..', '..agggggggggga..',
-         '..aaaaaaaaaaaa..', '...aKKa..aKKa...', '...aaaa..aaaa...', '................']
+         '..aaaaaaaaaaaa..', '...aKKa..aKKa...', '...aaaa..aaaa...', '................'],
+        // fase 104: os materiais do barco
+        // 155 tora de ipê
+        ['................', '................', '................', '................', '..aaaaaaaaaaaa..', '.ayyyyyyyyyaxxa.',
+         '.annnnynnnnawwxa', '.anynnnnnynaxwxa', '.annnnnynnnawwxa', '.ayyyyyyyyyaxxa.', '..aaaaaaaaaaaa..', '................',
+         '................', '................', '................', '................'],
+        // 156 tábua naval
+        ['................', '................', '................', '.aaaaaaaaaaaaa..', '.axxxxxxxxxxxa..', '.awwwywwwwwywa..',
+         '.aaaaaaaaaaaaaaa', '..axxxxxxxxxxxxa', '..awwwwwywwwwwwa', '.aaaaaaaaaaaaaaa', '.axxxxxxxxxxxxa.', '.awwywwwwwwywwa.',
+         '.aaaaaaaaaaaaaa.', '................', '................', '................'],
+        // 157 cravo de ferro
+        ['................', '.aaaa.aaaa.aaaa.', '.affa.affa.affa.', '.aaaa.aaaa.aaaa.', '.afla.afla.afla.', '.afla.afla.afla.',
+         '.afla.afla.afla.', '.alKa.alKa.alKa.', '.alKa.alKa.alKa.', '.alKa.alKa.alKa.', '.alKa.alKa.alKa.', '..aa...aa...aa..',
+         '................', '................', '................', '................'],
+        // 158 vela de navio
+        ['.......aa.......', '..aaaaaaaaaaaa..', '..ayyyyyyyyyya..', '..aaaaaaaaaaaa..', '...addddddfda...', '...addddddfda...',
+         '...addddddfda...', '...aXXXXXXXXa...', '...addddddfda...', '...addddddfda...', '...addddddfda...', '...affffffffa...',
+         '...aaaaaaaaaa...', '.......aya......', '.......aya......', '.......aaa......'],
+        // 159 carta náutica
+        ['................', '................', '..aaaaaaaaaaaa..', '.awxxxxxxxxxxwa.', '.awxBBxxxxxxxwa.', '.awBBBBxxxtxxwa.',
+         '.awxBBxxxtxxxwa.', '.awxxxxxtxxxxwa.', '.awxxxxtxxxXxwa.', '.awxxxtxxxXxXwa.', '.awxxxxxxxxXxwa.', '.awxxxxxxxXxXwa.',
+         '..aaaaaaaaaaaa..', '................', '................', '................']
     ];
     const atlasProprio = document.createElement('canvas');
     atlasProprio.width = 12 * 16;
@@ -903,6 +925,7 @@
             case 'laranjeira': case 'limoeiro': case 'goiabeira': case 'mangueira':
             case 'abacateiro': case 'cacaueiro': case 'jabuticabeira':
             case 'coqueiro': case 'cajueiro': case 'acaizeiro': case 'cupuacuzeiro': case 'castanheira':   // fase 73
+            case 'ipe':   // fase 104
                 return { p: 'pomar', i: 2 * POMAR[id].n + 1, topo: 2 * POMAR[id].n };
             // fase 73: a praia (só na areia)
             case 'cadeira_praia': return { p: 'farm', i: 1140 };
@@ -970,6 +993,11 @@
             case 'sushiteria': return { p: 'town', w: 2, h: 3, grade: [[52, 55], [64, 67], [89, 87]] };
             case 'caldeiraria': return { p: 'town', w: 2, h: 3, grade: [[99, 102], [111, 114], [126, 124]] };
             case 'queijaria_bufala': return { p: 'town', w: 2, h: 3, grade: [[52, 55], [64, 67], [90, 79]] };
+            // fase 104: as oficinas do barco
+            case 'serraria_naval': return { p: 'town', w: 2, h: 3, grade: [[52, 55], [64, 67], [124, 75]] };
+            case 'forja': return { p: 'town', w: 2, h: 3, grade: [[99, 102], [111, 114], [123, 126]] };
+            case 'velaria': return { p: 'town', w: 2, h: 3, grade: [[48, 51], [60, 63], [91, 75]] };
+            case 'cartografia': return { p: 'town', w: 2, h: 3, grade: [[52, 55], [64, 67], [87, 79]] };
             // máquinas (Tiny Factory)
             case 'cercado_galinha': case 'cercado_coelho': case 'cercado_pato': case 'cercado_cabra': case 'cercado_bufala':
             case 'cercado_vaca': case 'cercado_ovelha': case 'cercado_porco':
@@ -1153,7 +1181,8 @@
         cajueiro: { n: 8, cores: ['#d9452f', '#fdbe53'], onde: 'copa' },
         acaizeiro: { n: 9, cores: ['#3f2631', '#6b2f74'], onde: 'copa' },
         cupuacuzeiro: { n: 10, cores: ['#8a4a2b', '#c96b28'], onde: 'tronco' },
-        castanheira: { n: 11, cores: ['#6e5a48', '#b8955c'], onde: 'copa' }
+        castanheira: { n: 11, cores: ['#6e5a48', '#b8955c'], onde: 'copa' },
+        ipe: { n: 12, cores: ['#e0a800', '#ffe14d'], onde: 'copa', flores: 14 }   // fase 104: o ipê-amarelo florido
     };
     let urlPomar = null;
     function montarPomar() {
@@ -1177,10 +1206,10 @@
             const r = rng(p.n * 977 + 13);
             let postas = 0;
             const lugares = [];
-            for (let tentativa = 0; tentativa < 400 && postas < (p.onde === 'tronco' ? 6 : 7); tentativa++) {
+            for (let tentativa = 0; tentativa < 600 && postas < (p.flores || (p.onde === 'tronco' ? 6 : 7)); tentativa++) {
                 const x = 2 + Math.floor(r() * 11), y = (p.onde === 'tronco' ? 16 : 8) + Math.floor(r() * (p.onde === 'tronco' ? 13 : 14));
                 const serve = p.onde === 'tronco' ? (tronco(x, y) || folha(x, y)) && (tronco(x + 1, y) || folha(x + 1, y)) : folha(x, y) && folha(x + 1, y + 1) && folha(x, y + 1) && folha(x + 1, y);
-                if (!serve || lugares.some(([a, b]) => Math.abs(a - x) < 3 && Math.abs(b - y) < 3)) continue;
+                if (!serve || lugares.some(([a, b]) => Math.abs(a - x) < (p.flores ? 2 : 3) && Math.abs(b - y) < (p.flores ? 2 : 3))) continue;
                 lugares.push([x, y]);
                 postas++;
             }
@@ -2099,6 +2128,239 @@
             // beira inteira, de BEIRA − 3 a BEIRA + 5, também: a areia molhada aparece quando a onda volta)
         }
         // o lugar do píer: estacas e uma plaquinha até ser construído; depois, o píer de tábuas e o barco
+        /* ---- fase 104: o navio atracado no píer. Visto de cima e de lado, como o resto da fazenda: o convés
+           de tábuas, a amurada, o costado com o friso e as portinholas, os mastros com as velas, o cordame e
+           a bandeira. Cresce com o nível do barco (bote, traineira, barco de pesca, pesqueiro e o navio
+           oceânico, de dois mastros) e mostra as peças (motor, sonar, porão, rede e o kit de expedição).
+           Fica pronto num canvas (um por barco) e balança na água a cada quadro. ---- */
+        let barcoInfo = null;   // { nivel, pecas, visual } (null: sem barco)
+        const cacheNavio = new Map();
+        const NAVIOS = {
+            1: { L: 34, deck: 9, lado: 6, mastros: [], casco: '#9e5f34', remos: true },
+            2: { L: 50, deck: 12, lado: 8, mastros: [{ t: 0.6, alt: 26, velas: 0 }], cabine: { t: 0.14, w: 15, h: 7 }, casco: '#3b6fb6' },
+            3: { L: 66, deck: 14, lado: 10, mastros: [{ t: 0.55, alt: 46, velas: 1 }], cabine: { t: 0.1, w: 17, h: 8 }, casco: '#c34b35', gurupes: 10 },
+            4: { L: 84, deck: 17, lado: 12, mastros: [{ t: 0.5, alt: 60, velas: 2 }], tombadilho: 0.22, casco: '#25406e', gurupes: 16, bujarrona: true, janelas: true },
+            5: { L: 108, deck: 21, lado: 16, mastros: [{ t: 0.36, alt: 72, velas: 2, latina: true }, { t: 0.66, alt: 82, velas: 3, gavea: true }],
+                 tombadilho: 0.24, castelo: 0.12, casco: '#7a4422', gurupes: 24, bujarrona: true, canhoes: 4, friso: true, proa: true, janelas: true }
+        };
+        const PAL_BAND = { G: '#4e974c', Y: '#ffe08a', B: '#3b5dc9', K: '#1a1630', W: '#ffffff', R: '#d9452f', O: '#e38628' };
+        const tom = (hex, f) => {
+            const k = (v) => Math.max(0, Math.min(255, Math.round(f < 0 ? v * (1 + f) : v + (255 - v) * f)));
+            const [r, g, b] = rgbDe(hex);
+            return '#' + [k(r), k(g), k(b)].map((v) => v.toString(16).padStart(2, '0')).join('');
+        };
+        function navioCanvas(info) {
+            const nv = Math.max(1, Math.min(5, info.nivel || 1)), N = NAVIOS[nv], pc = info.pecas || {}, vis = info.visual || {};
+            const chave = nv + '|' + JSON.stringify(pc) + '|' + [vis.casco, vis.faixa, vis.bandeira].join(',');
+            if (cacheNavio.has(chave)) return cacheNavio.get(chave);
+            const CM = (window.FazendaMar && window.FazendaMar.CORES) || {};
+            const casco = (vis.casco && vis.casco !== 'padrao' && CM[vis.casco]) || N.casco;
+            const friso = (vis.faixa && vis.faixa !== 'padrao' && CM[vis.faixa]) || (N.friso ? '#e8a640' : '#f2f2f2');
+            const OL = '#3f2631', MAD = '#6e3d1b', MADc = '#a8683a', VELA = '#f2ead6', VELAs = '#d6c8a8', CORDA = 'rgba(63,38,49,0.55)';
+            const alt = Math.max(10, ...N.mastros.map((m) => m.alt)), ML = 6, gur = N.gurupes || 0;
+            const W = ML + N.L + gur + 10, H = alt + N.deck + N.lado + 14;
+            const cv = document.createElement('canvas');
+            cv.width = W; cv.height = H;
+            const g = cv.getContext('2d');
+            const R = (x, y, w, h, c) => { g.fillStyle = c; g.fillRect(Math.round(x), Math.round(y), Math.max(1, Math.round(w)), Math.max(1, Math.round(h))); };
+            const linha = (ax, ay, bx, by, c) => {   // linha de 1 px, sem borrar (cordas e mastros finos)
+                const n = Math.max(Math.abs(bx - ax), Math.abs(by - ay)) | 0;
+                for (let k = 0; k <= n; k++) R(ax + (bx - ax) * k / Math.max(1, n), ay + (by - ay) * k / Math.max(1, n), 1, 1, c);
+            };
+            const triangulo = (pts, c, sombra) => {   // pinta um triângulo linha por linha (borda dura, como pixel art)
+                const ys = pts.map((p) => p[1]), y0 = Math.round(Math.min(...ys)), y1 = Math.round(Math.max(...ys));
+                for (let y = y0; y <= y1; y++) {
+                    const xs = [];
+                    for (let k = 0; k < 3; k++) {
+                        const [ax, ay] = pts[k], [bx, by] = pts[(k + 1) % 3];
+                        if ((y >= Math.min(ay, by)) && (y <= Math.max(ay, by)) && ay !== by) xs.push(ax + (bx - ax) * (y - ay) / (by - ay));
+                    }
+                    if (xs.length < 2) continue;
+                    const a = Math.round(Math.min(...xs)), b = Math.round(Math.max(...xs));
+                    R(a, y, b - a + 1, 1, c);
+                    if (sombra && b - a > 3) R(b - 1, y, 1, 1, sombra);
+                    R(a, y, 1, 1, OL); R(b, y, 1, 1, OL);
+                }
+            };
+            const x0 = ML, x1 = ML + N.L, cy = H - N.lado - N.deck / 2 - 7;
+            const forma = (x) => {   // a largura do convés em cada coluna: popa redonda, proa fina
+                const t = (x - x0) / N.L;
+                return Math.min(Math.min(1, 0.7 + t * 3), Math.min(1, Math.pow(Math.max(0, (1 - t) / 0.32), 0.7)));
+            };
+            const topo = {}, base = {}, fundo = {};
+            for (let x = x0; x < x1; x++) {
+                const h = N.deck / 2 * forma(x);
+                topo[x] = Math.round(cy - h); base[x] = Math.round(cy + h);
+                fundo[x] = base[x] + Math.max(2, Math.round(N.lado * Math.sqrt(forma(x))));
+            }
+            const xDe = (t) => Math.round(x0 + t * N.L);
+            // 1) o costado: o lado do casco virado para a gente, com as tábuas, o fundo escuro e o friso
+            for (let x = x0; x < x1; x++) {
+                const y0 = base[x] + 1, y1 = fundo[x], lado = y1 - y0;
+                R(x, y0, 1, lado, casco);
+                R(x, y0 + Math.round(lado * 0.6), 1, lado - Math.round(lado * 0.6), tom(casco, -0.28));
+                for (let k = y0 + 4; k < y1 - 1; k += 3) R(x, k, 1, 1, tom(casco, -0.16));
+                const ye = y0 + 4 + ((x >> 2) % 3) * 3;
+                if ((x * 7) % 23 === 0 && ye + 2 < y1) R(x, ye, 1, 2, tom(casco, -0.35));   // emendas das tábuas
+                R(x, y0 + 1, 1, 1, tom(casco, 0.18));
+                if (lado > 4) { R(x, y0 + 2, 1, N.friso ? 2 : 1, friso); if (N.friso) R(x, y0 + 4, 1, 1, tom(friso, -0.35)); }
+                if (N.friso && lado > 9 && x % 7 === 3) { R(x, y0 + 5, 1, 1, friso); R(x + 1, y0 + 6, 1, 1, tom(friso, -0.2)); }   // o arabesco dourado
+                R(x, y1, 1, 1, OL);
+            }
+            for (let y = base[x0]; y <= fundo[x0]; y++) R(x0 - 1, y, 1, 1, OL);
+            // 2) o convés: tábuas no comprimento, com as emendas desencontradas
+            const TAB = ['#c27838', '#b8692f', '#ad6330'];
+            for (let x = x0; x < x1; x++) {
+                for (let y = topo[x] + 1; y < base[x]; y++) {
+                    const fila = Math.floor((y - cy + 60) / 3), meio = (y - cy + 60) % 3 === 0;
+                    R(x, y, 1, 1, meio ? '#8a4e22' : ((x + fila * 13) % 19 === 0 ? '#7a4422' : TAB[fila % 3]));
+                }
+            }
+            // a amurada: a de lá é fina; a de cá, grossa e com luz em cima, e com os balaústres
+            for (let x = x0; x < x1; x++) {
+                R(x, topo[x] - 1, 1, 1, OL); R(x, topo[x], 1, 1, tom(casco, 0.12));
+                R(x, base[x] - 1, 1, 1, tom(casco, 0.3)); R(x, base[x], 1, 1, tom(casco, 0.05));
+                if (x % 4 === 0 && N.L > 40) R(x, base[x] - 2, 1, 1, tom(casco, -0.2));
+            }
+            for (let y = topo[x0]; y <= base[x0]; y++) R(x0 - 1, y, 1, 1, OL);
+            // a popa alta (tombadilho) e o castelo da proa: um degrau mais claro, com a escadinha
+            const degrau = (t0, t1) => {
+                const a = xDe(t0), b = xDe(t1);
+                for (let x = a; x < b; x++) for (let y = topo[x] + 1; y < base[x]; y++) R(x, y, 1, 1, (y - cy + 60) % 3 === 0 ? '#9a5a2a' : '#d08a48');
+                const e = t0 === 0 ? b : a;
+                for (let y = topo[e]; y <= base[e]; y++) R(e, y, 1, 1, OL);
+                R(e + (t0 === 0 ? 1 : -2), cy - 2, 2, 5, '#8a4e22');
+                for (let y = cy - 2; y < cy + 3; y += 2) R(e + (t0 === 0 ? 1 : -2), y, 2, 1, '#e0a060');
+            };
+            if (N.tombadilho) degrau(0, N.tombadilho);
+            if (N.castelo) degrau(1 - N.castelo - 0.06, 0.94);
+            // as escotilhas de grade (o porão: mais peças, mais escotilhas)
+            const nEsc = nv >= 3 ? 1 + Math.min(2, pc.porao || 0) : 0;
+            for (let k = 0; k < nEsc; k++) {
+                const ex = xDe(0.42 + k * 0.12) - 4, ey = cy - 3;
+                R(ex - 1, ey - 1, 10, 7, OL); R(ex, ey, 8, 5, '#3a2416');
+                for (let gx = ex + 1; gx < ex + 8; gx += 2) R(gx, ey, 1, 5, '#7a4a2a');
+                for (let gy = ey + 1; gy < ey + 5; gy += 2) R(ex, gy, 8, 1, '#7a4a2a');
+            }
+            // a cabine (traineira e barco de pesca): o teto e a frente com janelinhas
+            if (N.cabine) {
+                const cx = xDe(N.cabine.t), cw = N.cabine.w, ch = N.cabine.h;
+                R(cx - 1, cy - ch - 3, cw + 2, ch + 6, OL);
+                R(cx, cy - ch - 2, cw, 3, '#dfe6ee'); R(cx, cy - ch - 2, cw, 1, '#ffffff');
+                R(cx, cy - ch + 1, cw, ch + 1, '#f4f1e6'); R(cx + cw - 2, cy - ch + 1, 2, ch + 1, '#d8d2c0');
+                for (let wx2 = cx + 2; wx2 < cx + cw - 3; wx2 += 4) { R(wx2, cy - ch + 3, 3, 3, '#3b5dc9'); R(wx2, cy - ch + 3, 1, 1, '#9fd3f5'); }
+                if ((pc.sonar || 0) > 0) { R(cx + cw - 6, cy - ch - 7, 5, 2, '#c0cbdc'); R(cx + cw - 4, cy - ch - 5, 1, 3, '#566c86'); R(cx + cw - 6, cy - ch - 8, 5, 1, OL); }
+            }
+            // o timão dourado no tombadilho e a lanterna da popa
+            if (N.tombadilho) {
+                const tx = xDe(N.tombadilho * 0.62), ty = cy - 5;
+                R(tx - 3, ty - 3, 7, 7, OL); R(tx - 2, ty - 2, 5, 5, '#e8a640'); R(tx - 1, ty - 1, 3, 3, '#7a4422'); R(tx, ty, 1, 1, '#ffe08a');
+                R(tx, ty + 4, 1, 4, '#5a3a20');
+                R(x0 + 1, topo[x0 + 1] - 6, 3, 5, OL); R(x0 + 2, topo[x0 + 1] - 5, 1, 3, '#ffe08a');
+                if ((pc.sonar || 0) > 0) { const sx = xDe(N.tombadilho * 0.3); R(sx - 2, cy - 9, 5, 2, '#c0cbdc'); R(sx, cy - 7, 1, 4, '#566c86'); R(sx - 2, cy - 10, 5, 1, OL); }
+            }
+            // barris e caixas no convés (o kit de expedição traz mais: baú, mapa e o tanque extra)
+            const barril = (bx, by) => { R(bx - 1, by - 1, 6, 7, OL); R(bx, by, 4, 5, '#9a5a32'); R(bx, by, 1, 5, '#c07a48'); R(bx, by + 1, 4, 1, '#5a3a28'); R(bx, by + 3, 4, 1, '#5a3a28'); };
+            const caixa = (bx, by) => { R(bx - 1, by - 1, 7, 7, OL); R(bx, by, 5, 5, '#c98a4a'); R(bx, by, 5, 1, '#e0a868'); R(bx + 2, by, 1, 5, '#8a5a2a'); R(bx, by + 2, 5, 1, '#8a5a2a'); };
+            if (nv >= 3) { barril(xDe(0.78), cy - 4); caixa(xDe(0.84), cy - 1); }
+            if (nv >= 4) barril(xDe(0.3), cy + 1);
+            if ((pc.expedicao || 0) > 0) {
+                barril(xDe(0.88) - 6, cy + 2); caixa(xDe(0.58), cy + 1);
+                const bx = xDe(0.24), by = cy - 2;   // o baú com o mapa
+                R(bx - 1, by - 1, 8, 6, OL); R(bx, by, 6, 4, '#7a3a1a'); R(bx, by, 6, 1, '#e8a640'); R(bx + 2, by + 1, 2, 2, '#ffe08a');
+            }
+            // a rede pendurada na amurada
+            if ((pc.rede || 0) > 0 && nv >= 2) {
+                const rx = xDe(0.68);
+                for (let y = 0; y < 6; y++) for (let x = 0; x < 9; x++) if ((x + y) % 2 === 0) R(rx + x, base[rx] + 1 + y, 1, 1, 'rgba(233,226,200,0.85)');
+            }
+            // os remos do bote e o motor de popa
+            if (N.remos) {   // os dois remos no banco, com a pá para fora
+                R(xDe(0.3), cy - 1, 1, 3, '#7a4a2a'); R(xDe(0.62), cy - 1, 1, 3, '#7a4a2a');
+                linha(xDe(0.4), cy, xDe(0.4) - 5, base[xDe(0.4)] + 4, '#c98a4a'); R(xDe(0.4) - 7, base[xDe(0.4)] + 4, 3, 2, '#c98a4a');
+            }
+            if ((pc.motor || 0) > 0 && nv <= 3) { R(x0 - 5, cy - 3, 5, 7, OL); R(x0 - 4, cy - 2, 3, 5, '#566c86'); R(x0 - 4, cy - 2, 3, 1, '#c0cbdc'); R(x0 - 3, cy + 4, 1, fundo[x0] - cy - 2, '#3f2631'); }
+            // o costado da popa com as janelas douradas (pesqueiro e navio)
+            if (N.janelas) for (let k = 0; k < 3; k++) { const jx = x0 + 3 + k * 4, jy = base[jx] + 5; R(jx - 1, jy - 1, 4, 4, '#e8a640'); R(jx, jy, 2, 2, '#ffe08a'); }
+            // as portinholas com os canhões (navio) ou as escotilhas redondas
+            if (N.canhoes) for (let k = 0; k < N.canhoes; k++) {
+                const px = xDe(0.32 + k * 0.13), py = base[px] + 6;
+                R(px - 2, py - 2, 6, 5, tom(friso, -0.1)); R(px - 1, py - 1, 4, 3, '#1a1630'); R(px, py, 3, 1, '#3a3a48'); R(px + 3, py, 2, 1, '#566c86');
+            } else if (nv >= 2) for (let k = 0; k < 3; k++) { const px = xDe(0.4 + k * 0.14), py = base[px] + 5; R(px - 1, py - 1, 4, 4, OL); R(px, py, 2, 2, '#9fd3f5'); }
+            // a âncora na proa
+            if (nv >= 3) {
+                const ax = xDe(0.86), ay = base[ax] + 3;
+                R(ax, ay, 1, 6, '#566c86'); R(ax - 2, ay + 1, 5, 1, '#566c86'); R(ax - 2, ay + 5, 1, 2, '#566c86'); R(ax + 2, ay + 5, 1, 2, '#566c86'); R(ax - 1, ay + 6, 3, 1, '#566c86');
+                R(ax, ay - 1, 1, 1, '#c0cbdc');
+            }
+            // o gurupés (o pau da proa), a figura de proa e a bujarrona (a vela triangular da frente)
+            const ponta = { x: x1 + gur, y: cy - 4 - Math.round(gur / 5) };
+            if (gur) { linha(x1 - 3, cy - 1, ponta.x, ponta.y, '#5a3a20'); linha(x1 - 3, cy, ponta.x, ponta.y + 1, MAD); }
+            if (N.proa) { R(x1 - 1, cy - 2, 3, 4, OL); R(x1, cy - 1, 2, 3, '#ffd75e'); R(x1 + 1, cy - 1, 1, 1, '#1a1630'); }
+            // 3) os mastros, as vergas e as velas (a bujarrona primeiro: as velas quadradas ficam na frente dela)
+            const topos = [];
+            if (N.bujarrona && gur && N.mastros.length) {
+                const mf = N.mastros[N.mastros.length - 1], mx = xDe(mf.t), top = cy - mf.alt;
+                triangulo([[mx + 2, top + 12], [ponta.x - 2, ponta.y], [mx + 2, cy - 12]], VELA, VELAs);
+            }
+            N.mastros.forEach((m, mi) => {
+                const mx = xDe(m.t), top = cy - m.alt;
+                topos.push({ x: mx, y: top });
+                R(mx - 2, top, 4, cy - top + 1, OL); R(mx - 1, top + 1, 2, cy - top - 1, MAD); R(mx, top + 1, 1, cy - top - 1, MADc);
+                for (let y = top + 10; y < cy - 6; y += 14) R(mx - 2, y, 4, 1, '#c0cbdc');   // as braçadeiras de ferro
+                if (m.gavea) { R(mx - 5, top + 12, 11, 4, OL); R(mx - 4, top + 13, 9, 2, '#8a4e22'); R(mx - 4, top + 13, 9, 1, '#c27838'); }   // o cesto da gávea
+                const area = m.alt - 16, hv = m.velas ? Math.floor(area / m.velas) : 0;
+                for (let k = 0; k < m.velas; k++) {
+                    const yv = top + 6 + k * hv, w = (nv === 5 ? 12 : 14) + (k + (3 - m.velas)) * (nv === 5 ? 5 : 7) + nv;
+                    R(mx - w / 2 - 1, yv - 1, w + 2, 3, OL); R(mx - w / 2, yv, w, 1, '#5a3a20');   // a verga
+                    const h = hv - 4, curva = Math.max(1, Math.round(h / 6));
+                    for (let y = 0; y < h; y++) {
+                        const inc = Math.round(Math.sin((y / h) * Math.PI) * curva), a = mx - w / 2 - inc + 1, b = mx + w / 2 + inc - 1;
+                        R(a, yv + 2 + y, b - a, 1, VELA); R(b - 3, yv + 2 + y, 3, 1, VELAs); R(a - 1, yv + 2 + y, 1, 1, OL); R(b, yv + 2 + y, 1, 1, OL);
+                        if (y % 4 === 1) for (let sx = a + 3; sx < b - 3; sx += 5) R(sx, yv + 2 + y, 1, 1, '#e4d9bf');   // as costuras
+                        if (nv === 5 && k === m.velas - 1 && y >= h - 4 && y < h - 2) R(a + 1, yv + 2 + y, b - a - 2, 1, friso === '#f2f2f2' ? '#d9452f' : tom(friso, -0.05));   // a faixa da vela de baixo
+                    }
+                    R(mx - w / 2, yv + 2 + h, w, 1, OL);
+                }
+                R(mx - 1, top, 2, 2, MADc);
+                // a vela latina (triangular) atrás do mastro da popa
+                if (m.latina) triangulo([[mx - 3, top + 18], [mx - 3, cy - 9], [mx - 3 - Math.round(N.L * 0.15), cy - 9]], VELA, VELAs);
+            });
+            // o cordame: dos topos dos mastros até a proa e até a popa
+            topos.forEach((p, k) => {
+                linha(p.x, p.y + 2, k === topos.length - 1 && gur ? ponta.x : xDe(0.92), k === topos.length - 1 && gur ? ponta.y : cy - 2, CORDA);
+                linha(p.x, p.y + 2, k === 0 ? x0 + 2 : topos[k - 1].x, k === 0 ? topo[x0 + 2] : topos[k - 1].y + 4, CORDA);
+                for (let d = -1; d <= 1; d += 2) linha(p.x, p.y + 4, p.x + d * 6, base[p.x] - 1, CORDA);
+            });
+            // a bandeira no mastro mais alto
+            if (topos.length) {
+                const p = topos.reduce((a, b) => (b.y < a.y ? b : a)), padrao = (window.FazendaMar && window.FazendaMar.BANDEIRAS || {})[vis.bandeira];
+                R(p.x, p.y - 8, 1, 8, OL);
+                if (padrao) padrao.forEach((lin, y) => [...lin].forEach((c, x) => R(p.x + 1 + x, p.y - 8 + y, 1, 1, PAL_BAND[c] || '#fff')));
+                else { R(p.x + 1, p.y - 8, 6, 3, '#d9452f'); R(p.x + 7, p.y - 8, 2, 1, '#d9452f'); R(p.x + 7, p.y - 6, 2, 1, '#d9452f'); R(p.x + 1, p.y - 8, 6, 1, '#f07a5a'); }
+            }
+            cv.ml = ML; cv.agua = H - 7; cv.casco = { x0, x1, fundo };
+            if (cacheNavio.size > 12) cacheNavio.clear();
+            cacheNavio.set(chave, cv);
+            return cv;
+        }
+        // onde o navio fica: o casco começa logo depois do píer e a linha d'água fica na fileira 40
+        const navioPos = (cv) => ({ x: wx(MAPA.pier.x + MAPA.pier.w) + 4 - cv.ml, y: wy(40) + 11 - cv.agua });
+        function desenharNavio(pe, tempo) {
+            if (!barcoInfo || !pierPronto || zonasAtuais < 7) return;
+            const cv = navioCanvas(barcoInfo), p = navioPos(cv), sobe = Math.round(Math.sin(tempo / 760) * 0.7);
+            // a sombra do casco na água e a espuma batendo, que não sobem junto
+            const { x0, x1, fundo } = cv.casco;
+            q.globalAlpha = 0.28; q.fillStyle = '#1a2a4a';
+            for (let x = x0; x < x1; x += 1) q.fillRect(p.x + x - 2, p.y + fundo[x] + 1, 1, 3);
+            q.globalAlpha = 1;
+            for (let x = x0; x < x1; x += 2) {
+                const f = (tempo / 260 + x * 0.37) % 6;
+                if (f < 3) { q.fillStyle = f < 1.5 ? '#e8f2fb' : '#bcd8f2'; q.fillRect(p.x + x + (f < 1.5 ? 0 : 1), p.y + fundo[x] + 1, 2, 1); }
+            }
+            pe.push({ img: cv, x: p.x, y: p.y + sobe, ordem: p.y + cv.agua, flip: false, bob: 0 });
+        }
+
         function desenharPier() {
             const P = MAPA.pier, ret = (x, y, w, h, cor) => { f.fillStyle = cor; f.fillRect(x, y, w, h); };
             const x0 = wx(P.x) + 6, x1 = wx(P.x + P.w) - 6, y0 = wy(P.y) + 4, y1 = wy(P.y + P.h) - 2;
@@ -2109,21 +2371,47 @@
                 tile(f, 83, wx(P.x + 1), wy(P.y), false, 'town');   // plaquinha: "o píer vai aqui"
                 return;
             }
-            // pilares, tábuas e as bordas
-            for (let y = wy(37); y < y1; y += T * 2) {
-                ret(x0 - 2, y, 4, 12, '#4a2f1a'); ret(x1 - 2, y, 4, 12, '#4a2f1a');
-                ret(x0 - 3, y + 10, 6, 2, '#bcd8f2'); ret(x1 - 3, y + 10, 6, 2, '#bcd8f2');
+            // fase 104: o píer caprichado (pilares com musgo, tábuas de tons diferentes com os pregos, os frades de
+            // amarração com tampa e, na entrada, barris, caixas e um rolo de corda)
+            const r = rng(4242), OL = '#3f2631';
+            const pilar = (x, y) => {
+                ret(x - 3, y, 6, 15, OL); ret(x - 2, y + 1, 4, 13, '#6e3d1b'); ret(x - 2, y + 1, 1, 13, '#9a5a32');
+                ret(x - 2, y + 9, 4, 3, '#4e7a3a'); ret(x - 2, y + 9, 4, 1, '#7aa84e');                     // o musgo na linha d'água
+                ret(x - 4, y + 13, 8, 2, '#bcd8f2'); ret(x - 5, y + 14, 2, 1, '#e8f2fb'); ret(x + 3, y + 14, 2, 1, '#e8f2fb');
+            };
+            for (let y = wy(37); y < y1 + 2; y += T * 2) { pilar(x0, y + 4); pilar(x1, y + 4); }
+            ret(x0 - 1, y0 - 1, x1 - x0 + 2, y1 - y0 + 2, OL);
+            const TONS = ['#b8692f', '#a95f2a', '#c27838', '#b06530'];
+            for (let y = y0, k = 0; y < y1; y += 4, k++) {
+                ret(x0, y, x1 - x0, 3, TONS[Math.floor(r() * TONS.length)]);
+                ret(x0, y, x1 - x0, 1, '#d08a48');                                                          // a luz na borda da tábua
+                ret(x0, y + 3, x1 - x0, 1, '#6e3d1b');                                                      // a fresta
+                const emenda = x0 + 6 + Math.floor(r() * (x1 - x0 - 12));
+                ret(emenda, y, 1, 3, '#7a4422');
+                ret(x0 + 2, y + 1, 1, 1, '#4a2f1a'); ret(x1 - 3, y + 1, 1, 1, '#4a2f1a');                // os pregos
+                if (r() < 0.25) ret(x0 + 5 + Math.floor(r() * (x1 - x0 - 10)), y + 2, 2, 1, '#8a4e22');  // um nó na madeira
             }
-            ret(x0, y0, x1 - x0, y1 - y0, '#b8692f');
-            for (let y = y0; y < y1; y += 4) ret(x0, y, x1 - x0, 1, '#8a4e22');
             ret(x0, y0, 2, y1 - y0, '#6e3d1b'); ret(x1 - 2, y0, 2, y1 - y0, '#6e3d1b');
-            // o barco atracado do lado do píer
-            const bx = x1 + 4, by = wy(39) + 2;
-            ret(bx + 2, by + 10, 26, 7, '#7a4a2a'); ret(bx, by + 8, 30, 3, '#9e5f34'); ret(bx + 4, by + 17, 22, 2, '#4f2f1a');
-            ret(bx + 2, by + 12, 26, 1, '#f2f2f2');
-            ret(bx + 14, by - 10, 2, 18, '#5a3a20');
-            ret(bx + 16, by - 9, 10, 14, '#f4f1e6'); ret(bx + 16, by - 9, 1, 14, '#d8d2c0');
-            ret(bx - 2, by + 19, 34, 2, '#bcd8f2');
+            // os frades de amarração (o navio fica preso neles), com a tampa redonda
+            const frade = (x, y) => { ret(x - 3, y - 2, 6, 7, OL); ret(x - 2, y + 1, 4, 3, '#6e3d1b'); ret(x - 2, y - 1, 4, 2, '#e38628'); ret(x - 1, y - 1, 2, 1, '#fdbe53'); };
+            for (let y = wy(37) + 6; y < y1 - 4; y += T + 4) frade(x1 - 4, y);
+            frade(x0 + 3, wy(39) + 2);
+            // a corda do frade até o navio (o navio fica do lado direito)
+            for (let k = 0; k < 10; k++) ret(x1 - 2 + k, wy(38) + 8 + Math.round(Math.sin(k / 9 * Math.PI) * 3), 1, 1, '#d8c8a0');
+            // na entrada do píer, na areia: barris, caixas e um rolo de corda
+            const barril = (x, y) => {
+                ret(x - 1, y - 1, 10, 12, OL); ret(x, y, 8, 10, '#9a5a32'); ret(x, y, 2, 10, '#c07a48'); ret(x + 6, y, 2, 10, '#7a4422');
+                ret(x, y + 2, 8, 1, '#5a3a28'); ret(x, y + 7, 8, 1, '#5a3a28'); ret(x + 1, y, 6, 2, '#b4673a'); ret(x + 2, y, 4, 1, '#d08a48');
+            };
+            const caixa = (x, y) => {
+                ret(x - 1, y - 1, 12, 12, OL); ret(x, y, 10, 10, '#c98a4a'); ret(x, y, 10, 2, '#e0a868');
+                ret(x, y + 4, 10, 1, '#8a5a2a'); ret(x + 4, y + 2, 1, 8, '#8a5a2a'); ret(x + 1, y + 3, 1, 1, '#3f2631'); ret(x + 8, y + 3, 1, 1, '#3f2631');
+            };
+            barril(x0 - 14, wy(35) + 2); barril(x0 - 22, wy(35) + 8); caixa(x1 + 3, wy(35) + 3); caixa(x1 + 5, wy(35) - 6);
+            // o rolo de corda
+            const rx = x0 - 12, ry = wy(36) + 6;
+            ret(rx - 1, ry - 1, 10, 7, OL); ret(rx, ry, 8, 5, '#d8c8a0'); ret(rx + 2, ry + 1, 4, 3, '#a8986a'); ret(rx + 3, ry + 2, 2, 1, '#6e5a48');
+            // (fase 104: o barco atracado agora é o navio, desenhado a cada quadro em desenharNavio)
         }
 
         /* ---- o lago: tanque com borda de pedras, água funda com sombras de peixe, rede
@@ -2871,7 +3159,8 @@
             pe.push({ img: avatarCanvas(avatarAtual), x: fazendeiro.x, y: fazendeiro.y, flip: fazendeiro.flip, bob: !fazNada && andando && Math.floor(tempo / 120) % 2 ? -1 : 0, nadando: fazNada });
             if (lago && lagoNaTela()) pe.push({ p: 'factory', i: 120, x: wx(LAGO.x) + 1, y: wy(LAGO.y + 2), flip: false, bob: Math.floor(tempo / 700) % 2 ? -1 : 0 });
             if (visitante) { const vn = naAgua(visitante.x, visitante.y); pe.push({ p: 'dungeon', i: VISITANTE_ARTE[visitante.tipo] || 86, x: visitante.x, y: visitante.y, flip: visitante.flip, bob: !vn && visitante.andando && Math.floor(tempo / 140) % 2 ? -1 : 0, nadando: vn }); }
-            pe.sort((a, b) => a.y - b.y).forEach((a) => {
+            desenharNavio(pe, tempo);   // fase 104: o navio no píer
+            pe.sort((a, b) => (a.ordem != null ? a.ordem : a.y) - (b.ordem != null ? b.ordem : b.y)).forEach((a) => {
                 const x = Math.round(a.x), y = Math.round(a.y) + a.bob;
                 if (a.grade) {
                     a.grade.forEach((linha, dy) => linha.forEach((i, dx) => tile(q, i, x + dx * T, a.gy + dy * T, false, a.p)));
@@ -3854,7 +4143,8 @@
                 if (px >= a.x - 1 && px < a.x + T + 1 && py >= topo && py < a.y + T) return 'a:' + a.id;
             }
             // fase 62: o barco atracado leva para o alto-mar; o píer (ou o lugar dele) abre a tela do píer
-            if (zonasAtuais >= 7 && pierPronto && tx >= MAPA.pier.x + MAPA.pier.w && tx <= MAPA.pier.x + MAPA.pier.w + 2 && ty >= 38 && ty <= 40) return 'barco';
+            if (zonasAtuais >= 7 && pierPronto && tx >= MAPA.pier.x + MAPA.pier.w && ty >= 37 && ty <= 40
+                && tx <= MAPA.pier.x + MAPA.pier.w + Math.ceil(((NAVIOS[(barcoInfo && barcoInfo.nivel) || 1] || NAVIOS[1]).L) / T)) return 'barco';   // fase 104: o casco do navio
             if (zonasAtuais >= 7 && dentroRet(MAPA.pier, tx, ty)) return 'pier';   // fase 61
             const cant = listaCanteiros().find((k) => k.x === tx && k.y === ty);
             if (cant) return cant.posicao;
@@ -4097,6 +4387,8 @@
             // seu lago: { prontos, max } (null na visita ou sem o terreno 3)
             definirLago(l) { lago = l || null; },
             definirPier(pronto) { if (!!pronto === pierPronto) return; pierPronto = !!pronto; montarFundo(); precisaDesenhar = true; },   // fase 61
+            definirBarco(info) { barcoInfo = info || null; precisaDesenhar = true; },   // fase 104: o navio no píer
+            navioCanvas,   // fase 104 (para a prévia e os testes)
             pausar(sim) { pausada = !!sim; if (!pausada) precisaDesenhar = true; },   // fase 62
             // avatar do fazendeiro que anda na fazenda (null = o do pacote)
             definirAvatar(cfg) { avatarAtual = cfg || null; },

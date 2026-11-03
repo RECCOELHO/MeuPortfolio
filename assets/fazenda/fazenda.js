@@ -568,6 +568,9 @@
     function atualizarTerreno() {
         cena.definirTerreno({ zonas: zonasDaTela(), direita: direitaDaTela(), venda: proximasZonas().map((z) => z.n) });
         cena.definirPier(!visita && !!(S && S.pier && S.pier.pronto));   // fase 61
+        // fase 104: o navio atracado (o nível do barco, as peças e a pintura)
+        if (cena.definirBarco) cena.definirBarco(!visita && S && S.pier && S.pier.pronto
+            ? { nivel: (S.mar && S.mar.barco && S.mar.barco.valor) || 1, pecas: pecasMar(), visual: visualBarco() } : null);
     }
     /* ---------- Estação e clima (vêm do servidor: o mesmo dia para todo mundo) ---------- */
     const NOME_ESTACAO = { primavera: 'primavera', verao: 'verão', outono: 'outono', inverno: 'inverno' };
@@ -1513,6 +1516,11 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-11-03-navio', data: '03/11', titulo: 'O barco vira navio', itens: [
+            'O barco atracado no píer agora é desenhado com tudo: convés de tábuas, costado com friso, portinholas, mastros, velas, cordame e a sua bandeira. Ele <b>cresce</b> a cada nível (bote, traineira, barco de pesca, pesqueiro e o <b>navio oceânico</b> de dois mastros) e mostra as peças que você comprou.',
+            'O barco agora é <b>montado com materiais</b>: o <b>ipê-amarelo</b> (pomar, 32) dá toras; a <b>serraria naval</b> (33) faz tábuas, a <b>forja</b> (36) faz cravos, a <b>velaria</b> (39) faz velas e a <b>cartografia</b> (42) faz cartas náuticas.',
+            'O píer ficou caprichado: pilares com musgo, frades de amarração, barris, caixas e a corda segurando o navio.',
+            'Com o navio oceânico e o kit de expedição, no nível 46 ele zarpa para a primeira ilha (na próxima parte).'] },
         { id: '2026-11-03-musicas4', data: '03/11', titulo: 'As 4 músicas em sequência', itens: [
             'Agora são <b>4 músicas</b>, tocando uma atrás da outra, de dia e de noite. Depois da última, volta para a primeira.',
             'No <b>rádio</b> da feira: música anterior, próxima, ou toque numa da lista para ouvir.'] },
@@ -1974,7 +1982,8 @@
     const ONDE_PECA = {
         madeira_nobre: 'do mercador ou da feira', corda_naval: 'do mercador ou da feira', pedra_cantaria: 'do mercador ou da feira',
         ferro_forjado: 'do mercador ou da feira', ancora: 'do mercador ou da feira',
-        velho_chico: 'do lago (bem raro) ou da feira', leme_dourado: 'do evento da semana (quem mais convidou) ou da feira'
+        velho_chico: 'do lago (bem raro) ou da feira', leme_dourado: 'do evento da semana (quem mais convidou) ou da feira',
+        tora: 'do ipê-amarelo (pomar)', tabua_naval: 'da serraria naval', cravo: 'da forja', vela: 'da velaria', carta_nautica: 'da cartografia'   // fase 104
     };
     const ehPecaPier = (id) => !!(S && S.pier && S.pier.receita && S.pier.receita.itens && S.pier.receita.itens[id]);
     // no celeiro: guardar a peça para o píer (ou soltar), para ela não ir no "Vender tudo"
@@ -2446,6 +2455,7 @@
                     <span class="nome">${esc(m.nome)}: ${atual ? esc(atual.nome) : 'ainda não contratado'}</span>
                     <span class="det"><span class="txt">${atual ? `Agora: ${efeitoMar(id, atual)}. ` : ''}${esc(m.descricao)}</span></span>
                     ${prox ? `<span class="det"><span class="txt">Próximo: <b>${esc(prox.nome)}</b> (nível ${prox.nivel}): ${efeitoMar(id, prox)}.</span></span>` : ''}
+                    ${prox && prox.itens ? `<span class="det materiais">${htmlMateriais(prox.itens)}</span>` : ''}
                 </span>
                 ${!prox ? '<span class="preco">No máximo</span>'
                     : travado ? `<span class="preco">Nível ${prox.nivel}</span>`
@@ -2463,7 +2473,7 @@
             const tem = melhoriaNivel(id), atual = tem ? m.niveis[tem - 1] : null, prox = m.niveis[tem];
             const travado = prox && S.jogador.nivel < prox.nivel;
             const pede = id === 'rede' && !(S.mar && S.mar.marinheiro) ? 'Precisa do marinheiro. '
-                : id === 'expedicao' && melhoriaNivel('barco') < 4 ? 'Precisa do barco oceânico. ' : '';
+                : id === 'expedicao' && melhoriaNivel('barco') < 4 ? 'Precisa do navio oceânico. ' : '';
             return `<div class="item${!tem && travado ? ' travada' : ''}">
                 <span class="ico">${iconeMar(id, 40)}</span>
                 <span>
