@@ -1345,7 +1345,7 @@
     function htmlTile(i, px = 32, pacote = 'farm') {
         if (pacote === 'farm' && INDICE_DESENHO[i]) {   // os bichos do Jessé, inteiros dentro do quadrado
             const cv = desenhoBicho(INDICE_DESENHO[i]), k = px / Math.max(cv.width, cv.height);
-            return `<span class="px-spr" style="width:${px}px;height:${px}px;display:inline-flex;align-items:flex-end;justify-content:center" aria-hidden="true"><img src="${cv.url}" alt="" style="width:${Math.round(cv.width * k)}px;height:${Math.round(cv.height * k)}px;image-rendering:pixelated"></span>`;
+            return `<span class="px-spr" style="width:${px}px;height:${px}px;background:none;display:inline-flex;align-items:flex-end;justify-content:center" aria-hidden="true"><img src="${cv.url}" alt="" style="width:${Math.round(cv.width * k)}px;height:${Math.round(cv.height * k)}px;image-rendering:pixelated"></span>`;
         }
         if (i >= 1000) { i -= 1000; pacote = 'propria'; }
         const c = i % COLS, l = Math.floor(i / COLS);
@@ -1890,14 +1890,10 @@
             '..affgggggggggfbbbfbba.', '..aaffgggggggggffaffa..', '...affffffffggffaaaga..',
             '...affaaaaaaggaafa.a...', '...afaaea..aggaffa.....', '...adaaca..adaaca......',
             '...aaa.....aaa.aa......'] },
-        coelho: { pal: { a: '#010101', b: '#7b1113', c: '#846a67', d: '#bfaa9b', e: '#c67474', f: '#cebdb0', g: '#f2ede9', h: '#f6a19e' }, linhas: [
-            '.........aa...aa....', '........agga.affa...', '........aghfaafga...',
-            '........aghgaafha...', '........aghgfafha...', '........afhhgcfha...',
-            '.........ahhgcfha...', '.........afegccca...', '......aaaacegdggfa..',
-            '.....adfffcfgggggfa.', '....afgggfcggggggga.', '...afgggggfgggggggfa',
-            '.aafgggggggggfagggfa', 'agcgggggggfggfbgggfa', 'agcgggfgggffggggghga',
-            'afcggggfgggdfggggca.', '.aaggggcggggddccca..', '..afgggcffggffdda...',
-            '...affccffcgcddca...', '....affgcaaggacda...', '....aaaaa..aa.aa....'] }
+        coelho: { pal: { a: '#010101', b: '#7b1113', c: '#846a67', d: '#bfaa9b', e: '#c67474', f: '#cebdb0', g: '#f2ede9', h: '#f6a19e' }, linhas: [   // do tamanho da galinha (14 x 14)
+            '......aa.aa...', '.....aghafha..', '.....aghafha..', '.....ahhafha..', '......ahccfa..',
+            '...aaaacgdgfa.', '..adfffcgggga.', '.aafgggcggaga.', 'agcggggfggbgga', 'agcgggggggggha',
+            'afcggfgggddca.', '.aaggcffgddca.', '..affccfcdca..', '..aaaa.aa.aa..', '..............'] }
     };
     const INDICE_DESENHO = { 1147: 'bufala', 1000: 'porco', 1146: 'cabra', 1002: 'coelho' };
     const cacheDesenho = new Map();
