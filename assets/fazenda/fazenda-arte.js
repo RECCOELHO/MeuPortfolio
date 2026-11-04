@@ -242,7 +242,6 @@
     const ANIMAL = { galinha: 122, vaca: 121, ovelha: 120, porco: 1000, pato: 1001, coelho: 1002, cabra: 1146, bufala: 1147 };   // (fase 74: cabra e búfala)
     // bichos pequenos ficam no galinheiro; os grandes, no pasto
     const PEQUENOS = ['galinha', 'pato', 'coelho'];
-    const BICHOS_NOVOS = new Set(['galinha', 'pato', 'coelho', 'vaca', 'ovelha', 'porco', 'cabra', 'bufala']);   // fase 107
 
     /* ---------- Arte própria (desenhada aqui, no estilo do Kenney) ----------
        Os pacotes não têm porco, pato nem coelho: cada sprite é um 16 x 16 em
@@ -814,166 +813,6 @@
         if (!AVATAR_TIPOS[cfg.tipo]) cfg = { tipo: 'fazendeiro', pele: typeof cfg.chapeu === 'string' ? cfg.pele | 0 : 0 };
         return cfg;
     }
-    /* ---- os bichos: a vaca, o porco e a búfala são os das imagens de referência do Jessé (pixel por pixel; o
-       porco e a búfala virados para a direita, como todos); a cabra sai da vaca e a ovelha sai do porco, com
-       as cores e os detalhes de cada um. Contorno preto, cores chapadas com um tom de sombra. O segundo quadro de andar
-       levanta uma perna sim, outra não. ---- */
-    const BICHO_PIXELS = {
-        vaca: [
-            '.......................o......o....', '......................oho....oho...', '......................ohhoooohho...', '......................ohhwwwwoho...',
-            '...................ooookkkkwwwooooo', '...................okkkokkkkwwokkko', '.......ooooooooooooookkkkkkkkwwoko.', '.....ookwwwkkkkkkkwwoookkkokkwowo..',
-            '....okkkwwkkkkkkkkwwkkkkkkokkwowo..', '...okkkkwkkkkkkkkkwkkkokkkkkwwwwo..', '...okkkkwwkkkkkkkwwkkkokkkwwwwwwo..', '...ogkkwwwwkkkkkwwwwgwowwwwppppppo.',
-            '..ooggwwkkwwkkkwwwkkwwogwwppoppoppo', '..o.okwkkkkwwwwwwkkkwwgogPppoppoppo', '..o.okwkkkkwwkwwwkkkkwwgoPPPPPPPPo.', '..o.okkwkkwwkkwwwkkkkwwwgoooooooo..',
-            '..o.okkwwwwwkwwwwwkkkwwwgggoo......', '.oo.okkwwwwwwwwwwwkkwwwwwggo.......', '.oo..okwwwoggwwwwwwwwwwwggoo.......', 'oo...owwwwoggggggoggggoggogo.......',
-            'oo..ogwwwoPooogggoggggogoggo.......', '....ogwwoPppppooooggggoogggo.......', '...oggwooPoopo....gggo.oggo........', '....ogwo.oogoo....oggo.oggo........',
-            '....ogwo..oggo....oggo.oggo........', '....ogwo..oggo....oggo.oggo........', '.....ooo...ooo.....ooo..ooo........', '.....ooo...oo......ooo..ooo........'],
-        bufalo: [
-            '........................ooooooo.................', '......................oollllllloo...............', '.....................olbboobllllloo.........oo..', '....................olbbohhobblllllo.......ohho.',
-            '..................oolbbohhobbbblllllo.......ohho', '.................olbbbbohhooooooooooooooooooohho', '.......oooooooooolbbbbboHhhhhhholllllllllohhhhHo', '.....oolbbbbbbbbbbbbbbbboHHHHHolbbbbbbbbbloHHHo.',
-            '....olbbbbbbbbbbbbbbbbbbboooooobbbbbbbbbbblooo..', '....obbbbbbbbbbbbbbbbbbbbbbodolbbbbbbbbbbbboo...', '....obbbdbbbbbbbbbbbbbbbbbolbobbbbbbbbbbbbbodo..', '..oolbbbbbbbbbbbbbbbbdbbbolbbobbbbbbbbbbbbboblo.',
-            '...obbbbbbbbbbbbbbbbbbbbbboooobbbbbbobbobbbooo..', '...obbbbbbbbbbbbbbbbbbbbbbdddodbbbbbobbobbbo....', '...obbbbbbbbbbbbbbbbbbbbbbbddoddbbbllbbllbdo....', '.ooobbbbbbbbbbbbbbbbbbbbbbbbddoddbbbbbbbbbo.....',
-            '.o.obbbbbbbbbbbbbbbbbbbbbbbbddoddbbbbbbbbbo.....', '.o.obbbbbbbbbbbbbbbbbbbbbbbbdddodddbbbbbbbo.....', 'o..obbbbbbbbbbbbbbbbbbbbbbbbbddodddoooooodo.....', 'o..obbbdbbbbbbbbbbbbbbbbbbbbbddodoohhhhhhoo.....',
-            'o..obdbbbbbbbbbbbbbbbbbbbbbbbdddohhhohhhoho.....', '.o.obbbbbbbdddddbbbbbbbbbbbbddddohhhhhhhhho.....', '.o.obbbbbbddddddddbbbbbbbbbdddddooohhhhhho......', '...obbbbddddddddddddbbbbbbbddddo.b.oooooo.......',
-            '...obbbddoooooooooodddbbbbddddo.................', '..odbbdooddddoo....ooddbbdddooo.................', '..odbdoodddbo........oddbdooddo.................', '..odbo.oddbo..........odbo.odbo.................',
-            '..odbo.odbo...........odbo.odbo.................', '..odbo.odbo...........odbo.odbo.................', '..oooo.oooo...........oooo.oooo.................', '..ooHo.ooHo...........ooHo.ooHo.................'],
-        porco: [
-            '..............ooo......ooo.', '.............orrrooooooorro', '.o....oooooooorrorrrrrrroro', 'or..oorrrrrrroroRrrrrrrrroo',
-            'oRooRrrrrrrrrRoRrrrrrrrrro.', '.oRRrrrrrrrrrrrrrrorrrrroo.', '..orrrrrrrrrrrrrrrorrRRRRo.', '..orrrrrrrrrrrrrrrrrRrrrrro',
-            '..orrrrrrrrrrrrrrrrrRrnrnro', '..orrrrrrrrrrrrRrrrrRrrrrro', '..oRrrrrrrrrrrroRrrrrRRRRRo', '..oRrrrrrrrrrrrRoRRRRRRRRo.',
-            '..oRrrrrrrrrrrrrRoooooooo..', '...orrrRrrrrrrrrrRRRRoo....', '...orrroRRRRRorrrRRRoo.....', '...orrrooooooorrRoooRo.....',
-            '...orro.oRRo.orro.oRRo.....', '...orro.oRRo.orro.oRRo.....', '...onno.onno.onno.onno.....', '...oooo.oooo.oooo.oooo.....']
-    };
-    const BICHO_CORES = {
-        vaca: { o: '#010101', k: '#323232', g: '#b4b4b4', w: '#ffffff', p: '#e99d96', P: '#d18785', h: '#c3aa8d' },
-        bufala: { o: '#211811', b: '#b75f15', l: '#d77e06', d: '#944115', h: '#cbc0ac', H: '#968c7d' },
-        cabra: { o: '#010101', k: '#a8743e', g: '#b88a58', w: '#dcb07a', p: '#efd2b0', P: '#d2aa80', h: '#4a3a2a', b: '#fbf3e2' },
-        porco: { o: '#010101', r: '#ed9fa2', R: '#d76e73', n: '#813d42' },
-        ovelha: { o: '#010101', r: '#f7f5fa', R: '#cfcbd8', n: '#1c1820', f: '#4a4452', F: '#34303c', e: '#ffffff' }
-    };
-    const PERNAS_DE = { vaca: 23, bufala: 27, cabra: 23, porco: 16, ovelha: 16 };   // de que linha para baixo são as pernas
-    function bichoPixels(tipo) {
-        const base = tipo === 'bufala' ? 'bufalo' : tipo === 'cabra' ? 'vaca' : tipo === 'ovelha' ? 'porco' : tipo;
-        const L = BICHO_PIXELS[base].map((l) => [...l]);
-        const P = (x, y, c) => { if (L[y] && x >= 0 && x < L[y].length) L[y][x] = c; };
-        if (tipo === 'cabra') {   // sem úbere, a barbicha e os chifres mais compridos
-            for (let y = 18; y < L.length; y++) for (let x = 0; x < 16; x++) if (L[y][x] === 'p' || L[y][x] === 'P') L[y][x] = 'g';
-            for (const [x, y] of [[29, 16], [30, 16], [29, 17], [30, 17], [30, 18]]) P(x, y, 'b');
-            for (const [x, y] of [[28, 16], [28, 17], [31, 16], [31, 17], [29, 18], [31, 18], [30, 19]]) P(x, y, 'o');
-            P(22, 0, 'o'); P(23, 0, 'h'); P(23, 1, 'h'); P(30, 0, 'h'); P(31, 0, 'o');
-        }
-        if (tipo === 'ovelha') {   // a lã branca com os cachinhos e a cara, as orelhas e as patas pretas
-            for (let y = 0; y < L.length; y++) for (let x = 0; x < L[y].length; x++) {
-                const c = L[y][x];
-                if (c === 'o' || c === '.') continue;
-                const cara = x >= 19 && y >= 2 && y <= 11, perna = y >= 16;
-                if (cara) L[y][x] = c === 'n' ? 'o' : c === 'R' ? 'F' : 'f';
-                else if (perna) L[y][x] = c === 'n' ? 'o' : 'n';
-                else if (c === 'r' && ((x * 3 + y * 5) % 7 === 0 || (x * 5 + y * 3) % 11 === 0)) L[y][x] = 'R';
-            }
-            P(20, 5, 'e'); P(21, 5, 'o');   // o olho (branco com a pupila)
-            P(22, 8, 'F'); P(24, 8, 'F');
-            for (const [x, y] of [[16, 1], [17, 1], [16, 2]]) P(x, y, 'r');   // o topete de lã
-        }
-        return L;
-    }
-    const cacheBicho = new Map();
-    function bichoCanvas(tipo, quadro) {
-        const chave = tipo + quadro;
-        if (cacheBicho.has(chave)) return cacheBicho.get(chave);
-        let cv;
-        if (BICHO_CORES[tipo]) {
-            const L = bichoPixels(tipo), cores = BICHO_CORES[tipo], H = L.length, W = L[0].length;
-            if (quadro) {   // andando: as pernas 1 e 3 sobem um pixel
-                const ini = PERNAS_DE[tipo], comp = [];
-                const visto = new Set();
-                for (let x = 0; x < W; x++) for (let y = ini; y < H; y++) {
-                    if (L[y][x] === '.' || visto.has(x + ',' + y)) continue;
-                    const grupo = [], pilha = [[x, y]];
-                    while (pilha.length) {
-                        const [a, b] = pilha.pop();
-                        if (a < 0 || a >= W || b < ini || b >= H || L[b][a] === '.' || visto.has(a + ',' + b)) continue;
-                        visto.add(a + ',' + b); grupo.push([a, b]);
-                        pilha.push([a + 1, b], [a - 1, b], [a, b + 1], [a, b - 1]);
-                    }
-                    if (grupo.length >= 6) comp.push(grupo);
-                }
-                comp.forEach((grupo, k) => {
-                    if (k % 2 === 0) return;
-                    const antes = grupo.map(([a, b]) => [a, b, L[b][a]]);
-                    for (const [a, b] of grupo) L[b][a] = '.';
-                    for (const [a, b, c] of antes) if (b - 1 >= ini) L[b - 1][a] = c;
-                });
-            }
-            cv = document.createElement('canvas'); cv.width = W; cv.height = H + 1;
-            const g = cv.getContext('2d');
-            g.fillStyle = 'rgba(30,40,20,0.22)'; g.fillRect(3, H - 1, W - 8, 2);   // a sombra no chão
-            L.forEach((linha, y) => linha.forEach((c, x) => { if (cores[c]) { g.fillStyle = cores[c]; g.fillRect(x, y, 1, 1); } }));
-        } else cv = bichoPequeno(tipo, quadro);
-        cacheBicho.set(chave, cv);
-        return cv;
-    }
-    // a galinha, o pato e o coelho (16 x 16; o pato precisa desse tamanho para nadar certo no laguinho)
-    function bichoPequeno(tipo, quadro) {
-        const TAM = { vaca: [30, 22], bufala: [30, 22], ovelha: [26, 20], porco: [26, 19], cabra: [26, 22], galinha: [16, 16], pato: [16, 16], coelho: [16, 16] };
-        const [W, H] = TAM[tipo] || [16, 16];
-        const cor = new Array(W * H).fill(null);
-        const OL = '#010101';
-        const put = (x, y, c) => { x = Math.round(x); y = Math.round(y); if (x >= 0 && y >= 0 && x < W && y < H) cor[y * W + x] = c; };
-        // uma parte: o contorno em volta (por cima do que já tem) e o recheio com a cor que tinta(x, y, u, v) der
-        const parte = (dentro, x0, y0, x1, y1, tinta) => {
-            const s = new Set();
-            for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) if (dentro(x, y)) s.add(x + ',' + y);
-            for (const k of s) { const [x, y] = k.split(',').map(Number); for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (!s.has((x + dx) + ',' + (y + dy))) put(x + dx, y + dy, OL); }
-            for (const k of s) { const [x, y] = k.split(',').map(Number); const c = tinta(x, y, (x - x0) / Math.max(1, x1 - x0), (y - y0) / Math.max(1, y1 - y0)); if (c) put(x, y, c); }
-        };
-        const elipse = (cx, cy, rx, ry) => (x, y) => ((x + 0.5 - cx) / rx) ** 2 + ((y + 0.5 - cy) / ry) ** 2 <= 1;
-        const caixa = (x0, y0, x1, y1, r) => (x, y) => {
-            if (x < x0 || x > x1 || y < y0 || y > y1) return false;
-            const cx = x < x0 + r ? x0 + r : x > x1 - r ? x1 - r : x, cy = y < y0 + r ? y0 + r : y > y1 - r ? y1 - r : y;
-            return (x - cx) ** 2 + (y - cy) ** 2 <= r * r + 0.5;
-        };
-        const sombreado = (luz, base, sombra) => (x, y, u, v) => (v < 0.18 ? luz : v > 0.72 ? sombra : base);
-        // as pernas: [x, de que altura, comprimento]; no quadro 1 as de trás e as da frente trocam de passo
-        const perna = (x, y0, alt, larg, c1, c2, casco) => parte(caixa(x, y0, x + larg - 1, y0 + alt, 0), x, y0, x + larg - 1, y0 + alt,
-            (px, py) => (py >= y0 + alt - 1 ? casco : py > y0 + alt * 0.55 ? c2 : c1));
-        const passo = (k) => (quadro ? (k % 2 ? 1 : -1) : 0);
-        if (tipo === 'galinha') {
-            perna(6, 11, 3, 1, '#f0a030', '#f0a030', '#d07a18'); perna(9, 11, 3, 1, '#f0a030', '#f0a030', '#d07a18');
-            if (quadro) { put(6, 14, '#d07a18'); put(10, 14, '#d07a18'); }
-            parte(elipse(2.5, 6, 2.2, 3), 0, 2, 5, 9, (x, y) => (y < 5 ? '#ffffff' : '#e4e8ee'));   // o rabo de penas
-            parte(elipse(7.5, 8.5, 5.5, 3.8), 2, 4, 13, 13, sombreado('#ffffff', '#f6f7fa', '#d8dde6'));
-            parte(elipse(7, 9, 3, 1.8), 4, 7, 10, 11, (x, y) => (y > 9 ? '#c8ced8' : '#e4e8ee'));   // a asa
-            parte(elipse(11.5, 4.5, 2.8, 2.8), 8, 1, 15, 8, sombreado('#ffffff', '#ffffff', '#e4e8ee'));
-            for (const [x, y] of [[10, 0], [11, 0], [12, 1], [10, 1], [11, 1]]) put(x, y, '#e8434a');   // a crista
-            put(14, 4, '#f6b03c'); put(15, 5, '#e08a20'); put(14, 5, '#f6b03c');   // o bico
-            put(13, 6, '#e8434a'); put(13, 7, '#c8303a');   // a barbela
-            put(12, 4, OL);
-        } else if (tipo === 'pato') {
-            perna(6, 11, 3, 1, '#f39a2a', '#f39a2a', '#d07a18'); perna(9, 11, 3, 1, '#f39a2a', '#f39a2a', '#d07a18');
-            if (quadro) { put(5, 14, '#d07a18'); put(10, 14, '#d07a18'); }
-            parte(elipse(7.5, 9, 6, 3.3), 1, 5, 14, 13, sombreado('#ffffff', '#f6f7fa', '#d8dde6'));
-            parte(elipse(6, 9, 3.2, 1.8), 3, 7, 10, 11, (x, y) => (y > 9 ? '#c8ced8' : '#e4e8ee'));
-            for (const [x, y] of [[1, 6], [0, 5], [1, 5]]) put(x, y, '#ffffff');
-            parte(elipse(11.5, 4, 2.6, 2.8), 8, 0, 15, 8, sombreado('#ffffff', '#ffffff', '#e4e8ee'));
-            parte(caixa(13, 4, 15, 5, 0), 13, 4, 15, 5, (x, y) => (y === 5 ? '#e08a20' : '#f6b03c'));   // o bico chato
-            put(12, 3, OL);
-        } else if (tipo === 'coelho') {
-            const C = ['#e9dccb', '#cdb9a0', '#a8927a'];
-            parte(elipse(2.5, 9, 1.8, 1.8), 0, 7, 5, 11, () => '#ffffff');   // o rabinho de algodão
-            parte(elipse(7, 10, 5, 3.6), 2, 6, 12, 14, sombreado(C[0], C[1], C[2]));
-            parte(elipse(5 + (quadro ? 1 : 0), 13.5, 2.4, 1.2), 2, 12, 9, 15, () => C[2]);   // a pata de trás
-            parte(elipse(11, 7, 3, 2.8), 8, 4, 14, 10, sombreado(C[0], C[1], C[2]));
-            parte(caixa(9, 0, 10, 4, 1), 9, 0, 10, 4, (x) => (x === 10 ? '#f4b8c0' : C[1]));   // as orelhas compridas
-            parte(caixa(12, 0, 13, 4, 1), 12, 0, 13, 4, (x) => (x === 13 ? '#f4b8c0' : C[1]));
-            put(12, 6, OL); put(14, 8, '#d9708a');
-            parte(caixa(10, 12, 11, 13, 0), 10, 12, 11, 13, () => C[1]);
-        }
-        const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
-        const g = cv.getContext('2d');
-        g.fillStyle = 'rgba(30,40,20,0.22)'; g.fillRect(3, H - 2, W - 6, 2);   // a sombra no chão
-        for (let i = 0; i < cor.length; i++) if (cor[i]) { g.fillStyle = cor[i]; g.fillRect(i % W, Math.floor(i / W), 1, 1); }
-        return cv;
-    }
 
     /* ---- fase 107: o passo dos bonecos (fazendeiro, ajudantes, visitantes e banhistas), feito a partir do
        desenho que já existe: as pernas são as 4 linhas de baixo. Quadro 1: a perna esquerda levanta 1 px e o
@@ -1453,6 +1292,10 @@
     const ARQUIVOS = { farm: 'tiny-farm.png', town: 'tiny-town.png', ski: 'tiny-ski.png', factory: 'tiny-factory.png', dungeon: 'tiny-dungeon.png' };
     const VERSAO_ARTE = '2';   // troque se as imagens dos pacotes mudarem (cache de 4 h do Cloudflare)
     function htmlTile(i, px = 32, pacote = 'farm') {
+        if (pacote === 'farm' && INDICE_DESENHO[i]) {   // os bichos do Jessé, inteiros dentro do quadrado
+            const cv = desenhoBicho(INDICE_DESENHO[i]), k = px / Math.max(cv.width, cv.height);
+            return `<span class="px-spr" style="width:${px}px;height:${px}px;display:inline-flex;align-items:flex-end;justify-content:center" aria-hidden="true"><img src="${cv.url}" alt="" style="width:${Math.round(cv.width * k)}px;height:${Math.round(cv.height * k)}px;image-rendering:pixelated"></span>`;
+        }
         if (i >= 1000) { i -= 1000; pacote = 'propria'; }
         const c = i % COLS, l = Math.floor(i / COLS);
         if (pacote === 'propria' && !urlPropria) urlPropria = atlasProprio.toDataURL();
@@ -1964,8 +1807,63 @@
         atlasDaEstacao = novo;
     }
 
+    /* ---- os bichos desenhados pelo Jessé: a búfala, o porco, a cabra e o coelho (cada letra é uma cor;
+       olham para a direita, e o jogo espelha quando andam para a esquerda). Os outros (vaca, ovelha, galinha e
+       pato) são os do começo. Eles entram no lugar do quadrado deles do atlas (tile e htmlTile): no mapa, com
+       o pé no chão do quadrado e o meio no meio dele; nos ícones, cabendo inteiros no quadrado. ---- */
+    const DESENHO_BICHO = {
+        bufala: { pal: { a: '#010101', b: '#151219', c: '#2d2836', d: '#464754', e: '#656471', f: '#898890', g: '#b4b1ac' }, linhas: [
+            '............aaa.....aaa.', '...........afga.....aga.', '..........afga.aaaaa.aga',
+            '..........afggaaceeebffa', '......aaaaaafggfceeeecfa', '.....adeeeeecccceeeeeeaa',
+            '....adeeeeeeceeeeeeeeeac', '...adeeeeeeeccceeaeeeea.', '..addeeeeeeeeeceeeeeeea.',
+            '..addeeeeeeeeeceeeedddda', '.adadeeeeeeeeedceeedadaa', '.adaddeeeeeeeeedccedddda',
+            'ccaaaddeeeeeeeeeddaaaaa.', 'cc..addddddddeeddaa.....', '....addaaaaaaeeaaca.....',
+            '....addacca.aeeacca.....', '....accaaa..accaca......', '....aaa.....aaa.aa......'] },
+        porco: { pal: { a: '#010101', b: '#8e4c52', c: '#ab5b61', d: '#dc6c7b', e: '#e5898a', f: '#f8a9a8' }, linhas: [
+            '.....................a..', '...........aaa......aea.', '...........aefaaaaaaeea.',
+            '........aaaaddfbffffbea.', '......aafffadddffffffba.', '.aa..aeffffbddfffffffa..',
+            'abeaaeffffffbffffffffa..', 'aeaaeffffffffffffafffaa.', 'abebeffffffffffffffedda.',
+            '.aaaefffffffffffffedddda', '...aefffffffffffffedbdba', '...aeefffffffeffffedddda',
+            '...aaeeeffffffeeeeccaaa.', '....aeeceeeecffcccaa....', '....aeeaaaaaaffaaaa.....',
+            '....aeeabba.affacca.....', '....aebaaa..afbaca......', '....aaa.....aaa.........'] },
+        cabra: { pal: { a: '#010101', b: '#4b393e', c: '#6c5756', d: '#7b615c', e: '#c9a28a', f: '#dccaab', g: '#f4ecd9' }, linhas: [
+            '...........aaa..aa.....', '..........aabda.aba....', '............abda.ada...',
+            '.............abaaaba...', '............aabfggfaa..', '.a.........aafggggggaa.',
+            'aga......aagggggggggbfa', 'aggaaaaaaaggebggagggbaa', 'afgfgggggfbbbfggagggga.',
+            '.afgggggggffffgggggggga', '..aggggggggggbfggggbeba', '..afgggggggggfbfggggbga',
+            '..affgggggggggfbbbfbba.', '..aaffgggggggggffaffa..', '...affffffffggffaaaga..',
+            '...affaaaaaaggaafa.a...', '...afaaea..aggaffa.....', '...adaaca..adaaca......',
+            '...aaa.....aaa.aa......'] },
+        coelho: { pal: { a: '#010101', b: '#7b1113', c: '#846a67', d: '#bfaa9b', e: '#c67474', f: '#cebdb0', g: '#f2ede9', h: '#f6a19e' }, linhas: [
+            '.........aa...aa....', '........agga.affa...', '........aghfaafga...',
+            '........aghgaafha...', '........aghgfafha...', '........afhhgcfha...',
+            '.........ahhgcfha...', '.........afegccca...', '......aaaacegdggfa..',
+            '.....adfffcfgggggfa.', '....afgggfcggggggga.', '...afgggggfgggggggfa',
+            '.aafgggggggggfagggfa', 'agcgggggggfggfbgggfa', 'agcgggfgggffggggghga',
+            'afcggggfgggdfggggca.', '.aaggggcggggddccca..', '..afgggcffggffdda...',
+            '...affccffcgcddca...', '....affgcaaggacda...', '....aaaaa..aa.aa....'] }
+    };
+    const INDICE_DESENHO = { 1147: 'bufala', 1000: 'porco', 1146: 'cabra', 1002: 'coelho' };
+    const cacheDesenho = new Map();
+    function desenhoBicho(tipo) {
+        if (cacheDesenho.has(tipo)) return cacheDesenho.get(tipo);
+        const d = DESENHO_BICHO[tipo], cv = document.createElement('canvas');
+        cv.width = d.linhas[0].length; cv.height = d.linhas.length;
+        const g = cv.getContext('2d');
+        d.linhas.forEach((l, y) => [...l].forEach((ch, x) => { if (d.pal[ch]) { g.fillStyle = d.pal[ch]; g.fillRect(x, y, 1, 1); } }));
+        cv.url = cv.toDataURL();
+        cacheDesenho.set(tipo, cv);
+        return cv;
+    }
+
     function tile(ctx, i, x, y, flip, pacote = 'farm') {
         if (i == null) return;   // casa vazia de uma grade (porteira e meio dos cercados)
+        if (pacote === 'farm' && INDICE_DESENHO[i]) {   // os bichos do Jessé: o pé no chão do quadrado
+            const cv = desenhoBicho(INDICE_DESENHO[i]), bx = Math.round(x + T / 2 - cv.width / 2), by = y + T - cv.height;
+            if (flip) { ctx.save(); ctx.translate(bx + cv.width, by); ctx.scale(-1, 1); ctx.drawImage(cv, 0, 0); ctx.restore(); }
+            else ctx.drawImage(cv, bx, by);
+            return;
+        }
         if (i >= 1000) { i -= 1000; pacote = 'propria'; }
         const img = pacote === 'propria' ? atlasProprio : (atlasDaEstacao && atlasDaEstacao[pacote]) || atlas[pacote];
         const sx = (i % COLS) * T, sy = Math.floor(i / COLS) * T;
@@ -4374,11 +4272,6 @@
                 // fase 76: o pato nadando fica com metade do corpo dentro da água (fase 79: e todo mundo que entra nela)
                 const nadando = naAgua(a.x, a.y);
                 const vistaA = andando ? (a.vista = vistaDoPasso(a.tx - a.x, a.ty - a.y, a.vista)) : 'frente';   // fase 108
-                if (!a.visual && a.v && BICHOS_NOVOS.has(a.tipo)) {   // fase 107: os bichos desenhados, andando
-                    const anda = Math.hypot(a.tx - a.x, a.ty - a.y) > 0.5;
-                    const cv = bichoCanvas(a.tipo, anda ? Math.floor((tempo + a.x * 7) / 170) % 2 : 0);
-                    pe.push({ img: cv, x: a.x + 8 - cv.width / 2, y: a.y + 16 - cv.height, ordem: a.y, flip: a.flip, bob: nadando ? 0 : bob, nadando });
-                } else
                 pe.push(a.visual ? { img: passoCanvas(ajudanteCanvas(a.tipo), nadando ? 0 : quadroPasso(andando, tempo, a.x * 13), vistaA), x: a.x, y: a.y, flip: vistaA === 'lado' ? a.flip : false, bob: andando || nadando ? 0 : bob, nadando }
                     : { p: a.p || 'farm', i: a.i, x: a.x, y: a.y, flip: a.flip, bob: nadando ? 0 : bob, nadando });
                 // ferramenta na mão do ajudante (do lado para onde ele olha; na água, a parte de baixo some junto)
@@ -5802,7 +5695,6 @@
         montarCasas,
         visitanteCanvas,   // fase 108 (para a prévia e os testes)
         passoCanvas,   // fase 107 (para a prévia e os testes)
-        bichoCanvas,   // fase 107 (para a prévia e os testes)   // fase 105 (para a prévia e os testes)
         mataNova,   // fase 103: as árvores novas (para a prévia)
         terraNova,   // fase 104: a terra nova (para a prévia)
         faseDoDia,
