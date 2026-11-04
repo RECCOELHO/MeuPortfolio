@@ -252,6 +252,7 @@
         lugar_reservado: 'Esse lugar é reservado (celeiro, casa, pasto, galinheiro) ou fica na mata fora do seu terreno.',
         lugar_ocupado: 'Já tem algo nesse lugar.',
         so_na_areia: 'Isso é da praia: só vai na areia do Litoral.',
+        so_na_ilha: 'Isso é da ilha: só planta e constrói na Ilha da Caveira Dourada (botão Ilha).',   // fase 108
         limite_construcoes: 'Sua fazenda chegou ao limite de construções. Cada terreno comprado dá espaço para mais 150; ou guarde algumas que não usa.',
         missao_invalida: 'Missão não encontrada.',
         ja_resgatada: 'Você já pegou essa recompensa.',
@@ -1530,6 +1531,10 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-11-04-ilha-pirata', data: '04/11', titulo: 'O que só tem na ilha', itens: [
+            'Na <b>Ilha da Caveira Dourada</b>, sementes que só crescem lá: <b>abacaxi</b> (nível 46), <b>cana-roxa</b> (50) e <b>especiarias</b> (54).',
+            'A <b>bananeira</b> (48) no pomar da ilha, e quatro <b>oficinas piratas</b>, só lá: o <b>engenho pirata</b> (rapadura, 49), a <b>casa das especiarias</b> (tempero das Índias, 51), o <b>forno de bordo</b> (biscoito de bordo, 53) e a <b>despensa do navio</b> (ração de marinheiro, 55, que vale quase 17 mil).',
+            'Elas não travam o nível: dá para subir sem ter. Na fazenda, o jogo avisa que é da ilha.'] },
         { id: '2026-11-04-bichos-chico', data: '04/11', titulo: 'Bichos, o Velho Chico mais valioso e a beleza até 70%', itens: [
             'Os <b>bichos</b>: a vaca, a ovelha, a galinha e o pato voltaram a ser os do começo do jogo, e a <b>búfala</b>, o <b>porco</b>, a <b>cabra</b> e o <b>coelho</b> ganharam desenho novo (no mapa e nos ícones).',
             'O <b>Peixe do Velho Chico</b> vale mais a cada nível: 2.500 até o nível 10 e <b>+6,2% a cada nível</b>, até <b>50 mil no nível 60</b>.',
@@ -3929,6 +3934,7 @@
                 return toast(tam.w > 1 ? `Não cabe aqui: ${esc(it.nome.toLowerCase())} precisa de ${tam.w}×${tam.h} quadrados livres.` : ERROS.lugar_ocupado, 'erro');
             }
             if (it.nivel_min > S.jogador.nivel) return toast(`${esc(it.nome)} libera no nível ${it.nivel_min}.`);
+            if (it.so_ilha && y < A.Y_ILHA) return toast(ERROS.so_na_ilha, 'erro');   // fase 108
             const doDep = noDeposito(it.id) > 0;   // fase 95: sai do depósito, de graça
             const custo = doDep ? 0 : custoItem(it);
             if (S.jogador.moedas < custo) return toast(ERROS.moedas_insuficientes, 'erro');
@@ -4736,6 +4742,7 @@
                 toast(`${esc(k.nome)} está fora de época: só cresce perto da estufa elétrica.`, 'erro');
                 return;
             }
+            if (k.so_ilha && canteiro(p).y < A.Y_ILHA) { toast(`${esc(k.nome)} ${ERROS.so_na_ilha.replace('Isso é da ilha: ', '')}`, 'erro'); return; }   // fase 108
             if (S.jogador.moedas < k.custo) {
                 toast(`Faltam moedas para ${esc(k.nome.toLowerCase())}. Venda a colheita no celeiro.`, 'erro');
                 return;
@@ -4991,6 +4998,10 @@
             if (!daEstacao(k)) {   // fora de época: só os canteiros da estufa
                 ps = ps.filter((p) => naEstufa(canteiro(p)));
                 if (!ps.length) return toast(`${esc(k.nome)} está fora de época: nenhum canteiro arado perto da estufa elétrica.`);
+            }
+            if (k.so_ilha) {   // fase 108: a semente da ilha só nos canteiros da ilha
+                ps = ps.filter((p) => canteiro(p).y >= A.Y_ILHA);
+                if (!ps.length) return toast(`${esc(k.nome)} só cresce na ilha: nenhum canteiro arado lá.`);
             }
             if (S.jogador.moedas < k.custo) return toast(`Faltam moedas para ${esc(k.nome.toLowerCase())}.`, 'erro');
             executar('plantar', ps, k);
@@ -5804,7 +5815,7 @@
             return `<button type="button" class="item${k.id === semente ? ' selecionada' : ''}${travada ? ' travada' : ''}" data-semente="${esc(k.id)}" ${travada ? 'aria-disabled="true"' : ''}>
                 <span class="ico${k.nivel_min <= S.jogador.nivel && travada ? ' fora' : ''}">${k.nivel_min > S.jogador.nivel ? ico('cadeado', 28) : spr(A.cultura(k.id).item, 44)}</span>
                 <span>
-                    <span class="nome">${esc(k.nome)}${novos.selo('c:' + k.id, k.nivel_min <= S.jogador.nivel)}${k.estacao ? ` <small class="tag-estacao${daEstacao(k) ? ' agora' : temEstufa() ? ' estufa' : ''}">${daEstacao(k) ? 'da estação!' : temEstufa() ? 'só na estufa' : 'só ' + naEstacao(k.estacao) + (faltaParaEstacao(k.estacao) ? ' · em ' + fmtTempo(faltaParaEstacao(k.estacao)) : '')}</small>` : ''}</span>
+                    <span class="nome">${esc(k.nome)}${novos.selo('c:' + k.id, k.nivel_min <= S.jogador.nivel)}${k.so_ilha ? ' <small class="tag-estacao agora">só na ilha</small>' : ''}${k.estacao ? ` <small class="tag-estacao${daEstacao(k) ? ' agora' : temEstufa() ? ' estufa' : ''}">${daEstacao(k) ? 'da estação!' : temEstufa() ? 'só na estufa' : 'só ' + naEstacao(k.estacao) + (faltaParaEstacao(k.estacao) ? ' · em ' + fmtTempo(faltaParaEstacao(k.estacao)) : '')}</small>` : ''}</span>
                     <span class="det">
                         <span>cresce em ${fmtDuracao(k.tempo_seg)}</span>
                         <span>+${k.xp} ${ico('xp', 13)} por colheita</span>
