@@ -1292,6 +1292,10 @@
     const ARQUIVOS = { farm: 'tiny-farm.png', town: 'tiny-town.png', ski: 'tiny-ski.png', factory: 'tiny-factory.png', dungeon: 'tiny-dungeon.png' };
     const VERSAO_ARTE = '2';   // troque se as imagens dos pacotes mudarem (cache de 4 h do Cloudflare)
     function htmlTile(i, px = 32, pacote = 'farm') {
+        if (pacote === 'farm' && INDICE_DESENHO[i]) {   // os bichos do Jessé, inteiros dentro do quadrado
+            const cv = desenhoBicho(INDICE_DESENHO[i]), k = px / Math.max(cv.width, cv.height);
+            return `<span class="px-spr" style="width:${px}px;height:${px}px;display:inline-flex;align-items:flex-end;justify-content:center" aria-hidden="true"><img src="${cv.url}" alt="" style="width:${Math.round(cv.width * k)}px;height:${Math.round(cv.height * k)}px;image-rendering:pixelated"></span>`;
+        }
         if (i >= 1000) { i -= 1000; pacote = 'propria'; }
         const c = i % COLS, l = Math.floor(i / COLS);
         if (pacote === 'propria' && !urlPropria) urlPropria = atlasProprio.toDataURL();
@@ -1803,8 +1807,63 @@
         atlasDaEstacao = novo;
     }
 
+    /* ---- os bichos desenhados pelo Jessé: a búfala, o porco, a cabra e o coelho (cada letra é uma cor;
+       olham para a direita, e o jogo espelha quando andam para a esquerda). Os outros (vaca, ovelha, galinha e
+       pato) são os do começo. Eles entram no lugar do quadrado deles do atlas (tile e htmlTile): no mapa, com
+       o pé no chão do quadrado e o meio no meio dele; nos ícones, cabendo inteiros no quadrado. ---- */
+    const DESENHO_BICHO = {
+        bufala: { pal: { a: '#010101', b: '#151219', c: '#2d2836', d: '#464754', e: '#656471', f: '#898890', g: '#b4b1ac' }, linhas: [
+            '............aaa.....aaa.', '...........afga.....aga.', '..........afga.aaaaa.aga',
+            '..........afggaaceeebffa', '......aaaaaafggfceeeecfa', '.....adeeeeecccceeeeeeaa',
+            '....adeeeeeeceeeeeeeeeac', '...adeeeeeeeccceeaeeeea.', '..addeeeeeeeeeceeeeeeea.',
+            '..addeeeeeeeeeceeeedddda', '.adadeeeeeeeeedceeedadaa', '.adaddeeeeeeeeedccedddda',
+            'ccaaaddeeeeeeeeeddaaaaa.', 'cc..addddddddeeddaa.....', '....addaaaaaaeeaaca.....',
+            '....addacca.aeeacca.....', '....accaaa..accaca......', '....aaa.....aaa.aa......'] },
+        porco: { pal: { a: '#010101', b: '#8e4c52', c: '#ab5b61', d: '#dc6c7b', e: '#e5898a', f: '#f8a9a8' }, linhas: [
+            '.....................a..', '...........aaa......aea.', '...........aefaaaaaaeea.',
+            '........aaaaddfbffffbea.', '......aafffadddffffffba.', '.aa..aeffffbddfffffffa..',
+            'abeaaeffffffbffffffffa..', 'aeaaeffffffffffffafffaa.', 'abebeffffffffffffffedda.',
+            '.aaaefffffffffffffedddda', '...aefffffffffffffedbdba', '...aeefffffffeffffedddda',
+            '...aaeeeffffffeeeeccaaa.', '....aeeceeeecffcccaa....', '....aeeaaaaaaffaaaa.....',
+            '....aeeabba.affacca.....', '....aebaaa..afbaca......', '....aaa.....aaa.........'] },
+        cabra: { pal: { a: '#010101', b: '#4b393e', c: '#6c5756', d: '#7b615c', e: '#c9a28a', f: '#dccaab', g: '#f4ecd9' }, linhas: [
+            '...........aaa..aa.....', '..........aabda.aba....', '............abda.ada...',
+            '.............abaaaba...', '............aabfggfaa..', '.a.........aafggggggaa.',
+            'aga......aagggggggggbfa', 'aggaaaaaaaggebggagggbaa', 'afgfgggggfbbbfggagggga.',
+            '.afgggggggffffgggggggga', '..aggggggggggbfggggbeba', '..afgggggggggfbfggggbga',
+            '..affgggggggggfbbbfbba.', '..aaffgggggggggffaffa..', '...affffffffggffaaaga..',
+            '...affaaaaaaggaafa.a...', '...afaaea..aggaffa.....', '...adaaca..adaaca......',
+            '...aaa.....aaa.aa......'] },
+        coelho: { pal: { a: '#010101', b: '#7b1113', c: '#846a67', d: '#bfaa9b', e: '#c67474', f: '#cebdb0', g: '#f2ede9', h: '#f6a19e' }, linhas: [
+            '.........aa...aa....', '........agga.affa...', '........aghfaafga...',
+            '........aghgaafha...', '........aghgfafha...', '........afhhgcfha...',
+            '.........ahhgcfha...', '.........afegccca...', '......aaaacegdggfa..',
+            '.....adfffcfgggggfa.', '....afgggfcggggggga.', '...afgggggfgggggggfa',
+            '.aafgggggggggfagggfa', 'agcgggggggfggfbgggfa', 'agcgggfgggffggggghga',
+            'afcggggfgggdfggggca.', '.aaggggcggggddccca..', '..afgggcffggffdda...',
+            '...affccffcgcddca...', '....affgcaaggacda...', '....aaaaa..aa.aa....'] }
+    };
+    const INDICE_DESENHO = { 1147: 'bufala', 1000: 'porco', 1146: 'cabra', 1002: 'coelho' };
+    const cacheDesenho = new Map();
+    function desenhoBicho(tipo) {
+        if (cacheDesenho.has(tipo)) return cacheDesenho.get(tipo);
+        const d = DESENHO_BICHO[tipo], cv = document.createElement('canvas');
+        cv.width = d.linhas[0].length; cv.height = d.linhas.length;
+        const g = cv.getContext('2d');
+        d.linhas.forEach((l, y) => [...l].forEach((ch, x) => { if (d.pal[ch]) { g.fillStyle = d.pal[ch]; g.fillRect(x, y, 1, 1); } }));
+        cv.url = cv.toDataURL();
+        cacheDesenho.set(tipo, cv);
+        return cv;
+    }
+
     function tile(ctx, i, x, y, flip, pacote = 'farm') {
         if (i == null) return;   // casa vazia de uma grade (porteira e meio dos cercados)
+        if (pacote === 'farm' && INDICE_DESENHO[i]) {   // os bichos do Jessé: o pé no chão do quadrado
+            const cv = desenhoBicho(INDICE_DESENHO[i]), bx = Math.round(x + T / 2 - cv.width / 2), by = y + T - cv.height;
+            if (flip) { ctx.save(); ctx.translate(bx + cv.width, by); ctx.scale(-1, 1); ctx.drawImage(cv, 0, 0); ctx.restore(); }
+            else ctx.drawImage(cv, bx, by);
+            return;
+        }
         if (i >= 1000) { i -= 1000; pacote = 'propria'; }
         const img = pacote === 'propria' ? atlasProprio : (atlasDaEstacao && atlasDaEstacao[pacote]) || atlas[pacote];
         const sx = (i % COLS) * T, sy = Math.floor(i / COLS) * T;
