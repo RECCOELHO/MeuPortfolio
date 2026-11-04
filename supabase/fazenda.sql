@@ -184,6 +184,10 @@ create table if not exists public.fazenda_construcoes (
   primary key (jogador_id, x, y)
 );
 
+-- fase 108: o que só planta (semente) ou só constrói (item) na Ilha da Caveira Dourada
+alter table public.fazenda_culturas add column if not exists so_ilha boolean not null default false;
+alter table public.fazenda_itens add column if not exists so_ilha boolean not null default false;
+
 -- Fase 4: construções grandes (casas 3x3). (x, y) é o canto de cima à esquerda.
 alter table public.fazenda_itens add column if not exists largura smallint not null default 1;
 alter table public.fazenda_itens add column if not exists altura smallint not null default 1;
@@ -1924,6 +1928,7 @@ begin
     if not found or k.tipo <> 'cultura' then
       raise exception 'cultura_invalida';
     end if;
+    if k.so_ilha and c.y < 45 then raise exception 'so_na_ilha'; end if;   -- fase 108
     -- semente de outra estação só cresce no alcance de uma estufa elétrica
     v_fora := k.estacao is not null and k.estacao <> fazenda_estacao_em(now());
     v_estufa := fazenda_protegido(p_jogador, 'estufa', c.x, c.y);
@@ -3835,6 +3840,7 @@ begin
     select * into k from fazenda_culturas where id = split_part(p_acao, ':', 2) and tipo = 'cultura';
     if not found then raise exception 'cultura_invalida'; end if;
     if k.estacao is not null and k.estacao <> fazenda_estacao_em(now()) then raise exception 'fora_de_estacao'; end if;
+    if k.so_ilha and c.y < 45 then raise exception 'so_na_ilha'; end if;   -- fase 108
     if (select fazenda_nivel_de(xp, nivel_trava) from fazenda_jogadores where id = p_ator) < k.nivel_min then raise exception 'nivel_insuficiente'; end if;
     perform fazenda_lote_gastar(p_ator, k.custo);   -- (fase 87: no Ajudar tudo, sai no fim, numa gravação só)
     update fazenda_canteiros
@@ -4742,6 +4748,7 @@ begin
   perform fazenda_checar_lugar(v_id, fazenda_terrenos(j.zonas, j.direita) + 100 * j.ilha_terrenos, p_x, p_y, i.largura, i.altura);
   -- fase 73: o que é da praia só vai na areia do Litoral (y 32 a 36)
   if i.categoria = 'praia' and not (p_y >= 32 and p_y + i.altura - 1 <= 36) then raise exception 'so_na_areia'; end if;
+  if i.so_ilha and p_y < 45 then raise exception 'so_na_ilha'; end if;   -- fase 108
   if i.limite is not null   -- fase 57: painel solar e turbina sobem com o nível
      and (select count(*) from fazenda_construcoes where jogador_id = v_id and tipo = i.id)
          >= fazenda_limite_maquina(i.id, i.limite, fazenda_nivel_de(j.xp, j.nivel_trava)) then
@@ -4807,6 +4814,7 @@ begin
   if not found then raise exception 'item_invalido'; end if;
   perform fazenda_checar_lugar(v_id, fazenda_terrenos(j.zonas, j.direita) + 100 * j.ilha_terrenos, p_nx, p_ny, i.largura, i.altura, p_x, p_y);
   if i.categoria = 'praia' and not (p_ny >= 32 and p_ny + i.altura - 1 <= 36) then raise exception 'so_na_areia'; end if;   -- fase 73
+  if i.so_ilha and p_ny < 45 then raise exception 'so_na_ilha'; end if;   -- fase 108
   update fazenda_construcoes set x = p_nx, y = p_ny
    where jogador_id = v_id and x = p_x and y = p_y;
   if not found then raise exception 'item_invalido'; end if;
@@ -8308,7 +8316,7 @@ returns jsonb language sql stable security definer set search_path = public as $
       select jsonb_agg(jsonb_build_object(
                'id', id, 'nome', nome, 'emoji', emoji, 'tempo_seg', tempo_seg,
                'custo', custo, 'venda', venda, 'rendimento', rendimento,
-               'xp', xp, 'nivel_min', nivel_min, 'tipo', tipo, 'estacao', estacao)
+               'xp', xp, 'nivel_min', nivel_min, 'tipo', tipo, 'estacao', estacao, 'so_ilha', so_ilha)   -- (fase 108)
              order by ordem)
         from fazenda_culturas)
     when 'animais_tipos' then (select jsonb_agg(to_jsonb(t) order by t.ordem) from fazenda_animais_tipos t)
@@ -9391,7 +9399,8 @@ alter table public.fazenda_jogadores add column if not exists nivel_trava int no
 alter table public.fazenda_jogadores add column if not exists nivel_base int;   -- fase 90: o nível no dia da regra (não baixa)
 create or replace function public.fazenda_conta_nivel(p_categoria text, p_id text)
 returns boolean language sql immutable as $$
-  select p_categoria in ('oficina', 'bichos', 'maquina', 'energia', 'pomar') and p_id <> 'cano';
+  select p_categoria in ('oficina', 'bichos', 'maquina', 'energia', 'pomar') and p_id <> 'cano'
+     and p_id not in ('bananeira', 'engenho_pirata', 'casa_especiarias', 'forno_bordo', 'despensa_navio');   -- fase 108: as da ilha não travam
 $$;
 
 -- o menor nível que tem algo que conta e que o jogador não tem na fazenda (45: não falta nada)
@@ -10303,6 +10312,7 @@ begin
   perform fazenda_checar_lugar(v_id, fazenda_terrenos(j.zonas, j.direita) + 100 * j.ilha_terrenos, p_x, p_y, i.largura, i.altura);
   -- fase 73: o que é da praia só vai na areia do Litoral (y 32 a 36)
   if i.categoria = 'praia' and not (p_y >= 32 and p_y + i.altura - 1 <= 36) then raise exception 'so_na_areia'; end if;
+  if i.so_ilha and p_y < 45 then raise exception 'so_na_ilha'; end if;   -- fase 108
   if i.limite is not null   -- fase 57: painel solar e turbina sobem com o nível
      and (select count(*) from fazenda_construcoes where jogador_id = v_id and tipo = i.id)
          >= fazenda_limite_maquina(i.id, i.limite, fazenda_nivel_de(j.xp, j.nivel_trava)) then
@@ -11073,3 +11083,56 @@ $$;
 
 select public.fazenda_cache_montar();
 revoke execute on function public.fazenda_preco_chico(int) from public, anon, authenticated;
+
+-- ------------------------------------------------------------
+-- Fase 108: o que só tem na Ilha da Caveira Dourada (tema pirata). Planta e constrói só na ilha (y 45 em
+-- diante: fazenda_aplicar, fazenda_roca_um, fazenda_construir e fazenda_mover dão 'so_na_ilha' fora dela)
+-- e não trava o nível (fazenda_conta_nivel).
+-- • Sementes: abacaxi (46), cana-roxa (50) e especiarias (54).
+-- • Pomar: a bananeira (48), que dá bananas.
+-- • Oficinas: o engenho pirata (rapadura, 49), a casa das especiarias (tempero das Índias, 51), o forno de
+--   bordo (biscoito de bordo, 53) e a despensa do navio (ração de marinheiro, 55). O produto vale 3,2x os
+--   ingredientes, como as outras oficinas (fase 80).
+-- Pode rodar este arquivo de novo.
+-- ------------------------------------------------------------
+alter table public.fazenda_culturas add column if not exists so_ilha boolean not null default false;
+alter table public.fazenda_itens add column if not exists so_ilha boolean not null default false;
+
+insert into public.fazenda_culturas (id, nome, emoji, tempo_seg, custo, venda, rendimento, xp, nivel_min, ordem, tipo, so_ilha) values
+  ('abacaxi',     'Abacaxi',      '🍍', 36000, 450,  95,  9, 130, 46, 23, 'cultura', true),
+  ('cana_roxa',   'Cana-roxa',    '🎋', 43200, 520, 110, 10, 150, 50, 24, 'cultura', true),
+  ('especiarias', 'Especiarias',  '🌶', 50400, 620, 135,  9, 175, 54, 25, 'cultura', true),
+  ('banana',      'Banana',       '🍌', 1, 0, 280, 1,  32, 48, 112, 'produto', false),
+  ('rapadura',    'Rapadura pirata', '🟫', 1, 0, 1060, 1, 105, 49, 113, 'produto', false),
+  ('tempero_indias', 'Tempero das Índias', '🫙', 1, 0, 980, 1, 98, 51, 114, 'produto', false),
+  ('biscoito_bordo', 'Biscoito de bordo', '🍪', 1, 0, 3645, 1, 300, 53, 115, 'produto', false),
+  ('racao_marinheiro', 'Ração de marinheiro', '📦', 1, 0, 16900, 1, 1200, 55, 116, 'produto', false)
+on conflict (id) do update set
+  nome = excluded.nome, emoji = excluded.emoji, tempo_seg = excluded.tempo_seg, custo = excluded.custo, venda = excluded.venda,
+  rendimento = excluded.rendimento, xp = excluded.xp, nivel_min = excluded.nivel_min, ordem = excluded.ordem,
+  tipo = excluded.tipo, so_ilha = excluded.so_ilha;
+
+insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem, beleza, produz, produz_seg, produz_qtd, por_terreno, grupo, descricao, so_ilha) values
+  ('bananeira', 'Bananeira', 'pomar', 60000, 48, 122, 3, 'banana', 46800, 7, 1, null,
+   'Dá 7 bananas a cada 13 horas: toque nela para colher. Só na ilha. Pomar: 1 pé de cada fruta, +1 a cada 2 terrenos (até 4).', true)
+on conflict (id) do update set
+  nome = excluded.nome, categoria = excluded.categoria, custo = excluded.custo, nivel_min = excluded.nivel_min, ordem = excluded.ordem,
+  beleza = excluded.beleza, produz = excluded.produz, produz_seg = excluded.produz_seg, produz_qtd = excluded.produz_qtd,
+  por_terreno = excluded.por_terreno, grupo = excluded.grupo, descricao = excluded.descricao, so_ilha = excluded.so_ilha;
+insert into public.fazenda_itens (id, nome, categoria, custo, nivel_min, ordem, largura, altura,
+                                  produz, produz_seg, produz_qtd, entradas, limite, beleza, descricao, so_ilha) values
+  ('engenho_pirata',   'Engenho pirata',      'oficina', 300000, 49, 99, 2, 3, 'rapadura',         7200, 1, '{"cana_roxa": 3}', 2, 5,
+   '3 canas-roxas → rapadura pirata. Só na ilha.', true),
+  ('casa_especiarias', 'Casa das especiarias', 'oficina', 350000, 51, 99, 2, 3, 'tempero_indias',  7200, 1, '{"especiarias": 2, "pimenta": 1}', 2, 5,
+   '2 especiarias + 1 pimenta → tempero das Índias. Só na ilha.', true),
+  ('forno_bordo',      'Forno de bordo',      'oficina', 400000, 53, 99, 2, 3, 'biscoito_bordo',   10800, 1, '{"abobora": 3, "rapadura": 1}', 2, 5,
+   '3 trigos + 1 rapadura → biscoito de bordo (o pão duro que aguenta a viagem). Só na ilha.', true),
+  ('despensa_navio',   'Despensa do navio',   'oficina', 450000, 55, 99, 2, 3, 'racao_marinheiro', 14400, 1, '{"biscoito_bordo": 1, "tempero_indias": 1, "banana": 2, "abacaxi": 1}', 2, 5,
+   '1 biscoito de bordo + 1 tempero das Índias + 2 bananas + 1 abacaxi → ração de marinheiro. Só na ilha.', true)
+on conflict (id) do update set
+  nome = excluded.nome, categoria = excluded.categoria, custo = excluded.custo, nivel_min = excluded.nivel_min,
+  ordem = excluded.ordem, largura = excluded.largura, altura = excluded.altura, produz = excluded.produz,
+  produz_seg = excluded.produz_seg, produz_qtd = excluded.produz_qtd, entradas = excluded.entradas,
+  limite = excluded.limite, beleza = excluded.beleza, descricao = excluded.descricao, so_ilha = excluded.so_ilha;
+
+select public.fazenda_cache_montar();

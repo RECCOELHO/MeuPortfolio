@@ -223,6 +223,11 @@
         mexerica: { fases: [52, 53, 1136], murcho: 55, item: 1132, semente: 1132 },
         caqui:    { fases: [52, 53, 1137], murcho: 55, item: 1133, semente: 1133 },
         lichia:   { fases: [52, 53, 1138], murcho: 55, item: 1134, semente: 1134 },
+        // fase 108: as sementes e os produtos da ilha
+        abacaxi:     { fases: [52, 53, 1161], murcho: 55, item: 1160, semente: 1160 },
+        cana_roxa:   { fases: [52, 53, 1163], murcho: 55, item: 1162, semente: 1162 },
+        especiarias: { fases: [52, 53, 1165], murcho: 55, item: 1164, semente: 1164 },
+        banana: { item: 1166 }, rapadura: { item: 1167 }, tempero_indias: { item: 1168 }, biscoito_bordo: { item: 1169 }, racao_marinheiro: { item: 1170 },
         // sementes da estação (broto e meio do pacote; madura e fruta próprias)
         moranguinho: { fases: [52, 53, 1013], murcho: 55, item: 1014, semente: 1014 },
         melancia: { fases: [52, 53, 1015], murcho: 55, item: 1016, semente: 1016 },
@@ -710,6 +715,51 @@
         // 159 carta náutica
         ['................', '................', '..aaaaaaaaaaaa..', '.awxxxxxxxxxxwa.', '.awxBBxxxxxxxwa.', '.awBBBBxxxtxxwa.',
          '.awxBBxxxtxxxwa.', '.awxxxxxtxxxxwa.', '.awxxxxtxxxXxwa.', '.awxxxtxxxXxXwa.', '.awxxxxxxxxXxwa.', '.awxxxxxxxXxXwa.',
+         '..aaaaaaaaaaaa..', '................', '................', '................'],
+        // fase 108: o que só tem na ilha (as frutas, os pés e os produtos das oficinas piratas)
+        // 160 abacaxi
+        ['......v..v......', '.....vLvvLv.....', '......vLLv......', '.....aavvaa.....', '....agHgHgHa....', '...agGgHgGgHa...',
+         '...aHgGgHgGga...', '...agHgGgHgGa...', '...aGgHgGgHga...', '...agGgHgGgHa...', '...aHgGgHgGga...', '....agHgGgHa....',
+         '.....aaaaaa.....', '................', '................', '................'],
+        // 161 pé de abacaxi
+        ['................', '.......vv.......', '......vLLv......', '......agga......', '.....agHga......', '.....aHgGa......',
+         '.....agHga......', '..L..aaaaa..L...', '..LL...LL..LL...', '...LL.LDDL.L....', '.L..LLDLLDLL..L.', '..LLDLLDDLLDLL..',
+         '...LDDLDDLDDL...', '....LLDDDDLL....', '................', '................'],
+        // 162 cana-roxa
+        ['....h...h...h...', '...aaa.aaa.aaa..', '...aUa.aUa.aUa..', '...aVa.aVa.aVa..', '...aUa.aUa.aUa..', '...aaa.aaa.aaa..',
+         '...aUa.aUa.aUa..', '...aVa.aVa.aVa..', '..yyyyyyyyyyyyy.', '...aVa.aVa.aVa..', '...aaa.aaa.aaa..', '...aUa.aUa.aUa..',
+         '...aVa.aVa.aVa..', '...aaa.aaa.aaa..', '................', '................'],
+        // 163 pé de cana-roxa
+        ['.h..h...h..h..h.', '..hL.h.hL.h.hL..', '...aaa.aaa.aaa..', '...aUa.aUa.aUa..', '...aVa.aVa.aVa..', '..LaUa.aUaLaUa..',
+         '.L.aaa.aaa.aaaL.', '...aUa.aUa.aUa..', '...aVa.aVa.aVa..', '...aUa.aUa.aUa..', '...aaa.aaa.aaa..', '...aUa.aUa.aUa..',
+         '...aVa.aVa.aVa..', '...aaa.aaa.aaa..', '................', '................'],
+        // 164 especiarias
+        ['................', '......n..n......', '.....nyn.nyn....', '.....nyn.nyn....', '....aaaaaaaa....', '...aNNNNNNNNa...',
+         '...aiNiNNiNia...', '..akkkkkkkkkka..', '..akwkkkwkkkka..', '..akkkkwkkkwka..', '..akkwkkkkkkka..', '..akkkkkwkkkka..',
+         '...akkkkkkkka...', '....aaaaaaaa....', '................', '................'],
+        // 165 pé de especiarias
+        ['................', '.....LLLLLL.....', '...LLDDDDDDLL...', '..LDDrDDDDrDDL..', '..LDDDDDrDDDDL..', '.LDDrDDDDDDrDDL.',
+         '.LDDDDDrDDDDDDL.', '.LDrDDDDDDrDDDL.', '..LDDDDrDDDDDL..', '..LLDDDDDDDDLL..', '....LLLLLLLL....', '.......nn.......',
+         '.......nn.......', '......aaaa......', '................', '................'],
+        // 166 banana
+        ['................', '............av..', '...........ava..', '..aa......aGa...', '.aGGa....aGGa...', '.aGGGa..aGGga...',
+         '..aGGGaaGGgga...', '..aGGGGGGgga....', '...aGGGGgga.....', '....aaGgga......', '......aaa.......', '................',
+         '................', '................', '................', '................'],
+        // 167 rapadura pirata
+        ['................', '................', '................', '................', '..aaaaaaaaaaaa..', '..ayyyyyyyyyya..',
+         '..aynnnnnnnnya..', '..aynnnnnnnnya..', '..aaaaaaaaaaaa..', '.ayyyyyyyyyyyya.', '.aynnnnnnnnnnya.', '.aynnnnnnnnnnya.',
+         '.aaaaaaaaaaaaaa.', '................', '................', '................'],
+        // 168 tempero das Índias
+        ['................', '......aaaa......', '......anna......', '.....aaaaaa.....', '....adffffda....', '...adXXXXXXda...',
+         '...aXiXXiXXXa...', '...aXXXiXXiXa...', '...aiXXXXiXXa...', '...aXXiXXXXia...', '...aXXXXiXXXa...', '...afXXXXXXfa...',
+         '....aaaaaaaa....', '................', '................', '................'],
+        // 169 biscoito de bordo
+        ['................', '................', '................', '..aaaaaa........', '.axxxxxxa.......', '.axnxxnxa.......',
+         '.axxxxxxaaaaaa..', '.axnxxnaxxxxxxa.', '.axxxxxaxnxxnxa.', '..aaaaaaxxxxxxa.', '.......axnxxnxa.', '.......axxxxxxa.',
+         '........aaaaaa..', '................', '................', '................'],
+        // 170 ração de marinheiro
+        ['................', '................', '................', '..aaaaaaaaaaaa..', '..ayyyyyyyyyya..', '..anyynnnnyyna..',
+         '..annyynnyynna..', '..annnaddannna..', '..annnaddannna..', '..annyynnyynna..', '..anyynnnnyyna..', '..ayyyyyyyyyya..',
          '..aaaaaaaaaaaa..', '................', '................', '................']
     ];
     const atlasProprio = document.createElement('canvas');
@@ -1077,6 +1127,7 @@
             case 'abacateiro': case 'cacaueiro': case 'jabuticabeira':
             case 'coqueiro': case 'cajueiro': case 'acaizeiro': case 'cupuacuzeiro': case 'castanheira':   // fase 73
             case 'ipe':   // fase 104
+            case 'bananeira':   // fase 108
                 return { p: 'pomar', i: 2 * POMAR[id].n + 1, topo: 2 * POMAR[id].n };
             // fase 73: a praia (só na areia)
             case 'cadeira_praia': return { p: 'farm', i: 1140 };
@@ -1339,7 +1390,8 @@
         acaizeiro: { n: 9, cores: ['#3f2631', '#6b2f74'], onde: 'copa' },
         cupuacuzeiro: { n: 10, cores: ['#8a4a2b', '#c96b28'], onde: 'tronco' },
         castanheira: { n: 11, cores: ['#6e5a48', '#b8955c'], onde: 'copa' },
-        ipe: { n: 12, cores: ['#e0a800', '#ffe14d'], onde: 'copa', flores: 14 }   // fase 104: o ipê-amarelo florido
+        ipe: { n: 12, cores: ['#e0a800', '#ffe14d'], onde: 'copa', flores: 14 },   // fase 104: o ipê-amarelo florido
+        bananeira: { n: 13, cores: ['#e8c400', '#fff27a'], onde: 'copa' }   // fase 108: a da ilha
     };
     let urlPomar = null;
     function montarPomar() {
@@ -1391,11 +1443,14 @@
         vinicola: 'vinho', vitaminas: 'vitamina', guacamolaria: 'guacamole', pimentaria: 'molho_picante', chocolateria: 'chocolate',
         adega: 'licor', bombonaria: 'bombom', doceria_coco: 'cocada', serraria_naval: 'tabua_naval', enlatados: 'sardinha_lata',
         cajuinaria: 'cajuina', forja: 'cravo', acaiteria: 'acai_tigela', sushiteria: 'sashimi', velaria: 'vela', queijaria_bufala: 'mussarela',
-        cremeria: 'creme_cupuacu', cartografia: 'carta_nautica', caldeiraria: 'caldeirada', pacocaria: 'pacoca'
+        cremeria: 'creme_cupuacu', cartografia: 'carta_nautica', caldeiraria: 'caldeirada', pacocaria: 'pacoca',
+        // fase 108: as oficinas piratas da ilha
+        engenho_pirata: 'rapadura', casa_especiarias: 'tempero_indias', forno_bordo: 'biscoito_bordo', despensa_navio: 'racao_marinheiro'
     };
     const COM_CHAMINE = new Set(['padaria', 'defumadouro', 'engenho', 'torrefacao', 'caldeiraria', 'enlatados', 'peixaria', 'cozinha_moqueca',
-        'forja', 'pipocaria', 'confeitaria', 'chocolateria', 'doceria_coco', 'pacocaria', 'fabrica_molho', 'conservas', 'casa_geleia']);
-    const DE_PEDRA = new Set(['adega', 'vinicola', 'engenho', 'defumadouro', 'forja', 'caldeiraria', 'pacocaria', 'emporio', 'queijaria']);
+        'forja', 'pipocaria', 'confeitaria', 'chocolateria', 'doceria_coco', 'pacocaria', 'fabrica_molho', 'conservas', 'casa_geleia',
+        'engenho_pirata', 'forno_bordo']);
+    const DE_PEDRA = new Set(['adega', 'vinicola', 'engenho', 'defumadouro', 'forja', 'caldeiraria', 'pacocaria', 'emporio', 'queijaria', 'forno_bordo', 'despensa_navio']);
     const COM_TOLDO = new Set(['sorveteria', 'casa_sucos', 'vitaminas', 'acaiteria', 'cajuinaria', 'cafeteria', 'saladeira', 'guacamolaria',
         'bombonaria', 'doceria', 'sushiteria', 'cremeria', 'pipocaria']);
     // fase 106: o jeito de cada oficina (o que fica na frente dela)
@@ -1407,11 +1462,12 @@
         cozinha_moqueca: 'peixe', defumadouro: 'defumado', tecelagem: 'tecido', fiacao: 'tecido', alfaiataria: 'tecido', atelie: 'tecido',
         velaria: 'vela', engenho: 'cana', torrefacao: 'cafe', cafeteria: 'cafe', sorveteria: 'bebida', casa_sucos: 'bebida',
         vitaminas: 'bebida', acaiteria: 'bebida', cajuinaria: 'bebida', prensa_oleo: 'oleo', emporio: 'oleo', pipocaria: 'pipoca',
-        cartografia: 'mapa', sushiteria2: 'peixe'
+        cartografia: 'mapa', sushiteria2: 'peixe',
+        engenho_pirata: 'cana', casa_especiarias: 'pote', forno_bordo: 'forno', despensa_navio: 'vela'   // fase 108
     };
     // os vidros de cada prédio (x, y, w, h a partir do canto dele), para acender à noite; "id:2" é a oficina dupla
     const JANELAS_CASAS = {};
-    const LINHAS_CASAS = 30;
+    const LINHAS_CASAS = 33;   // (fase 108: mais uma fileira de oficinas)
     const CASAS_POS = { casa: [0, 0], casa_vermelha: [3, 0], casa_azul: [6, 0], celeiro: [9, 0] };
     Object.keys(OFICINA_PRODUTO).forEach((id, k) => { CASAS_POS[id] = [(k % 6) * 2, 6 + Math.floor(k / 6) * 3]; });
     const gradeCasa = (id, w, h) => { const [c0, r0] = CASAS_POS[id]; return Array.from({ length: h }, (_, r) => Array.from({ length: w }, (_, c) => (r0 + r) * COLS + c0 + c)); };
@@ -5715,7 +5771,7 @@
         htmlAjudante,
         MAPA,
         ZONAS,
-        ILHA, OBRAS_ILHA,   // fase 106
+        ILHA, OBRAS_ILHA, Y_ILHA,   // fase 106
         noTerreno,
         livre,
         estacao,
