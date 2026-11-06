@@ -49,14 +49,40 @@
         branco: '#f4f1e6', azul: '#3b6fb6', vermelho: '#c34b35', verde: '#4e974c', amarelo: '#fdbe53',
         preto: '#2b2b38', roxo: '#9b4ca3', rosa: '#e98b9b', dourado: '#ffd75e'
     };
-    const PAL_BANDEIRA = { G: '#4e974c', Y: '#ffe08a', B: '#3b5dc9', K: '#1a1630', W: '#ffffff', R: '#d9452f', O: '#e38628' };
+    const PAL_BANDEIRA = { G: '#4e974c', L: '#84c669', Y: '#ffe08a', D: '#fdbe53', B: '#3b5dc9', N: '#25406e', C: '#79a7e8', K: '#1a1630', W: '#ffffff', E: '#c0cbdc', R: '#d9452f', O: '#e38628', P: '#e98b9b', V: '#9b4ca3', M: '#8a5a2b' };
+    /* fase 110: cada bandeira em dois tamanhos, proporcional ao barco: g (12 x 8, no pesqueiro e no navio
+       oceânico, tremulando) e p (6 x 4, nos barcos pequenos). Os nomes são os de fazenda_barco_cores. */
     const BANDEIRAS = {
-        brasil: ['GGGGGG', 'GYBBYG', 'GYBBYG', 'GGGGGG'],
-        pirata: ['KKKKKK', 'KKWWKK', 'KWKKWK', 'KKKKKK'],
-        xadrez: ['KWKWKW', 'WKWKWK', 'KWKWKW', 'WKWKWK'],
-        coracao: ['WRWRWW', 'WRRRWW', 'WWRWWW', 'WWWWWW'],
-        estrela: ['BBBBBB', 'BBYBBB', 'BYYYBB', 'BBYBBB'],
-        sertao: ['OOOOOO', 'OOYYOO', 'OYYYYO', 'OOOOOO']
+        brasil: { g: ['GGGGGGGGGGGG', 'GGGGGYYGGGGG', 'GGGYYBBYYGGG', 'GYYBWWBBBYYG', 'GYYBBBWWBYYG', 'GGGYYBBYYGGG', 'GGGGGYYGGGGG', 'GGGGGGGGGGGG'],
+            p: ['GGGGGG', 'GYBBYG', 'GYBBYG', 'GGGGGG'] },
+        pirata: { g: ['KKKKKKKKKKKK', 'KKKKWWWWKKKK', 'KKKWWWWWWKKK', 'KKKWKWWKWKKK', 'KKKKWWWWKKKK', 'KKWKKWWKKWKK', 'KKKWWKKWWKKK', 'KKWKKKKKKWKK'],
+            p: ['KKKKKK', 'KKWWKK', 'KWKKWK', 'KKKKKK'] },
+        xadrez: { g: ['KKWWKKWWKKWW', 'KKWWKKWWKKWW', 'WWKKWWKKWWKK', 'WWKKWWKKWWKK', 'KKWWKKWWKKWW', 'KKWWKKWWKKWW', 'WWKKWWKKWWKK', 'WWKKWWKKWWKK'],
+            p: ['KWKWKW', 'WKWKWK', 'KWKWKW', 'WKWKWK'] },
+        coracao: { g: ['WWWWWWWWWWWW', 'WWWRRWWRRWWW', 'WWRPRRRRRRWW', 'WWRRRRRRRRWW', 'WWWRRRRRRWWW', 'WWWWRRRRWWWW', 'WWWWWRRWWWWW', 'WWWWWWWWWWWW'],
+            p: ['WRWRWW', 'WRRRWW', 'WWRWWW', 'WWWWWW'] },
+        estrela: { g: ['BBBBBBBBBBBB', 'BBBBBYYBBBBB', 'BBBBBYYBBBBB', 'BYYYYYYYYYYB', 'BBBYYYYYYBBB', 'BBBBYYYYBBBB', 'BBBYYBBYYBBB', 'BBYBBBBBBYBB'],
+            p: ['BBBBBB', 'BBYBBB', 'BYYYBB', 'BBYBBB'] },
+        sertao: { g: ['OOOOOOOOOOOO', 'OYOOOYYOOOYO', 'OOYOYYYYOYOO', 'OOOYYYYYYOOO', 'OOYYYYYYYYOO', 'MMMMMMMMMMMM', 'MMDMMMMMDMMM', 'MMMMMMMMMMMM'],
+            p: ['OOOOOO', 'OOYYOO', 'OYYYYO', 'OOOOOO'] },
+        ancora: { g: ['NNNNNWWNNNNN', 'NNNNWNNWNNNN', 'NNNNNWWNNNNN', 'NNNWWWWWWNNN', 'NNNNNWWNNNNN', 'NNWNNWWNNWNN', 'NNNWWWWWWNNN', 'NNNNNWWNNNNN'],
+            p: ['NNWWNN', 'NWWWWN', 'WNWWNW', 'NWWWWN'] },
+        lua: { g: ['NNNNNNNNNNNN', 'NNNYYYNNNWNN', 'NNYYNNNNNNNN', 'NNYYNNNNWNNN', 'NNYYNNNNNNNN', 'NNNYYYNNNNWN', 'NNNNNNNWNNNN', 'NNNNNNNNNNNN'],
+            p: ['NYYNNW', 'YNNNNN', 'YNNNWN', 'NYYNNN'] },
+        peixe: { g: ['CCCCCCCCCCCC', 'CWCCCCCCCCCC', 'WCCCOOOOCCOC', 'CCCOOOOOOOOC', 'CCOKOOOOOOCC', 'CCCOOOOOOOOC', 'CCCCOOOOCCOC', 'CCCCCCCCCCCC'],
+            p: ['CCCCCC', 'COOOCO', 'OKOOOC', 'COOOCO'] },
+        caveira_dourada: { g: ['KKKKKKKKKKKK', 'KKKKDDDDKKKK', 'KKKDYDDDDKKK', 'KKKDKDDKDKKK', 'KKKKDDDDKKKK', 'KKDKKDDKKDKK', 'KKKDDKKDDKKK', 'KKDKKKKKKDKK'],
+            p: ['KKKKKK', 'KKDDKK', 'KDKKDK', 'KKKKKK'] },
+        arco_iris: { g: ['RRRRRRRRRRRR', 'OOOOOOOOOOOO', 'DDDDDDDDDDDD', 'YYYYYYYYYYYY', 'GGGGGGGGGGGG', 'CCCCCCCCCCCC', 'BBBBBBBBBBBB', 'VVVVVVVVVVVV'],
+            p: ['RRRRRR', 'YYYYYY', 'GGGGGG', 'BBBBBB'] },
+        listrada: { g: ['NNNNNNNNNNNN', 'WWWWWWWWWWWW', 'NNNNNNNNNNNN', 'WWWWWWWWWWWW', 'NNNNNNNNNNNN', 'WWWWWWWWWWWW', 'NNNNNNNNNNNN', 'WWWWWWWWWWWW'],
+            p: ['NNNNNN', 'WWWWWW', 'NNNNNN', 'WWWWWW'] },
+        fazendinha: { g: ['CCCCCCCCCCCC', 'CCCCCRRCCCYC', 'CCCCRRRRCCCC', 'CCCRRRRRRCCC', 'CCCRWRRWRCCC', 'LLLRRWWRRLLL', 'GGGRRWWRRGGG', 'GGGGGGGGGGGG'],
+            p: ['CCRRCC', 'CRRRRC', 'LRWWRL', 'GRWWRG'] },
+        coroa: { g: ['VVVVVVVVVVVV', 'VVVVVVVVVVVV', 'VVDVVDDVVDVV', 'VVDDVDDVDDVV', 'VVDDDDDDDDVV', 'VVDRDBBDRDVV', 'VVDDDDDDDDVV', 'VVVVVVVVVVVV'],
+            p: ['VVVVVV', 'DVDDVD', 'DDDDDD', 'VVVVVV'] },
+        raio: { g: ['KKKKKKKKKKKK', 'KKKKKKYYKKKK', 'KKKKKYYKKKKK', 'KKKKYYYYYKKK', 'KKKKKKYYKKKK', 'KKKKKYYKKKKK', 'KKKKYYKKKKKK', 'KKKKKKKKKKKK'],
+            p: ['KKKYKK', 'KKYYYK', 'KKKYKK', 'KKYKKK'] }
     };
     // onde vai o sonar (em cima da cabine) em cada barco: [x a partir da popa, y a partir do convés]
     const SONAR_EM = { 1: [12, -9], 2: [12, -15], 3: [19, -17], 4: [21, -26], 5: [14, -29] };
@@ -69,7 +95,7 @@
         if (vis.casco === 'dourado') b.fundo = '#d99a2b';
         const topo = wl - b.h;
         const bandeira = (bx, by) => {
-            const f = BANDEIRAS[vis.bandeira];
+            const f = BANDEIRAS[vis.bandeira].p;
             f.forEach((linha, yy) => [...linha].forEach((c, xx) => ret(bx + xx, by + yy, 1, 1, PAL_BANDEIRA[c])));
         };
         // o que vai em cima do casco
@@ -455,19 +481,38 @@
             g.globalAlpha = 1;
         }
 
+        /* fase 110: de noite o navio (e você) escurece só onde tem desenho: o azul da noite pinta por cima
+           dos pixels (source-atop), num canvas guardado até a noite mudar. Antes era um retângulo do tamanho
+           do desenho inteiro, e de noite aparecia um quadrado escuro em volta do barco. */
+        const escuros = new WeakMap();
+        function daNoite(cv, noite) {
+            const k = Math.round(noite * 20) / 20;
+            if (k <= 0) return cv;
+            const e = escuros.get(cv);
+            if (e && e.k === k) return e.c;
+            const c = (e && e.c) || document.createElement('canvas');
+            c.width = cv.width; c.height = cv.height;   // (limpa)
+            const q = c.getContext('2d');
+            q.drawImage(cv, 0, 0);
+            q.globalCompositeOperation = 'source-atop';
+            q.globalAlpha = k * 0.45;
+            q.fillStyle = NOITE_MAR;
+            q.fillRect(0, 0, c.width, c.height);
+            escuros.set(cv, { k, c });
+            return c;
+        }
         function desenharBarco(noite) {
             const n = nivelBarco(), b = BARCOS[n], x = barcoX(), wl = linhaAgua() + balanco;
             const d = op.dados() || {};
             const cv = navio();
             if (cv && cv.casco) {   // fase 105: o navio virado, com a sombra e a espuma do casco
                 const p = navioPos(cv), topoCanvas = p.wl - cv.agua;
-                g.save(); g.translate(p.esq + cv.width, topoCanvas); g.scale(-1, 1); g.drawImage(cv, 0, 0); g.restore();
-                if (noite > 0) { g.globalAlpha = noite * 0.45; g.fillStyle = '#0e1a3a'; g.fillRect(p.esq, topoCanvas, cv.width, cv.height); g.globalAlpha = 1; }
+                g.save(); g.translate(p.esq + cv.width, topoCanvas); g.scale(-1, 1); g.drawImage(daNoite(cv, noite), 0, 0); g.restore();
             } else pintarBarco(g, x, wl, n, { visual: d.visual, pecas: op.pecas ? op.pecas() : {}, noite, t });
             // você, com a vara
             const pt = ondeEstou();
             const av = A.avatarCanvas(op.avatar());
-            if (av) g.drawImage(av, Math.round(pt.ax), Math.round(pt.ay));
+            if (av) g.drawImage(daNoite(av, noite), Math.round(pt.ax), Math.round(pt.ay));   // fase 110: você também escurece
             const curva = estado === 'mordendo' || estado === 'puxando' ? 4 : 0;
             const tipX = pt.px, tipY = pt.py + curva;
             for (let k = 0; k <= 16; k++) {
@@ -657,14 +702,14 @@
     }
 
     // a bandeira sozinha, como imagem (para os botões da pintura)
-    function bandeiraUrl(nome, k = 4) {
-        const f = BANDEIRAS[nome];
+    function bandeiraUrl(nome, k = 2) {   // fase 110: a grande (12 x 8)
+        const f = BANDEIRAS[nome] && BANDEIRAS[nome].g;
         if (!f) return '';
         const c = document.createElement('canvas'), g = c.getContext('2d');
-        c.width = 6 * k; c.height = 4 * k;
+        c.width = 12 * k; c.height = 8 * k;
         f.forEach((linha, y) => [...linha].forEach((ch, x) => { g.fillStyle = PAL_BANDEIRA[ch]; g.fillRect(x * k, y * k, k, k); }));
         return c.toDataURL();
     }
 
-    window.FazendaMar = { criar, previa, bandeiraUrl, CORES: CORES_BARCO, BANDEIRAS };
+    window.FazendaMar = { criar, previa, bandeiraUrl, CORES: CORES_BARCO, BANDEIRAS, PAL: PAL_BANDEIRA };
 })();

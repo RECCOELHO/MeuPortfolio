@@ -1531,6 +1531,11 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-11-07-bandeiras', data: '07/11', titulo: 'Bandeiras novas e velas coloridas', itens: [
+            'Na pintura do barco (Melhorias do mar), <b>9 bandeiras novas</b>: âncora, lua, peixe, caveira dourada, arco-íris, listrada, fazendinha, coroa e raio.',
+            'A bandeira agora fica <b>do tamanho do barco</b>: no pesqueiro e no navio oceânico ela é maior, com mais detalhe, e tremula no mastro.',
+            'Dá para pintar as <b>velas</b> também (do barco de pesca em diante), nas mesmas cores do casco. Vela dourada pede 1 pérola negra.',
+            'De noite, no alto-mar, não aparece mais o quadrado escuro em volta do barco.'] },
         { id: '2026-11-06-guardar-navio', data: '06/11', titulo: 'Guardar para o navio', itens: [
             'No <b>celeiro</b>, o que o navio e a ilha vão pedir (tora, tábua naval, cravo, vela, carta náutica, marlim, pérola negra e os raros do mercador) tem o botão <b>Guardar para o navio</b>.',
             'O guardado não vai no "Vender tudo", nem na feira, nem nas oficinas (a serraria não gasta a tora guardada). O que ainda vai chegar também fica guardado, até juntar o que falta.',
@@ -2605,10 +2610,14 @@
     const pecasMar = () => Object.fromEntries(PECAS_MAR.map((id) => [id, S ? melhoriaNivel(id) : 0]));
     // a pintura (o rascunho, até apertar "Pintar"); as cores e bandeiras são as de fazenda_barco_cores
     const CORES_PINTURA = ['padrao', 'branco', 'azul', 'vermelho', 'verde', 'amarelo', 'preto', 'roxo', 'rosa', 'dourado'];
-    const BANDEIRAS_PINTURA = { padrao: 'Padrão', brasil: 'Brasil', pirata: 'Pirata', xadrez: 'Xadrez', coracao: 'Coração', estrela: 'Estrela', sertao: 'Sertão' };
+    const BANDEIRAS_PINTURA = { padrao: 'Padrão', brasil: 'Brasil', pirata: 'Pirata', xadrez: 'Xadrez', coracao: 'Coração', estrela: 'Estrela', sertao: 'Sertão',
+        ancora: 'Âncora', lua: 'Lua', peixe: 'Peixe', caveira_dourada: 'Caveira dourada', arco_iris: 'Arco-íris', listrada: 'Listrada',
+        fazendinha: 'Fazendinha', coroa: 'Coroa', raio: 'Raio' };   // fase 110: + 9
+    const CAMPOS_PINTURA = ['casco', 'faixa', 'vela', 'bandeira'];   // fase 110: as velas
+    const nivelNavio = () => (S && S.mar && S.mar.barco && S.mar.barco.valor) || 1;
     const PRECO_PINTURA = 20000;
     let pinturaBarco = null;
-    const visualBarco = () => ({ casco: 'padrao', faixa: 'padrao', bandeira: 'padrao', ...((S && S.mar && S.mar.visual) || {}) });
+    const visualBarco = () => ({ casco: 'padrao', faixa: 'padrao', vela: 'padrao', bandeira: 'padrao', ...((S && S.mar && S.mar.visual) || {}) });
     function htmlMateriais(itens) {
         return Object.entries(itens || {}).map(([id, n]) => {
             const k = culturas[id] || { id, nome: id }, tem = naCeleiro(id);   // fase 109: o guardado para o navio conta
@@ -2617,26 +2626,27 @@
     }
     function htmlPintura() {
         const p = pinturaBarco || visualBarco(), atual = visualBarco();
-        const mud = ['casco', 'faixa', 'bandeira'].filter((k) => p[k] !== atual[k]);
+        const mud = CAMPOS_PINTURA.filter((k) => p[k] !== atual[k]);
         const perolas = mud.filter((k) => p[k] === 'dourado').length;
         const cores = (campo) => CORES_PINTURA.map((c) => {
             const cor = (window.FazendaMar && window.FazendaMar.CORES[c]) || '';
-            return `<button type="button" class="cor${p[campo] === c ? ' ativa' : ''}" data-pintar="${campo}:${c}" title="${c === 'padrao' ? 'A cor do próprio barco' : c === 'dourado' ? 'Dourado (pede 1 pérola negra)' : c}"${cor ? ` style="background:${cor}"` : ''}>${c === 'padrao' ? 'P' : c === 'dourado' ? '★' : ''}</button>`;
+            return `<button type="button" class="cor${p[campo] === c ? ' ativa' : ''}" data-pintar="${campo}:${c}" title="${c === 'padrao' ? (campo === 'vela' ? 'A vela de lona (creme)' : 'A cor do próprio barco') : c === 'dourado' ? 'Dourado (pede 1 pérola negra)' : c}"${cor ? ` style="background:${cor}"` : ''}>${c === 'padrao' ? 'P' : c === 'dourado' ? '★' : ''}</button>`;
         }).join('');
         const bandeiras = Object.entries(BANDEIRAS_PINTURA).map(([b, nome]) => {
             const url = b !== 'padrao' && window.FazendaMar ? window.FazendaMar.bandeiraUrl(b) : '';
-            return `<button type="button" class="botao pequeno ${p.bandeira === b ? 'verde' : 'creme'}" data-pintar="bandeira:${b}">${url ? `<img src="${url}" alt="" width="18" height="12" class="px">` : ''}${nome}</button>`;
+            return `<button type="button" class="botao pequeno ${p.bandeira === b ? 'verde' : 'creme'}" data-pintar="bandeira:${b}">${url ? `<img src="${url}" alt="" width="24" height="16" class="px">` : ''}${nome}</button>`;
         }).join('');
         return `<h3 class="secao-titulo">Pintura</h3>
             <div class="previa-barco"><canvas data-barco-previa aria-label="Prévia do barco"></canvas></div>
             <p class="det">Casco</p><div class="pintura-cores">${cores('casco')}</div>
             <p class="det">Faixa</p><div class="pintura-cores">${cores('faixa')}</div>
+            ${nivelNavio() >= 3 ? `<p class="det">Velas</p><div class="pintura-cores">${cores('vela')}</div>` : ''}
             <p class="det">Bandeira</p><div class="pintura-bandeiras">${bandeiras}</div>
             <div class="rodape-painel">
                 <span class="preco">${mud.length ? `${moeda(numero(mud.length * PRECO_PINTURA))}${perolas ? ` + ${perolas} ${itemDe(culturas.perola_negra || { id: 'perola_negra' }, 16)}` : ''}` : 'Sem mudança'}</span>
                 <button type="button" class="botao verde" data-pintar-salvar${mud.length ? '' : ' disabled'}>Pintar</button>
             </div>
-            <p class="aviso">Cada mudança custa ${numero(PRECO_PINTURA)} moedas. O dourado pede 1 pérola negra.</p>`;
+            <p class="aviso">Cada mudança custa ${numero(PRECO_PINTURA)} moedas. O dourado pede 1 pérola negra.${nivelNavio() >= 3 ? '' : ' A cor das velas libera no barco de pesca (o primeiro com vela).'} A bandeira fica do tamanho do barco: maior no pesqueiro e no navio oceânico.</p>`;
     }
     function htmlMarMelhorias() {
         if (!S.mar) return '<p class="vazio-msg">Construa o píer (no Litoral) para ir para o alto-mar.</p>';

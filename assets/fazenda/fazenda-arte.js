@@ -2927,12 +2927,13 @@
         };
         function navioCanvas(info) {
             const nv = Math.max(1, Math.min(5, info.nivel || 1)), N = NAVIOS[nv], pc = info.pecas || {}, vis = info.visual || {};
-            const chave = nv + '|' + JSON.stringify(pc) + '|' + [vis.casco, vis.faixa, vis.bandeira].join(',');
+            const chave = nv + '|' + JSON.stringify(pc) + '|' + [vis.casco, vis.faixa, vis.bandeira, vis.vela].join(',');
             if (cacheNavio.has(chave)) return cacheNavio.get(chave);
             const CM = (window.FazendaMar && window.FazendaMar.CORES) || {};
             const casco = (vis.casco && vis.casco !== 'padrao' && CM[vis.casco]) || N.casco;
             const friso = (vis.faixa && vis.faixa !== 'padrao' && CM[vis.faixa]) || (N.friso ? '#e8a640' : '#f2f2f2');
-            const OL = '#3f2631', MAD = '#6e3d1b', MADc = '#a8683a', VELA = '#f2ead6', VELAs = '#d6c8a8', CORDA = 'rgba(63,38,49,0.55)';
+            const corVela = vis.vela && vis.vela !== 'padrao' && CM[vis.vela];   // fase 110: a cor das velas
+            const OL = '#3f2631', MAD = '#6e3d1b', MADc = '#a8683a', VELA = corVela || '#f2ead6', VELAs = corVela ? tom(corVela, -0.22) : '#d6c8a8', CORDA = 'rgba(63,38,49,0.55)';
             const alt = Math.max(10, ...N.mastros.map((m) => m.alt)), ML = 6, gur = N.gurupes || 0;
             const W = ML + N.L + gur + 10, H = alt + N.deck + N.lado + 14;
             const cv = document.createElement('canvas');
@@ -3093,7 +3094,7 @@
                     for (let y = 0; y < h; y++) {
                         const inc = Math.round(Math.sin((y / h) * Math.PI) * curva), a = mx - w / 2 - inc + 1, b = mx + w / 2 + inc - 1;
                         R(a, yv + 2 + y, b - a, 1, VELA); R(b - 3, yv + 2 + y, 3, 1, VELAs); R(a - 1, yv + 2 + y, 1, 1, OL); R(b, yv + 2 + y, 1, 1, OL);
-                        if (y % 4 === 1) for (let sx = a + 3; sx < b - 3; sx += 5) R(sx, yv + 2 + y, 1, 1, '#e4d9bf');   // as costuras
+                        if (y % 4 === 1) for (let sx = a + 3; sx < b - 3; sx += 5) R(sx, yv + 2 + y, 1, 1, corVela ? tom(corVela, -0.1) : '#e4d9bf');   // as costuras (fase 110: no tom da vela)
                         if (nv === 5 && k === m.velas - 1 && y >= h - 4 && y < h - 2) R(a + 1, yv + 2 + y, b - a - 2, 1, friso === '#f2f2f2' ? '#d9452f' : tom(friso, -0.05));   // a faixa da vela de baixo
                     }
                     R(mx - w / 2, yv + 2 + h, w, 1, OL);
@@ -3108,12 +3109,24 @@
                 linha(p.x, p.y + 2, k === 0 ? x0 + 2 : topos[k - 1].x, k === 0 ? topo[x0 + 2] : topos[k - 1].y + 4, CORDA);
                 for (let d = -1; d <= 1; d += 2) linha(p.x, p.y + 4, p.x + d * 6, base[p.x] - 1, CORDA);
             });
-            // a bandeira no mastro mais alto
+            // a bandeira no mastro mais alto. Fase 110: do tamanho do barco (12 x 8 no pesqueiro e no navio
+            // oceânico, tremulando; 6 x 4 nos pequenos); antes era 6 x 4 em todos e sumia no navio grande
             if (topos.length) {
-                const p = topos.reduce((a, b) => (b.y < a.y ? b : a)), padrao = (window.FazendaMar && window.FazendaMar.BANDEIRAS || {})[vis.bandeira];
-                R(p.x, p.y - 8, 1, 8, OL);
-                if (padrao) padrao.forEach((lin, y) => [...lin].forEach((c, x) => R(p.x + 1 + x, p.y - 8 + y, 1, 1, PAL_BAND[c] || '#fff')));
-                else { R(p.x + 1, p.y - 8, 6, 3, '#d9452f'); R(p.x + 7, p.y - 8, 2, 1, '#d9452f'); R(p.x + 7, p.y - 6, 2, 1, '#d9452f'); R(p.x + 1, p.y - 8, 6, 1, '#f07a5a'); }
+                const p = topos.reduce((a, b) => (b.y < a.y ? b : a)), FM = window.FazendaMar || {};
+                const grande = nv >= 4, b = (FM.BANDEIRAS || {})[vis.bandeira], f = b && (grande ? b.g : b.p), PB = FM.PAL || PAL_BAND;
+                const haste = grande ? 13 : 8, onda = (x) => (grande ? Math.round(Math.sin(x / 12 * Math.PI * 1.5) * 0.9) : 0);
+                R(p.x, p.y - haste, 1, haste, OL);
+                R(p.x, p.y - haste - 1, 1, 1, '#e8a640');   // a ponta do mastro
+                if (f) {
+                    f.forEach((lin, y) => [...lin].forEach((c, x) => R(p.x + 1 + x, p.y - haste + y + onda(x), 1, 1, PB[c] || '#fff')));
+                    if (grande) for (let x = 0; x < 12; x++) R(p.x + 1 + x, p.y - haste + 8 + onda(x), 1, 1, 'rgba(26,22,48,0.35)');   // a sombra da dobra
+                } else if (grande) {   // a flâmula vermelha do barco, maior e com a ponta em V
+                    for (let x = 0; x < 13; x++) {
+                        const y0 = p.y - haste + onda(x);
+                        if (x >= 9) { R(p.x + 1 + x, y0, 1, 2, '#d9452f'); R(p.x + 1 + x, y0 + 4, 1, 2, '#d9452f'); }
+                        else { R(p.x + 1 + x, y0, 1, 6, '#d9452f'); R(p.x + 1 + x, y0, 1, 1, '#f07a5a'); R(p.x + 1 + x, y0 + 5, 1, 1, '#9e2a1f'); }
+                    }
+                } else { R(p.x + 1, p.y - 8, 6, 3, '#d9452f'); R(p.x + 7, p.y - 8, 2, 1, '#d9452f'); R(p.x + 7, p.y - 6, 2, 1, '#d9452f'); R(p.x + 1, p.y - 8, 6, 1, '#f07a5a'); }
             }
             cv.ml = ML; cv.agua = H - 7; cv.casco = { x0, x1, fundo }; cv.conves = Math.round(cy);
             if (cacheNavio.size > 12) cacheNavio.clear();
