@@ -7363,7 +7363,8 @@ create or replace function public.fazenda_barco_cores()
 returns jsonb language sql immutable as $$
   select '{"preco": 20000, "dourado": "perola_negra",
            "cores": ["padrao", "branco", "azul", "vermelho", "verde", "amarelo", "preto", "roxo", "rosa", "dourado"],
-           "bandeiras": ["padrao", "brasil", "pirata", "xadrez", "coracao", "estrela", "sertao"]}'::jsonb;
+           "bandeiras": ["padrao", "brasil", "pirata", "xadrez", "coracao", "estrela", "sertao",
+                         "ancora", "lua", "peixe", "caveira_dourada", "arco_iris", "listrada", "fazendinha", "coroa", "raio"]}'::jsonb;   -- fase 110: + 9
 $$;
 
 create or replace function public.fazenda_barco_pintar(p_token text, p_visual jsonb)
@@ -7385,12 +7386,13 @@ begin
   if j.pier_em is null then raise exception 'sem_pier'; end if;
   v_atual := coalesce(j.barco_visual, '{}'::jsonb);
   v_novo := jsonb_build_object('casco', coalesce(p_visual->>'casco', 'padrao'), 'faixa', coalesce(p_visual->>'faixa', 'padrao'),
+                               'vela', coalesce(p_visual->>'vela', 'padrao'),   -- fase 110: a cor das velas
                                'bandeira', coalesce(p_visual->>'bandeira', 'padrao'));
   if not (v_cat->'cores' ? (v_novo->>'casco')) or not (v_cat->'cores' ? (v_novo->>'faixa'))
-     or not (v_cat->'bandeiras' ? (v_novo->>'bandeira')) then
+     or not (v_cat->'cores' ? (v_novo->>'vela')) or not (v_cat->'bandeiras' ? (v_novo->>'bandeira')) then
     raise exception 'cor_invalida';
   end if;
-  foreach k in array array['casco', 'faixa', 'bandeira'] loop
+  foreach k in array array['casco', 'faixa', 'vela', 'bandeira'] loop
     if v_novo->>k is distinct from coalesce(v_atual->>k, 'padrao') then
       v_mud := v_mud + 1;
       if v_novo->>k = 'dourado' then v_perolas := v_perolas + 1; end if;
@@ -11157,3 +11159,11 @@ returns void language sql security definer set search_path = public as $$
    where r.jogador_id = p_jogador and r.item = e.key and r.quantidade > e.value::int;
 $$;
 revoke all on function public.fazenda_reserva_gastar(uuid, jsonb) from public, anon, authenticated;
+
+-- ------------------------------------------------------------
+-- Fase 110: bandeiras novas e velas coloridas. A pintura do barco (fazenda_barco_pintar) ganha a cor das
+-- velas (as mesmas cores do casco; a dourada pede 1 pérola negra, como as outras) e 9 bandeiras: âncora,
+-- lua, peixe, caveira dourada, arco-íris, listrada, fazendinha, coroa e raio (fazenda_barco_cores). Cada
+-- mudança continua custando 20 mil. Quem já pintou fica com o que tem (sem vela = a de lona).
+-- Pode rodar este arquivo de novo.
+-- ------------------------------------------------------------
