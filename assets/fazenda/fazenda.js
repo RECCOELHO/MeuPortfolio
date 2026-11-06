@@ -238,7 +238,7 @@
         sem_lance: 'A linha não estava na água. Lance de novo.',
         sem_marinheiro: 'Contrate o marinheiro primeiro (Alto-mar → Melhorar, nível 33).',
         cesto_mar_vazio: 'O cesto do Seu Nonato ainda está vazio.',
-        faltam_materiais: 'Faltam materiais no celeiro para essa peça (o que está guardado para o píer não conta).',   // fase 65: a tunagem
+        faltam_materiais: 'Faltam materiais no celeiro para essa peça (o que está guardado para o navio conta).',   // fase 65: a tunagem
         sem_luva: 'Acabaram as luvas do Perks.',   // fase 66
         ajudante_disposto: 'Ele ainda está bem disposto: só dá para mandar descansar com menos de 75% de energia.',
         barco_pequeno: 'O kit de expedição só cabe no barco oceânico.',
@@ -1531,6 +1531,10 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-11-06-guardar-navio', data: '06/11', titulo: 'Guardar para o navio', itens: [
+            'No <b>celeiro</b>, o que o navio e a ilha vão pedir (tora, tábua naval, cravo, vela, carta náutica, marlim, pérola negra e os raros do mercador) tem o botão <b>Guardar para o navio</b>.',
+            'O guardado não vai no "Vender tudo", nem na feira, nem nas oficinas (a serraria não gasta a tora guardada). O que ainda vai chegar também fica guardado, até juntar o que falta.',
+            'A melhoria do navio e a obra da ilha usam o guardado, e o que elas gastam sai dele. Para vender de novo, é só tocar em <b>Soltar</b>.'] },
         { id: '2026-11-04-ilha-pirata', data: '04/11', titulo: 'O que só tem na ilha', itens: [
             'Na <b>Ilha da Caveira Dourada</b>, sementes que só crescem lá: <b>abacaxi</b> (nível 46), <b>cana-roxa</b> (50) e <b>especiarias</b> (54).',
             'A <b>bananeira</b> (48) no pomar da ilha, e quatro <b>oficinas piratas</b>, só lá: o <b>engenho pirata</b> (rapadura, 49), a <b>casa das especiarias</b> (tempero das Índias, 51), o <b>forno de bordo</b> (biscoito de bordo, 53) e a <b>despensa do navio</b> (ração de marinheiro, 55, que vale quase 17 mil).',
@@ -2009,12 +2013,13 @@
         }
         return html;
     }
-    function htmlRaroCeleiro(k) {
+    function htmlRaroCeleiro(k, pede) {
         return `<div class="item raro">
             <span class="ico">${spr(A.cultura(k.id).item, 44)}</span>
             <span>
                 <span class="nome">${esc(k.nome)} × ${naCeleiro(k.id)} <small class="tag-raro">raro</small></span>
                 <span class="det"><span class="txt">${origemRaro(k.id)} ${PREMIO_EFEITO[k.id] ? 'Ou venda' : 'Não vende no celeiro:'} na feira, de ${moeda(numero(k.venda))} a ${moeda(numero(k.venda * 3))} cada.</span></span>
+                ${pede && !(ehPecaPier(k.id) && !(S.pier && S.pier.pronto)) ? htmlGuardarNavio(k, pede) : ''}
             </span>
             ${PREMIO_EFEITO[k.id] ? `<span class="botoes-raro"><button type="button" class="botao pequeno verde" data-usar-premio="${esc(k.id)}">Usar</button>
                 <button type="button" class="botao pequeno creme" data-raro-feira="${esc(k.id)}">Na feira</button></span>`
@@ -2038,6 +2043,28 @@
         const g = reservaDe(k.id);
         return g ? `<span class="det"><span class="txt">${g} guardado para o píer. <button type="button" class="link-botao" data-pier-soltar="${esc(k.id)}">Soltar</button></span></span>`
             : `<span class="det"><button type="button" class="botao pequeno creme" data-pier-guardar="${esc(k.id)}">Guardar para o píer</button></span>`;
+    }
+    /* fase 109: guardar para o navio. O que as próximas melhorias do navio (o próximo nível de cada uma) e a
+       próxima obra da ilha pedem; no celeiro, esses itens têm "Guardar para o navio" (a mesma reserva da
+       ração: fora do "Vender tudo", da feira e das oficinas). A melhoria e a obra usam o guardado. */
+    function pedidoNavio() {
+        const pede = {};
+        const soma = (itens, onde) => Object.entries(itens || {}).forEach(([id, n]) => {
+            const p = pede[id] || (pede[id] = { n: 0, navio: false, ilha: false });
+            p.n += n; p[onde] = true;
+        });
+        if (S && S.pier && S.pier.pronto) {
+            (S.melhorias_tipos || []).filter((m) => m.mar).forEach((m) => { const prox = m.niveis[melhoriaNivel(m.id)]; if (prox) soma(prox.itens, 'navio'); });
+            const ob = ilhaDe().pode_ir && proximaObra();
+            if (ob) soma(ob.itens, 'ilha');
+        }
+        return pede;
+    }
+    const paraOnde = (p) => (p.navio && p.ilha ? 'o navio e a ilha' : p.ilha ? 'a ilha' : 'o navio');
+    function htmlGuardarNavio(k, p) {
+        const g = reservaDe(k.id), tem = naCeleiro(k.id);
+        return g ? `<span class="det"><span class="txt">${g} guardado para ${paraOnde(p)}${g > tem ? ` (o que chegar fica guardado até juntar ${g})` : ''}. <button type="button" class="link-botao" data-navio-soltar="${esc(k.id)}">Soltar</button></span></span>`
+            : `<span class="det"><button type="button" class="botao pequeno creme" data-navio-guardar="${esc(k.id)}">Guardar ${Math.min(999, p.n)} para ${paraOnde(p)}</button></span>`;
     }
     function htmlPier() {
         const p = S.pier || {}, r = p.receita || { itens: {}, diamantes: {}, moedas: 0, nivel: 31 };
@@ -2452,7 +2479,7 @@
         if (!d.pode_ir) return `<p class="vazio-msg">A ilha abre no nível 46, com o kit de expedição no barco.</p>`;
         const linhas = lista.map((o, k) => {
             const feita = k < (d.obras || 0), proxima = k === (d.obras || 0);
-            const falta = Object.entries(o.itens || {}).some(([id, n]) => livreFeira(id) < n);
+            const falta = Object.entries(o.itens || {}).some(([id, n]) => naCeleiro(id) < n);   // fase 109: o guardado conta
             const pode = proxima && j.nivel >= o.nivel && j.moedas >= o.moedas && !falta;
             return `<div class="item${feita ? ' meta-feita' : ''}${!feita && !proxima ? ' travada' : ''}">
                 <span class="ico">${itemDe(culturas[Object.keys(o.itens || {})[0]] || culturas.leme_dourado || { id: 'leme_dourado' }, 36)}</span>
@@ -2584,7 +2611,7 @@
     const visualBarco = () => ({ casco: 'padrao', faixa: 'padrao', bandeira: 'padrao', ...((S && S.mar && S.mar.visual) || {}) });
     function htmlMateriais(itens) {
         return Object.entries(itens || {}).map(([id, n]) => {
-            const k = culturas[id] || { id, nome: id }, tem = livreFeira(id);
+            const k = culturas[id] || { id, nome: id }, tem = naCeleiro(id);   // fase 109: o guardado para o navio conta
             return `<span class="chip${tem < n ? ' falta' : ''}" title="${esc(k.nome)}">${itemDe(k, 16)} ${Math.min(tem, n)}/${n}</span>`;
         }).join('');
     }
@@ -5374,13 +5401,14 @@
             } else {
                 const bonusVenda = S.jogador.bonus_venda || 0;
                 const livreDe = (k) => Math.max(0, naCeleiro(k.id) - reservaDe(k.id));
+                const pede = pedidoNavio();   // fase 109
                 const vende = itens.filter((k) => k.tipo !== 'raro');   // fase 60: material raro só vende na feira
                 const cofre = extraCofrinho(vende.map((k) => [k, livreDe(k)]));   // fase 93
                 const total = Math.floor(vende.reduce((a, k) => a + livreDe(k) * k.venda, 0) * (100 + bonusVenda) / 100) + cofre;
                 const xpTotal = Math.floor(vende.reduce((a, k) => a + livreDe(k) * k.venda * xpVendaDe(k), 0) / XP_VENDA);
                 corpo.innerHTML = abas + htmlBonusLigados() + '<div class="lista">' + itens.map((k) => {
                     const livre = livreDe(k), come = quemCome(k.id);
-                    if (k.tipo === 'raro') return htmlRaroCeleiro(k);
+                    if (k.tipo === 'raro') return htmlRaroCeleiro(k, pede[k.id]);
                     return `<div class="item">
                         <span class="ico">${spr(A.cultura(k.id).item, 44)}</span>
                         <span>
@@ -5388,7 +5416,7 @@
                             <span class="det"><span>${moeda(k.venda)} cada</span><span>${!reservaDe(k.id) ? `total ${moeda(livre * k.venda)}` : livre ? `vende ${livre}: ${moeda(livre * k.venda)}` : 'tudo guardado'}</span></span>
                             ${k.tipo === 'cultura' ? `<span class="conta-semente">1 semente (${moeda(k.custo)}) rende ${k.rendimento} = ${moeda(k.rendimento * k.venda)}</span>` : ''}
                             ${come ? htmlReserva(k, come) : ''}
-                            ${!come && ehPecaPier(k.id) && !(S.pier && S.pier.pronto) ? htmlGuardarPier(k) : ''}
+                            ${!come && ehPecaPier(k.id) && !(S.pier && S.pier.pronto) ? htmlGuardarPier(k) : !come && pede[k.id] ? htmlGuardarNavio(k, pede[k.id]) : ''}
                         </span>
                         <button type="button" class="botao pequeno verde" data-vender="${esc(k.id)}"${livre ? '' : ' disabled'}>${livre || !naCeleiro(k.id) ? 'Vender' : 'Guardado'}</button>
                     </div>`;
@@ -6941,6 +6969,20 @@
             enfileirar([], async () => {
                 const r = await rpc('fazenda_reservar', { p_token: token, p_item: id, p_quantidade: 0 });
                 aplicarEstado(r.estado);
+            });
+            return;
+        }
+        const ng = e.target.closest('[data-navio-guardar]'), ns = e.target.closest('[data-navio-soltar]');
+        if (ng || ns) {   // fase 109: guardar para o navio (ou soltar)
+            const id = (ng || ns).dataset[ng ? 'navioGuardar' : 'navioSoltar'], p = pedidoNavio()[id];
+            const n = ng && p ? Math.min(999, p.n) : 0;
+            S.reservas = { ...(S.reservas || {}) };
+            if (n) S.reservas[id] = n; else delete S.reservas[id];
+            abrirPainel(painelAtual || 'celeiro', true);
+            enfileirar([], async () => {
+                const r = await rpc('fazenda_reservar', { p_token: token, p_item: id, p_quantidade: n });
+                aplicarEstado(r.estado);
+                if (n) toast(`${itemDe(culturas[id] || { id }, 18)} ${n} guardado para ${paraOnde(p)}: não vai no "Vender tudo", nem na feira, nem nas oficinas.`);
             });
             return;
         }

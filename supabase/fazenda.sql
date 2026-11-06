@@ -4532,10 +4532,10 @@ begin
     if p_tipo = 'barraca' and j.barracas < 4 then raise exception 'barracas_antes'; end if;
     if j.diamantes < a.diamantes then raise exception 'diamantes_insuficientes'; end if;
     if j.moedas < a.custo then raise exception 'moedas_insuficientes'; end if;
-    -- fase 65: as peças pedem materiais raros do celeiro (o que está guardado para o píer fica)
+    -- fase 65: as peças pedem materiais raros do celeiro; fase 109: o que está guardado para o navio conta
+    -- (só as melhorias do navio pedem materiais, e o píer já está pronto: não tem mais nada guardado para ele)
     if exists (select 1 from jsonb_each_text(coalesce(a.itens, '{}'::jsonb)) e
-                where coalesce((select quantidade from fazenda_celeiro where jogador_id = v_id and item = e.key), 0)
-                    - coalesce((select quantidade from fazenda_reservas where jogador_id = v_id and item = e.key), 0) < e.value::int) then
+                where coalesce((select quantidade from fazenda_celeiro where jogador_id = v_id and item = e.key), 0) < e.value::int) then
       raise exception 'faltam_materiais';
     end if;
     -- barco ou marinheiro novo (e o motor e a rede) mudam o ritmo: o que já está no cardume (ou no cesto) fica lá
@@ -4550,6 +4550,7 @@ begin
     update fazenda_celeiro c set quantidade = c.quantidade - e.value::int
       from jsonb_each_text(coalesce(a.itens, '{}'::jsonb)) e
      where c.jogador_id = v_id and c.item = e.key;
+    perform fazenda_reserva_gastar(v_id, a.itens);   -- fase 109
     insert into fazenda_melhorias (jogador_id, id, nivel) values (v_id, p_tipo, 1)
     on conflict (jogador_id, id) do update set nivel = fazenda_melhorias.nivel + 1;
     if p_tipo in ('barco', 'motor') then
@@ -10979,9 +10980,8 @@ begin
   if v_p->>'id' is distinct from p_obra then raise exception 'ilha_ordem'; end if;
   if v_nivel < (v_p->>'nivel')::int then raise exception 'nivel_insuficiente'; end if;
   if j.moedas < (v_p->>'moedas')::int then raise exception 'moedas_insuficientes'; end if;
-  for k in select jsonb_object_keys(v_p->'itens') loop   -- só o que está livre (a reserva fica)
-    if coalesce((select quantidade from fazenda_celeiro where jogador_id = v_id and item = k), 0)
-       - coalesce((select quantidade from fazenda_reservas where jogador_id = v_id and item = k), 0) < (v_p->'itens'->>k)::int then
+  for k in select jsonb_object_keys(v_p->'itens') loop   -- fase 109: o guardado para o navio conta
+    if coalesce((select quantidade from fazenda_celeiro where jogador_id = v_id and item = k), 0) < (v_p->'itens'->>k)::int then
       raise exception 'faltam_materiais';
     end if;
   end loop;
@@ -10990,6 +10990,7 @@ begin
                                da_feira = least(da_feira, quantidade - (v_p->'itens'->>k)::int)
      where jogador_id = v_id and item = k;
   end loop;
+  perform fazenda_reserva_gastar(v_id, v_p->'itens');   -- fase 109
   v_xp := round((fazenda_xp_nivel((v_p->>'nivel')::int + 1) - fazenda_xp_nivel((v_p->>'nivel')::int)) * 0.08)::int;
   perform set_config('fazenda.xp_puro', '1', true);
   update fazenda_jogadores set moedas = moedas - (v_p->>'moedas')::int, ilha_obras = v_n, xp = xp + v_xp where id = v_id;
@@ -11136,3 +11137,23 @@ on conflict (id) do update set
   limite = excluded.limite, beleza = excluded.beleza, descricao = excluded.descricao, so_ilha = excluded.so_ilha;
 
 select public.fazenda_cache_montar();
+
+-- ------------------------------------------------------------
+-- Fase 109: guardar para o navio. No celeiro, o que as próximas melhorias do navio e a próxima obra da ilha
+-- pedem (tora, tábua naval, cravo, vela, carta náutica, marlim, pérola negra e os raros do mercador) ganha o
+-- botão "Guardar para o navio" (a mesma reserva da ração dos bichos, fazenda_reservar): o guardado não vai
+-- no "Vender tudo", nem na feira, nem nas oficinas (a serraria não gasta a tora guardada).
+-- • A melhoria do navio (fazenda_comprar) e a obra da ilha (fazenda_ilha_construir) usam o guardado; antes
+--   só usavam o que estava livre, e o guardado travava a compra.
+-- • O que elas gastam sai também do guardado (fazenda_reserva_gastar): o guardado é o que ainda falta juntar.
+-- Pode rodar este arquivo de novo.
+-- ------------------------------------------------------------
+create or replace function public.fazenda_reserva_gastar(p_jogador uuid, p_itens jsonb)
+returns void language sql security definer set search_path = public as $$
+  delete from fazenda_reservas r using jsonb_each_text(coalesce(p_itens, '{}'::jsonb)) e
+   where r.jogador_id = p_jogador and r.item = e.key and r.quantidade <= e.value::int;
+  update fazenda_reservas r set quantidade = r.quantidade - e.value::int
+    from jsonb_each_text(coalesce(p_itens, '{}'::jsonb)) e
+   where r.jogador_id = p_jogador and r.item = e.key and r.quantidade > e.value::int;
+$$;
+revoke all on function public.fazenda_reserva_gastar(uuid, jsonb) from public, anon, authenticated;
