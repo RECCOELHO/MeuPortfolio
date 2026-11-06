@@ -2610,6 +2610,7 @@
             // fase 67: terreno que chega no litoral deixa descer até a areia e um pouco do mar (no
             // celular a tela é baixa e a praia sumia; no computador ela já aparecia)
             if (!naIlha && cx.y1 >= AREIA_Y && cx.y1 < MAPA.mar.y + 3) maxY = Math.max(maxY, wy(MAPA.mar.y + 3) + base - vh);
+            if (!naIlha && pierPronto && barcoInfo && filaNavio() > 40) maxY = Math.max(maxY, wy(filaNavio() + 2) + base - vh);   // fase 111: o navio fundeado
             if (maxX < minX) minX = maxX = (minX + maxX) / 2;
             if (maxY < minY) minY = maxY = (minY + maxY) / 2;
             return { minX, maxX, minY, maxY };
@@ -2910,6 +2911,7 @@
            oceânico, de dois mastros) e mostra as peças (motor, sonar, porão, rede e o kit de expedição).
            Fica pronto num canvas (um por barco) e balança na água a cada quadro. ---- */
         let barcoInfo = null;   // { nivel, pecas, visual } (null: sem barco)
+        let cachorroInfo = null;   // fase 111: { raca, nome } (o cachorro da ilha; null: sem cachorro)
         const cacheNavio = new Map();
         const NAVIOS = {
             1: { L: 34, deck: 9, lado: 6, mastros: [], casco: '#9e5f34', remos: true },
@@ -3133,8 +3135,11 @@
             cacheNavio.set(chave, cv);
             return cv;
         }
-        // onde o navio fica: o casco começa logo depois do píer e a linha d'água fica na fileira 40
-        const navioNoPier = (cv) => ({ x: wx(MAPA.pier.x + MAPA.pier.w) + 4 - cv.ml, y: wy(40) + 11 - cv.agua });
+        // onde o navio fica: o casco começa logo depois do píer e a linha d'água fica na fileira 40.
+        // Fase 111: o pesqueiro e o navio oceânico são grandes demais para o píer e tampavam a praia: ficam
+        // fundeados mais longe (linha d'água na 43 e na 45), com a corrente da âncora descendo da proa.
+        const filaNavio = () => { const nv = (barcoInfo && barcoInfo.nivel) || 1; return nv >= 5 ? 45 : nv >= 4 ? 43 : 40; };
+        const navioNoPier = (cv) => ({ x: wx(MAPA.pier.x + MAPA.pier.w) + 4 - cv.ml, y: wy(filaNavio()) + 11 - cv.agua });
         const navioNaIlha = (cv) => ({ x: wx(OBRAS_ILHA.cais.x + OBRAS_ILHA.cais.w) + 4 - cv.ml, y: wy(OBRAS_ILHA.cais.y + 4) + 11 - cv.agua });   // fase 106
         // fase 106: atravessando o mar, o navio vai do píer até o cais da ilha (ou volta)
         function navioPos(cv) {
@@ -3153,6 +3158,11 @@
             }
             // a sombra do casco na água e a espuma batendo, que não sobem junto
             const { x0, x1, fundo } = cv.casco;
+            if (!viagem && lugar !== 'ilha' && filaNavio() > 40) {   // fase 111: fundeado: a corrente da âncora sai da proa
+                const ax = Math.round(p.x + x1 - 4), ay = Math.round(p.y + cv.agua - 9 + sobe);
+                for (let k = 0; k < 9; k++) { q.fillStyle = k % 2 ? '#8a8f9e' : '#5a5f6e'; q.fillRect(ax + Math.round(k * 0.7), ay + k, 1, 1); }
+                q.globalAlpha = 0.5; q.fillStyle = '#e8f2fb'; q.fillRect(ax + 5, ay + 9 + (Math.floor(tempo / 400) % 2), 3, 1); q.globalAlpha = 1;
+            }
             q.globalAlpha = 0.28; q.fillStyle = '#1a2a4a';
             for (let x = x0; x < x1; x += 1) q.fillRect(p.x + x - 2, p.y + fundo[x] + 1, 1, 3);
             q.globalAlpha = 1;
@@ -3548,11 +3558,27 @@
                 for (let k = 0; k < 10; k++) { q.fillStyle = '#d9452f'; q.fillRect(bx + 3 + k, by + 2 + k, 2, 1); q.fillRect(bx + 12 - k, by + 2 + k, 2, 1); }
                 if (Math.floor(tempo / 300) % 3) icone(q, 'brilho', bx + 12, by - 4 - (Math.floor(tempo / 150) % 2));
             }
+            const cao = cachorroNaIlha(tempo);   // fase 111: o cachorro passeia pela rua da vila
+            if (cao) pe.push({ img: cao.img, x: cao.x, y: cao.y, ordem: cao.y + cao.img.height, flip: cao.flip, bob: cao.bob });
             const prox = ilhaInfo.proxima && OBRAS_ILHA[ilhaInfo.proxima];
             if (prox) {   // a placa da próxima obra, pulando: tocar nela abre as obras
                 const px = wx(prox.x) + Math.round((prox.w * T) / 2) - 8, py = (ilhaInfo.proxima === 'cais' ? wy(prox.y + prox.h - 1) : wy(prox.y + prox.h - 1)) - 4 + (Math.floor(tempo / 400) % 2);
                 pe.push({ img: artesIlha && (artesIlha.placa || (artesIlha.placa = placaObraCanvas())), x: px, y: py, ordem: py + 18, flip: false, bob: 0 });
             }
+        }
+        /* fase 111: o cachorro da ilha anda pela rua da vila (fileira 58, do armazém ao vigia), de um lado para
+           o outro, parando um pouco em cada ponta. O desenho olha para a esquerda: indo para a direita, espelha. */
+        function cachorroNaIlha(tempo) {
+            if (!cachorroInfo || !ilhaInfo || !window.FazendaCaes) return null;
+            const img = window.FazendaCaes.pequeno(cachorroInfo.raca);
+            if (!img) return null;
+            const u = (tempo % 20000) / 1000, ax = wx(47), bx = wx(56), pe = wy(58) + T - 1;
+            let x, flip, andando = true;
+            if (u < 7) { x = ax + (bx - ax) * (u / 7); flip = true; }
+            else if (u < 10) { x = bx; flip = true; andando = false; }
+            else if (u < 17) { x = bx - (bx - ax) * ((u - 10) / 7); flip = false; }
+            else { x = ax; flip = false; andando = false; }
+            return { img, x: Math.round(x), y: pe - img.height, flip, bob: andando && Math.floor(tempo / 160) % 2 ? -1 : 0 };
         }
         function placaObraCanvas() {
             const c = document.createElement('canvas'); c.width = 16; c.height = 20;
@@ -5387,6 +5413,8 @@
             }
             // fase 106: na ilha, o X do baú, as obras (a placa da próxima ou as prontas) e o navio no cais
             if (ilhaInfo && MH === MH_ILHA && ty >= Y_ILHA) {
+                const cao = cachorroNaIlha(performance.now());   // fase 111
+                if (cao && px >= cao.x - 3 && px < cao.x + cao.img.width + 3 && py >= cao.y - 4 && py < cao.y + cao.img.height + 2) return 'ilha-cachorro';
                 if (ilhaInfo.x && Math.abs(px - wx(ilhaInfo.x.x) - T / 2) <= T * 0.9 && py >= wy(ilhaInfo.x.y) - T * 0.6 && py <= wy(ilhaInfo.x.y) + T * 1.2) return 'ilha-x';   // (um pouco maior que o X: dedo)
                 for (const id of [ilhaInfo.proxima, ...(ilhaInfo.feitas || [])]) {
                     const O = OBRAS_ILHA[id];
@@ -5535,6 +5563,7 @@
             else if (alvo === 'pier') { if (cb.aoPier) cb.aoPier(); }
             else if (alvo === 'casa') { if (cb.aoCasa) cb.aoCasa(); }
             else if (alvo === 'ilha-x') { if (cb.aoIlhaX) cb.aoIlhaX(); }   // fase 106
+            else if (alvo === 'ilha-cachorro') { if (cb.aoCachorro) cb.aoCachorro(); }   // fase 111
             else if (alvo === 'ilha-obra') { if (cb.aoIlhaObra) cb.aoIlhaObra(); }   // fase 66: quem está dormindo na casa da fazenda
             else if (alvo === 'barco') { if (cb.aoBarco) cb.aoBarco(); else if (cb.aoPier) cb.aoPier(); }   // fase 62
             else if (typeof alvo === 'object' && alvo.construcao) { if (cb.aoConstrucao) cb.aoConstrucao(alvo.construcao.x, alvo.construcao.y); }
@@ -5646,7 +5675,8 @@
             // seu lago: { prontos, max } (null na visita ou sem o terreno 3)
             definirLago(l) { lago = l || null; },
             definirPier(pronto) { if (!!pronto === pierPronto) return; pierPronto = !!pronto; montarFundo(); precisaDesenhar = true; },   // fase 61
-            definirBarco(info) { barcoInfo = info || null; precisaDesenhar = true; },   // fase 104: o navio no píer
+            definirBarco(info) { barcoInfo = info || null; limitarCamera(); precisaDesenhar = true; },   // fase 104: o navio no píer (fase 111: fundeado, a câmera desce até ele)
+            definirCachorro(info) { cachorroInfo = info || null; precisaDesenhar = true; },   // fase 111: o cachorro da ilha
             // fase 106: a ilha. info = null (sem ilha: o mundo volta ao tamanho da fazenda) ou
             // { feitas: [ids das obras prontas], proxima: id, x: {x, y} do baú do dia }
             definirIlha(info) {

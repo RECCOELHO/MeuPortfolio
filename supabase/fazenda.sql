@@ -188,6 +188,11 @@ create table if not exists public.fazenda_construcoes (
 alter table public.fazenda_culturas add column if not exists so_ilha boolean not null default false;
 alter table public.fazenda_itens add column if not exists so_ilha boolean not null default false;
 
+-- fase 111: o cachorro da ilha (a raça, o nome e quando chegou)
+alter table public.fazenda_jogadores add column if not exists cachorro_raca text;
+alter table public.fazenda_jogadores add column if not exists cachorro_nome text;
+alter table public.fazenda_jogadores add column if not exists cachorro_em timestamptz;
+
 -- Fase 4: construções grandes (casas 3x3). (x, y) é o canto de cima à esquerda.
 alter table public.fazenda_itens add column if not exists largura smallint not null default 1;
 alter table public.fazenda_itens add column if not exists altura smallint not null default 1;
@@ -1594,7 +1599,9 @@ begin
       -- fase 106: a ilha (pode zarpar? quantas obras; do 45 em diante, a lista; o baú de hoje já foi aberto?)
       'ilha', jsonb_build_object('obras', coalesce(j.ilha_obras, 0), 'pode_ir', fazenda_ilha_pode(p_jogador, v_nivel),
                                  'bau_hoje', j.ilha_bau_dia = fazenda_hoje(), 'x', fazenda_ilha_x(p_jogador),
-                                 'partes', case when v_nivel >= 45 then fazenda_ilha_obras() end)
+                                 'partes', case when v_nivel >= 45 then fazenda_ilha_obras() end),
+      -- fase 111: o cachorro da ilha (null: ainda não escolheu)
+      'cachorro', case when j.cachorro_raca is not null then jsonb_build_object('raca', j.cachorro_raca, 'nome', j.cachorro_nome) end
     ),
     'zonas_venda', case when not v_omite then fazenda_zonas() end,
     'pacotes_diamantes', fazenda_pacotes_diamantes(),
@@ -1993,7 +2000,8 @@ begin
              + fazenda_tem_efeito(p_jogador, 'colheita')::int          -- colheitadeira
              + (fazenda_clima_agora() = 'sol')::int                      -- colheita no sol (fase 71: uma conta por chamada)
              + fazenda_protegido(p_jogador, 'adubo', c.x, c.y)::int     -- cogumelos, barril, colmeia
-             + c.adubado::int;                                          -- adubo do Seu Zé
+             + c.adubado::int                                           -- adubo do Seu Zé
+             + (c.y >= 45 and j.cachorro_raca is not null)::int;        -- fase 111: o cachorro da ilha
     if fazenda_protegido(p_jogador, 'sorte', c.x, c.y) and random() < 0.15 then
       v_qtd := v_qtd * 2;                                               -- alvo
     end if;
@@ -11029,8 +11037,9 @@ begin
   if not fazenda_ilha_pode(v_id, v_nivel) then raise exception 'ilha_fechada'; end if;
   if coalesce(j.ilha_obras, 0) < 1 then raise exception 'ilha_sem_cais'; end if;
   if j.ilha_bau_dia = fazenda_hoje() then raise exception 'ilha_bau_hoje'; end if;
-  v_moeda := round((60000 + (v_nivel - 45) * 8000) * (0.6 + random() * 0.8))::int;
-  if random() < 0.25 then v_diam := 5 + floor(random() * 11)::int; end if;
+  v_moeda := round((60000 + (v_nivel - 45) * 8000) * (0.6 + random() * 0.8)
+                   * case when j.cachorro_raca is not null then 1.5 else 1 end)::int;   -- fase 111: o cachorro fareja
+  if random() < (case when j.cachorro_raca is not null then 1.0 / 3 else 0.25 end) then v_diam := 5 + floor(random() * 11)::int; end if;
   if random() < 1.0 / 12 then
     v_raro := (array['madeira_nobre', 'corda_naval', 'pedra_cantaria', 'ferro_forjado', 'perola_negra'])[1 + floor(random() * 5)::int];
     insert into fazenda_celeiro (jogador_id, item, quantidade) values (v_id, v_raro, 1)
@@ -11167,3 +11176,52 @@ revoke all on function public.fazenda_reserva_gastar(uuid, jsonb) from public, a
 -- mudança continua custando 20 mil. Quem já pintou fica com o que tem (sem vela = a de lona).
 -- Pode rodar este arquivo de novo.
 -- ------------------------------------------------------------
+
+-- ------------------------------------------------------------
+-- Fase 111: o cachorro da ilha. Quem chega na Ilha da Caveira Dourada (fazenda_ilha_pode) escolhe um
+-- cachorro, uma vez só, entre 10 (desenhos do Jessé), e dá o nome (2 a 20 letras, sem palavrão). O corgi
+-- marrom é o Churros, homenagem ao cachorro do 1º do ranking: ele não ganha outro nome.
+-- • O bônus, só na ilha, igual para todas as raças: os canteiros da ilha rendem +1 na colheita
+--   (fazenda_aplicar) e o baú do dia vem com +50% de moedas e diamante em 1 de cada 3 (fazenda_ilha_bau,
+--   era 1 de cada 4).
+-- • Depois, dá para trocar o nome de graça (menos o Churros); a raça fica.
+-- Pode rodar este arquivo de novo.
+-- ------------------------------------------------------------
+alter table public.fazenda_jogadores add column if not exists cachorro_raca text;
+alter table public.fazenda_jogadores add column if not exists cachorro_nome text;
+alter table public.fazenda_jogadores add column if not exists cachorro_em timestamptz;
+
+create or replace function public.fazenda_cachorros()
+returns jsonb language sql immutable as $$
+  select '["shiba", "pastor", "pug", "dalmata", "golden", "beagle", "yorkshire", "buldogue", "corgi", "churros"]'::jsonb;
+$$;
+
+create or replace function public.fazenda_cachorro_escolher(p_token text, p_raca text, p_nome text)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id   uuid := fazenda_auth(p_token);
+  j      record;
+  v_nome text := btrim(regexp_replace(coalesce(p_nome, ''), '\s+', ' ', 'g'));
+begin
+  if not (fazenda_cachorros() ? coalesce(p_raca, '')) then raise exception 'cachorro_raca_invalida'; end if;
+  select * into j from fazenda_jogadores where id = v_id for update;
+  if not fazenda_ilha_pode(v_id, fazenda_nivel_de(j.xp, j.nivel_trava)) then raise exception 'ilha_fechada'; end if;
+  if j.cachorro_raca is not null and j.cachorro_raca <> p_raca then raise exception 'cachorro_ja_tem'; end if;
+  if p_raca = 'churros' then
+    if j.cachorro_raca = 'churros' then raise exception 'cachorro_churros'; end if;   -- o Churros não troca de nome
+    v_nome := 'Churros';
+  else
+    if char_length(v_nome) not between 2 and 20 then raise exception 'cachorro_nome_invalido'; end if;
+    if fazenda_chat_palavrao(v_nome) then raise exception 'cachorro_palavrao'; end if;
+  end if;
+  update fazenda_jogadores set cachorro_raca = p_raca, cachorro_nome = v_nome, cachorro_em = coalesce(cachorro_em, now())
+   where id = v_id;
+  return jsonb_build_object('raca', p_raca, 'nome', v_nome, 'novo', j.cachorro_raca is null, 'estado', fazenda_estado(v_id));
+end;
+$$;
+
+revoke execute on function public.fazenda_cachorros() from public, anon, authenticated;
+grant execute on function public.fazenda_cachorro_escolher(text, text, text) to anon, authenticated;
