@@ -104,6 +104,10 @@
         ilha_sem_cais: 'Construa o cais primeiro: com ele pronto, dá para cavar o baú da praia.',
         ilha_bau_hoje: 'O baú de hoje já foi cavado. Amanhã tem outro no X da praia.',
         cachorro_raca_invalida: 'Escolha um dos cachorros da lista.',   // fase 111
+        pista_ordem: 'Essa pista já foi (ou ainda não é a vez dela). Siga a pista que está brilhando.',   // fase 118
+        ilha_pistas: 'Antes do X, ache as 3 pistas do mapa do tesouro na ilha.',
+        caverna_fechada: 'A caverna abre com a 15ª obra: a bandeira no alto do morro.',
+        caverna_hoje: 'Você já explorou a caverna hoje. Volte amanhã!',
         capitao_falta: 'Ainda não tem o bastante no celeiro para esse pedido (o que está guardado para os bichos ou o navio não conta).',   // fase 117
         capitao_ja_entregue: 'Esse pedido já foi entregue hoje.',
         capitao_sem_pedido: 'O Capitão já trocou os pedidos (virou o dia). Abra de novo.',
@@ -1544,6 +1548,10 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-11-07-tesouro', data: '07/11', titulo: 'O mapa do tesouro e a caverna da Caveira Dourada', itens: [
+            'Todo dia na ilha tem uma <b>caça ao tesouro</b>: siga as 3 pistas (a <b>pedra da caveira</b>, a <b>garrafa com o bilhete</b> e a <b>pá fincada</b>). Cada uma dá um pedaço do mapa e moedas (às vezes diamantes). Com o mapa inteiro, o <b>X</b> aparece e o baú do dia é seu.',
+            'A <b>caverna da Caveira Dourada</b>, no morro, abre com a 15ª obra. Uma vez por dia, escolha um túnel: um tesouro (moedas de ouro, cristal, esmeralda, rubi, cálice, coroa, ídolo ou a rara <b>Caveira Dourada</b>) e 3 diamantes.',
+            'Ache os 8 tesouros para a conquista <b>Tesouro da Caveira Dourada</b>: 500 mil moedas e 150 diamantes.'] },
         { id: '2026-11-07-capitao', data: '07/11', titulo: 'O Capitão do cais', itens: [
             'No trapiche da ilha, bem do lado do cais, mora o <b>Capitão</b>. Todo dia ele pede <b>3 entregas</b> com o que a ilha dá (rapadura pirata, tempero das Índias, ração de marinheiro, abacaxi, concha...). Toque nele quando o balão com o baú aparecer.',
             'Cada entrega paga bem em moedas e XP, e a 3ª vale <b>5 diamantes</b>. Entregou as 3? Ganha o <b>baú do Capitão</b>: 10 diamantes e um material raro do píer.',
@@ -2510,7 +2518,7 @@
         else {
             const feitas = (d.partes || []).slice(0, d.obras || 0).map((o) => o.id);
             const p = proximaObra();
-            cena.definirIlha({ feitas, proxima: p && S.jogador.nivel >= p.nivel ? p.id : null, x: d.x || null });
+            cena.definirIlha({ feitas, proxima: p && S.jogador.nivel >= p.nivel ? p.id : null, x: d.x || null, caca: d.caca || null });   // (fase 118: as pistas)
         }
         const b = el.btnIlha;
         if (b) {
@@ -2612,9 +2620,18 @@
                     : `<button type="button" class="botao pequeno verde" data-ilha-construir="${esc(o.id)}"${pode ? '' : ' disabled'}>${ico('moeda', 14)} ${numero(o.moedas)}</button>`}
             </div>`;
         }).join('');
-        return `${linhaCao}<p class="fala">A vila do porto vai sendo construída aos poucos: uma obra por nível, do 46 ao 60. Cada obra dá XP e aparece no lugar dela, na ilha.</p>
+        const caca = d.caca, cav = d.caverna;   // fase 118: o mapa do tesouro de hoje e a caverna
+        const linhaCaca = !d.obras ? '' : `<div class="lista"><div class="item"><span class="ico">${spr(caca ? 1213 : 1222, 36)}</span><span>
+                <span class="nome">Mapa do tesouro de hoje</span>
+                <span class="det"><span class="txt">${!caca ? 'O baú de hoje já foi cavado. Amanhã tem outra caça!' : caca.passo >= 3 ? 'O mapa está inteiro: cave o X!' : `${caca.passo} de 3 pedaços. ${PISTA_FALA[caca.passo]}`}</span></span></span>
+                ${caca ? `<span class="chip">${[1, 2, 3].map((n) => `<span style="opacity:${n <= caca.passo ? 1 : 0.25}">${pedacoIco(n, 18)}</span>`).join('')}</span>` : ''}</div>
+            <div class="item"><span class="ico">${spr(cav ? 1224 : 1223, 36)}</span><span>
+                <span class="nome">Caverna da Caveira Dourada</span>
+                <span class="det"><span class="txt">${!cav ? 'Fechada com correntes: abre com a 15ª obra (a bandeira no morro).' : cav.hoje ? 'Explorada hoje. Volte amanhã!' : 'Aberta! Explore uma vez por dia.'} Tesouros: ${Object.keys((cav && cav.colecao) || {}).length}/8</span></span></span>
+                ${cav ? `<button type="button" class="botao pequeno ${cav.hoje ? 'creme' : 'verde'}" data-painel-ir="caverna">Entrar</button>` : ''}</div></div>`;
+        return `${linhaCao}${linhaCaca}<p class="fala">A vila do porto vai sendo construída aos poucos: uma obra por nível, do 46 ao 60. Cada obra dá XP e aparece no lugar dela, na ilha.</p>
             <div class="lista">${linhas}</div>
-            <p class="aviso">Os materiais são os do píer e do barco: toras, tábuas, cravos, velas, cordas e cartas náuticas das oficinas e da feira, e os raros do mercador. Com o <b>cais</b> pronto, todo dia tem um <b>baú enterrado</b> num X da ilha (moedas, às vezes diamantes e um raro). Os <b>terrenos da ilha</b> (Loja → Terrenos, ou a placa no mapa) são para plantar e construir como na fazenda. As 15 obras prontas fincam a bandeira no morro.</p>
+            <p class="aviso">Os materiais são os do píer e do barco: toras, tábuas, cravos, velas, cordas e cartas náuticas das oficinas e da feira, e os raros do mercador. Com o <b>cais</b> pronto, todo dia tem uma <b>caça ao tesouro</b>: 3 pistas (a pedra da caveira, a garrafa e a pá) dão os pedaços do mapa, e o mapa inteiro mostra o X do <b>baú enterrado</b> (moedas, às vezes diamantes e um raro). Os <b>terrenos da ilha</b> (Loja → Terrenos, ou a placa no mapa) são para plantar e construir como na fazenda. As 15 obras prontas fincam a bandeira no morro.</p>
             <div class="rodape-painel"><button type="button" class="botao verde" data-ilha-ir>${naIlha() ? 'Ver a ilha' : 'Zarpar para a ilha'}</button></div>`;
     }
     // zarpar: o navio sai do píer e a câmera atravessa o mar junto com ele
@@ -2633,6 +2650,7 @@
             if (!S.jogador.cachorro && ilhaPode() && !painelAtual) setTimeout(() => { if (naIlha() && !painelAtual) abrirPainel('cachorro'); }, 900);   // fase 111
             const d = ilhaDe(), p = proximaObra();
             mostrarStatus(!(S.jogador.ilha_terrenos > 0) ? 'Chegou na ilha! Compre a Praia do Cais (a placa no mapa) para plantar e construir aqui.'
+                : d.caca && d.caca.pista ? `${pedacoIco(d.caca.pista.n, 18)} ${PISTA_FALA[d.caca.pista.n - 1]}`   // fase 118
                 : d.x ? 'Tem um X na ilha hoje: toque nele para cavar o baú.'
                 : p && S.jogador.nivel >= p.nivel ? `Toque na placa da obra para construir: ${p.nome}.` : 'Chegou na ilha!');
         });
@@ -2659,6 +2677,77 @@
             toast(`${itemDe(culturas.leme_dourado || { id: 'leme_dourado' }, 20)} <b>${esc(o.nome)}</b> pronto na ilha! +${numero(r.xp)} ${ico('xp', 14)}${ilhaDe().obras >= 15 ? ' A bandeira está fincada no morro: a ilha é sua!' : ''}`, 'festa');
             const O = A.OBRAS_ILHA && A.OBRAS_ILHA[id];
             if (O && naIlha()) cena.focarTile(O.x + Math.floor(O.w / 2), O.y + Math.floor(O.h / 2));
+        }).finally(() => { if (botao) botao.disabled = false; });
+    }
+    /* ---------- Fase 118: o mapa do tesouro (as 3 pistas do dia antes do X) e a caverna ---------- */
+    const PISTA_FALA = ['A primeira pista é a <b>pedra da caveira</b>: procure na ilha e toque nela.',
+        'A próxima pista é uma <b>garrafa com um bilhete</b>: procure na ilha e toque nela.',
+        'A última pista é a <b>pá fincada</b>: procure na ilha e toque nela.'];
+    const pedacoIco = (n, px) => { const u = A.desenhoUrl ? A.desenhoUrl('pedaco' + n) : ''; return u ? `<img src="${u}" alt="" class="px" style="height:${px}px;width:auto;vertical-align:middle">` : ''; };
+    function cavarPista(n) {
+        const d = ilhaDe();
+        if (!d.caca || !d.caca.pista || d.caca.pista.n !== n) return;
+        som.tocar('colher');
+        enfileirar([], async () => {
+            const r = await rpc('fazenda_ilha_pista', { p_token: token, p_n: n });
+            aplicarEstado(r.estado);
+            atualizarIlha();
+            const mais = `${moeda(numero(r.moedas))}${r.diamantes ? ` e ${r.diamantes} ${ico('diamante', 14)}` : ''}`;
+            const c = ilhaDe().caca;
+            if (n >= 3) {
+                som.tocar('festa');
+                toast(`${spr(1213, 24)} <b>O mapa está inteiro!</b> O X apareceu na ilha: cave o baú. (+${mais})`, 'festa');
+                const x = ilhaDe().x; if (x && naIlha()) setTimeout(() => cena.focarTile(x.x, x.y), 900);
+            } else {
+                som.tocar('moeda');
+                toast(`${pedacoIco(n, 22)} Pedaço ${n} de 3 do mapa! +${mais}`, 'festa');
+                if (c && c.pista) { mostrarStatus(`${pedacoIco(c.pista.n, 18)} ${PISTA_FALA[c.pista.n - 1]}`); if (naIlha()) setTimeout(() => cena.focarTile(c.pista.x, c.pista.y), 900); }
+            }
+        });
+    }
+    let cavernaEscolha = null, cavernaAchado = null, cavernaAnim = 0;
+    function htmlCaverna() {
+        const cav = ilhaDe().caverna;
+        if (!cav) return `<p class="vazio-msg">${ERROS.caverna_fechada}</p>`;
+        const col = cav.colecao || {}, ids = ['moedas_ouro', 'cristal_azul', 'esmeralda', 'rubi', 'calice_ouro', 'coroa_pirata', 'idolo_dourado', 'caveira_dourada'];
+        const achou = Object.keys(col).length;
+        const grade = ids.map((id) => {
+            const c = culturas[id] || { id, nome: id }, n = col[id] || 0;
+            return `<div class="cav-tesouro${n ? '' : ' falta'}" title="${esc(n ? `${c.nome}: achou ${n}` : 'Ainda não achou')}">${itemDe(c, 34)}<span>${n ? esc(c.nome) : '???'}</span>${n ? `<em>×${n}</em>` : ''}</div>`;
+        }).join('');
+        const achado = cavernaAchado && culturas[cavernaAchado];
+        return `<canvas class="cav-cena px" width="240" height="150" data-caverna-cena></canvas>
+            ${achado ? `<p class="aviso">${itemDe(achado, 24)} Você achou <b>${esc(achado.nome)}</b>! Vende no celeiro por ${moeda(numero(achado.venda))}. +3 ${ico('diamante', 14)}</p>`
+                : cav.hoje ? '<p class="fala">Você já explorou a caverna hoje. As tochas apagam à noite e acendem amanhã: volte para outro tesouro!</p>'
+                : '<p class="fala">Três túneis escuros... Escolha um para explorar. Cada dia, um tesouro e <b>3 diamantes</b>.</p>'}
+            ${cav.hoje ? '' : `<div class="cav-tuneis">${['da esquerda', 'do meio', 'da direita'].map((t, k) => `<button type="button" class="botao verde" data-caverna-tunel="${k + 1}">Túnel ${t}</button>`).join('')}</div>`}
+            <h3 class="cav-titulo">Os tesouros da caverna (${achou}/8)</h3>
+            <div class="cav-grade">${grade}</div>
+            <p class="capitao-nota">Os tesouros vendem no celeiro. Achou os 8? A conquista <b>Tesouro da Caveira Dourada</b>: ${moeda('500 mil')} e 150 ${ico('diamante', 12)}. A Caveira Dourada é a mais rara.</p>`;
+    }
+    function animarCaverna() {
+        cancelAnimationFrame(cavernaAnim);
+        const passo = (t) => {
+            const cv = painelAtual === 'caverna' && el.painelCorpo.querySelector('[data-caverna-cena]');
+            if (!cv || !A.cavernaCena) return;
+            A.cavernaCena(cv, t, { escolha: cavernaEscolha, achado: cavernaAchado });
+            cavernaAnim = requestAnimationFrame(passo);
+        };
+        cavernaAnim = requestAnimationFrame(passo);
+    }
+    function explorarCaverna(canto, botao) {
+        if (botao) botao.disabled = true;
+        cavernaEscolha = canto;
+        som.tocar('clique');
+        enfileirar([], async () => {
+            const r = await rpc('fazenda_caverna_explorar', { p_token: token, p_canto: canto });
+            aplicarEstado(r.estado);
+            cavernaAchado = r.item;
+            const c = culturas[r.item] || { id: r.item, nome: r.item };
+            som.tocar('festa');
+            toast(`${itemDe(c, 22)} Na caverna: <b>${esc(c.nome)}</b>${r.novo ? ' (novo na coleção!)' : ''} e +3 ${ico('diamante', 14)}`, 'festa');
+            if (r.colecao) setTimeout(() => toast(`${spr(1212, 24)} <b>Tesouro da Caveira Dourada!</b> Você achou os 8 tesouros: +${moeda('500 mil')} e +150 ${ico('diamante', 14)}`, 'festa'), 900);
+            if (painelAtual === 'caverna') abrirPainel('caverna', true);
         }).finally(() => { if (botao) botao.disabled = false; });
     }
     function cavarBauIlha() {
@@ -3851,6 +3940,12 @@
         aoPier: () => { if (S && !painelAtual && !visita) abrirPainel('pier'); },   // fase 61
         aoBarco: () => { if (S && !painelAtual && !visita) { if (naIlha()) voltarDaIlha(); else abrirMar(); } },   // fase 62: o barco atracado leva para o alto-mar (fase 106: na ilha, de volta para a fazenda)
         aoIlhaX: () => { if (S && !painelAtual && !visita) cavarBauIlha(); },   // fase 106: o X do baú enterrado
+        aoIlhaPista: (n) => { if (S && !painelAtual && !visita) cavarPista(n); },   // fase 118: as pistas do mapa do tesouro
+        aoCaverna: (aberta) => {   // fase 118: a caverna da Caveira Dourada
+            if (!S || painelAtual || visita) return;
+            if (!aberta || !ilhaDe().caverna) { som.tocar('clique'); mostrarStatus(`${spr(1223, 20)} A caverna está fechada com pedras e correntes. Ela abre com a 15ª obra: a bandeira no alto do morro.`); return; }
+            abrirPainel('caverna');
+        },
         aoCachorro: () => {   // fase 111: o cachorro da ilha
             if (!S || painelAtual || visita || !S.jogador.cachorro) return;
             som.tocar('clique');
@@ -5775,6 +5870,11 @@
         } else if (nome === 'ilha') {   // fase 106: as obras da ilha
             el.painelTitulo.innerHTML = `${itemDe(culturas.leme_dourado || { id: 'leme_dourado' }, 30)} Ilha da Caveira Dourada`;
             corpo.innerHTML = htmlIlhaObras();
+        } else if (nome === 'caverna') {   // fase 118: dentro da caverna
+            el.painelTitulo.innerHTML = `${spr(1224, 32)} Caverna da Caveira Dourada`;
+            if (!soAtualizar) { cavernaEscolha = null; cavernaAchado = null; }
+            corpo.innerHTML = htmlCaverna();
+            animarCaverna();
         } else if (nome === 'capitao') {   // fase 117: o Capitão do cais
             el.painelTitulo.innerHTML = `${spr(1204, 32)} O Capitão`;
             if (!soAtualizar) { capitaoDados = null; carregarCapitao(); }
@@ -7588,6 +7688,8 @@
             }).finally(() => { florV.disabled = false; });
             return;
         }
+        const tunel = e.target.closest('[data-caverna-tunel]');   // fase 118: explorar um túnel da caverna
+        if (tunel) { explorarCaverna(Number(tunel.dataset.cavernaTunel), tunel); return; }
         const capE = e.target.closest('[data-capitao-entregar]');   // fase 117: entregar um pedido do Capitão
         if (capE) {
             const slot = Number(capE.dataset.capitaoEntregar);
