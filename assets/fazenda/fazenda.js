@@ -1562,6 +1562,8 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-11-07-raros', data: '07/11', titulo: 'Materiais raros sem limite', itens: [
+            'Na Loja → Diamantes, os <b>materiais raros</b> não têm mais o limite de 2 por semana: compre quantos quiser. Em troca, cada um custa 3x mais (pérola negra 15 💎, madeira nobre 30 💎, âncora 90 💎).'] },
         { id: '2026-11-07-xp-equilibrio', data: '07/11', titulo: 'O XP mais equilibrado', itens: [
             'O XP que vinha em porcentagem do nível estava forte demais nos níveis altos. Agora:',
             '<b>Ajudar vizinho</b>: cada ajuda vale 0,15% do seu nível, e o XP de ajuda do dia vai até <b>1/4 de nível</b>. Depois disso, a ajuda continua dando as moedas.',
@@ -6875,18 +6877,19 @@
             <p class="aviso">O pagamento é no Mercado Pago (Pix, cartão ou saldo): a fazenda não vê os dados do seu cartão. Os diamantes caem assim que o pagamento é aprovado. Também dá para ganhar: 5 a cada nível${ANUNCIO.ligado ? ' e 1 por anúncio' : ''}. <a href="privacidade.html" target="_blank" rel="noopener">Como funciona a compra</a></p>`;
     }
     // fase 84 (D9): os materiais raros do píer e do barco, até 2 compras por semana
-    const precoRaro = (k, l) => Math.ceil((k.venda || 0) / l.por);
+    const precoRaro = (k, l) => Math.ceil((k.venda || 0) / l.por) * (l.mult || 1);   // (fase 123: 3x)
     function htmlLojaRaros() {
         const l = lojaD() && lojaD().raros;
         if (!l) return '';
-        const feitas = (S.social && S.social.raros_semana) || 0, acabou = feitas >= l.por_semana;
-        return `<h3 class="secao-titulo">Materiais raros <small>(até ${l.por_semana} por semana; esta semana: ${feitas})</small></h3><div class="lista">`
+        // fase 123: sem limite por semana (o servidor antigo ainda manda por_semana)
+        const feitas = (S.social && S.social.raros_semana) || 0, acabou = l.por_semana != null && feitas >= l.por_semana;
+        return `<h3 class="secao-titulo">Materiais raros${l.por_semana != null ? ` <small>(até ${l.por_semana} por semana; esta semana: ${feitas})</small>` : ''}</h3><div class="lista">`
             + l.itens.map((id) => culturas[id]).filter(Boolean).map((k) => {
                 const preco = precoRaro(k, l);
                 return `<div class="item"><span class="ico">${itemDe(k, 36)}</span>
                     <span><span class="nome">${esc(k.nome)}</span><span class="det"><span>Você tem ${naCeleiro(k.id)}</span><span>vale ${moeda(k.venda.toLocaleString('pt-BR'))}</span></span></span>
                     ${acabou ? '<span class="preco">Na segunda</span>' : `<button type="button" class="botao pequeno verde" data-raro="${esc(k.id)}" data-preco="${preco}"${(S.jogador.diamantes || 0) >= preco ? '' : ' disabled'}>${ico('diamante', 14)} ${preco}</button>`}</div>`;
-            }).join('') + `</div><p class="det">Para o píer, a tunagem do barco e as luvas do Perks. A semana vira na segunda.</p>`;
+            }).join('') + `</div><p class="det">Para o píer, a tunagem do barco, as obras da ilha e as luvas do Perks.${l.por_semana != null ? ' A semana vira na segunda.' : ' Sem limite: compre quantos quiser.'}</p>`;
     }
     // fase 84 (D10): os vales do calendário (café e XP em dobro guardados), usados quando quiser
     const nomeVale = (v) => (v.tipo === 'xp2' ? `XP em dobro ${tempoCal(v.minutos)}` : `Café dos ajudantes ${tempoCal(v.minutos)}`);

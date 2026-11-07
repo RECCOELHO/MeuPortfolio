@@ -5847,8 +5847,8 @@ returns jsonb language sql immutable as $$
            "murchas": {"preco": 1, "por": 25},
            "agora": {"horas": 4},
            "moedas": {"preco": 10, "por_nivel": 2000},
-           "raros": {"por": 10000, "por_semana": 2,
-                     "itens": ["madeira_nobre", "corda_naval", "pedra_cantaria", "ferro_forjado", "ancora", "leme_dourado", "perola_negra", "luva_perks"]}}'::jsonb;   -- fase 84: a loja de raros   -- fase 79: 10 diamantes = 2.000 moedas por nível
+           "raros": {"por": 10000, "mult": 3,
+                     "itens": ["madeira_nobre", "corda_naval", "pedra_cantaria", "ferro_forjado", "ancora", "leme_dourado", "perola_negra", "luva_perks"]}}'::jsonb;   -- fase 84: a loja de raros (fase 123: sem limite por semana, 3x o preço)   -- fase 79: 10 diamantes = 2.000 moedas por nível
 $$;
 
 -- o dia da loja (o pacote de XP tem limite por dia) é o de Brasília (UTC-3)
@@ -8228,8 +8228,7 @@ declare
 begin
   if v_l is null or not (v_l->'itens' ? p_item) then raise exception 'item_invalido'; end if;
   perform 1 from fazenda_jogadores where id = v_id for update;   -- (dois toques juntos: um só passa)
-  if fazenda_raros_semana(v_id) >= (v_l->>'por_semana')::int then raise exception 'limite_semana'; end if;
-  select ceil(venda / (v_l->>'por')::numeric)::int into v_preco from fazenda_culturas where id = p_item;
+  select ceil(venda / (v_l->>'por')::numeric)::int * coalesce((v_l->>'mult')::int, 1) into v_preco from fazenda_culturas where id = p_item;   -- fase 123: 3x, sem limite
   if v_preco is null then raise exception 'item_invalido'; end if;
   if (select diamantes from fazenda_jogadores where id = v_id) < v_preco then raise exception 'diamantes_insuficientes'; end if;
   update fazenda_jogadores set diamantes = diamantes - v_preco where id = v_id;
@@ -12112,5 +12111,11 @@ select public.fazenda_cache_montar();
 -- • Pacote de XP (diamantes): 5% do nível (era 10%), até 3 por dia.
 -- • Calendário dourado: o XP de 10% do nível vira 5%.
 -- Continuam: as missões (1,5% cada), as obras da ilha (8% cada, uma por nível) e o XP das colheitas.
+-- Pode rodar este arquivo de novo.
+-- ------------------------------------------------------------
+
+-- ------------------------------------------------------------
+-- Fase 123: a loja de materiais raros (diamantes) sem o limite de 2 por semana, e cada raro custa 3x
+-- (1 diamante a cada 10 mil do valor, vezes 3: pérola negra 15, madeira nobre 30, âncora 90).
 -- Pode rodar este arquivo de novo.
 -- ------------------------------------------------------------
