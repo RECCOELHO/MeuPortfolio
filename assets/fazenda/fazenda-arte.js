@@ -2171,6 +2171,12 @@
     });
     Object.assign(INDICE_DESENHO, { 1230: 'estatua_chico_p' });
     Object.assign(DESENHO_GRANDE, { 1230: 'estatua_chico_g' });
+    /* ---------- o farol e a muralha da ilha (desenhos do Jessé): o farol listrado com a lâmpada acesa, nas pedras,
+       e um pedaço da parede de pedra com musgo (a muralha repete o meio dele de cima a baixo). No tamanho do jogo. */
+    Object.assign(DESENHO_BICHO, {
+        farol_obra: { pal: { a: '#22161e', b: '#c3392d', c: '#d3634d', d: '#8d2627', e: '#f9f470', f: '#210806', g: '#fdef60', h: '#847a6e', i: '#2a1e1e', j: '#efe5c6', k: '#a89888', l: '#c3a67f', m: '#564843' }, linhas: ['............aa...........', '...........abba..........', '..........acbbda.........', '.........acbcbbda........', '........acbbcbbdda.......', '........abbcbbbddda......', '.......aefccbbbbffa......', '.......agfhffffffgga.....', '......aggfigigigfegga....', '.......agfhiiiigfega.....', '.......agfhgijigfega.....', '........afiiiiiiffea.....', '.......akfkkieilfha......', '.......akhffffffhka......', '.......ammmhhhhhkma......', '........afmmmmmmfa.......', '........allfffffla.......', '........ajllllllla.......', '........ajjjjjjlla.......', '........ajjjjjjjla.......', '........acjjjjjjla.......', '........accbbbbbda.......', '........accbbbbbda.......', '........accbbbbbda.......', '........accbbbbbda.......', '........accbbbbbda.......', '........ajjjjjjjla.......', '........ajjjjjjjla.......', '........ajjjjjjjla.......', '........ajjjjjjjla.......', '........ajjjjjjjla.......', '........accbbbbbda.......', '........accbbbbbda.......', '........accbbbbdda.......', '........accbbbbdda.......', '........accbbbbdda.......', '........ajjjjjjlla.......', '........ajjjjjjlla.......', '........ajjjjjjjla.......', '........ajjjjjjjla.......', '........ajjjjjjjla.......', '........acjjjjjjda.......', '........accbbbbbda.......', '........accbbbbdda.......', '........accbbbbdda.......', '........accbbbbdda.......', '........ajjbbbbdla.......', '........ajjjjjjlla.......', '......aafjjjjjjlla.......', '.....ahhfjjjjjjjlfaa.....', '....amhmfjjjjjjjlfkka....', '....ammmfjjjjjjjlfmma....', '....affffccbbbbbdfmffaaa.', '....akkhfccbbbbbdfmfkkhha', 'aaaafhhhffffbbbdffffhhhha', 'akkhfhhhfkkffbbfkkkfhhhha', 'akkhfhhmfkkffddfkkhfhhhha', 'ahhhfaaafhhhfaafhhhhfaaa.', 'ahhha...ahhha..ahhhha....', 'aaaaa...aaaaa..aaaaaa....'] },
+        muralha_obra: { pal: { a: '#22161e', b: '#4f4849', c: '#958981', d: '#1e0809', e: '#65564b', f: '#2d373e', g: '#1b1721', h: '#4f5c5f', i: '#716b64', j: '#817f78', k: '#435159', l: '#304e2f', m: '#597737', n: '#426432', o: '#65843c' }, linhas: ['..aaaa......aaaaa.', '.abbcba.....acccca', '.abbbbda.aaaddeefa', 'abddbbdfaecdccdffa', 'adddddggfdddhhgdda', 'acccdiibdccddddjja', 'ahhfdbbdcccdiifffa', 'ahhfddibdfffgfddda', 'afffdfddddddddccca', 'adddffcccccccdcffa', 'abbbbdkkkkkkkgfffa', 'abbbbdkkkkkkkgfffa', 'affffgfffffffgffda', 'aggggggggggggggffa', 'ahgeeeeeghhhhhgffa', 'ahgeeedeghhhhhgffa', 'aggffdgfgfffffggga', 'abjjddgjjjjhgefffa', 'abbbdbghhhhhgefffa', 'agggggggggggggffda', 'aighjjjjgeilibgffa', 'aeghhghhgeleeegffa', 'aeghghhhglleeegffa', 'adggggggmmlgggggga', 'ahhhggelmeeeghfffa', 'ahhhhgeeleeeghfffa', 'afffffffffffgfffda', 'aggggggggggglmgefa', 'aeeghhhhhgbkgmgffa', 'aeeghhhhhgkkkggffa', 'affgffffggggggggga', 'aeghjjjgbbbbbgfffa', 'aegeeeegbebebgfffa', 'afggggggfffgggggga', 'ajjjffjecjghhhfffa', 'abbbddeeeeghhhfffa', 'affffddgggggggffda', 'aggggbddfjjhhhgfa.', 'aeegbbjffhhhhhfffa', 'agggffffgggggggfda', 'akkkkgjjdjjgbbfffa', 'akkkkgeeedegeefffa', 'agggggggggggggfffa', 'ajjgejjnegjjjjgefa', 'akkgegeeeghhhhfffa', 'affgfffffgfffffffa', 'affgglggggggggggfa', 'ahgnhogffffffgfffa', 'ahhlgfgffffffgfffa', 'afffofgfffgffgffda', 'ahhggljjhgjjjefffa', 'ahhghgfhhgeeeefffa', 'affffofffgeeeegffa', 'adgfogfggggggggefa', 'afhfffgbbbbbgbfffa', 'afffffgbbbbbgbfffa', 'aaaaaaaaaaaaaaaaa.'] }
+    });
     const cacheDesenho = new Map();
     function desenhoBicho(tipo) {
         if (cacheDesenho.has(tipo)) return cacheDesenho.get(tipo);
@@ -3161,8 +3167,15 @@
             }
             // o mar
             ret(X0, BEIRA, X1 - X0, FUNDO - BEIRA, '#3a7cc4');
-            ret(X0, BEIRA + T * 2, X1 - X0, FUNDO - BEIRA - T * 2, '#336fb3');
-            ret(X0, BEIRA + T * 5, X1 - X0, FUNDO - BEIRA - T * 5, '#2b5f9e');
+            // as faixas mais fundas: a divisa ondula e se mistura em pontinhos (na viagem para a ilha, uma linha
+            // reta atravessava o mar inteiro)
+            const faixa = (y0, cor, sem) => {
+                const onda = (x) => Math.round(Math.sin(x / 23 + sem) * 3 + Math.sin(x / 7.3 + sem * 2) * 1.5);
+                for (let x = X0; x < X1; x += 2) ret(x, y0 + onda(x), 2, FUNDO - y0 - onda(x), cor);
+                for (let k = 0; k < (X1 - X0) / 2; k++) { const x = X0 + Math.floor(r() * (X1 - X0) / 2) * 2; ret(x, y0 + onda(x) - 1 - Math.floor(r() * 6), 2, 1, cor); }
+            };
+            faixa(BEIRA + T * 2, '#336fb3', 0);
+            faixa(BEIRA + T * 5, '#2b5f9e', 1.7);
             for (let k = 0; k < 420; k++) {
                 const x = X0 + Math.floor(r() * (X1 - X0)), y = BEIRA + 6 + Math.floor(r() * (FUNDO - BEIRA - 8));
                 ret(x, y, 3 + Math.floor(r() * 4), 1, r() < 0.65 ? '#5d9fe0' : '#2f6aac');
@@ -3701,8 +3714,26 @@
         }
 
         /* as 15 obras, vistas de cima (o telhado em cima e a parede da frente embaixo, como as casas) */
+        // o farol e a muralha: os desenhos do Jessé (o farol no meio dos 2 quadrados; a muralha repete o meio do
+        // desenho até cobrir os 10 quadrados, com as ameias em cima e a base embaixo)
+        function obraDesenho(id) {
+            const O = OBRAS_ILHA[id], img = desenhoBicho(id + '_obra');
+            if (id === 'farol') {
+                const c = document.createElement('canvas'); c.width = O.w * T; c.height = img.height;
+                c.getContext('2d').drawImage(img, Math.round((c.width - img.width) / 2), 0);
+                return c;
+            }
+            const H = O.h * T + 6, topo = 10, base = 4, meio = img.height - topo - base;
+            const c = document.createElement('canvas'); c.width = img.width; c.height = H;
+            const g = c.getContext('2d');
+            g.drawImage(img, 0, 0, img.width, topo, 0, 0, img.width, topo);
+            for (let y = topo; y < H - base; y += meio) g.drawImage(img, 0, topo, img.width, Math.min(meio, H - base - y), 0, y, img.width, Math.min(meio, H - base - y));
+            g.drawImage(img, 0, img.height - base, img.width, base, 0, H - base, img.width, base);
+            return c;
+        }
         function obraCanvas(id) {
             if (artesIlha.obras[id]) return artesIlha.obras[id];
+            if (id === 'farol' || id === 'muralha') return (artesIlha.obras[id] = obraDesenho(id));
             const O = OBRAS_ILHA[id], W = O.w * T, extra = { farol: 26, vigia: 10, bandeira: 18, taverna: 6, cartografo: 8, armazem: 4 }[id] || 0, H = O.h * T + extra;
             const c = document.createElement('canvas'); c.width = W; c.height = H;
             const g = c.getContext('2d'), OL = '#3f2631', r = rng(hash('obra' + id));
@@ -3826,7 +3857,8 @@
             const fechada = (tx, ty) => daIlha.some((z) => dentroRet(z, tx, ty) && !zonaMinha(z));
             const placaPerto = (tx, ty) => zonasVenda.some((zv) => Math.abs(tx - zv.placa.x) <= 1 && ty >= zv.placa.y - 1 && ty <= zv.placa.y + 1);
             const fixo = (tx, ty) => dentroRet({ x: ILHA.morro.x - 1, y: ILHA.morro.y - 1, w: ILHA.morro.w + 2, h: ILHA.morro.h + 4 }, tx, ty)   // o morro e a clareira da frente
-                || dentroRet({ x: ILHA.vila.x - 1, y: ILHA.vila.y - 1, w: ILHA.vila.w + 2, h: ILHA.vila.h + 2 }, tx, ty);
+                || dentroRet({ x: ILHA.vila.x - 1, y: ILHA.vila.y - 1, w: ILHA.vila.w + 2, h: ILHA.vila.h + 2 }, tx, ty)
+                || dentroRet({ x: OBRAS_ILHA.cais.x - 2, y: OBRAS_ILHA.cais.y, w: OBRAS_ILHA.cais.w + 4, h: OBRAS_ILHA.cais.h + 1 }, tx, ty);   // (o cais livre: nada de palmeira em cima)
             for (let ty = ILHA.y0; ty < ILHA.y1; ty++) for (let tx = ILHA.x0; tx < ILHA.x1; tx++) {
                 if (fixo(tx, ty) || placaPerto(tx, ty) || minha(tx, ty)) continue;
                 const cx = wx(tx) + T / 2, cy = wy(ty) + T / 2;
@@ -4967,7 +4999,7 @@
             }
             // fase 106: as luzes da vila da ilha (o farol forte; as janelas e os lampiões do cais) e os olhos da caveira
             if (ilhaInfo && MH === MH_ILHA) {
-                const LUZ_OBRA = { farol: [1, 0.3, 8, 0.5, 1], taverna: [2, 2.2, 4, 0.4, 0.8], armazem: [1.5, 2.2, 3.5, 0.35, 0.7], cartografo: [1.5, 2.2, 3.5, 0.35, 0.7],
+                const LUZ_OBRA = { farol: [1, -0.1, 8, 0.5, 1], taverna: [2, 2.2, 4, 0.4, 0.8], armazem: [1.5, 2.2, 3.5, 0.35, 0.7], cartografo: [1.5, 2.2, 3.5, 0.35, 0.7],
                                    vigia: [1, 1, 2.5, 0.3, 0.6], mercado: [1.5, 1.2, 3, 0.2, 0.45], toldo: [1.5, 1.2, 2.5, 0.2, 0.4], cais: [1, 7, 3.5, 0.25, 0.55] };
                 for (const id of ilhaInfo.feitas || []) {
                     const k = LUZ_OBRA[id], O = OBRAS_ILHA[id];
@@ -5168,25 +5200,36 @@
         }
         function desenharCoracaoFarol(tempo, escuro) {
             if (escuro < 0.3 || !ilhaInfo || MH !== MH_ILHA || !(ilhaInfo.feitas || []).includes('farol')) return;
-            const F = OBRAS_ILHA.farol, lx = wx(F.x) + T, ly = wy(F.y) - 22;   // a lâmpada do farol
-            const cx = wx(42), cy = wy(46) + 8, pulso = 0.75 + 0.25 * Math.sin(tempo / 500);   // no mar aberto ao norte da praia (longe do navio no cais)
+            const F = OBRAS_ILHA.farol, lx = wx(F.x) + T, ly = wy(F.y) - 2;   // a lâmpada do farol (o desenho do Jessé)
+            const cx = wx(42), cy = wy(46) + 8, pulso = 0.8 + 0.2 * Math.sin(tempo / 500), a = Math.min(1, escuro);   // no mar ao norte da praia
+            const forma = (k, n) => { const t = (k / n) * Math.PI * 2; return [16 * Math.sin(t) ** 3, -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t))]; };
             q.save();
+            // o facho: um cone de luz quente, do farol até o coração, mais forte no meio
             q.globalCompositeOperation = 'lighter';
-            q.globalAlpha = Math.min(1, escuro) * 0.22 * pulso;   // o facho, do farol até o coração
-            q.fillStyle = '#ffe6b0';
-            for (let k = 0; k <= 24; k++) { const f = k / 24; q.fillRect(Math.round(lx + (cx - lx) * f) - 1 - Math.round(f * 4), Math.round(ly + (cy - ly) * f), 3 + Math.round(f * 8), 2); }
-            q.globalAlpha = Math.min(1, escuro) * 0.9 * pulso;   // o coração: a curva clássica, ponto a ponto
-            for (let k = 0; k < 120; k++) {
-                const t = (k / 120) * Math.PI * 2, hx = 16 * Math.sin(t) ** 3, hy = -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t));
-                q.fillStyle = k % 3 ? '#ff9ac6' : '#ffd6e8';
-                q.fillRect(Math.round(cx + hx * 1.1), Math.round(cy + hy * 1.1), 2, 2);
+            for (let k = 0; k <= 40; k++) {
+                const f = k / 40, x = lx + (cx - lx) * f, y = ly + (cy - ly) * f, w = 3 + f * 26;
+                q.globalAlpha = a * 0.16 * pulso; q.fillStyle = '#ffd98a'; q.fillRect(Math.round(x - w / 2), Math.round(y), Math.round(w), 2);
+                q.globalAlpha = a * 0.28 * pulso; q.fillStyle = '#fff1c8'; q.fillRect(Math.round(x - w / 6), Math.round(y), Math.max(1, Math.round(w / 3)), 2);
             }
-            q.globalAlpha = Math.min(1, escuro) * 0.18 * pulso;   // o brilho dentro
-            q.fillStyle = '#ff7fb5';
+            // o brilho de neon em volta (rosa, somando)
+            for (const [esc, al, tam] of [[1.45, 0.10, 6], [1.3, 0.16, 4]]) {
+                q.globalAlpha = a * al * pulso; q.fillStyle = '#ff3d96';
+                for (let k = 0; k < 140; k++) { const [hx, hy] = forma(k, 140); q.fillRect(Math.round(cx + hx * esc - tam / 2), Math.round(cy + hy * esc - tam / 2), tam, tam); }
+            }
+            // o recheio, rosinha
+            q.globalCompositeOperation = 'source-over';
+            q.globalAlpha = a * 0.28 * pulso; q.fillStyle = '#ff7fb5';
             for (let y = -12; y <= 16; y += 2) for (let x = -17; x <= 17; x += 2) {
                 const u = x / 17.6, v = -y / 14.3, d = (u * u + v * v - 1) ** 3 - u * u * v ** 3;
-                if (d < 0) q.fillRect(Math.round(cx + x), Math.round(cy + y), 2, 2);
+                if (d < 0) q.fillRect(Math.round(cx + x * 1.2), Math.round(cy + y * 1.2), 2, 2);
             }
+            // o tubo de neon: rosa forte com o miolo quase branco
+            q.globalAlpha = a * 0.95;
+            for (let k = 0; k < 160; k++) {
+                const [hx, hy] = forma(k, 160);
+                q.fillStyle = '#ff5fa8'; q.fillRect(Math.round(cx + hx * 1.2) - 1, Math.round(cy + hy * 1.2) - 1, 3, 3);
+            }
+            for (let k = 0; k < 160; k++) { const [hx, hy] = forma(k, 160); q.fillStyle = k % 9 < 7 ? '#ffd2e8' : '#ffffff'; q.fillRect(Math.round(cx + hx * 1.2), Math.round(cy + hy * 1.2), 1, 1); }
             q.restore();
         }
         function desenharNoite(lista, tempo, escuro) {
