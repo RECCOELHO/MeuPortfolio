@@ -3779,7 +3779,7 @@ $$;
 -- fase 83: 0,30% (e sem o limite de 30 por dia)
 create or replace function public.fazenda_premio_ajuda(p_ator uuid)
 returns int language sql stable security definer set search_path = public as $$
-  select greatest(2, round((fazenda_xp_nivel(n + 1) - fazenda_xp_nivel(n)) * 0.003))::int
+  select greatest(2, round((fazenda_xp_nivel(n + 1) - fazenda_xp_nivel(n)) * 0.0015))::int   -- fase 122: 0,15% (era 0,3%)
     from (select fazenda_nivel_de(xp, nivel_trava) as n from fazenda_jogadores where id = p_ator) x;
 $$;
 
@@ -3854,7 +3854,7 @@ begin
     v_dia := case when j.ajuda_dia = fazenda_hoje() then coalesce(j.ajuda_xp_dia, 0) else 0 end;
   end if;
   v_cheio := greatest(0, coalesce((v_lote->>'teto')::int, fazenda_ajuda_teto(p_ator)) - v_dia);
-  v_xp := least(v_base, v_cheio) + (v_base - least(v_base, v_cheio)) / 4;
+  v_xp := least(v_base, v_cheio);   -- fase 122: passou do teto do dia, a ajuda não dá mais XP (era 1/4, sem fim)
   if v_lote is not null then
     perform set_config('fazenda.ajuda_lote', (v_lote || jsonb_build_object('seq', to_jsonb(v_seq), 'dia', v_dia + v_xp,
       'xp', (v_lote->>'xp')::int + v_xp, 'moedas', (v_lote->>'moedas')::int + p_unidades))::text, true);
@@ -3885,7 +3885,8 @@ $$;
 -- fase 85: o teto do dia (o XP de 1 nível inteiro do ator)
 create or replace function public.fazenda_ajuda_teto(p_ator uuid)
 returns int language sql stable security definer set search_path = public as $$
-  select (fazenda_xp_nivel(n + 1) - fazenda_xp_nivel(n))::int from (select fazenda_nivel_de(xp, nivel_trava) as n from fazenda_jogadores where id = p_ator) x;
+  select round((fazenda_xp_nivel(n + 1) - fazenda_xp_nivel(n)) * 0.25)::int from   -- fase 122: 1/4 de nível (era 1 inteiro)
+  (select fazenda_nivel_de(xp, nivel_trava) as n from fazenda_jogadores where id = p_ator) x;
 $$;
 
 -- fase 83: o bônus da sequência com n vizinhos (o 1º não dá bônus; fase 85: +5% a cada um depois, até +50%)
@@ -5839,7 +5840,7 @@ returns jsonb language sql immutable as $$
   -- fase 72: o café dura 4 h; 1 diamante enche 150 ⚡; salvar murchas, 1 a cada 25 plantas; colher
   -- agora, 1 a cada 4 h que faltam
   select '{"xp2": {"preco": 15, "horas": 1},
-           "xp": {"preco": 10, "pct": 10, "por_dia": 3},
+           "xp": {"preco": 10, "pct": 5, "por_dia": 3},
            "cafe": {"preco": 10, "horas": 4},
            "energia": {"por": 150},
            "oficina": {"por_hora": 1},
@@ -8052,29 +8053,29 @@ returns jsonb language sql immutable as $$
     {"g": [{"tipo": "moedas", "qtd": 15}],    "d": [{"tipo": "moedas", "qtd": 50}]},
     {"g": [{"tipo": "xp", "qtd": 3}],         "d": [{"tipo": "xp2", "qtd": 60}]},
     {"g": [{"tipo": "moedas", "qtd": 20}],    "d": [{"tipo": "cafe", "qtd": 120}]},
-    {"g": [{"tipo": "cafe", "qtd": 30}],      "d": [{"tipo": "xp", "qtd": 10}]},
+    {"g": [{"tipo": "cafe", "qtd": 30}],      "d": [{"tipo": "xp", "qtd": 5}]},
     {"g": [{"tipo": "moedas", "qtd": 25}],    "d": [{"tipo": "moedas", "qtd": 60}]},
     {"g": [{"tipo": "xp2", "qtd": 30}],       "d": [{"tipo": "xp2", "qtd": 60}]},
     {"g": [{"tipo": "diamantes", "qtd": 3}],  "d": [{"tipo": "diamantes", "qtd": 10}, {"tipo": "item", "item": "madeira_nobre", "qtd": 1}]},
     {"g": [{"tipo": "moedas", "qtd": 20}],    "d": [{"tipo": "cafe", "qtd": 120}]},
     {"g": [{"tipo": "xp", "qtd": 4}],         "d": [{"tipo": "moedas", "qtd": 70}]},
-    {"g": [{"tipo": "moedas", "qtd": 25}],    "d": [{"tipo": "xp", "qtd": 10}]},
+    {"g": [{"tipo": "moedas", "qtd": 25}],    "d": [{"tipo": "xp", "qtd": 5}]},
     {"g": [{"tipo": "cafe", "qtd": 30}],      "d": [{"tipo": "xp2", "qtd": 60}]},
     {"g": [{"tipo": "moedas", "qtd": 30}],    "d": [{"tipo": "cafe", "qtd": 120}]},
     {"g": [{"tipo": "xp2", "qtd": 30}],       "d": [{"tipo": "moedas", "qtd": 80}]},
     {"g": [{"tipo": "diamantes", "qtd": 5}],  "d": [{"tipo": "diamantes", "qtd": 10}, {"tipo": "item", "item": "perola_negra", "qtd": 1}]},
     {"g": [{"tipo": "moedas", "qtd": 25}],    "d": [{"tipo": "xp2", "qtd": 60}]},
-    {"g": [{"tipo": "xp", "qtd": 5}],         "d": [{"tipo": "xp", "qtd": 10}]},
+    {"g": [{"tipo": "xp", "qtd": 5}],         "d": [{"tipo": "xp", "qtd": 5}]},
     {"g": [{"tipo": "moedas", "qtd": 30}],    "d": [{"tipo": "cafe", "qtd": 120}]},
     {"g": [{"tipo": "cafe", "qtd": 45}],      "d": [{"tipo": "moedas", "qtd": 90}]},
     {"g": [{"tipo": "moedas", "qtd": 35}],    "d": [{"tipo": "xp2", "qtd": 60}]},
     {"g": [{"tipo": "xp2", "qtd": 45}],       "d": [{"tipo": "cafe", "qtd": 120}]},
     {"g": [{"tipo": "diamantes", "qtd": 5}],  "d": [{"tipo": "diamantes", "qtd": 10}, {"tipo": "item", "item": "corda_naval", "qtd": 1}, {"tipo": "item", "item": "pedra_cantaria", "qtd": 1}]},
-    {"g": [{"tipo": "moedas", "qtd": 30}],    "d": [{"tipo": "xp", "qtd": 10}]},
+    {"g": [{"tipo": "moedas", "qtd": 30}],    "d": [{"tipo": "xp", "qtd": 5}]},
     {"g": [{"tipo": "xp", "qtd": 5}],         "d": [{"tipo": "moedas", "qtd": 100}]},
     {"g": [{"tipo": "moedas", "qtd": 40}],    "d": [{"tipo": "xp2", "qtd": 60}]},
     {"g": [{"tipo": "cafe", "qtd": 60}],      "d": [{"tipo": "cafe", "qtd": 120}]},
-    {"g": [{"tipo": "moedas", "qtd": 45}],    "d": [{"tipo": "xp", "qtd": 10}]},
+    {"g": [{"tipo": "moedas", "qtd": 45}],    "d": [{"tipo": "xp", "qtd": 5}]},
     {"g": [{"tipo": "xp2", "qtd": 60}],       "d": [{"tipo": "moedas", "qtd": 120}]},
     {"g": [{"tipo": "diamantes", "qtd": 10}], "d": [{"tipo": "avatar", "avatar": "fazendeiro_ouro"}, {"tipo": "diamantes", "qtd": 20}]}
   ]'::jsonb;
@@ -12103,3 +12104,13 @@ update public.fazenda_culturas k set estacao_boa = v.e
 update public.fazenda_culturas set estacao_boa = estacao where estacao is not null;
 
 select public.fazenda_cache_montar();
+
+-- ------------------------------------------------------------
+-- Fase 122: o XP que vem em porcentagem do nível estava forte demais (quanto mais alto o nível, mais ele dava).
+-- • Ajudar vizinho: cada ajuda vale 0,15% do nível (era 0,3%) e o teto do dia é 1/4 de nível (era 1 nível
+--   inteiro); passou do teto, a ajuda só dá as moedas (antes ainda dava 1/4 do XP, sem limite).
+-- • Pacote de XP (diamantes): 5% do nível (era 10%), até 3 por dia.
+-- • Calendário dourado: o XP de 10% do nível vira 5%.
+-- Continuam: as missões (1,5% cada), as obras da ilha (8% cada, uma por nível) e o XP das colheitas.
+-- Pode rodar este arquivo de novo.
+-- ------------------------------------------------------------
