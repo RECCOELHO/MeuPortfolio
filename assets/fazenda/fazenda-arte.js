@@ -3903,7 +3903,8 @@
                 // fase 116: só o píer (com as estacas). Antes ia até o fundo do mapa e 3 quadrados para a direita (o lugar
                 // do barco antigo, que era parte do fundo); o navio agora é desenhado por cima e fica fundeado mais longe,
                 // e sobrava uma faixa de mar parado, com a beira reta, do lado do píer
-                if (zonasAtuais >= 7 && (pierPronto || sempre)) q.rect(wx(MAPA.pier.x) - 2, wy(MAPA.pier.y), MAPA.pier.w * T + 4, MAPA.pier.h * T + 6);
+                // (fase 116: só onde o píer é desenhado: as tábuas e os pilares ficam 3 px para dentro do quadrado)
+                if (zonasAtuais >= 7 && (pierPronto || sempre)) q.rect(wx(MAPA.pier.x) + 2, wy(MAPA.pier.y), MAPA.pier.w * T - 4, MAPA.pier.h * T + 6);
                 if (costa && MH === MH_ILHA) {   // fase 106: a ilha e o cais ficam de fora
                     const pts = costa.beira.pts;
                     q.moveTo(pts[0][0], pts[0][1]); for (let k = 1; k < pts.length; k += 3) q.lineTo(pts[k][0], pts[k][1]); q.closePath();
@@ -5643,8 +5644,10 @@
                     && tx <= C.x + C.w + Math.ceil(((NAVIOS[(barcoInfo && barcoInfo.nivel) || 1] || NAVIOS[1]).L) / T)) return 'barco';
             }
             // fase 62: o barco atracado leva para o alto-mar; o píer (ou o lugar dele) abre a tela do píer
-            if (lugar === 'fazenda' && zonasAtuais >= 7 && pierPronto && tx >= MAPA.pier.x + MAPA.pier.w && ty >= 37 && ty <= 40
-                && tx <= MAPA.pier.x + MAPA.pier.w + Math.ceil(((NAVIOS[(barcoInfo && barcoInfo.nivel) || 1] || NAVIOS[1]).L) / T)) return 'barco';   // fase 104: o casco do navio
+            if (lugar === 'fazenda' && zonasAtuais >= 7 && pierPronto && barcoInfo) {   // fase 104: o casco do navio (fase 116: onde ele está de verdade, fundeado ou no píer)
+                const cv = navioCanvas(barcoInfo), np = navioPos(cv);
+                if (px >= np.x + cv.casco.x0 && px <= np.x + cv.casco.x1 && py >= np.y + cv.agua - 40 && py <= np.y + cv.agua + 8) return 'barco';
+            }
             if (zonasAtuais >= 7 && dentroRet(MAPA.pier, tx, ty)) return 'pier';   // fase 61
             const cant = listaCanteiros().find((k) => k.x === tx && k.y === ty);
             if (cant) return cant.posicao;
