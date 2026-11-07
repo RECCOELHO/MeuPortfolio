@@ -1562,6 +1562,11 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-11-07-xp-equilibrio', data: '07/11', titulo: 'O XP mais equilibrado', itens: [
+            'O XP que vinha em porcentagem do nível estava forte demais nos níveis altos. Agora:',
+            '<b>Ajudar vizinho</b>: cada ajuda vale 0,15% do seu nível, e o XP de ajuda do dia vai até <b>1/4 de nível</b>. Depois disso, a ajuda continua dando as moedas.',
+            '<b>Pacote de XP</b> (diamantes): <b>5%</b> do nível. <b>Calendário dourado</b>: o XP de 10% virou <b>5%</b>.',
+            'As missões, as obras da ilha e o XP das colheitas continuam iguais.'] },
         { id: '2026-11-07-estacoes', data: '07/11', titulo: 'As estações e o clima valendo mais', itens: [
             'Cada planta tem a <b>sua estação</b>: colhida nela, rende <b>um quarto a mais</b> (no mínimo +1). Na Loja aparece "rende +1 agora!" e, no Clima, o que rende mais em cada estação.',
             '<b>Seca</b>: planta madura com seca (sem regar) <b>murcha na metade do tempo</b>. A chuva rega o que ainda está crescendo; a madura com seca precisa de rega na mão (ou de um irrigador perto).',
@@ -5447,10 +5452,10 @@
         const ex = document.getElementById('visitaExtra');
         if (!ex || !visita) return;
         const sq = S && S.social && S.social.sequencia && Date.parse(S.social.sequencia.ate) > agora() ? S.social.sequencia : null;
-        // fase 85: o XP de ajuda do dia (até o teto vale cheio; depois, 1/4). Fase 86: sem as 30 ajudas por fazenda
+        // fase 85: o XP de ajuda do dia (até o teto vale cheio; fase 122: depois, só as moedas). Fase 86: sem as 30 ajudas por fazenda
         const ah = S && S.social && S.social.ajuda_hoje;
         ex.innerHTML = (visita.abandonada ? ' <span class="chip-abandonada">Abandonada: +25% XP</span>' : '')
-            + (ah ? ` <span class="chip-sequencia"${ah.xp >= ah.teto ? ' style="background:#e9c8b8;color:#5a2a1a"' : ''}>XP de ajuda hoje: ${Math.round(Math.min(100, ah.xp / Math.max(1, ah.teto) * 100))}%${ah.xp >= ah.teto ? ' (agora vale 1/4)' : ''}</span>` : '')
+            + (ah ? ` <span class="chip-sequencia"${ah.xp >= ah.teto ? ' style="background:#e9c8b8;color:#5a2a1a"' : ''}>XP de ajuda hoje: ${Math.round(Math.min(100, ah.xp / Math.max(1, ah.teto) * 100))}%${ah.xp >= ah.teto ? ' (acabou: agora só moedas)' : ''}</span>` : '')
             + (sq && sq.n > 1 ? ` <span class="chip-sequencia">Sequência x${sq.n}: +${Math.round(sq.bonus * 100)}%</span>` : '');
     }
     function visitar(id) {
