@@ -193,6 +193,21 @@ alter table public.fazenda_jogadores add column if not exists cachorro_raca text
 alter table public.fazenda_jogadores add column if not exists cachorro_nome text;
 alter table public.fazenda_jogadores add column if not exists cachorro_em timestamptz;
 
+-- fase 114: recados particulares (um jogador só; o jogo mostra numa carta até a pessoa tocar em "Obrigado")
+create table if not exists public.fazenda_recados (
+  id         bigint generated always as identity primary key,
+  jogador_id uuid not null references public.fazenda_jogadores(id) on delete cascade,
+  titulo     text not null,
+  texto      text not null,
+  de         text,
+  diamantes  int not null default 0,
+  criado_em  timestamptz not null default now(),
+  visto_em   timestamptz
+);
+create index if not exists fazenda_recados_jogador on public.fazenda_recados (jogador_id) where visto_em is null;
+alter table public.fazenda_recados enable row level security;
+revoke all on public.fazenda_recados from anon, authenticated;
+
 -- Fase 4: construções grandes (casas 3x3). (x, y) é o canto de cima à esquerda.
 alter table public.fazenda_itens add column if not exists largura smallint not null default 1;
 alter table public.fazenda_itens add column if not exists altura smallint not null default 1;
@@ -1826,7 +1841,11 @@ begin
       perform set_config('fazenda.cat_ver', v_ver, true);
     end if;
   end if;
-  return v_json || jsonb_build_object('cat_ver', v_ver);
+  return v_json || jsonb_build_object('cat_ver', v_ver,
+    -- fase 114: os recados particulares ainda não lidos (só os seus: o estado é sempre o do próprio jogador)
+    'recados', coalesce((select jsonb_agg(jsonb_build_object('id', r.id, 'titulo', r.titulo, 'texto', r.texto, 'de', r.de,
+                                                             'diamantes', r.diamantes, 'em', r.criado_em) order by r.id)
+                           from fazenda_recados r where r.jogador_id = p_jogador and r.visto_em is null), '[]'::jsonb));
 end;
 $$;
 
@@ -11285,3 +11304,59 @@ alter table public.fazenda_semana_base add column if not exists nivel int;
 update public.fazenda_semana_base b set nivel = public.fazenda_nivel_de(b.xp::int, j.nivel_trava)
   from public.fazenda_jogadores j
  where j.id = b.jogador_id and b.nivel is null;
+
+-- ------------------------------------------------------------
+-- Fase 114: recados particulares. O admin manda (no SQL Editor) um recado para um jogador, com diamantes de
+-- presente se quiser (fazenda_recado_enviar: os diamantes entram na hora). Só o dono vê: vem no estado dele
+-- (fazenda_estado), e o jogo mostra numa carta até ele tocar em "Obrigado" (fazenda_recado_lido). Ninguém
+-- mais consegue ler (a tabela não abre para o jogo, e as visitas não levam os recados).
+-- Pode rodar este arquivo de novo.
+-- ------------------------------------------------------------
+-- fase 114: recados particulares (um jogador só; o jogo mostra numa carta até a pessoa tocar em "Obrigado")
+create table if not exists public.fazenda_recados (
+  id         bigint generated always as identity primary key,
+  jogador_id uuid not null references public.fazenda_jogadores(id) on delete cascade,
+  titulo     text not null,
+  texto      text not null,
+  de         text,
+  diamantes  int not null default 0,
+  criado_em  timestamptz not null default now(),
+  visto_em   timestamptz
+);
+create index if not exists fazenda_recados_jogador on public.fazenda_recados (jogador_id) where visto_em is null;
+alter table public.fazenda_recados enable row level security;
+revoke all on public.fazenda_recados from anon, authenticated;
+
+-- mandar um recado (só pelo SQL Editor: o jogo não chama). Devolve o id do recado.
+create or replace function public.fazenda_recado_enviar(p_apelido text, p_titulo text, p_texto text, p_diamantes int default 0, p_de text default null)
+returns bigint language plpgsql security definer set search_path = public, extensions as $$
+declare
+  v_id  uuid;
+  v_rec bigint;
+begin
+  select id into v_id from fazenda_jogadores where apelido = p_apelido;
+  if v_id is null or (select count(*) from fazenda_jogadores where apelido = p_apelido) <> 1 then
+    raise exception 'Não achei o jogador "%" (um só). Nada foi mudado.', p_apelido;
+  end if;
+  insert into fazenda_recados (jogador_id, titulo, texto, de, diamantes)
+  values (v_id, p_titulo, p_texto, p_de, greatest(coalesce(p_diamantes, 0), 0)) returning id into v_rec;
+  if coalesce(p_diamantes, 0) > 0 then
+    update fazenda_jogadores set diamantes = diamantes + p_diamantes where id = v_id;
+  end if;
+  return v_rec;
+end;
+$$;
+
+-- o jogador leu (tocou em "Obrigado"): o recado some da caixa
+create or replace function public.fazenda_recado_lido(p_token text, p_id bigint)
+returns jsonb language plpgsql security definer set search_path = public, extensions as $$
+declare
+  v_id uuid := fazenda_auth(p_token);
+begin
+  update fazenda_recados set visto_em = now() where id = p_id and jogador_id = v_id and visto_em is null;
+  return jsonb_build_object('estado', fazenda_estado(v_id));
+end;
+$$;
+
+revoke execute on function public.fazenda_recado_enviar(text, text, text, int, text) from public, anon, authenticated;
+grant execute on function public.fazenda_recado_lido(text, bigint) to anon, authenticated;
