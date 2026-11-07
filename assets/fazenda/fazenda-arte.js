@@ -216,6 +216,7 @@
         // fase 73: as frutas e os produtos do 31 ao 45 e as sementes de estação (broto e meio do pacote)
         coco: { item: 1121 }, caju: { item: 1122 }, acai: { item: 1123 }, cupuacu: { item: 1124 }, castanha: { item: 1125 },
         leite_cabra: { item: 1148 }, leite_bufala: { item: 1149 }, mussarela: { item: 1150 },   // fase 74
+        concha: { item: 1197 }, pena_arara: { item: 1198 },   // fase 116: da tartaruga e do papagaio
         sardinha_lata: { item: 1151 }, sashimi: { item: 1152 }, caldeirada: { item: 1153 },
         tora: { item: 1155 }, tabua_naval: { item: 1156 }, cravo: { item: 1157 }, vela: { item: 1158 }, carta_nautica: { item: 1159 },   // fase 104
         cocada: { item: 1126 }, cajuina: { item: 1127 }, acai_tigela: { item: 1128 }, creme_cupuacu: { item: 1129 }, pacoca: { item: 1130 },
@@ -245,7 +246,8 @@
         viih:     { fases: [1192, 1193, 1191], murcho: 1194, item: 1191, semente: 1190 }   // fase 115: a flor do 11/11
     };
     const CULTURA_PADRAO = CULTURAS.alface;
-    const ANIMAL = { galinha: 122, vaca: 121, ovelha: 120, porco: 1000, pato: 1001, coelho: 1002, cabra: 1146, bufala: 1147 };   // (fase 74: cabra e búfala)
+    const ANIMAL = { galinha: 122, vaca: 121, ovelha: 120, porco: 1000, pato: 1001, coelho: 1002, cabra: 1146, bufala: 1147,   // (fase 74: cabra e búfala)
+                     tartaruga: 1195, papagaio: 1196 };   // fase 116: os da ilha
     // bichos pequenos ficam no galinheiro; os grandes, no pasto
     const PEQUENOS = ['galinha', 'pato', 'coelho'];
 
@@ -1094,7 +1096,10 @@
         cercado_ovelha: { bicho: 'ovelha', w: 7, h: 5, chao: 'cocho' },
         cercado_porco: { bicho: 'porco', w: 6, h: 4, chao: 'lama' },
         cercado_cabra: { bicho: 'cabra', w: 6, h: 4, chao: 'feno' },     // fase 74
-        cercado_bufala: { bicho: 'bufala', w: 7, h: 5, chao: 'lama' }
+        cercado_bufala: { bicho: 'bufala', w: 7, h: 5, chao: 'lama' },
+        // fase 116: os da ilha, com a cerca do desenho do Jessé (postes com o topo cortado e duas tábuas)
+        cercado_tartaruga: { bicho: 'tartaruga', w: 6, h: 4, chao: 'lago', cerca: 'ilha' },
+        cercado_papagaio: { bicho: 'papagaio', w: 6, h: 4, chao: 'poleiro', cerca: 'ilha' }
     };
     function gradeCercado(id) {
         const k = CERCADOS[id];
@@ -1203,7 +1208,7 @@
             case 'cartografia': return { p: 'town', w: 2, h: 3, grade: [[52, 55], [64, 67], [87, 79]] };
             // máquinas (Tiny Factory)
             case 'cercado_galinha': case 'cercado_coelho': case 'cercado_pato': case 'cercado_cabra': case 'cercado_bufala':
-            case 'cercado_vaca': case 'cercado_ovelha': case 'cercado_porco':
+            case 'cercado_vaca': case 'cercado_ovelha': case 'cercado_porco': case 'cercado_tartaruga': case 'cercado_papagaio':
                 return { p: 'town', w: CERCADOS[id].w, h: CERCADOS[id].h, grade: gradeCercado(id), cercado: CERCADOS[id] };
             case 'cano': return { p: 'farm', i: 1048, cano: true };
             case 'irrigador': return { p: 'factory', i: 91 };
@@ -1956,6 +1961,67 @@
     });
     Object.assign(INDICE_DESENHO, { 1190: 'viih_semente', 1191: 'viih_flor', 1192: 'viih_broto', 1193: 'viih_botao', 1194: 'viih_crescendo' });
     const DESENHO_GRANDE = { 1190: 'viih_semente_g', 1191: 'viih_flor_g' };   // nos ícones
+    /* ---------- Fase 116: os bichos da ilha (desenhos do Jessé): a tartaruga e o papagaio ----------
+       No cercado, a versão menor (do tamanho dos bichos); nos ícones, o desenho inteiro. E os produtos deles,
+       a concha e a pena de arara. Índices 1195 a 1198. */
+    Object.assign(DESENHO_BICHO, {
+        tartaruga: { pal: { a: '#22161e', b: '#47573c', c: '#6e6543', d: '#90aa61', e: '#b3c982', f: '#c5d99f', g: '#607c58', h: '#283d30', i: '#010100' }, linhas: [
+            '.....aaaaa........', '...aabcccca.......', '...abccccbba......',
+            '..abbcbcbbbcaaaa..', '..abccbbcbbbbdea..', '.abbbbbbbccbdddea.',
+            '.abccbbbccbbdfgdda', '.abbcchbcbbidfddda', '.abbbbbcbbbcggddda',
+            'accccbbbbcccgggga.', 'agcccccccccbbiaa..', '.abbcccacbbcga....',
+            '..ageia.agddga....', '..aaaa..agdaa.....', '.........aa.......'] },
+        papagaio: { pal: { a: '#22161e', b: '#3b7db5', c: '#86c742', d: '#c0463a', e: '#46b444', f: '#cadab4', g: '#2b8774', h: '#eeb72a', i: '#7f554f', j: '#d8a879', k: '#020201' }, linhas: [
+            '.......a.......', '......aba......', '......abcaaaa..',
+            '......adeefdda.', '......adgffddfa', '.......aghfijja',
+            '......akgediija', '.....aeeegedda.', '....agceegeha..',
+            '....ahgeeeeca..', '...addhegeeea..', '...abbidggeea..',
+            '.aabbbbgggga...', 'agedaaggaga....', 'aaaa..aa.aa....',
+            '......aa..a....'] },
+        tartaruga_g: { pal: { a: '#010100', b: '#47573c', c: '#101c0c', d: '#6e6543', e: '#283d30', f: '#90aa61', g: '#b3c982', h: '#607c58', i: '#c5d99f' }, linhas: [
+            '................aaaaaaaaaaaaa........................', '................aaaaaaaaaaaaa........................', '..........baaaacbbbdddddddeeeaae.....................',
+            '..........aaaaaabbddddddddeeeaac.....................', '..........aaaaaabbddddddddeeeaac.....................', '........aaeeeeeeddddddddeedddbbbaaaaa................',
+            '........aaeeeeeeddddddddeedddbbbaaaaa................', '........aaeeeeebdddddddbeebddbbbaaaaa................', '........aadddbbbeebbbeeeddbbbbbbddaaa................',
+            '........aadddbbbeebbbeeeddbbbbbbddaaa................', '.....ccceebbbeeeddbbbddbeebbbbbbeeeeeccccccccccb.....', '.....aaaeebbbeeeddbbbdddeebbbbbbeeeeeaaaaaaaaaaa.....',
+            '.....aaaeebbbeeeddbbbdddeebbbbbbeeeeeaaaaaaaaaaa.....', '.....aaabbeeedddbbbbbbbbddeeeeeeddbbbaaaffggggggaa...', '.....aaabbeeedddbbbbbbbbddeeeeeeddbbbaaaffggggggaa...',
+            '.....aacbbeeedddbbbbbbbbddeeeeeeddbbbaabffggggggaah..', '..aaaeeeeebbbbbbbbbbbbbbbbeeedddbbaaaffffffffgggggaaa', '..aaaeeeeebbbbbbbbbbbbbbbbeeedddbbaaafffffffffffggaaa',
+            '..aaaeeebbdddeeebbbbbbbbeedddeeebbaaafffiiheefffffaaa', '..aaaeeebbdddeeebbbbbbbbeedddeeebbaaafffiieeefffffaaa', '..aaaeeebbdddeeebbbbbbbbeedddeeebbaaafffiieeefffffaaa',
+            '..aaaeeebbbbbdddeeeeeeeeddbbbbbbeeaaafffiiaaafffffaaa', '..aaaeeebbbbbdddeeeeeeeeddbbbbbbeeaaafffiiaaafffffaaa', '..aaaeeebbbbbddbeeeeeeebddbbbbbbeeaaafffiifaafffffaaa',
+            '..aaaeeeeebbbeeebbbbbdddeebbbbbbddaaahhhffffffffffaaa', '..aaaeeeeebbbeeebbbbbdddeebbbbbbddaaahhhffffffffffaaa', '..aaadbbeeeeeeeebbbbbbbbeeeeeeeeddaaahhhhhhhhhhhbbaaa',
+            '..aaadddeeeeeeeebbbbbbbbeeeeeeeeddaaahhhhhhhhhhhbbaaa', '..aaadddeeeeeeeebbbbbbbbeeeeeeeeddaaahhhhhhhhhhhbbaaa', 'aahhhaaadddddeeeeeeeeeeeeebdddddaabbbaaaaaaaaaaaaa...',
+            'aahhhaaadddddeeeeeeeeeeeeeddddddaabbbaaaaaaaaaaaaa...', 'aabhhaaadddddeeeeeeeeeeeeebdddddaabbbaaaaaaaaaaaaa...', 'aaaaaaaaaaaaadddddddddddddcaaaacbbhdhaaaaa...........',
+            'aaaaaaaaaaaaadddddddddddddcaaaacbbhdhaaaaa...........', '....haaabbbbbeeeeebbeeeeeebbbbbdffdeebbcaa...........', '.....aaahhhhhaaaaaaaaaaaaahhhhhhffaaahhbaa...........',
+            '.....aaahhhhhaaaaaaaaaaaaahhhhhhffaaahhhaaf..........', '.....aaahhgggaaaaaaaa...aahhhfffffaaaaaaaa...........', '.....aaahhgggaaaaaaaa...aahhhfffffaaaaaaaa...........',
+            '.....aaahhgggaaaaaaaa...aahhhfffffaaaaaaaa...........', '.....aaaaaaaaaaa........aahhhfffggaaa................', '.....aaaaaaaaaaa........aahhhfffggaaa................',
+            '..........................eaaaaaaa...................', '..........................caaaaaaa...................', '..........................caaaaaaa...................'] },
+        papagaio_g: { pal: { a: '#020201', b: '#3b7db5', c: '#2b8774', d: '#2a4437', e: '#74995a', f: '#46b444', g: '#86c742', h: '#eeb72a', i: '#c0463a', j: '#7f554f', k: '#cadab4', l: '#d8a879' }, linhas: [
+            '.....................aaa.....................', '.....................aaa.....................', '...................aabbcaa...................',
+            '..................daabbbaa...................', '..................daabbbaae..................', '..................daabbbffdaaaaaaaaaa........',
+            '..................daabbbffdaaaaaaaaaa........', '..................daabbcggdaaaaaaaaaae.......', '.....................aaahhgffffeiiiiiaaa.....',
+            '.....................aaahhgffffeiiiiiaaa.....', '..................daajijfffcfkkkkkiiiiijaa...', '..................daaiiiccccckkkkkiiiiiiaa...',
+            '..................daaiijccccckkkkkiiiiiiaae..', '..................daaaaaccghlkkkaaiiilllkkjaa', '..................daaaaaccghlkkkaajiilllkkjaa',
+            '...................aaaaaccghlkkkaajiilllkkjaa', '.....................aaaccghhkkkkkiiillllljaa', '.....................aaaccghhkkkkkjjjjjjlljaa',
+            '..................eaaaaaccfgeiiilljjjaajlljaa', '..................daaaaacccffiiihhjjjaaalljaa', '..................daaaaacccffiiihhjjjaaall.aa',
+            '................aaefffffffcccffeiiiiiaaaaa...', '................aaefffffffcccffeiiiiiaaaaa...', '................aaefffffffcccfffjjiiiaaaaae..',
+            '.............aaaccgggfffffcccfffffhhhaaa.....', '.............aaaccgggfffffcccfffffhhhaaa.....', '.............aaallefffffffcddfffgggggaaa.....',
+            '.............aaahheccfffffdddfffgggggaaa.....', '.............aaahheccfffffcddfffgggggaaa.....', '..........aaaiiiiihhhfffcccddfffffgggaaa.....',
+            '..........aaaiiiiihhhfffcbcddfffffgggaaa.....', '..........aaajjjjjlhheeecccddfffffgggaaa.....', '..........aaabbbbbjiiiijaacccffffffffaaa.....',
+            '..........aaabbbbbjiiiijaacccffffffffaaa.....', '........aacbbbbbbbcjjaaacccccffffffaae.......', '........aabbbbbbbbbbbaaacccccfffffaaa........',
+            '........aabbbbbbbbbbcaaacccccfffffaaa........', '..daaaaaaaaaaaaaaaaaacccccccccccaa...........', '..daaaaaaaaaaaaaaaaaacccccccccccaa...........',
+            '..daaaaaaaaaaaaaaaaaacccccccccccaa...........', 'aacccffeiiiiiaaaaadcccccaaaaaaaa.............', 'aacccffeiiaaaaaaaadcccccaaaaaaaa.............',
+            'eedddddddajee.....daaddd..aajaaa.............', '..daaaaaaa........daaaaa..dajaaa.............', '..daaaaaaa........daaaaa..dajaaa.............',
+            '..................daalll.....lllaa...........', '..................daalll.....lllaa...........', '..................daalll.....lllaa...........'] },
+        concha: { pal: { a: '#3f2631', b: '#f6c6a8', c: '#e08e70', d: '#fde8d6', e: '#c56a50' }, linhas: [
+            '....aaaaa....', '..aabdbdbaa..', '.abcbdbdbcba.', 'abcbcbdbcbcba',
+            'abcbcbdbcbcba', 'abcbcbdbcbcba', '.abcbcbcbcba.', '..abcbcbcba..',
+            '...aaeeeaa...', '....aeeea....', '.....aaa.....'] },
+        pena_arara: { pal: { a: '#3f2631', r: '#d9452f', R: '#f07a5a', y: '#fdbe53', b: '#3b6fb6', B: '#79a7e8', k: '#8a5a2b' }, linhas: [
+            '.........aaa', '........aRRa', '.......aRrra', '......aRrrya',
+            '.....aRryya.', '....aRyyba..', '...ayybBa...', '..abbBBa....',
+            '..abBba.....', '.akaaa......', 'ak..........', 'a...........'] }
+    });
+    Object.assign(INDICE_DESENHO, { 1195: 'tartaruga', 1196: 'papagaio', 1197: 'concha', 1198: 'pena_arara' });
+    Object.assign(DESENHO_GRANDE, { 1195: 'tartaruga_g', 1196: 'papagaio_g' });
     const cacheDesenho = new Map();
     function desenhoBicho(tipo) {
         if (cacheDesenho.has(tipo)) return cacheDesenho.get(tipo);
@@ -3730,7 +3796,7 @@
         function aguas() {
             const cons = construcoesFn() || [];
             const patos = cons.filter((c) => CERCADOS[c.tipo] && CERCADOS[c.tipo].chao === 'lago');
-            const chave = zonasAtuais + '|' + patos.map((c) => c.x + ',' + c.y).join(';');
+            const chave = zonasAtuais + '|' + MH + '|' + patos.map((c) => c.x + ',' + c.y).join(';');   // (fase 116: e se a ilha está no mundo)
             if (cacheAguas.chave === chave) return cacheAguas.lista;
             const lista = patos.map((c) => {   // o laguinho e a margem de grama dele (desenharCercado)
                 const L = laguinhoPato(c);
@@ -3739,7 +3805,9 @@
             if (lagoNaTela()) lista.push({ x0: TANQUE.x0 + TANQUE.borda, y0: TANQUE.y0 + TANQUE.borda, x1: TANQUE.x1 - TANQUE.borda, y1: TANQUE.y1 - TANQUE.borda,
                                           lago: true, e: obstaculo(TANQUE) });   // (o tanque inteiro, com as pedras)
             const mar = wy(MAPA.mar.y);   // o mar: a onda sobe até 3 px na areia
-            lista.push({ x0: -1e6, y0: mar, x1: 1e6, y1: 1e6, e: { x0: -1e6, y0: mar - 6, x1: 1e6, y1: 1e6 } });
+            // fase 116: o mar vai até a ilha (antes ia até o fim do mundo, e todo bicho na ilha "nadava" na grama)
+            const fimMar = MH === MH_ILHA ? wy(ILHA.y0) : 1e6;
+            lista.push({ x0: -1e6, y0: mar, x1: 1e6, y1: fimMar, e: { x0: -1e6, y0: mar - 6, x1: 1e6, y1: fimMar } });
             cacheAguas = { chave, lista };
             return lista;
         }
@@ -3832,7 +3900,10 @@
             const BEIRA = wy(MAPA.mar.y), X0 = wx(-MARGEM), X1 = wx(MAPA.w + MARGEM), FUNDO = MH;
             const semPier = (sempre) => {   // o recorte do mar, sem o píer e o barco (sempre: também as estacas de antes de construir)
                 q.save(); q.beginPath(); q.rect(X0, BEIRA - 3, X1 - X0, FUNDO - BEIRA + 3);
-                if (zonasAtuais >= 7 && (pierPronto || sempre)) q.rect(wx(MAPA.pier.x) - 2, wy(MAPA.pier.y), (MAPA.pier.w + 3) * T + 4, FUNDO - wy(MAPA.pier.y));
+                // fase 116: só o píer (com as estacas). Antes ia até o fundo do mapa e 3 quadrados para a direita (o lugar
+                // do barco antigo, que era parte do fundo); o navio agora é desenhado por cima e fica fundeado mais longe,
+                // e sobrava uma faixa de mar parado, com a beira reta, do lado do píer
+                if (zonasAtuais >= 7 && (pierPronto || sempre)) q.rect(wx(MAPA.pier.x) - 2, wy(MAPA.pier.y), MAPA.pier.w * T + 4, MAPA.pier.h * T + 6);
                 if (costa && MH === MH_ILHA) {   // fase 106: a ilha e o cais ficam de fora
                     const pts = costa.beira.pts;
                     q.moveTo(pts[0][0], pts[0][1]); for (let k = 1; k < pts.length; k += 3) q.lineTo(pts[k][0], pts[k][1]); q.closePath();
@@ -3889,7 +3960,7 @@
                     let x = area.x0, y = area.y0, folga = -1;
                     for (let k = 0; k < 10; k++) {
                         const cx = area.x0 + r() * (area.x1 - area.x0), cy = area.y0 + r() * (area.y1 - area.y0);
-                        if (v.tipo !== 'pato' && aguaEm(cx, cy)) continue;   // fase 77b: só o pato nasce na água
+                        if (v.tipo !== 'pato' && v.tipo !== 'tartaruga' && aguaEm(cx, cy)) continue;   // fase 77b: só o pato nasce na água (fase 116: e a tartaruga)
                         let perto = Infinity;
                         for (const b of atores.values()) if (!b.ajudante && b.v) perto = Math.min(perto, Math.hypot((cx - b.x) * 0.8, cy - b.y));
                         if (perto > folga) { folga = perto; x = cx; y = cy; }
@@ -3939,7 +4010,7 @@
                 return alvo;
             }
             let melhor = null, folga = -1;
-            const nada = a.tipo === 'pato' && !a.ajudante;   // fase 74b: só o pato vai para a água
+            const nada = (a.tipo === 'pato' || a.tipo === 'tartaruga') && !a.ajudante;   // fase 74b: só o pato vai para a água (fase 116: e a tartaruga)
             for (let k = 0, validos = 0; k < 12 && validos < (a.ajudante ? 1 : 6); k++) {
                 const x = a.area.x0 + Math.random() * (a.area.x1 - a.area.x0), y = a.area.y0 + Math.random() * (a.area.y1 - a.area.y0);
                 if (!nada && aguaEm(x, y) && k < 11) continue;
@@ -5296,6 +5367,37 @@
             }
         }
 
+        /* fase 116: a cerca dos cercados da ilha, no estilo do desenho do Jessé: postes de madeira com o topo cortado
+           (o anel claro) e duas tábuas com veio, tudo com contorno escuro. Em cima e embaixo, as tábuas correm de
+           poste a poste; dos lados, só os postes e uma tábua em pé. A porteira fica no meio de baixo. */
+        const CERCA_ILHA = { contorno: '#1a1210', tabua: '#836250', claro: '#a47f6a', poste: '#61443f', veio: '#3b2c2b' };
+        function cercaIlha(c, k) {
+            const C = CERCA_ILHA, x0 = wx(c.x), y0 = wy(c.y);
+            const ret = (rx, ry, rw, rh, cor) => { q.fillStyle = cor; q.fillRect(Math.round(rx), Math.round(ry), rw, rh); };
+            const porteira = (cx, cy) => cy === k.h - 1 && cx === Math.floor(k.w / 2);
+            const cerca = (cx, cy) => cx >= 0 && cy >= 0 && cx < k.w && cy < k.h && (cx === 0 || cy === 0 || cx === k.w - 1 || cy === k.h - 1) && !porteira(cx, cy);
+            const tabua = (tx, ty, tw) => {
+                ret(tx, ty, tw, 5, C.contorno); ret(tx, ty + 1, tw, 3, C.tabua); ret(tx, ty + 1, tw, 1, C.claro);
+                for (let v = 3; v < tw - 2; v += 7) ret(tx + v, ty + 2 + (v % 2), 3, 1, C.veio);
+            };
+            const poste = (px, py, alto) => {
+                ret(px, py, 6, alto, C.contorno); ret(px + 1, py + 1, 4, alto - 2, C.poste); ret(px + 1, py + 1, 1, alto - 2, C.tabua);
+                ret(px + 1, py + 1, 4, 2, C.claro); ret(px + 2, py + 1, 2, 1, C.tabua);   // o topo cortado
+            };
+            for (let cy = 0; cy < k.h; cy++) for (let cx = 0; cx < k.w; cx++) {
+                if (!cerca(cx, cy)) continue;
+                const x = x0 + cx * T, y = y0 + cy * T;
+                const horizontal = cy === 0 || cy === k.h - 1;
+                if (horizontal) {
+                    const ini = cerca(cx - 1, cy) ? x : x + 3, fim = cerca(cx + 1, cy) ? x + T : x + T - 3;
+                    tabua(ini, y + 3, fim - ini); tabua(ini, y + 9, fim - ini);
+                } else {
+                    ret(x + 6, y, 4, T, C.contorno); ret(x + 7, y, 2, T, C.tabua);   // a tábua em pé, dos lados
+                }
+                const canto = (cx === 0 || cx === k.w - 1) && (cy === 0 || cy === k.h - 1);
+                if (canto || cx % 2 === 0 || !horizontal || porteira(cx + 1, cy) || porteira(cx - 1, cy)) poste(x + (horizontal && !canto ? (porteira(cx + 1, cy) ? T - 6 : porteira(cx - 1, cy) ? 0 : 5) : 5), y - 2, 17);
+            }
+        }
         function desenharCercado(c, s, tempo) {
             const k = s.cercado, x = wx(c.x), y = wy(c.y), w = k.w * T, h = k.h * T;
             const ret = (rx, ry, rw, rh, cor) => { q.fillStyle = cor; q.fillRect(Math.round(rx), Math.round(ry), rw, rh); };
@@ -5323,7 +5425,16 @@
                 ret(lx + 2, ly + 1, lw - 4, 2, '#4a86c8');                        // sombra da margem em cima
                 desenharAguaViva(tempo, L);
             }
-            s.grade.forEach((linha, dy) => linha.forEach((i, dx) => { if (i != null) tile(q, i, x + dx * T, y + dy * T, false, s.p); }));
+            if (k.chao === 'poleiro') {   // fase 116: o papagaio: capim, um poleiro de galho e o comedouro
+                for (let n = 0; n < w * h / 30; n++) ret(x + 6 + r() * (w - 14), y + 7 + r() * (h - 14), 2, 1, r() < 0.5 ? '#6fa04a' : '#8fc062');
+                const px = x + w - 30, py = y + 12;
+                ret(px + 3, py, 2, 20, '#3f2631'); ret(px + 21, py, 2, 20, '#3f2631');   // os dois pés
+                ret(px + 4, py, 1, 20, '#8a5a32'); ret(px + 22, py, 1, 20, '#8a5a32');
+                ret(px, py - 1, 27, 4, '#3f2631'); ret(px + 1, py, 25, 2, '#a8683a'); ret(px + 1, py, 25, 1, '#c98a4b');   // o galho
+                ret(x + 10, y + h - 20, 12, 6, '#3f2631'); ret(x + 11, y + h - 19, 10, 4, '#8a5a32'); ret(x + 12, y + h - 19, 8, 2, '#fdbe53');   // o comedouro com sementes
+            }
+            if (k.cerca === 'ilha') cercaIlha(c, k);   // fase 116: a cerca do desenho do Jessé
+            else s.grade.forEach((linha, dy) => linha.forEach((i, dx) => { if (i != null) tile(q, i, x + dx * T, y + dy * T, false, s.p); }));
             if (k.chao === 'cocho') {   // cocho de água no canto, por cima da cerca (fase 79: as duas metades, como no pasto)
                 tile(q, 110, x + T + 2, y + T - 3);
                 tile(q, 111, x + 2 * T + 2, y + T - 3);
