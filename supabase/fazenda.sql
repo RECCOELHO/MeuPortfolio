@@ -1917,6 +1917,9 @@ begin
     'capitao_faltam', case when fazenda_ilha_pode(p_jogador, v_nivel) then
         coalesce((select count(*) filter (where c.feito_em is null) from fazenda_capitao c where c.jogador_id = p_jogador and c.dia = fazenda_hoje()
                    having count(*) > 0), 3) end,
+    -- fase 120: a conta de teste ligada a você (o botão no menu) e se esta é uma conta de teste
+    'conta_teste', (select t.apelido from fazenda_jogadores t where t.teste_dono = p_jogador and t.teste order by t.criado_em limit 1),
+    'sou_teste', (select j2.teste from fazenda_jogadores j2 where j2.id = p_jogador),
     'viih_restam', greatest(0, 11 - coalesce((select v.plantadas from fazenda_viih_plantio v where v.jogador_id = p_jogador
                                                 and v.ano = extract(year from fazenda_hoje())::int), 0)),
     -- fase 114: os recados particulares ainda não lidos (só os seus: o estado é sempre o do próprio jogador)
@@ -6203,6 +6206,7 @@ alter table public.fazenda_jogadores drop constraint if exists fazenda_jogadores
 alter table public.fazenda_jogadores add constraint fazenda_jogadores_admin_check check (admin in ('dono', 'admin'));
 alter table public.fazenda_jogadores add column if not exists banido_em timestamptz;
 alter table public.fazenda_jogadores add column if not exists banido_motivo text;
+alter table public.fazenda_jogadores add column if not exists teste_dono uuid references public.fazenda_jogadores(id) on delete set null;   -- fase 120: de quem é a conta de teste (o botão no menu)
 alter table public.fazenda_jogadores add column if not exists teste boolean not null default false;   -- fase 119: conta de teste (fora dos rankings, do evento, das visitas, do chat e da feira)
 create table if not exists public.fazenda_admin_log (
   id        bigint generated always as identity primary key,
@@ -11973,7 +11977,8 @@ begin
   -- tudo liberado (o XP não passa pelo dobro e os presentes de nível não chovem de uma vez)
   perform set_config('fazenda.xp_puro', '1', true);
   update fazenda_jogadores
-     set teste = true, xp = greatest(xp, fazenda_xp_nivel(60)::int), nivel_premiado = 60, nivel_base = 60, nivel_trava = 60,
+     set teste = true, teste_dono = coalesce(teste_dono, (select d.id from fazenda_jogadores d where d.admin = 'dono' and not d.teste order by d.xp desc limit 1)),   -- fase 120
+         xp = greatest(xp, fazenda_xp_nivel(60)::int), nivel_premiado = 60, nivel_base = 60, nivel_trava = 60,
          moedas = greatest(moedas, 50000000), diamantes = greatest(diamantes, 5000),
          zonas = 7, direita = 3, ilha_terrenos = 3, pier_em = coalesce(pier_em, now())
    where id = v_id;
@@ -11994,3 +11999,33 @@ begin
 end;
 $$;
 revoke execute on function public.fazenda_teste_criar(text) from public, anon, authenticated;
+
+-- ------------------------------------------------------------
+-- Fase 120: o botão da conta de teste no menu. A conta de teste tem dono (fazenda_jogadores.teste_dono: o
+-- dono do jogo, quando não diz outro). No menu do dono aparece "Teste": o jogo pede uma sessão da conta de
+-- teste (fazenda_teste_entrar, que só dá a sessão para o dono dela), guarda a sessão do dono no aparelho e
+-- troca. Na conta de teste, "Minha conta" volta para a sessão guardada. Ninguém precisa do código, e da
+-- conta de teste não se chega na do dono (a volta é só pela sessão que ficou no aparelho).
+-- Pode rodar este arquivo de novo.
+-- ------------------------------------------------------------
+alter table public.fazenda_jogadores add column if not exists teste_dono uuid references public.fazenda_jogadores(id) on delete set null;   -- fase 120: de quem é a conta de teste (o botão no menu)
+-- as contas de teste que já existem: do dono do jogo
+update public.fazenda_jogadores set teste_dono = (select d.id from public.fazenda_jogadores d where d.admin = 'dono' and not d.teste order by d.xp desc limit 1)
+ where teste and teste_dono is null;
+
+-- entrar na sua conta de teste: uma sessão nova dela (só para o dono dela)
+create or replace function public.fazenda_teste_entrar(p_token text)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id uuid := fazenda_auth(p_token);
+  t    record;
+begin
+  select id, apelido into t from fazenda_jogadores where teste_dono = v_id and teste and banido_em is null order by criado_em limit 1;
+  if not found then raise exception 'sem_conta_teste'; end if;
+  return jsonb_build_object('token', fazenda_nova_sessao(t.id), 'apelido', t.apelido);
+end;
+$$;
+grant execute on function public.fazenda_teste_entrar(text) to anon, authenticated;

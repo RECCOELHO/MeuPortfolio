@@ -3466,3 +3466,8 @@ body.construindo .status {
 .cav-tesouro.falta .px-spr { filter: brightness(0) opacity(0.35); }
 .cav-tesouro.falta span { opacity: 0.6; }
 .cav-tesouro em { position: absolute; top: 2px; right: 4px; font-style: normal; font-weight: 700; font-size: 11px; }
+
+/* fase 120: na conta de teste, uma faixa para não confundir com a sua */
+body.conta-teste::after { content: 'CONTA DE TESTE'; position: fixed; left: 16px; top: 92px; z-index: 60; pointer-events: none;
+  padding: 2px 10px; border: 2px solid #3f2631; border-radius: 4px; background: #d9452f; color: #fff; font: 700 11px/1.4 system-ui, sans-serif; letter-spacing: 0.08em; }
+@media (max-width: 700px) { body.conta-teste::after { top: auto; bottom: 76px; left: 50%; transform: translateX(-50%); } }

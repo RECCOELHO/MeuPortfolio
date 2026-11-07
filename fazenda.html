@@ -27,7 +27,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&family=Jersey+10&display=swap" rel="stylesheet">
     <!-- ?v=: o Cloudflare guarda CSS/JS por 4 h no navegador; troque a versão a cada deploy da fazenda -->
-    <link rel="stylesheet" href="assets/fazenda/fazenda.css?v=20261107-05">
+    <link rel="stylesheet" href="assets/fazenda/fazenda.css?v=20261107-06">
 </head>
 
 <body>
@@ -54,6 +54,7 @@
         <!-- celular: os botões do topo ficam dentro deste menu -->
         <button type="button" class="botao so-celular menu-btn" id="btnMenu" aria-label="Menu" aria-expanded="false" aria-controls="hudBotoes"><span class="menu-ico" aria-hidden="true"></span><b class="contador" id="hudMenu" hidden>0</b></button>
         <nav class="hud-botoes" id="hudBotoes">
+            <button type="button" class="botao" id="btnTeste" aria-label="Conta de teste" hidden><span data-ico="gerente" data-px="22"></span><em>Teste</em></button>
             <button type="button" class="botao" data-painel="loja"><span data-spr="9" data-px="28"></span><em>Loja</em><b class="selo-botao" data-novos="loja" hidden></b></button>
             <button type="button" class="botao" data-painel="celeiro"><span data-spr="11" data-px="28"></span><em>Celeiro</em><b class="contador" id="hudCeleiro" hidden>0</b></button>
             <button type="button" class="botao" data-painel="missoes"><span data-ico="missao" data-px="22"></span><em>Missões</em><b class="contador" id="hudMissoes" hidden>0</b></button>
@@ -197,7 +198,7 @@
     <script src="assets/fazenda/fazenda-arte.js?v=20261107-07" defer></script>
     <script src="assets/fazenda/fazenda-mar.js?v=20261107-02" defer></script>
     <script src="assets/fazenda/fazenda-invasao.js?v=20261101-02" defer></script>
-    <script src="assets/fazenda/fazenda.js?v=20261107-08" defer></script>
+    <script src="assets/fazenda/fazenda.js?v=20261107-09" defer></script>
 </body>
 
 </html>
