@@ -232,6 +232,30 @@ create table if not exists public.fazenda_recados_anuais (
 alter table public.fazenda_recados_anuais enable row level security;
 revoke all on public.fazenda_recados_anuais from anon, authenticated;
 
+-- fase 117: os pedidos do Capitão (3 por dia, por jogador) e o baú de quem entrega os 3
+create table if not exists public.fazenda_capitao (
+  jogador_id uuid not null references public.fazenda_jogadores(id) on delete cascade,
+  dia        date not null,
+  slot       smallint not null,
+  item       text not null references public.fazenda_culturas(id),
+  qtd        int not null,
+  moedas     int not null,
+  xp         int not null,
+  diamantes  int not null default 0,
+  feito_em   timestamptz,
+  primary key (jogador_id, dia, slot)
+);
+create table if not exists public.fazenda_capitao_bau (
+  jogador_id uuid not null references public.fazenda_jogadores(id) on delete cascade,
+  dia        date not null,
+  diamantes  int not null,
+  raro       text,
+  primary key (jogador_id, dia)
+);
+alter table public.fazenda_capitao enable row level security;
+alter table public.fazenda_capitao_bau enable row level security;
+revoke all on public.fazenda_capitao, public.fazenda_capitao_bau from anon, authenticated;
+
 -- Fase 4: construções grandes (casas 3x3). (x, y) é o canto de cima à esquerda.
 alter table public.fazenda_itens add column if not exists largura smallint not null default 1;
 alter table public.fazenda_itens add column if not exists altura smallint not null default 1;
@@ -1869,6 +1893,10 @@ begin
   return v_json || jsonb_build_object('cat_ver', v_ver,
     -- fase 115: hoje é o Dia dos Namorados da Fazendinha (11/11)? e quantas Viih ainda dá para plantar
     'dia_especial', case when to_char(fazenda_hoje(), 'MM-DD') = '11-11' then 'namorados' end,
+    -- fase 117: quantos pedidos do Capitão ainda faltam hoje (3 se ele ainda não pediu; null fora da ilha)
+    'capitao_faltam', case when fazenda_ilha_pode(p_jogador, v_nivel) then
+        coalesce((select count(*) filter (where c.feito_em is null) from fazenda_capitao c where c.jogador_id = p_jogador and c.dia = fazenda_hoje()
+                   having count(*) > 0), 3) end,
     'viih_restam', greatest(0, 11 - coalesce((select v.plantadas from fazenda_viih_plantio v where v.jogador_id = p_jogador
                                                 and v.ano = extract(year from fazenda_hoje())::int), 0)),
     -- fase 114: os recados particulares ainda não lidos (só os seus: o estado é sempre o do próprio jogador)
@@ -11524,3 +11552,145 @@ on conflict (id) do update set
   limite = excluded.limite, beleza = excluded.beleza, descricao = excluded.descricao, so_ilha = excluded.so_ilha;
 
 select public.fazenda_cache_montar();
+
+-- ------------------------------------------------------------
+-- Fase 117: o Capitão do cais (desenhos do Jessé). Na ilha, todo dia ele pede 3 entregas com o que a ilha
+-- dá até o seu nível (abacaxi, concha, banana, rapadura, cana-roxa, tempero das Índias, pena de arara, biscoito
+-- de bordo, especiarias e ração de marinheiro). Cada entrega paga 1,8x o preço do celeiro em moedas e XP; a
+-- terceira, a mais pesada, dá também 5 diamantes. Quem entrega as 3 ganha o baú do Capitão: 10 diamantes e
+-- um material raro do píer. Os pedidos são os mesmos o dia todo (sorteados por jogador e dia).
+-- Pode rodar este arquivo de novo.
+-- ------------------------------------------------------------
+-- fase 117: os pedidos do Capitão (3 por dia, por jogador) e o baú de quem entrega os 3
+create table if not exists public.fazenda_capitao (
+  jogador_id uuid not null references public.fazenda_jogadores(id) on delete cascade,
+  dia        date not null,
+  slot       smallint not null,
+  item       text not null references public.fazenda_culturas(id),
+  qtd        int not null,
+  moedas     int not null,
+  xp         int not null,
+  diamantes  int not null default 0,
+  feito_em   timestamptz,
+  primary key (jogador_id, dia, slot)
+);
+create table if not exists public.fazenda_capitao_bau (
+  jogador_id uuid not null references public.fazenda_jogadores(id) on delete cascade,
+  dia        date not null,
+  diamantes  int not null,
+  raro       text,
+  primary key (jogador_id, dia)
+);
+alter table public.fazenda_capitao enable row level security;
+alter table public.fazenda_capitao_bau enable row level security;
+revoke all on public.fazenda_capitao, public.fazenda_capitao_bau from anon, authenticated;
+
+-- o que o Capitão pede, de quem tem cada nível
+create or replace function public.fazenda_capitao_itens()
+returns jsonb language sql immutable as $$
+  select '["abacaxi", "concha", "banana", "rapadura", "cana_roxa", "tempero_indias", "pena_arara", "biscoito_bordo", "especiarias", "racao_marinheiro"]'::jsonb;
+$$;
+
+-- um número "sorteado" que não muda no dia (por jogador, dia e o que se quer)
+create or replace function public.fazenda_capitao_sorte(p_jogador uuid, p_dia date, p_chave text)
+returns int language sql immutable as $$
+  select abs(('x' || substr(md5(p_jogador::text || p_dia::text || p_chave), 1, 8))::bit(32)::int);
+$$;
+
+-- os 3 pedidos de hoje (cria na primeira vez do dia)
+create or replace function public.fazenda_capitao_gerar(p_jogador uuid, p_nivel int)
+returns void language plpgsql security definer set search_path = public as $$
+declare
+  v_dia   date := fazenda_hoje();
+  v_itens text[];
+  v_usados text[] := '{}';
+  v_slot  int;
+  v_item  text;
+  v_venda int;
+  v_alvo  numeric;
+  v_qtd   int;
+begin
+  if exists (select 1 from fazenda_capitao where jogador_id = p_jogador and dia = v_dia) then return; end if;
+  select array_agg(k.id order by k.nivel_min) into v_itens
+    from jsonb_array_elements_text(fazenda_capitao_itens()) i(id) join fazenda_culturas k on k.id = i.id
+   where k.nivel_min <= p_nivel;
+  if v_itens is null then return; end if;
+  for v_slot in 1..3 loop
+    -- um item que ainda não saiu hoje (se tiver), sorteado
+    select x into v_item from unnest(v_itens) x where not (x = any(v_usados)) or cardinality(v_itens) < 3
+     order by fazenda_capitao_sorte(p_jogador, v_dia, v_slot::text || x) limit 1;
+    v_usados := v_usados || v_item;
+    select venda into v_venda from fazenda_culturas where id = v_item;
+    v_alvo := (4000 + greatest(p_nivel - 46, 0) * 800) * (case v_slot when 1 then 1 when 2 then 1.6 else 2.5 end);
+    v_qtd := least(60, greatest(1, ceil(v_alvo / v_venda)::int));
+    insert into fazenda_capitao (jogador_id, dia, slot, item, qtd, moedas, xp, diamantes)
+    values (p_jogador, v_dia, v_slot, v_item, v_qtd, round(v_qtd * v_venda * 1.8)::int, greatest(1, round(v_qtd * v_venda / 12.0))::int,
+            case when v_slot = 3 then 5 else 0 end)
+    on conflict do nothing;
+  end loop;
+end;
+$$;
+
+-- o painel do Capitão: os pedidos de hoje, o que você tem de cada um e o baú
+create or replace function public.fazenda_capitao(p_token text)
+returns jsonb language plpgsql security definer set search_path = public, extensions as $$
+declare
+  v_id    uuid := fazenda_auth_ler(p_token);
+  j       record;
+  v_nivel int;
+begin
+  select * into j from fazenda_jogadores where id = v_id;
+  v_nivel := fazenda_nivel_de(j.xp, j.nivel_trava);
+  if not fazenda_ilha_pode(v_id, v_nivel) then raise exception 'ilha_fechada'; end if;
+  perform fazenda_capitao_gerar(v_id, v_nivel);
+  return jsonb_build_object(
+    'pedidos', coalesce((select jsonb_agg(jsonb_build_object('slot', c.slot, 'item', c.item, 'qtd', c.qtd, 'moedas', c.moedas, 'xp', c.xp,
+                                                             'diamantes', c.diamantes, 'feito', c.feito_em is not null,
+                                                             'tem', greatest(0, coalesce(ce.quantidade, 0) - coalesce(rs.quantidade, 0))) order by c.slot)
+                           from fazenda_capitao c
+                           left join fazenda_celeiro ce on ce.jogador_id = c.jogador_id and ce.item = c.item
+                           left join fazenda_reservas rs on rs.jogador_id = c.jogador_id and rs.item = c.item
+                          where c.jogador_id = v_id and c.dia = fazenda_hoje()), '[]'::jsonb),
+    'bau', (select jsonb_build_object('diamantes', b.diamantes, 'raro', b.raro) from fazenda_capitao_bau b where b.jogador_id = v_id and b.dia = fazenda_hoje()));
+end;
+$$;
+
+-- entregar um pedido (o que está guardado para os bichos ou o navio fica)
+create or replace function public.fazenda_capitao_entregar(p_token text, p_slot int)
+returns jsonb language plpgsql security definer set search_path = public, extensions as $$
+declare
+  v_id    uuid := fazenda_auth(p_token);
+  c       record;
+  v_livre int;
+  v_bau   jsonb;
+  v_raro  text;
+begin
+  select * into c from fazenda_capitao where jogador_id = v_id and dia = fazenda_hoje() and slot = p_slot for update;
+  if not found then raise exception 'capitao_sem_pedido'; end if;
+  if c.feito_em is not null then raise exception 'capitao_ja_entregue'; end if;
+  select ce.quantidade - coalesce((select r.quantidade from fazenda_reservas r where r.jogador_id = v_id and r.item = c.item), 0)
+    into v_livre from fazenda_celeiro ce where ce.jogador_id = v_id and ce.item = c.item for update;
+  if coalesce(v_livre, 0) < c.qtd then raise exception 'capitao_falta'; end if;
+  update fazenda_celeiro set quantidade = quantidade - c.qtd, da_feira = greatest(0, least(da_feira, quantidade - c.qtd))
+   where jogador_id = v_id and item = c.item;
+  update fazenda_capitao set feito_em = now() where jogador_id = v_id and dia = c.dia and slot = c.slot;
+  update fazenda_jogadores set moedas = least(2147483647, moedas::bigint + c.moedas)::int, xp = xp + c.xp, diamantes = diamantes + c.diamantes
+   where id = v_id;
+  -- os 3 entregues: o baú do Capitão (10 diamantes e um raro do píer, sorteado como no mercador)
+  if not exists (select 1 from fazenda_capitao where jogador_id = v_id and dia = c.dia and feito_em is null)
+     and not exists (select 1 from fazenda_capitao_bau where jogador_id = v_id and dia = c.dia) then
+    v_raro := (array['madeira_nobre', 'corda_naval', 'pedra_cantaria', 'ferro_forjado', 'ancora', 'perola_negra'])[1 + floor(random() * 6)::int];
+    insert into fazenda_capitao_bau (jogador_id, dia, diamantes, raro) values (v_id, c.dia, 10, v_raro);
+    update fazenda_jogadores set diamantes = diamantes + 10 where id = v_id;
+    insert into fazenda_celeiro (jogador_id, item, quantidade) values (v_id, v_raro, 1)
+    on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + 1;
+    v_bau := jsonb_build_object('diamantes', 10, 'raro', v_raro);
+  end if;
+  return jsonb_build_object('item', c.item, 'qtd', c.qtd, 'moedas', c.moedas, 'xp', c.xp, 'diamantes', c.diamantes, 'bau', v_bau,
+                            'estado', fazenda_estado(v_id));
+end;
+$$;
+
+revoke execute on function public.fazenda_capitao_itens(), public.fazenda_capitao_sorte(uuid, date, text), public.fazenda_capitao_gerar(uuid, int)
+  from public, anon, authenticated;
+grant execute on function public.fazenda_capitao(text), public.fazenda_capitao_entregar(text, int) to anon, authenticated;

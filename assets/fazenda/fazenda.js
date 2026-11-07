@@ -104,6 +104,9 @@
         ilha_sem_cais: 'Construa o cais primeiro: com ele pronto, dá para cavar o baú da praia.',
         ilha_bau_hoje: 'O baú de hoje já foi cavado. Amanhã tem outro no X da praia.',
         cachorro_raca_invalida: 'Escolha um dos cachorros da lista.',   // fase 111
+        capitao_falta: 'Ainda não tem o bastante no celeiro para esse pedido (o que está guardado para os bichos ou o navio não conta).',   // fase 117
+        capitao_ja_entregue: 'Esse pedido já foi entregue hoje.',
+        capitao_sem_pedido: 'O Capitão já trocou os pedidos (virou o dia). Abra de novo.',
         so_no_dia: 'A Viih só pode ser plantada no dia 11/11, o Dia dos Namorados da Fazendinha.',   // fase 115
         viih_limite: 'Você já plantou as 11 Viih deste ano. Ano que vem, no 11/11, tem mais.',
         flor_da_feira: 'Só a Viih que você colheu vira diamante (a que veio da feira, ou a guardada, não).',
@@ -1541,6 +1544,10 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-11-07-capitao', data: '07/11', titulo: 'O Capitão do cais', itens: [
+            'No trapiche da ilha, bem do lado do cais, mora o <b>Capitão</b>. Todo dia ele pede <b>3 entregas</b> com o que a ilha dá (rapadura pirata, tempero das Índias, ração de marinheiro, abacaxi, concha...). Toque nele quando o balão com o baú aparecer.',
+            'Cada entrega paga bem em moedas e XP, e a 3ª vale <b>5 diamantes</b>. Entregou as 3? Ganha o <b>baú do Capitão</b>: 10 diamantes e um material raro do píer.',
+            'A rapadura, o tempero e a ração de marinheiro ganharam desenhos novos.'] },
         { id: '2026-11-07-bichos-ilha', data: '07/11', titulo: 'A tartaruga e o papagaio da ilha', itens: [
             'Dois bichos novos, só na ilha: a <b>tartaruga</b> (nível 47), que mora no tanque com laguinho, come abacaxi e traz <b>conchas</b> da praia; e o <b>papagaio</b> (52), que mora no viveiro com poleiro, come banana e solta <b>penas de arara</b>.',
             'Os cercados da ilha têm a cerca nova, de postes e tábuas. Construa em Construir → Bichos, nos terrenos da ilha.',
@@ -2497,6 +2504,7 @@
     function atualizarIlha() {
         if (!cena.definirIlha) return;
         if (cena.definirCachorro) cena.definirCachorro(!visita && S && S.jogador.cachorro ? S.jogador.cachorro : null);   // fase 111
+        if (cena.definirCapitao) cena.definirCapitao(!visita && S && S.capitao_faltam != null ? S.capitao_faltam : null);   // fase 117
         const d = ilhaDe();
         if (!S || visita || !(d.pode_ir || (S.jogador.ilha_terrenos || 0) > 0)) { cena.definirIlha(null); }
         else {
@@ -2545,6 +2553,40 @@
             ${!sel ? '' : sel === 'churros' ? '<p class="aviso">O <b>Churros</b>, o corgi marrom, é homenagem ao cachorro do 1º do ranking: ele vem com esse nome, que não muda.</p>'
                 : `<div class="cao-nome"><label>Nome do ${esc(F.nome(sel).toLowerCase())} <input type="text" maxlength="20" data-cao-nome placeholder="2 a 20 letras" value="${esc(caoNome)}"></label></div>`}
             <div class="rodape-painel"><span class="preco">A raça é uma vez só; o nome dá para trocar depois.</span><button type="button" class="botao verde" data-cao-salvar="${sel || ''}"${sel ? '' : ' disabled'}>${sel === 'churros' ? 'Levar o Churros' : 'Levar este'}</button></div>`;
+    }
+    /* ---------- Fase 117: o Capitão do cais ----------
+       Na ilha, todo dia ele pede 3 entregas com o que a ilha dá até o seu nível. Cada uma paga 1,8x o preço do
+       celeiro em moedas, e XP; a 3ª dá também 5 diamantes. Entregando as 3, o baú do Capitão: 10 diamantes e um
+       material raro do píer. Os pedidos vêm do servidor (fazenda_capitao) quando o painel abre. */
+    let capitaoDados = null, capitaoCarregando = false;
+    function carregarCapitao() {
+        if (capitaoCarregando) return;
+        capitaoCarregando = true;
+        rpc('fazenda_capitao', { p_token: token }).then((r) => { capitaoDados = r; })
+            .catch((e) => { capitaoDados = { erro: e.message }; })
+            .finally(() => { capitaoCarregando = false; if (painelAtual === 'capitao') abrirPainel('capitao', true); });
+    }
+    function htmlCapitao() {
+        const d = capitaoDados;
+        if (!d) return '<p class="vazio-msg">O Capitão está conferindo a lista...</p>';
+        if (d.erro) return `<p class="vazio-msg">${esc(d.erro)}</p>`;
+        const n = (v) => Number(v || 0).toLocaleString('pt-BR');
+        const pedidos = d.pedidos || [], feitos = pedidos.filter((p) => p.feito).length;
+        const linhas = pedidos.map((p) => {
+            const c = culturas[p.item] || { id: p.item, nome: p.item }, tem = Math.min(p.tem, p.qtd), da = p.tem >= p.qtd;
+            const premio = `${ico('moeda', 13)} ${n(p.moedas)} · ${ico('xp', 13)} ${n(p.xp)}${p.diamantes ? ` · ${ico('diamante', 13)} ${p.diamantes}` : ''}`;
+            return `<div class="item${p.feito ? ' feito' : ''}"><span class="ico">${itemDe(c, 36)}</span><span>
+                <span class="nome">${p.qtd}× ${esc(c.nome)}</span>
+                <span class="det"><span class="txt">${p.feito ? 'Entregue! O Capitão agradece.' : `Você tem ${n(tem)} de ${n(p.qtd)}`}</span><span class="txt">${premio}</span></span></span>
+                ${p.feito ? `<span class="chip">${ico('check', 14)} Feito</span>`
+                    : `<button type="button" class="botao pequeno ${da ? 'verde' : 'creme'}" data-capitao-entregar="${p.slot}"${da ? '' : ' disabled'}>Entregar</button>`}</div>`;
+        }).join('');
+        const bau = d.bau
+            ? `<p class="aviso">${spr(1203, 26)} Baú de hoje aberto: ${ico('diamante', 14)} ${d.bau.diamantes} e ${itemDe(culturas[d.bau.raro] || { id: d.bau.raro }, 18)} ${esc((culturas[d.bau.raro] || {}).nome || d.bau.raro)}. Amanhã tem pedido novo!</p>`
+            : `<p class="aviso">${spr(1203, 26)} Entregue os 3 (${feitos}/3) e ganhe o <b>baú do Capitão</b>: ${ico('diamante', 14)} 10 e um material raro do píer.</p>`;
+        return `<div class="cao-meu">${spr(1204, 96)}<p class="fala">Arr, marujo! O navio parte com a maré e o porão está vazio. Traga o que a ilha dá e eu pago bem. A 3ª entrega vale ${ico('diamante', 14)} 5 a mais.</p></div>
+            <div class="lista">${linhas || '<p class="vazio-msg">Hoje o Capitão não tem pedidos.</p>'}</div>${bau}
+            <p class="capitao-nota">O que está guardado para os bichos ou o navio não entra na entrega. Os pedidos trocam todo dia.</p>`;
     }
     function htmlIlhaObras() {
         const d = ilhaDe(), j = S.jogador, lista = d.partes || [];
@@ -3816,6 +3858,7 @@
             abrirPainel('cachorro');
         },
         aoIlhaObra: () => { if (S && !painelAtual && !visita) abrirPainel('ilha'); },
+        aoCapitao: () => { if (S && !painelAtual && !visita) { som.tocar('clique'); abrirPainel('capitao'); } },   // fase 117
         aoConstrucao: (x, y) => {
             if (!S || painelAtual) return;
             descreverConstrucao(x, y);
@@ -5732,6 +5775,10 @@
         } else if (nome === 'ilha') {   // fase 106: as obras da ilha
             el.painelTitulo.innerHTML = `${itemDe(culturas.leme_dourado || { id: 'leme_dourado' }, 30)} Ilha da Caveira Dourada`;
             corpo.innerHTML = htmlIlhaObras();
+        } else if (nome === 'capitao') {   // fase 117: o Capitão do cais
+            el.painelTitulo.innerHTML = `${spr(1204, 32)} O Capitão`;
+            if (!soAtualizar) { capitaoDados = null; carregarCapitao(); }
+            corpo.innerHTML = htmlCapitao();
         } else if (nome === 'cachorro') {   // fase 111: o cachorro da ilha
             const c = S.jogador.cachorro;
             el.painelTitulo.innerHTML = c ? `${caoIco(c.raca, 30)} ${esc(c.nome)}` : `${caoIco(caoEscolhido || 'golden', 30)} Escolha seu cachorro`;
@@ -7539,6 +7586,22 @@
                 toast(`${itemDe(culturas[id] || { id }, 18)} ${r.diamantes} ${r.diamantes === 1 ? 'Viih virou' : 'Viih viraram'} ${r.diamantes} ${ico('diamante', 14)}!`, 'festa');
                 if (painelAtual === 'celeiro') abrirPainel('celeiro', true);
             }).finally(() => { florV.disabled = false; });
+            return;
+        }
+        const capE = e.target.closest('[data-capitao-entregar]');   // fase 117: entregar um pedido do Capitão
+        if (capE) {
+            const slot = Number(capE.dataset.capitaoEntregar);
+            capE.disabled = true;
+            enfileirar([], async () => {
+                const r = await rpc('fazenda_capitao_entregar', { p_token: token, p_slot: slot });
+                aplicarEstado(r.estado);
+                atualizarIlha();
+                const c = culturas[r.item] || { id: r.item, nome: r.item };
+                som.tocar(r.bau ? 'festa' : 'moeda');
+                toast(`${itemDe(c, 18)} ${r.qtd}× ${esc(c.nome)} para o Capitão: ${ico('moeda', 14)} +${r.moedas.toLocaleString('pt-BR')} ${ico('xp', 14)} +${r.xp.toLocaleString('pt-BR')}${r.diamantes ? ` ${ico('diamante', 14)} +${r.diamantes}` : ''}`, 'festa');
+                if (r.bau) setTimeout(() => toast(`${spr(1203, 22)} O <b>baú do Capitão</b>! ${ico('diamante', 14)} +${r.bau.diamantes} e ${itemDe(culturas[r.bau.raro] || { id: r.bau.raro }, 18)} ${esc((culturas[r.bau.raro] || {}).nome || r.bau.raro)}`, 'festa'), 700);
+                if (painelAtual === 'capitao') { capitaoDados = null; abrirPainel('capitao', true); carregarCapitao(); }
+            }).finally(() => { capE.disabled = false; });
             return;
         }
         const caoCard = e.target.closest('[data-cao]');   // fase 111: marcar a raça
