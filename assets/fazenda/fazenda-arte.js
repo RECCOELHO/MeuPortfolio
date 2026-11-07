@@ -1233,7 +1233,7 @@
             case 'robo_colheita': return { p: 'factory', i: 108 };
             case 'aspersor': return { p: 'factory', i: 94 };
             case 'reator': return { p: 'farm', w: 2, h: 2, grade: [[1026, 1027], [1028, 1029]] };
-            case 'estatua_chico': return { p: 'farm', i: 1038, topo: 1037, topo2: 1039 };
+            case 'estatua_chico': return { p: 'farm', i: 1230, alto: 2 * T };   // o desenho do Jessé (o pé no quadrado; alto: a moldura sobe junto)
             default: return { p: 'farm', i: 89, desconhecido: true };   // (fase 59: o jogo vê que falta arte)
         }
     }
@@ -2159,6 +2159,15 @@
         morcego3_p: { pal: { a: '#22161e', b: '#010102', c: '#ad4353', d: '#543859', e: '#5b3f61', f: '#462d4d', g: '#3d2543', h: '#614466', i: '#35243c', j: '#1e112c' }, linhas: ['....a..aa....', '....aaaa.....', '..aabcdcaa...', '.aeebffbbea..', 'aeebbfbgahea.', 'aeebaifa.agha', 'ajaa.aaa.agha', 'aa........aha', 'a..........aa'] }
     });
     Object.assign(INDICE_DESENHO, { 1205: 'moedas_ouro', 1206: 'cristal_azul', 1207: 'esmeralda', 1208: 'rubi', 1209: 'calice_ouro', 1210: 'coroa_pirata', 1211: 'idolo_dourado', 1212: 'caveira_dourada', 1213: 'mapa_aberto', 1214: 'mapa_rolo', 1215: 'pedaco1', 1216: 'pedaco2', 1217: 'pedaco3', 1218: 'garrafa', 1219: 'pa', 1220: 'pedra_caveira', 1221: 'moeda_pirata', 1222: 'bau_tesouro', 1223: 'caverna_fechada', 1224: 'caverna_aberta', 1225: 'tocha1', 1226: 'morcego1' });
+    /* ---------- a estátua do Velho Chico (desenho do Jessé): o pescador dourado com a vara, o peixe fisgado, o
+       peixe na mão e o cesto, no pedestal de pedra. Na cena, a versão pequena (reduzida guardando
+       os olhos, a boca e os contornos: o escuro ganha quando é metade do bloco); no ícone, o desenho inteiro. 1230. */
+    Object.assign(DESENHO_BICHO, {
+        estatua_chico_g: { pal: { a: '#351e2b', b: '#995526', c: '#c38a2b', d: '#bf882c', e: '#945226', f: '#e5a84c', g: '#b0702b', h: '#e7ad54', i: '#e7cb7e', j: '#e7bb67', k: '#a8b25c', l: '#adb3c6', m: '#7e89a2', n: '#53647d' }, linhas: ['................................................aaa...', '...............................................abcaa..', '..............................................aadba...', '.............................................aacdaa...', '.............................................aecaaa...', '............................................aafaa.a...', '...........................................aacga..a...', '..........................................aabcaa..a...', '..........................................abfaa...a...', '.................aaaaaaaaa...............aacda....a...', '...............aacddddhchhaa.............abhaa....a...', '..............aadchddddhhhca............aadba.....a...', '..............addhdddddhhdhda...........abdaa.....a...', '.............aachddddddddhccaa.........aahba......a...', '.............abdcdddddddhccdba.........abhaa......a...', '.............abbbbbbbbbbbbbbba.........adca.......a...', '..........aaaabbbbbbbbbbbbbbbaaaa.....aadea.......a...', '........aaadhhhchhhhhhhhhchhcdccaaa...abcaa.......a...', '.......ahhhdcddccdddddddddcddccddcha.aahba........a...', '.......abbbeaaaaaaaaaaaaaaaaaaaeebba.aehaa........a...', '........aabbadbehhhbbhhhhhbecbabbaa..acda.........a...', '.........aaaabbhdcdhhhhdcchhbeaaaa..aacea.........a...', '..........aaibbicdciiiiccdiibiaa....aehaa.........a...', '..........aaiheiiaaiiiiaaiiigiaa....adda..........a...', '..........aahheiiaaiiiiaaihhghaa...aacba..........a...', '...........aaeaiiiiiiiiiiihheea....aedaa..........a...', '............aaaiiiiihhhhiiiiaaa...aacda...........a...', '.............aafiiheebehhiihaa....aacea..........aaa..', '..............aahhhhhhhhhhhaa.....aeeaa.........ahhba.', '.............aaaaahhhhhhhaaaaa...aabaaaa........aheha.', '.......aaaa.aajgaaahhhhhaaagiaaa.aiaiiia.......abhhhba', '......ahahaaajjgegaaaaaaagegiijaaahahiia.......aebeeea', '......ahhhbaijjhegggggggggehiiiiaaaaiiia.......aechdba', '.....ahhehhajjhhbdhggggghdehhhiiiabafhha.......aadccaa', '.....abhhheabhghedhhhhhhhcehghhiiaeeaaaa........aedaa.', '.....adbbecbagghedhhhhhhhdehaaghhaceaha..........ada..', '....abdjddceaaahedddddddddehaaaahacaaa..........adeda.', '....adcddjcedaahedddddddcdehaakaaadaa...........abaea.', '....ahdjccdecaaecdeiiiibecdeaakkadea............aa.aa.', '....ahdccddaeaaeddbbeeebbddeaakkacea..................', '.....accjdbaaaaeddbebbebbddbaakaacaa..................', '....aaacddbaeaabddebbbbbeddeaakaeda...................', '....abaadbaabaaedddddddddcceaakadea...................', '....abjacdaejaabddcddcddddbbaaaacaa...................', '...aeeacddeaeaaeccedcdccdddbaaaecaa...................', '...abacbaecadaabcddbeeebedceaaadda....................', '..aejaaaeaaabaabcdceaaaeccdeaaacba....................', '..adejbecbjecaabcddbaaaecddbaaacaaaaa.................', '.acejbjejcbedaaeccebaaabbdcbaaedaaaaaa................', '.adbbjejedbjeaabebbeaaabebeebabealllmaa...............', '.adjbejbjejecaacddbannnabcdccabbanlllaa...............', 'acedjeebbjedaaaebeeannnabeebeaabannnlaa...............', 'abjeecjejbcaadcdcceannnaeebcdccaannnlaa...............', 'aeeeccbdedaaaciiccbannnaeccdiidaannnlaa...............', '.aaaaaaaaaaaadccddaannnaabddccdaannnlaa...............', '......aalmnnaaaaaaannnnnnaaaaaaaannmlaa...............', '......aalllnnnnnnnnnnnnnnnnnnnnnnnlllaa...............', '......aalllllllllllllllllllllllllllllaa...............', '......aammmmmmmmmmmmmmmmmmmmmmmmmmmmnaa...............', '......aammmmmmmmmmmmmmmmmmmmmmmmmmmmnaa...............', '.......aaaaallmmmmmmmmmmmmmmmmmmnnaaaa................', '........aaaallmmmmmmmmmmmmmmmmmmnnaaa.................', '..........aallmmnnnnnnnnnnnnnmmmnnaa..................', '..........aallmnnnnnnnnnnnnnnnmmnnaa..................', '..........aallmnnccccccccccddnmmnnaa..................', '..........aallmnnccccccccccccnmmnnaa..................', '..........aallmnnccffffffffccnmmnnaa..................', '..........aallmnnccffffffffccnmmnnaa..................', '..........aallmnnccffiiiiiiccnmmnnaa..................', '..........aallmnncciiiiiiffccnmmnnaa..................', '........aaaallmnncciiiiiiffdcnmmnnaaaa................', '.......aaaaallmnnccffffffiiccnmmnnaaaaa...............', '......aammaallmnnccffffffiiccnmmnnaannaa..............', '......aammaallmnnccccccccccccnmmnnaannaa..............', '......aammaallmnnccccccccccccnmmnnaannaa..............', '......aammaallmmnnnnnnnnnnnnnnmmnnaannaa..............', '......aammaallmmmmmmmmmmmmmmmmmmnnaannaa..............', '......aammaallmmmmmmmmmmmmmmmmmmnnaannaa..............', '......aammaallmmmmmmmmmmmmmmmmmmnnaannaa..............', '......aammaallmmmmmmmmmmmmmmmmmmnnaannaa..............', '......aammmmmmmmmmmmmmmmmmmmmmmmmmmmmnaa..............', '......aammmmmmmmmmmmmmmmmmmmmmmmmmmmmnaa..............', '......aannnnnnnnnnnnnnnnnnnnnnnnnnnnnnaa..............', '......aannnnnnnnnnnnnnnnnnnnnnnnnnnnnnaa..............', '.......aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa...............', '........aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa................'] },
+        estatua_chico_p: { pal: { a: '#22161e', b: '#bf882c', c: '#351e2b', d: '#c38a2b', e: '#995526', f: '#e7ad54', g: '#945226', h: '#e7cb7e', i: '#e7bb67', j: '#b0702b', k: '#53647d', l: '#adb3c6', m: '#7e89a2', n: '#e5a84c' }, linhas: ['........................aa..', '.......................aba..', '.......................aca..', '......................adaa..', '.........aaaa........aea.a..', '........adbbfaa......aa..a..', '.......abbbbffa.....aea..a..', '.......aebbbedea....aa...a..', '.....aafeeeeeeecaa.aba...a..', '....afbcccccccccbeacfa...a..', '.....aceffefffgcca.aa....a..', '.....acehchhchhca.aba....a..', '......aghchhchfa..ada....a..', '.......ahhgffhca.aca.....a..', '.......acffffca..aga....afa.', '....aaaijcccccjaaccha...afga', '...affcifjjjjgfhhccha...adba', '...afgcjfbfffgffhcca.....aa.', '..abbdgcfbbbbbcccca.....aaa.', '..afdbgcgbhhebcccga.......a.', '...adbccbbeeebccca..........', '..aeccecbbbbbdccca..........', '..acdgccdbbgdbccba..........', '.agcgcecebccgbccdca.........', '.aeigegcgeccebecccca........', '.aigeggcdgckcgdcckla........', 'aggdgecdddckcdbdckka........', '.aaccccccckkccccckla........', '...aclkkkkkkkkkkklla........', '...acmmmmmmmmmmmmmma........', '....acclmmmmmmmmmca.........', '.....aclkkkkkkkmmca.........', '.....aclkdddddbkmca.........', '.....aclkdnnnndkmca.........', '.....aclkdnhhhdkmca.........', '....acclkdhhhndkmcca........', '...accclkdnnnhdkmccca.......', '...accclkddddddkmccca.......', '...accclmmmmmmmmmccca.......', '...accclmmmmmmmmmccca.......', '...acmmmmmmmmmmmmmmca.......', '...ackkkkkkkkkkkkkkca.......', '....aaaaaaaaaaaaaaaa........'] }
+    });
+    Object.assign(INDICE_DESENHO, { 1230: 'estatua_chico_p' });
+    Object.assign(DESENHO_GRANDE, { 1230: 'estatua_chico_g' });
     const cacheDesenho = new Map();
     function desenhoBicho(tipo) {
         if (cacheDesenho.has(tipo)) return cacheDesenho.get(tipo);
@@ -4745,8 +4754,10 @@
                 } else pe.push({ p: 'dungeon', i: VISITANTE_ARTE[visitante.tipo] || 86, x: visitante.x, y: visitante.y, flip: visitante.flip, bob: !vn && visitante.andando && Math.floor(tempo / 140) % 2 ? -1 : 0, nadando: vn });
             }
             desenharNavio(pe, tempo);   // fase 104: o navio no píer
+            estatuasHi.length = 0;
             pe.sort((a, b) => (a.ordem != null ? a.ordem : a.y) - (b.ordem != null ? b.ordem : b.y)).forEach((a) => {
                 const x = Math.round(a.x), y = Math.round(a.y) + a.bob;
+                if (a.i === 1230 && a.p === 'farm' && !a.grade) estatuaHiAntes(x, y);   // a estátua do Chico: guarda o que fica atrás dela
                 if (a.grade) {
                     a.grade.forEach((linha, dy) => linha.forEach((i, dx) => tile(q, i, x + dx * T, a.gy + dy * T, false, a.p)));
                     return;
@@ -4776,6 +4787,7 @@
                 fim();
             });
 
+            estatuasHiLer('antes');   // (com tudo o que fica na frente dela já desenhado)
             for (const m of naMaoPraia) if (A_ITEM_PRAIA[m.item] != null) miniTile(A_ITEM_PRAIA[m.item], m.x, m.y, 7);
             desenharMaquinas(lista, tempo);
             desenharSono(tempo);   // fase 66: os zzz das casas (e de quem dorme na sombra)
@@ -4898,7 +4910,9 @@
                     ctx.fillRect(0, 0, canvas.width, canvas.height);
                 }
             }
+            estatuasHiLer('depois');   // (com a noite e as luzes)
             ctx.drawImage(mundo, V.x0, V.y0, vW, vH, dx, dy, vW * k, vH * k);
+            desenharEstatuasHi(k, dx - V.x0 * k, dy - V.y0 * k);
             desenharClima(tempo, k);
         }
 
@@ -5064,6 +5078,63 @@
            Pétalas cor-de-rosa caem pela tela o dia todo; de noite, o farol da ilha (com a obra pronta) desenha
            um coração de luz no mar, ao norte da praia. */
         let diaEspecial = null;
+        /* A estátua do Velho Chico em alta resolução: o desenho inteiro do Jessé (54x86), mostrado no tamanho
+           do jogo (27x43) direto na tela, como uma foto reduzida, em vez de reduzir os pixels. O mundo continua
+           com a versão pequena (para a ordem de quem fica na frente e para a noite); na tela, por cima dela:
+           - o que estava atrás da estátua (lido antes de desenhá-la) e o desenho grande,
+           - escurecidos e iluminados como o mundo (a razão entre o depois e o antes da noite, pixel a pixel),
+           - sem os pixels onde alguém passou na frente (onde o mundo não bate com a versão pequena). */
+        const estatuasHi = [];
+        let estatuaLo = null, estatuaTmp = null;
+        function estatuaHiAntes(x, y) {
+            const lo = desenhoBicho('estatua_chico_p'), bx = Math.round(x + T / 2 - lo.width / 2), by = y + T - lo.height;
+            if (bx < 0 || by < 0 || bx + lo.width > MW || by + lo.height > MH) return;
+            estatuasHi.push({ bx, by, w: lo.width, h: lo.height, fundo: q.getImageData(bx, by, lo.width, lo.height) });
+        }
+        function estatuasHiLer(fase) {
+            for (const e of estatuasHi) e[fase] = q.getImageData(e.bx, e.by, e.w, e.h).data;
+        }
+        const telinha = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+        function desenharEstatuasHi(k, ox, oy) {
+            if (!estatuasHi.length) return;
+            const lo = desenhoBicho('estatua_chico_p'), hi = desenhoBicho('estatua_chico_g');
+            if (!estatuaLo) { const c = telinha(lo.width, lo.height), g = c.getContext('2d'); g.drawImage(lo, 0, 0); estatuaLo = g.getImageData(0, 0, lo.width, lo.height).data; }
+            for (const e of estatuasHi) {
+                if (!e.antes || !e.depois) continue;
+                const { w, h } = e, W2 = w * 2, H2 = h * 2, A = e.antes, D = e.depois, L = estatuaLo;
+                const mul = new ImageData(w, h), add = new ImageData(w, h), cob = new ImageData(w, h);
+                for (let i = 0; i < w * h * 4; i += 4) {
+                    if (L[i + 3] && (A[i] !== L[i] || A[i + 1] !== L[i + 1] || A[i + 2] !== L[i + 2])) cob.data[i + 3] = 255;   // alguém na frente
+                    for (let c = 0; c < 3; c++) {
+                        const f = A[i + c] ? D[i + c] / A[i + c] : 1;
+                        mul.data[i + c] = Math.min(255, Math.round(255 * f));
+                        add.data[i + c] = Math.max(0, D[i + c] - A[i + c]);
+                    }
+                    mul.data[i + 3] = add.data[i + 3] = 255;
+                }
+                const pedaco = (img) => { const c = telinha(w, h); c.getContext('2d').putImageData(img, 0, 0); return c; };
+                if (!estatuaTmp || estatuaTmp.width !== W2 || estatuaTmp.height !== H2) estatuaTmp = { c: telinha(W2, H2), m: telinha(W2, H2), width: W2, height: H2 };
+                const g = estatuaTmp.c.getContext('2d'), gm = estatuaTmp.m.getContext('2d'), hx = Math.round((W2 - hi.width) / 2), hy = H2 - hi.height;
+                g.imageSmoothingEnabled = gm.imageSmoothingEnabled = false;
+                // o que fica atrás + o desenho grande
+                g.globalCompositeOperation = 'source-over'; g.clearRect(0, 0, W2, H2);
+                g.drawImage(pedaco(e.fundo), 0, 0, W2, H2);
+                g.drawImage(hi, hx, hy);
+                // a noite e as luzes, como no mundo
+                g.globalCompositeOperation = 'multiply'; g.drawImage(pedaco(mul), 0, 0, W2, H2);
+                g.globalCompositeOperation = 'lighter'; g.drawImage(pedaco(add), 0, 0, W2, H2);
+                // só onde tem estátua (a pequena ou a grande) e ninguém na frente
+                gm.globalCompositeOperation = 'source-over'; gm.clearRect(0, 0, W2, H2);
+                gm.drawImage(lo, 0, 0, W2, H2); gm.drawImage(hi, hx, hy);
+                gm.globalCompositeOperation = 'destination-out'; gm.drawImage(pedaco(cob), 0, 0, W2, H2);
+                g.globalCompositeOperation = 'destination-in'; g.drawImage(estatuaTmp.m, 0, 0);
+                g.globalCompositeOperation = 'source-over';
+                ctx.save();
+                ctx.imageSmoothingEnabled = (k / 2) % 1 !== 0; ctx.imageSmoothingQuality = 'high';   // a foto reduzida (nítida quando a conta é exata)
+                ctx.drawImage(estatuaTmp.c, Math.round(ox + e.bx * k), Math.round(oy + e.by * k), Math.round(w * k), Math.round(h * k));
+                ctx.restore();
+            }
+        }
         function desenharPetalas(tempo) {
             const cores = ['#f6a1c8', '#e98bb5', '#fbd0e4', '#d96aa0'];
             for (let k = 0; k < 42; k++) {
@@ -5700,7 +5771,7 @@
                 if (!c) return;
                 const a = arteItem(c.tipo, EST);
                 x = wx(cx); y = wy(cy); w = T * (a.w || 1); h = T * (a.h || 1);
-                alto = a.topo2 != null ? 2 * T : a.topo != null ? T : 0;
+                alto = a.alto != null ? a.alto : a.topo2 != null ? 2 * T : a.topo != null ? T : 0;
             }
             moldura(x, y, w, h, PAL.y);
             const bw = Math.max(14, w - 4), bx = x + Math.round((w - bw) / 2), by = y - alto - 7;
