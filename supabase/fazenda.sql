@@ -1532,7 +1532,8 @@ begin
     update fazenda_jogadores
        set moedas = moedas + (select sum(fazenda_presente_nivel(n)) from generate_series(coalesce(j.nivel_premiado, 1) + 1, v_nivel) n),
            diamantes = diamantes + 5 * (v_nivel - coalesce(j.nivel_premiado, 1)),
-           nivel_premiado = v_nivel
+           nivel_premiado = v_nivel,
+           nivel_base = greatest(coalesce(nivel_base, 1), v_nivel)   -- fase 112: o nível que você alcançou não cai mais
      where id = p_jogador and nivel_premiado is not distinct from j.nivel_premiado;   -- fase 70: paga uma vez só
     select * into j from fazenda_jogadores where id = p_jogador;
   end if;
@@ -9420,7 +9421,8 @@ returns int language plpgsql stable security definer set search_path = public as
 begin
   return coalesce((select min(i.nivel_min) from fazenda_itens i
                     where fazenda_conta_nivel(i.categoria, i.id) and i.nivel_min < 60   -- fase 106: até o 60
-                      and not exists (select 1 from fazenda_construcoes c where c.jogador_id = p_jogador and c.tipo = i.id)), 60);
+                      and not exists (select 1 from fazenda_construcoes c where c.jogador_id = p_jogador and c.tipo = i.id)
+                      and not exists (select 1 from fazenda_deposito d where d.jogador_id = p_jogador and d.tipo = i.id)), 60);   -- fase 112: o guardado conta
 end;
 $$;
 
@@ -9430,7 +9432,8 @@ returns jsonb language plpgsql stable security definer set search_path = public 
 begin
   return coalesce((select jsonb_agg(i.id order by i.nivel_min, i.ordem) from fazenda_itens i
                     where fazenda_conta_nivel(i.categoria, i.id) and i.nivel_min <= p_nivel
-                      and not exists (select 1 from fazenda_construcoes c where c.jogador_id = p_jogador and c.tipo = i.id)), '[]'::jsonb);
+                      and not exists (select 1 from fazenda_construcoes c where c.jogador_id = p_jogador and c.tipo = i.id)
+                      and not exists (select 1 from fazenda_deposito d where d.jogador_id = p_jogador and d.tipo = i.id)), '[]'::jsonb);   -- fase 112
 end;
 $$;
 
@@ -11225,3 +11228,40 @@ $$;
 
 revoke execute on function public.fazenda_cachorros() from public, anon, authenticated;
 grant execute on function public.fazenda_cachorro_escolher(text, text, text) to anon, authenticated;
+
+-- ------------------------------------------------------------
+-- Fase 112: ninguém cai de nível (de novo). A regra da fase 90 era "o nível de cada um não baixa", mas o piso
+-- (nivel_base) era o nível do dia da regra. Quando a fase 104 trouxe itens novos que contam para o nível
+-- (o ipê no 32 e as oficinas navais no 33, 36, 39 e 42) e a fase 106 refez a trava de todo mundo, quem já
+-- tinha passado desses níveis sem eles caiu até o piso antigo (ex.: do 45 para o 35). E guardar no
+-- depósito uma oficina que conta também derrubava o nível.
+-- • Quem caiu por causa desses itens volta para o maior nível que já tinha alcançado (e ganhado o presente:
+--   nivel_premiado), até onde o XP dá; daqui para frente, cada nível novo sobe o piso junto (fazenda_estado).
+-- • O que está guardado no depósito conta como seu na trava (fazenda_nivel_trava e fazenda_nivel_faltam), e
+--   guardar ou tirar do depósito refaz a trava (gatilho em fazenda_deposito).
+-- • Para passar do nível de agora, continua valendo ter o que falta (a regra votada).
+-- Pode rodar este arquivo de novo.
+-- ------------------------------------------------------------
+drop trigger if exists fazenda_trava_dep_ins on public.fazenda_deposito;
+create trigger fazenda_trava_dep_ins after insert on public.fazenda_deposito
+  referencing new table as novas for each statement execute function public.fazenda_trava_gatilho();
+drop trigger if exists fazenda_trava_dep_del on public.fazenda_deposito;
+create trigger fazenda_trava_dep_del after delete on public.fazenda_deposito
+  referencing old table as velhas for each statement execute function public.fazenda_trava_gatilho();
+
+-- quem caiu por causa dos itens da fase 104 (o ipê e as oficinas navais) volta para o maior nível que já tinha
+-- alcançado (e ganhado o presente), até onde o XP dá. Quem está segurado por um item antigo segue a regra.
+with novo as (
+  select j.id, least(coalesce(j.nivel_premiado, 1), public.fazenda_nivel(j.xp), 60,
+           -- a trava sem os itens da fase 104: o que os itens antigos deixam (estes continuam valendo)
+           coalesce((select min(i.nivel_min) from public.fazenda_itens i
+                      where public.fazenda_conta_nivel(i.categoria, i.id) and i.nivel_min < 60
+                        and i.id not in ('ipe', 'serraria_naval', 'forja', 'velaria', 'cartografia')
+                        and not exists (select 1 from public.fazenda_construcoes c where c.jogador_id = j.id and c.tipo = i.id)
+                        and not exists (select 1 from public.fazenda_deposito d where d.jogador_id = j.id and d.tipo = i.id)), 60)) as piso
+    from public.fazenda_jogadores j)
+update public.fazenda_jogadores j set nivel_base = n.piso
+  from novo n
+ where n.id = j.id and n.piso > greatest(coalesce(j.nivel_base, 1), public.fazenda_nivel_de(j.xp, j.nivel_trava));
+update public.fazenda_jogadores set nivel_trava = greatest(public.fazenda_nivel_trava(id), coalesce(nivel_base, 1))
+ where nivel_trava is distinct from greatest(public.fazenda_nivel_trava(id), coalesce(nivel_base, 1));
