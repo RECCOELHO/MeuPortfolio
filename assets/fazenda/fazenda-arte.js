@@ -241,7 +241,8 @@
         tecido:   { fases: [1009, 1009, 1009], murcho: 1009, item: 1009, semente: 1009 },
         pipoca:   { fases: [1010, 1010, 1010], murcho: 1010, item: 1010, semente: 1010 },
         bolo:     { fases: [1011, 1011, 1011], murcho: 1011, item: 1011, semente: 1011 },
-        salada:   { fases: [1012, 1012, 1012], murcho: 1012, item: 1012, semente: 1012 }
+        salada:   { fases: [1012, 1012, 1012], murcho: 1012, item: 1012, semente: 1012 },
+        viih:     { fases: [1192, 1193, 1191], murcho: 1194, item: 1191, semente: 1190 }   // fase 115: a flor do 11/11
     };
     const CULTURA_PADRAO = CULTURAS.alface;
     const ANIMAL = { galinha: 122, vaca: 121, ovelha: 120, porco: 1000, pato: 1001, coelho: 1002, cabra: 1146, bufala: 1147 };   // (fase 74: cabra e búfala)
@@ -1344,7 +1345,7 @@
     const VERSAO_ARTE = '2';   // troque se as imagens dos pacotes mudarem (cache de 4 h do Cloudflare)
     function htmlTile(i, px = 32, pacote = 'farm') {
         if (pacote === 'farm' && INDICE_DESENHO[i]) {   // os bichos do Jessé, inteiros dentro do quadrado
-            const cv = desenhoBicho(INDICE_DESENHO[i]), k = px / Math.max(cv.width, cv.height);
+            const cv = desenhoBicho(DESENHO_GRANDE[i] || INDICE_DESENHO[i]), k = px / Math.max(cv.width, cv.height);   // (fase 115: o desenho inteiro)
             return `<span class="px-spr" style="width:${px}px;height:${px}px;background:none;display:inline-flex;align-items:flex-end;justify-content:center" aria-hidden="true"><img src="${cv.url}" alt="" style="width:${Math.round(cv.width * k)}px;height:${Math.round(cv.height * k)}px;image-rendering:pixelated"></span>`;
         }
         if (i >= 1000) { i -= 1000; pacote = 'propria'; }
@@ -1896,6 +1897,65 @@
             'afcggfgggddca.', '.aaggcffgddca.', '..affccfcdca..', '..aaaa.aa.aa..', '..............'] }
     };
     const INDICE_DESENHO = { 1147: 'bufala', 1000: 'porco', 1146: 'cabra', 1002: 'coelho' };
+    /* ---------- Fase 115: a flor Viih (desenhos do Jessé) ----------
+       No canteiro, a versão menor (a flor aberta passa um pouco do quadrado, como as plantas altas); nos
+       ícones (celeiro, loja, recados), o desenho inteiro. Índices 1190 a 1194 (a semente, a flor, o broto,
+       o botão e o caule sem flor, que é a murcha). */
+    Object.assign(DESENHO_BICHO, {
+        viih_semente: { pal: { a: '#22161e', b: '#905d44', c: '#f3c69e', d: '#6b4135', e: '#a36e50', f: '#fee0c1' }, linhas: [
+            '.....aa..', '....abca.', '....abbba', '.aa.adda.',
+            'aeda.aa..', 'addea....', 'adefa....', 'adeda....',
+            '.ada.....', '..a......'] },
+        viih_broto: { pal: { a: '#22161e', b: '#78a750', c: '#7ca35f', d: '#477842', e: '#618c55', f: '#211922' }, linhas: [
+            '......aaa', 'aaa..abba', 'acbaadbca', '.abdddba.',
+            '..aedfa..', '...aca...', '...aca...', '...aeda..',
+            '....aa...'] },
+        viih_crescendo: { pal: { a: '#22161e', b: '#638e4c', c: '#2e553f', d: '#4e7648', e: '#396048' }, linhas: [
+            '..aa..a...', '..abaa....', '..abca.aa.', '...abbaba.',
+            '....abaa..', 'aaa.aa....', 'addaba....', '.aacdeaa..',
+            '...adcda..', '...adca...', '...aca....', '....aa....',
+            '.....a....'] },
+        viih_botao: { pal: { a: '#22161e', b: '#f9a8ec', c: '#d069bc', d: '#a14aa4', e: '#497048' }, linhas: [
+            '.....aa.....', '....abba....', '....abbca...', '....accca...',
+            '...addeda...', '...aaeeea...', '.....aea....', '......aa....',
+            'aaa...aa....', 'aeea..aa.aa.', 'aeeeaaa.aca.', '.aaeea..aaa.',
+            '...aea.aa...', '....aeaa....', '....aea.....', '....aea.....',
+            '.....aa.....', '............'] },
+        viih_flor: { pal: { a: '#22161e', b: '#de80db', c: '#fbb4f1', d: '#9640a7', e: '#a3661c', f: '#f8f1cf', g: '#4c4254', h: '#f5d55d', i: '#5d874a' }, linhas: [
+            '.....aaaa.....', '....abbbba....', '....abbbba....', '..aabbbbbbaa..',
+            '.acccbbbbccca.', 'accbbcddcbbcca', 'acbbbbddbbbbca', 'acbbbbefbbbbca',
+            'acbbbghhbbbbca', '.accgdhdggcca.', '.adddddddddda.', '.abddabbdddba.',
+            '..aaa.aggaaa..', '.......aa.....', '.aaa...aa..aa.', '.aiia..aa.aba.',
+            '.aiiiaaa.agba.', '..aagga..aaa..', '....aia.aa....', '.....aiaa.....',
+            '.....aga......', '.....aga......', '......aa......', '..............'] },
+        viih_semente_g: { pal: { a: '#241721', b: '#4f312e', c: '#905d44', d: '#6b4135', e: '#f3c69e', f: '#a36e50', g: '#fee0c1' }, linhas: [
+            '..........aaaa...', '.........abccca..', '........addceeda.', '........abccceeca',
+            '........abcccceca', '...aa...abdccccca', '..aaaa...adddccba', '.aaccba..aabbdba.',
+            '.abfdfa...aaaaa..', 'abdfcgca...aaa...', 'abdfdggaa........', 'abdfdfffaa.......',
+            'abdfdfgcaa.......', 'abdffbgcaa.......', 'abddffddaa.......', 'aadddddbaa.......',
+            '.aaddddaa........', '..aaaaaa.........', '...aaaa..........'] },
+        viih_flor_g: { pal: { a: '#f8f1cf', b: '#221525', c: '#de80db', d: '#fbb4f1', e: '#9640a7', f: '#4c4254', g: '#a3661c', h: '#f5d55d', i: '#5d874a' }, linhas: [
+            '..................aaaaaa..................', '................aabbbbbbaa................', '...............aabbbbbbbbaa...............', '..............abbbbccccbbbba..............',
+            '.............aabbccccccdcbbba.............', '.............abbccccccccccbba.............', '............abbbccccccccccbbba............', '...........aabbcdccccccccddbbaa...........',
+            '...........abbbccccccccccccbbba...........', '...........abbccccccceccccccbba...........', '......aaaaaabbdcccccceccccccbbaaaaaa......', '.....abbbbbbbbccccccceccccccbbbbbbbba.....',
+            '...aabbbbbbbbbccccccceccccccbbbbbbbbbaa...', '..abbbcdddddddeeeccceeccceefdddddddcbbba..', '..abbcdddddddddfeccceecccefdddddddddcbba..', '.abbcddddcccccddfecceeccefddcccccddddcbba.',
+            '.abbddddcccccccdfecceeeeefdcccccccddddbba.', 'abbbdddccccccccddfeeeeeefddccccccccdddbbba', 'abbdddccccccccccdfeeeeeefdccccccccccdddbba', 'abbddccccccccccccdfeeeefdccccccccccccddbba',
+            'abbddcccccecccccccfggfefcccccccceccccddbba', 'abbddcccccccccccceghaaffcecccccccccccddbba', 'abbddcccccccccccecghaagceccccccccccccddbba', 'abbdddcccccccccfchgghhghceccccccccccdddbba',
+            'abbcddcccccccccfchggggghceccccccccccddcbba', '.abbcddccccccccfcchhhhhccfcccccccccddcbba.', '.abbcddddccccccffhhhhhhhefcccccccddddcbba.', '..abbcddddddddfbbfhhhhhbbfffddddddddcbba..',
+            '..abbbbcdddddffbeeehhaeebffffdddddcbbbba..', '...aabbbbfffffbeeeeeeeeeebeefffffbbbbaa...', '....abbbbfffeebeeeeeeeeeefeeeffffbbbba....', '....abbeeeeeeebeceeeeeecebeeeeeeeeebba....',
+            '....abbceeeeeeefcceeeeccbeeeeeeeeecbba....', '....abbceeeeeeebbccecccbbeeeeeeeeecbba....', '....abbcceeeeeebbbccccbbbbbeeeeeeccbba....', '....abbcccccbbbbbbbccbbfbbbbbbcccccbba....',
+            '....abbbbbbbbbbaabbbbbffbbbbbbbbbbbbba....', '.....abbbbbbbaa..abbbbbffbbaabbbbbbba.....', '......aaaaaaa.....aaabbffbb..aaaaaaa......', '.....................bbffbb...............',
+            '.....................bbffbb...............', '.....................bbffbb...............', '.....................bbffbb...............', '...bbbbbbbb..........bbifbb......bbbbbb...',
+            '...bbbbbbbbbb........bbibb.....bbbbbbbb...', '...bbiiiiiibbb......bbiibb....bbbddedbb...', '...bbiiiiiiiibb.....bbifbb...bbeccefdbb...', '...bbiiffiiiiibb...bbiibb...bbbcccfccbb...',
+            '...bbfiiiffiiiibb.bbiifbb...bbfeccfccbb...', '...abbiiiiiffiibbbbbiibb....bbifcfeccbb...', '....bbfiiiiiffiibbbiibb.....bbifefeeebb...', '.....bbfiiiiiffibbfifbb.....bbifffffbb....',
+            '......bbbiiiiffffbiibb.....bbffiiifbb.....', '.......bbbbfffffffifbb....bbffbbbbbb......', '.........bbbbbbbbiibb....bbffbbbbbb.......', '...........bbbbbbiibb..bbbffbb............',
+            '...............bbiibbbbbbffbb.............', '...............bbiibbbbffbbb..............', '...............bbiibbbffbbb...............', '...............bbiibbffbb.................',
+            '...............bbiibffbb..................', '...............bbiiffbb...................', '...............bbfiffbb...................', '................bbifbbb...................',
+            '................bbfffbb...................', '................bbbffbbb..................', '.................bbfffbbb.................', '..................bbfffbb.................',
+            '...................bbbbb..................', '....................bbb...................'] }
+    });
+    Object.assign(INDICE_DESENHO, { 1190: 'viih_semente', 1191: 'viih_flor', 1192: 'viih_broto', 1193: 'viih_botao', 1194: 'viih_crescendo' });
+    const DESENHO_GRANDE = { 1190: 'viih_semente_g', 1191: 'viih_flor_g' };   // nos ícones
     const cacheDesenho = new Map();
     function desenhoBicho(tipo) {
         if (cacheDesenho.has(tipo)) return cacheDesenho.get(tipo);
@@ -4418,6 +4478,7 @@
             desenharRaios(tempo);   // fase 68: as faíscas do eletricista
             const escuro = faseDoDia(relogio()).n;
             if (escuro > 0) desenharNoite(todas, tempo, escuro);   // (as luzes saem da lista toda: a camada fica guardada)   // balões e sinais vêm depois: ficam claros
+            if (diaEspecial === 'namorados') { desenharCoracaoFarol(tempo, escuro); desenharPetalas(tempo); }   // fase 115: o 11/11
             desenharRadiacao(tempo);   // fase 68: o bicho radioativo (brilha também de noite)
             if (visitante && !visitante.andando && !visitante.saindo) {   // balão com o pedido, pulando
                 const bx = Math.round(visitante.x) - 2, by = Math.round(visitante.y) - 21 + (Math.floor(tempo / 350) % 2);
@@ -4691,6 +4752,46 @@
                     if (par === 'dir') continue;
                     acender(par === 'esq' ? c.tipo + ':2' : c.tipo, wx(c.x), wy(c.y), c.x * 3 + c.y);
                 }
+            }
+            q.restore();
+        }
+        /* ---- fase 115: o Dia dos Namorados da Fazendinha (11/11) ----
+           Pétalas cor-de-rosa caem pela tela o dia todo; de noite, o farol da ilha (com a obra pronta) desenha
+           um coração de luz no mar, ao norte da praia. */
+        let diaEspecial = null;
+        function desenharPetalas(tempo) {
+            const cores = ['#f6a1c8', '#e98bb5', '#fbd0e4', '#d96aa0'];
+            for (let k = 0; k < 42; k++) {
+                const vel = 0.012 + (k % 5) * 0.004, larg = vw + 40, alt = vh + 40;
+                const x = cam.x - 20 + ((k * 97.3 + tempo * vel * 0.6) % larg) + Math.sin(tempo / 900 + k) * 6;
+                const y = cam.y - 20 + ((k * 53.7 + tempo * vel) % alt);
+                const gira = Math.floor(tempo / 260 + k) % 3;
+                q.fillStyle = cores[k % 4];
+                if (gira === 0) q.fillRect(Math.round(x), Math.round(y), 2, 1);
+                else if (gira === 1) { q.fillRect(Math.round(x), Math.round(y), 1, 2); q.fillRect(Math.round(x) + 1, Math.round(y) + 1, 1, 1); }
+                else q.fillRect(Math.round(x), Math.round(y), 2, 2);
+            }
+        }
+        function desenharCoracaoFarol(tempo, escuro) {
+            if (escuro < 0.3 || !ilhaInfo || MH !== MH_ILHA || !(ilhaInfo.feitas || []).includes('farol')) return;
+            const F = OBRAS_ILHA.farol, lx = wx(F.x) + T, ly = wy(F.y) - 22;   // a lâmpada do farol
+            const cx = wx(42), cy = wy(46) + 8, pulso = 0.75 + 0.25 * Math.sin(tempo / 500);   // no mar aberto ao norte da praia (longe do navio no cais)
+            q.save();
+            q.globalCompositeOperation = 'lighter';
+            q.globalAlpha = Math.min(1, escuro) * 0.22 * pulso;   // o facho, do farol até o coração
+            q.fillStyle = '#ffe6b0';
+            for (let k = 0; k <= 24; k++) { const f = k / 24; q.fillRect(Math.round(lx + (cx - lx) * f) - 1 - Math.round(f * 4), Math.round(ly + (cy - ly) * f), 3 + Math.round(f * 8), 2); }
+            q.globalAlpha = Math.min(1, escuro) * 0.9 * pulso;   // o coração: a curva clássica, ponto a ponto
+            for (let k = 0; k < 120; k++) {
+                const t = (k / 120) * Math.PI * 2, hx = 16 * Math.sin(t) ** 3, hy = -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t));
+                q.fillStyle = k % 3 ? '#ff9ac6' : '#ffd6e8';
+                q.fillRect(Math.round(cx + hx * 1.1), Math.round(cy + hy * 1.1), 2, 2);
+            }
+            q.globalAlpha = Math.min(1, escuro) * 0.18 * pulso;   // o brilho dentro
+            q.fillStyle = '#ff7fb5';
+            for (let y = -12; y <= 16; y += 2) for (let x = -17; x <= 17; x += 2) {
+                const u = x / 17.6, v = -y / 14.3, d = (u * u + v * v - 1) ** 3 - u * u * v ** 3;
+                if (d < 0) q.fillRect(Math.round(cx + x), Math.round(cy + y), 2, 2);
             }
             q.restore();
         }
@@ -5162,6 +5263,11 @@
         // itens pequenos (8 px) andando dentro dos canos: ingrediente da fonte para a oficina, produto de volta
         function miniTile(i, x, y, tam = 8) {
             if (i == null) return;
+            if (INDICE_DESENHO[i]) {   // fase 115: os desenhos próprios (a Viih), no tamanho pedido
+                const cv = desenhoBicho(INDICE_DESENHO[i]), k = tam / Math.max(cv.width, cv.height);
+                q.drawImage(cv, Math.round(x + (tam - cv.width * k) / 2), Math.round(y + tam - cv.height * k), Math.round(cv.width * k), Math.round(cv.height * k));
+                return;
+            }
             let pacote = 'farm';
             if (i >= 1000) { i -= 1000; pacote = 'propria'; }
             const img = pacote === 'propria' ? atlasProprio : (atlasDaEstacao && atlasDaEstacao.farm) || atlas.farm;
@@ -5677,6 +5783,7 @@
             definirPier(pronto) { if (!!pronto === pierPronto) return; pierPronto = !!pronto; montarFundo(); precisaDesenhar = true; },   // fase 61
             definirBarco(info) { barcoInfo = info || null; limitarCamera(); precisaDesenhar = true; },   // fase 104: o navio no píer (fase 111: fundeado, a câmera desce até ele)
             definirCachorro(info) { cachorroInfo = info || null; precisaDesenhar = true; },   // fase 111: o cachorro da ilha
+            definirEspecial(dia) { diaEspecial = dia || null; precisaDesenhar = true; },   // fase 115: 'namorados' no 11/11
             // fase 106: a ilha. info = null (sem ilha: o mundo volta ao tamanho da fazenda) ou
             // { feitas: [ids das obras prontas], proxima: id, x: {x, y} do baú do dia }
             definirIlha(info) {
