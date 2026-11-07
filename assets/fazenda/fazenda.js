@@ -481,7 +481,9 @@
             erro: () => { nota(170, 0, 0.12, 'sawtooth', 0.035); nota(120, 0.1, 0.16, 'sawtooth', 0.035); },
             festa: () => { [523, 659, 784, 1047].forEach((f, n) => nota(f, n * 0.09, 0.14)); },
             tiro: () => { nota(1400, 0, 0.04, 'square', 0.025); nota(900, 0.03, 0.05, 'square', 0.02); },   // fase 94
-            et: () => { nota(330, 0, 0.07, 'sawtooth', 0.035); nota(165, 0.06, 0.12, 'sawtooth', 0.03); }
+            et: () => { nota(330, 0, 0.07, 'sawtooth', 0.035); nota(165, 0.06, 0.12, 'sawtooth', 0.03); },
+            bauTreme: () => { nota(140, 0, 0.05, 'square', 0.04); nota(120, 0.07, 0.05, 'square', 0.04); },   // o baú do tesouro
+            bauAbre: () => { nota(392, 0, 0.08, 'triangle', 0.08); [784, 988, 1175, 1568].forEach((f, n) => nota(f, 0.08 + n * 0.07, 0.16)); }
         };
 
         return {
@@ -609,9 +611,9 @@
         // no inverno a chuva cai como neve (mesmo efeito)
         chuva: {
             get nome() { return S && S.estacao === 'inverno' ? 'Neve' : 'Chuva'; },
-            get efeito() { return S && S.estacao === 'inverno' ? 'a neve rega tudo, nenhum canteiro seca.' : 'rega tudo, nenhum canteiro seca.'; }
+            get efeito() { return S && S.estacao === 'inverno' ? 'a neve rega o que está crescendo, nenhum canteiro seca.' : 'rega o que está crescendo, nenhum canteiro seca.'; }
         },
-        calor: { nome: 'Onda de calor', efeito: 'a terra seca mais rápido, fique de olho nos canteiros.' },
+        calor: { nome: 'Onda de calor', efeito: 'a terra seca mais rápido: planta madura com seca murcha na metade do tempo, regue!' },
         vento: { nome: 'Ventania', efeito: 'espalha pragas pelos canteiros (e a turbina gira forte).' },
         // fase 77: por cima da chuva e da ventania (o clima de baixo continua valendo)
         tempestade: {
@@ -622,6 +624,14 @@
     };
     const ORDEM_ESTACOES = ['primavera', 'verao', 'outono', 'inverno'];
     const naEstacao = (e) => (e === 'primavera' ? 'na ' : 'no ') + NOME_ESTACAO[e];   // "na primavera", "no verão"
+    // fase 121: a planta na estação boa dela rende um quarto a mais (no mínimo +1), como fazenda_bonus_estacao
+    const bonusEstacao = (k) => (k && k.estacao_boa && S && k.estacao_boa === S.estacao ? Math.max(1, Math.round(k.rendimento * 0.25)) : 0);
+    const plantasDaEstacao = (e) => (S.culturas || []).filter((k) => k.tipo === 'cultura' && k.estacao_boa === e && !k.so_dia);
+    function htmlEfeitosEstacao(e) {
+        const lista = plantasDaEstacao(e).filter((k) => k.nivel_min <= S.jogador.nivel);
+        return `<span class="det"><span class="txt">Rendem mais ${naEstacao(e)}: ${lista.length ? lista.map((k) => `${itemDe(k, 16)} ${esc(k.nome.toLowerCase())}`).join(', ') : 'as plantas dos próximos níveis'}.</span></span>
+            ${e === 'inverno' ? `<span class="det"><span class="txt">❄️ No frio, os bichos comem <b>1 ração a mais</b> por refeição.</span></span>` : ''}`;
+    }
     const hora = (iso) => new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     const climaAgora = () => S && S.clima && (S.clima.agora || S.clima.hoje);
     // fase 77: o que aparece (a tempestade ou o furacão, enquanto durar; senão o clima de baixo)
@@ -724,7 +734,8 @@
             return `<div class="item${e === S.estacao ? ' selecionada' : ''}"><span class="ico">${semente ? itemDe(semente, 34) : ico('sol', 30)}</span>
                 <span><span class="nome">${NOME_ESTACAO[e][0].toUpperCase() + NOME_ESTACAO[e].slice(1)}${e === S.estacao ? ` <small>(agora${fimEst > 0 ? `, acaba em ${fmtTempo(fimEst)}` : ''})</small>` : ` <small>(em ${fmtTempo(falta)})</small>`}</span>
                     <span class="det">${t ? Object.entries(t).sort((a, b) => b[1] - a[1]).map(([k, p]) => `<span>${ico(iconeClima(k), 14)} ${p}%</span>`).join('') : ''}</span>
-                    ${semente ? `<span class="det"><span>Semente da estação: ${esc(semente.nome.toLowerCase())}</span></span>` : ''}</span>
+                    ${semente ? `<span class="det"><span>Semente da estação: ${esc(semente.nome.toLowerCase())}</span></span>` : ''}
+                    ${htmlEfeitosEstacao(e)}</span>
             </div>`;
         }).join('');
         return `<div class="clima-agora${extremo ? ' extremo' : ''}">${ico(iconeClima(c), 56)}<div>
@@ -1288,7 +1299,7 @@
         if (!k) return { fase: 'arado' };   // semente que o jogo ainda não conhece (catálogo atrasado): não quebra a tela
         const inicio = Date.parse(c.plantado_em);
         const maduro = inicio + k.tempo_seg * 1000;
-        const murcho = maduro + Math.max(k.tempo_seg * 2, 3600) * 1000;
+        const murcho = maduro + (c.seco ? Math.max(k.tempo_seg, 1800) : Math.max(k.tempo_seg * 2, 3600)) * 1000;   // fase 121: com seca, murcha na metade do tempo
         const t = agora();
         const probs = ['erva', 'praga', 'seco'].filter((p) => c[p]);
         const base = { k, probs, maduro, murcho };
@@ -1522,6 +1533,7 @@
     }
     /* ---- fase 66: por que a planta murchou (o servidor registra o motivo de cada uma) ---- */
     const DICA_MURCHA = {
+        seca: 'Com seca (sem regar), a planta madura murcha na metade do tempo: regue (ou ponha um irrigador perto). A chuva só rega o que ainda cresce.',   // fase 121
         sem_colhedor: 'Contrate o Juca, o colhedor (Loja → Ajudantes, nível 10): ele colhe sozinho antes de murchar.',
         descansando: 'Construa casinhas (Construir → Casas): com cama livre ele descansa só 2 h, em vez de 4 h na sombra.',
         fechada: 'O Juca guarda no máximo 8 h de trabalho: volte antes disso ou plante o que demora mais para murchar.',
@@ -1550,6 +1562,13 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-11-07-estacoes', data: '07/11', titulo: 'As estações e o clima valendo mais', itens: [
+            'Cada planta tem a <b>sua estação</b>: colhida nela, rende <b>um quarto a mais</b> (no mínimo +1). Na Loja aparece "rende +1 agora!" e, no Clima, o que rende mais em cada estação.',
+            '<b>Seca</b>: planta madura com seca (sem regar) <b>murcha na metade do tempo</b>. A chuva rega o que ainda está crescendo; a madura com seca precisa de rega na mão (ou de um irrigador perto).',
+            '<b>Inverno</b>: no frio, os bichos comem <b>1 ração a mais</b> por refeição. Guarde ração antes!',
+            'Continua valendo: sol dá +1 na colheita, calor seca, ventania espalha pragas e nublado não traz problema novo.'] },
+        { id: '2026-11-07-bau-animado', data: '07/11', titulo: 'O baú se abre na sua frente', itens: [
+            'O baú enterrado do X e o baú do Capitão agora se abrem na tela: o baú cai, treme, abre com um clarão e os prêmios saem voando. Toque para pegar!'] },
         { id: '2026-11-07-estatua-chico', data: '07/11', titulo: 'A estátua nova do Velho Chico', itens: [
             'A estátua do <b>Velho Chico, Pescador de Betinhas</b> ganhou um desenho novo: o pescador dourado com a vara, o peixe fisgado e o cesto, no pedestal de pedra. Quem já tem a estátua vê a nova na hora.'] },
         { id: '2026-11-07-tesouro', data: '07/11', titulo: 'O mapa do tesouro e a caverna da Caveira Dourada', itens: [
@@ -2754,6 +2773,51 @@
             if (painelAtual === 'caverna') abrirPainel('caverna', true);
         }).finally(() => { if (botao) botao.disabled = false; });
     }
+    /* ---------- O baú se abrindo (o desenho do Jessé): cai, treme, abre com o clarão e os prêmios saem voando.
+       premios: [{ ico: html, txt }]. Toque (ou "Pegar!") fecha; devolve uma promessa para o que vem depois. ---------- */
+    function abrirBauAnim(titulo, premios) {
+        return new Promise((pronto) => {
+            const fechado = A.desenhoUrl ? A.desenhoUrl('bau_g') : '', aberto = A.desenhoUrl ? A.desenhoUrl('bau_tesouro') : '';
+            if (!fechado || !aberto) { pronto(); return; }
+            const quieto = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            const fundo = document.createElement('div');
+            fundo.className = 'bau-anim' + (quieto ? ' quieto' : '');
+            fundo.setAttribute('role', 'dialog'); fundo.setAttribute('aria-modal', 'true'); fundo.setAttribute('aria-label', titulo);
+            const n = premios.length;
+            fundo.innerHTML = `<div class="bau-palco">
+                    <p class="bau-titulo">${titulo}</p>
+                    <div class="bau-raios"></div><div class="bau-clarao"></div>
+                    <img class="bau-img bau-fechado" src="${fechado}" alt=""><img class="bau-img bau-aberto" src="${aberto}" alt="">
+                    ${premios.map((p, k) => `<div class="bau-premio" style="--x:${Math.round((k - (n - 1) / 2) * Math.min(96, 300 / Math.max(n, 1)))}px;--d:${k * 0.16}s">${p.ico}<span>${p.txt}</span></div>`).join('')}
+                    ${Array.from({ length: quieto ? 0 : 14 }, (_, k) => `<i class="bau-moedinha" style="--a:${Math.round(-160 + k * 23 + Math.random() * 14)}deg;--r:${Math.round(110 + Math.random() * 70)}px;--d:${(Math.random() * 0.25).toFixed(2)}s">${ico('moeda', 14)}</i>`).join('')}
+                    <button type="button" class="botao verde bau-pegar">Pegar!</button>
+                </div>`;
+            document.body.appendChild(fundo);
+            const timers = [];
+            let fim = false;
+            const fechar = () => { if (fim) return; fim = true; timers.forEach(clearTimeout); fundo.classList.add('saindo'); setTimeout(() => { fundo.remove(); pronto(); }, 220); };
+            const abrir = () => { if (fundo.classList.contains('aberto')) return; fundo.classList.add('aberto'); som.tocar('bauAbre'); setTimeout(() => { const b = fundo.querySelector('.bau-pegar'); if (b) b.focus(); }, 50); };
+            if (quieto) abrir();
+            else {
+                [450, 700, 950].forEach((t) => timers.push(setTimeout(() => som.tocar('bauTreme'), t)));
+                timers.push(setTimeout(abrir, 1250));
+            }
+            fundo.addEventListener('click', () => { if (!fundo.classList.contains('aberto')) { timers.forEach(clearTimeout); abrir(); } else if (Date.now() - aberto0 > 600) fechar(); });
+            const aberto0 = Date.now() + (quieto ? 0 : 1250);
+            const tecla = (e) => { if (e.key === 'Escape' || e.key === 'Enter') { e.preventDefault(); if (fundo.classList.contains('aberto')) fechar(); else abrir(); } };
+            document.addEventListener('keydown', tecla, true);
+            const tirar = new MutationObserver(() => { if (!document.body.contains(fundo)) { document.removeEventListener('keydown', tecla, true); tirar.disconnect(); } });
+            tirar.observe(document.body, { childList: true });
+        });
+    }
+    // os prêmios de um baú, para a animação
+    function premiosBau(moedas, diamantes, raro) {
+        const p = [];
+        if (moedas) p.push({ ico: ico('moeda', 40), txt: '+' + numero(moedas) });
+        if (diamantes) p.push({ ico: ico('diamante', 40), txt: '+' + diamantes });
+        if (raro) { const c = culturas[raro] || { id: raro, nome: raro }; p.push({ ico: itemDe(c, 44), txt: esc(c.nome) }); }
+        return p;
+    }
     function cavarBauIlha() {
         const d = ilhaDe();
         if (!d.obras) return toast(ERROS.ilha_sem_cais);
@@ -2763,8 +2827,9 @@
             const r = await rpc('fazenda_ilha_bau', { p_token: token });
             aplicarEstado(r.estado);
             const raro = r.raro ? culturas[r.raro] || { id: r.raro, nome: r.raro } : null;
-            toast(`Baú enterrado: ${moeda(numero(r.moedas))}${r.diamantes ? ` e ${r.diamantes} ${ico('diamante', 14)}` : ''}${raro ? ` e ${itemDe(raro, 18)} <b>${esc(raro.nome)}</b>` : ''}!`, 'festa');
-            som.tocar(r.diamantes || raro ? 'festa' : 'moeda');
+            abrirBauAnim('Baú enterrado!', premiosBau(r.moedas, r.diamantes, r.raro)).then(() => {   // a animação; o aviso fica no histórico
+                toast(`Baú enterrado: ${moeda(numero(r.moedas))}${r.diamantes ? ` e ${r.diamantes} ${ico('diamante', 14)}` : ''}${raro ? ` e ${itemDe(raro, 18)} <b>${esc(raro.nome)}</b>` : ''}!`, 'festa');
+            });
         });
     }
     // lançar e fisgar: na fila das ações (a busca de 60 s não passa por cima); o erro vira aviso
@@ -4662,6 +4727,8 @@
         if (!antes) setTimeout(() => carregarInvasao(), 1500);   // fase 94: a invasão (e o prêmio esperando)
         culturas = {};
         for (const k of estado.culturas) culturas[k.id] = k;
+        // fase 121: no inverno, os bichos comem 1 ração a mais por refeição (como fazenda_racao_qtd)
+        (estado.animais_tipos || []).forEach((t) => { if (t.racao_base == null) t.racao_base = t.racao_qtd; t.racao_qtd = t.racao_base + (estado.estacao === 'inverno' ? 1 : 0); });
         // fase 107: o Peixe do Velho Chico vale mais a cada nível (o servidor manda o preço de agora)
         if (culturas.velho_chico && estado.jogador && estado.jogador.preco_chico) culturas.velho_chico = { ...culturas.velho_chico, venda: estado.jogador.preco_chico };
         if (!culturas[semente] || culturas[semente].tipo !== 'cultura') semente = 'alface';   // (amora deixou de ser semente)
@@ -6156,7 +6223,7 @@
             return `<button type="button" class="item${k.id === semente ? ' selecionada' : ''}${travada ? ' travada' : ''}" data-semente="${esc(k.id)}" ${travada ? 'aria-disabled="true"' : ''}>
                 <span class="ico${k.nivel_min <= S.jogador.nivel && travada ? ' fora' : ''}">${k.nivel_min > S.jogador.nivel ? ico('cadeado', 28) : spr(A.cultura(k.id).item, 44)}</span>
                 <span>
-                    <span class="nome">${esc(k.nome)}${novos.selo('c:' + k.id, k.nivel_min <= S.jogador.nivel)}${k.so_ilha ? ' <small class="tag-estacao agora">só na ilha</small>' : ''}${k.so_dia ? ` <small class="tag-estacao${diaDaFlor(k) ? ' agora' : ''}">${S.dia_especial === 'namorados' ? `hoje! restam ${S.viih_restam || 0} de 11` : 'só no 11/11'}</small>` : ''}${k.estacao ? ` <small class="tag-estacao${daEstacao(k) ? ' agora' : temEstufa() ? ' estufa' : ''}">${daEstacao(k) ? 'da estação!' : temEstufa() ? 'só na estufa' : 'só ' + naEstacao(k.estacao) + (faltaParaEstacao(k.estacao) ? ' · em ' + fmtTempo(faltaParaEstacao(k.estacao)) : '')}</small>` : ''}</span>
+                    <span class="nome">${esc(k.nome)}${novos.selo('c:' + k.id, k.nivel_min <= S.jogador.nivel)}${k.so_ilha ? ' <small class="tag-estacao agora">só na ilha</small>' : ''}${k.estacao_boa && !k.so_dia ? (bonusEstacao(k) ? ` <small class="tag-estacao agora">rende +${bonusEstacao(k)} agora!</small>` : ` <small class="tag-estacao">rende mais ${naEstacao(k.estacao_boa)}</small>`) : ''}${k.so_dia ? ` <small class="tag-estacao${diaDaFlor(k) ? ' agora' : ''}">${S.dia_especial === 'namorados' ? `hoje! restam ${S.viih_restam || 0} de 11` : 'só no 11/11'}</small>` : ''}${k.estacao ? ` <small class="tag-estacao${daEstacao(k) ? ' agora' : temEstufa() ? ' estufa' : ''}">${daEstacao(k) ? 'da estação!' : temEstufa() ? 'só na estufa' : 'só ' + naEstacao(k.estacao) + (faltaParaEstacao(k.estacao) ? ' · em ' + fmtTempo(faltaParaEstacao(k.estacao)) : '')}</small>` : ''}</span>
                     <span class="det">
                         <span>cresce em ${fmtDuracao(k.tempo_seg)}</span>
                         <span>+${k.xp} ${ico('xp', 13)} por colheita</span>
@@ -7712,7 +7779,8 @@
                 const c = culturas[r.item] || { id: r.item, nome: r.item };
                 som.tocar(r.bau ? 'festa' : 'moeda');
                 toast(`${itemDe(c, 18)} ${r.qtd}× ${esc(c.nome)} para o Capitão: ${ico('moeda', 14)} +${r.moedas.toLocaleString('pt-BR')} ${ico('xp', 14)} +${r.xp.toLocaleString('pt-BR')}${r.diamantes ? ` ${ico('diamante', 14)} +${r.diamantes}` : ''}`, 'festa');
-                if (r.bau) setTimeout(() => toast(`${spr(1203, 22)} O <b>baú do Capitão</b>! ${ico('diamante', 14)} +${r.bau.diamantes} e ${itemDe(culturas[r.bau.raro] || { id: r.bau.raro }, 18)} ${esc((culturas[r.bau.raro] || {}).nome || r.bau.raro)}`, 'festa'), 700);
+                if (r.bau) setTimeout(() => abrirBauAnim('O baú do Capitão!', premiosBau(0, r.bau.diamantes, r.bau.raro)).then(() =>
+                    toast(`${spr(1203, 22)} O <b>baú do Capitão</b>! ${ico('diamante', 14)} +${r.bau.diamantes} e ${itemDe(culturas[r.bau.raro] || { id: r.bau.raro }, 18)} ${esc((culturas[r.bau.raro] || {}).nome || r.bau.raro)}`, 'festa')), 700);
                 if (painelAtual === 'capitao') { capitaoDados = null; abrirPainel('capitao', true); carregarCapitao(); }
             }).finally(() => { capE.disabled = false; });
             return;

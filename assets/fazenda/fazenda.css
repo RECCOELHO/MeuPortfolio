@@ -3471,3 +3471,38 @@ body.construindo .status {
 body.conta-teste::after { content: 'CONTA DE TESTE'; position: fixed; left: 16px; top: 92px; z-index: 60; pointer-events: none;
   padding: 2px 10px; border: 2px solid #3f2631; border-radius: 4px; background: #d9452f; color: #fff; font: 700 11px/1.4 system-ui, sans-serif; letter-spacing: 0.08em; }
 @media (max-width: 700px) { body.conta-teste::after { top: auto; bottom: 76px; left: 50%; transform: translateX(-50%); } }
+
+/* o baú se abrindo (o baú enterrado do X e o do Capitão) */
+.bau-anim { position: fixed; inset: 0; z-index: 300; display: grid; place-items: center; background: rgba(12, 8, 24, 0.62); animation: bau-fundo 0.25s ease-out; cursor: pointer; }
+.bau-anim.saindo { opacity: 0; transition: opacity 0.2s; }
+.bau-palco { position: relative; width: min(340px, 92vw); height: 420px; }
+.bau-titulo { position: absolute; top: 0; left: 0; right: 0; margin: 0; text-align: center; color: #ffe08a; font: 700 22px/1.2 'Press Start 2P', system-ui, sans-serif; text-shadow: 0 3px 0 #3f2631, 0 0 12px rgba(255, 200, 80, 0.5); opacity: 0; transform: translateY(-8px); transition: opacity 0.3s, transform 0.3s; }
+.bau-anim.aberto .bau-titulo { opacity: 1; transform: none; }
+.bau-img { position: absolute; left: 50%; bottom: 96px; image-rendering: pixelated; transform: translateX(-50%); filter: drop-shadow(0 6px 0 rgba(0, 0, 0, 0.35)); }
+.bau-fechado { width: 168px; animation: bau-cai 0.45s cubic-bezier(.3, 1.6, .5, 1) both, bau-treme 0.13s 0.45s 6 linear; }
+.bau-aberto { width: 174px; opacity: 0; }
+.bau-anim.aberto .bau-fechado { display: none; }
+.bau-anim.aberto .bau-aberto { opacity: 1; animation: bau-pula 0.35s cubic-bezier(.3, 1.8, .5, 1); }
+.bau-raios { position: absolute; left: 50%; bottom: 60px; width: 360px; height: 360px; margin-left: -180px; border-radius: 50%; opacity: 0; pointer-events: none;
+  background: repeating-conic-gradient(rgba(255, 224, 120, 0.42) 0deg 9deg, transparent 9deg 22deg);
+  -webkit-mask: radial-gradient(circle, #000 25%, transparent 68%); mask: radial-gradient(circle, #000 25%, transparent 68%); }
+.bau-anim.aberto .bau-raios { opacity: 1; animation: bau-gira 7s linear infinite; transition: opacity 0.4s; }
+.bau-clarao { position: absolute; left: 50%; bottom: 120px; width: 40px; height: 40px; margin-left: -20px; border-radius: 50%; background: #fff6c8; opacity: 0; pointer-events: none; }
+.bau-anim.aberto .bau-clarao { animation: bau-clarao 0.5s ease-out; }
+.bau-premio { position: absolute; left: 50%; bottom: 150px; display: flex; flex-direction: column; align-items: center; gap: 4px; opacity: 0; transform: translate(-50%, 0) scale(0.3); pointer-events: none; }
+.bau-premio span { padding: 2px 8px; border: 2px solid #3f2631; border-radius: 4px; background: #fff8e8; color: #3f2631; font: 700 14px/1.3 system-ui, sans-serif; white-space: nowrap; max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
+.bau-anim.aberto .bau-premio { animation: bau-voa 0.75s var(--d, 0s) cubic-bezier(.2, .9, .3, 1.2) forwards; }
+.bau-moedinha { position: absolute; left: 50%; bottom: 140px; opacity: 0; pointer-events: none; font-style: normal; }
+.bau-anim.aberto .bau-moedinha { animation: bau-moeda 0.9s var(--d, 0s) ease-out forwards; }
+.bau-pegar { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); min-width: 140px; opacity: 0; pointer-events: none; }
+.bau-anim.aberto .bau-pegar { opacity: 1; pointer-events: auto; transition: opacity 0.3s 0.9s; }
+.bau-anim.quieto * { animation: none !important; transition: none !important; }
+.bau-anim.quieto.aberto .bau-premio { opacity: 1; transform: translate(calc(-50% + var(--x)), -150px); }
+@keyframes bau-fundo { from { opacity: 0; } }
+@keyframes bau-cai { from { transform: translate(-50%, -260px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
+@keyframes bau-treme { 25% { transform: translate(calc(-50% - 4px), 0) rotate(-3deg); } 75% { transform: translate(calc(-50% + 4px), 0) rotate(3deg); } }
+@keyframes bau-pula { from { transform: translate(-50%, 0) scale(0.9, 1.1); } 50% { transform: translate(-50%, -10px) scale(1.06, 0.95); } }
+@keyframes bau-gira { to { transform: rotate(360deg); } }
+@keyframes bau-clarao { 0% { opacity: 0.95; transform: scale(1); } 100% { opacity: 0; transform: scale(9); } }
+@keyframes bau-voa { 0% { opacity: 1; transform: translate(-50%, 20px) scale(0.3); } 55% { opacity: 1; transform: translate(calc(-50% + var(--x) * 0.7), -190px) scale(1.1); } 100% { opacity: 1; transform: translate(calc(-50% + var(--x)), -150px) scale(1); } }
+@keyframes bau-moeda { 0% { opacity: 1; transform: rotate(var(--a)) translateY(0); } 70% { opacity: 1; } 100% { opacity: 0; transform: rotate(var(--a)) translateY(calc(var(--r) * -1)); } }

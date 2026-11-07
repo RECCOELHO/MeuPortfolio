@@ -141,6 +141,7 @@ do $$ begin
 exception when duplicate_object then null; end $$;
 -- Fase 10: sementes da estação (só dá para plantar nela); null = o ano todo
 alter table public.fazenda_culturas add column if not exists estacao text;
+alter table public.fazenda_culturas add column if not exists estacao_boa text;   -- fase 121: a estação em que a planta rende mais
 
 -- Fase 3: animais
 create table if not exists public.fazenda_animais_tipos (
@@ -971,6 +972,26 @@ returns timestamptz language sql stable as $$
   select date_trunc('minute', p_t) + make_interval(mins => 2520 - fazenda_minuto_semana(p_t) % 2520);
 $$;
 
+-- fase 121: quanto tempo a planta madura aguenta antes de murchar: o dobro do tempo dela (no mínimo 1 h); com
+-- seca (sem regar), a metade disso (o tempo dela, no mínimo 30 min)
+create or replace function public.fazenda_murcha_seg(p_tempo int, p_seco boolean)
+returns int language sql immutable as $$
+  select case when coalesce(p_seco, false) then greatest(p_tempo, 1800) else greatest(p_tempo * 2, 3600) end;
+$$;
+
+-- fase 121: a ração de cada refeição: no inverno, os bichos comem 1 a mais
+create or replace function public.fazenda_racao_qtd(p_qtd int)
+returns int language sql stable as $$
+  select p_qtd + (fazenda_estacao_em(now()) = 'inverno')::int;
+$$;
+
+-- fase 121: o extra da colheita na estação da planta (um quarto do que ela rende, no mínimo 1)
+create or replace function public.fazenda_bonus_estacao(p_estacao_boa text, p_rendimento int)
+returns int language sql stable as $$
+  select case when p_estacao_boa is not null and p_estacao_boa = fazenda_estacao_em(now())
+              then greatest(1, round(p_rendimento * 0.25))::int else 0 end;
+$$;
+
 -- Quanto do dia (em %) cada clima ocupa em cada estação
 create or replace function public.fazenda_clima_tabela(p_estacao text)
 returns table (clima text, pct int) language sql immutable as $$
@@ -1480,7 +1501,9 @@ declare
 begin
   -- chovendo agora: a chuva rega tudo (some a seca dos canteiros)
   if fazenda_clima_agora() = 'chuva' then   -- (fase 71: uma conta por chamada)
-    update fazenda_canteiros set seco = false where jogador_id = p_jogador and estado = 'plantado' and seco;
+    update fazenda_canteiros c set seco = false from fazenda_culturas k   -- (fase 121: só o que ainda cresce)
+     where c.jogador_id = p_jogador and c.estado = 'plantado' and c.seco and k.id = c.cultura
+       and now() < c.plantado_em + make_interval(secs => k.tempo_seg);
   end if;
   for r in
     select c.posicao, c.x, c.y, c.plantado_em, c.prox_evento, c.erva, c.praga, c.seco, k.tempo_seg
@@ -1967,7 +1990,7 @@ begin
   if c.cultura is not null then
     select * into k from fazenda_culturas where id = c.cultura;
     v_maduro := c.plantado_em + make_interval(secs => k.tempo_seg);
-    v_murcho := v_maduro + make_interval(secs => greatest(k.tempo_seg * 2, 3600));
+    v_murcho := v_maduro + make_interval(secs => fazenda_murcha_seg(k.tempo_seg, c.seco));
   end if;
 
   -- fase 48: o ajudante que colhe trabalha "atrasado" quando a fazenda estava fechada: o que murchou
@@ -1991,7 +2014,7 @@ begin
       update fazenda_jogadores set diamantes = diamantes - v_preco where id = p_jogador;
       c.erva := false; c.praga := false; c.seco := false;
       v_maduro := now();
-      v_murcho := now() + make_interval(secs => greatest(k.tempo_seg * 2, 3600));
+      v_murcho := now() + make_interval(secs => fazenda_murcha_seg(k.tempo_seg, c.seco));
     end if;
     p_acao := 'colher';
   end if;
@@ -2102,7 +2125,8 @@ begin
              + (fazenda_clima_agora() = 'sol')::int                      -- colheita no sol (fase 71: uma conta por chamada)
              + fazenda_protegido(p_jogador, 'adubo', c.x, c.y)::int     -- cogumelos, barril, colmeia
              + c.adubado::int                                           -- adubo do Seu Zé
-             + (c.y >= 45 and j.cachorro_raca is not null)::int;        -- fase 111: o cachorro da ilha
+             + (c.y >= 45 and j.cachorro_raca is not null)::int         -- fase 111: o cachorro da ilha
+             + fazenda_bonus_estacao(k.estacao_boa, k.rendimento);     -- fase 121: na estação dela, rende mais
     if fazenda_protegido(p_jogador, 'sorte', c.x, c.y) and random() < 0.15 then
       v_qtd := v_qtd * 2;                                               -- alvo
     end if;
@@ -2871,7 +2895,7 @@ begin
         join fazenda_culturas u on u.id = c.cultura
        where c.estado = 'plantado'
          and now() >= c.plantado_em + make_interval(secs => u.tempo_seg)
-         and now() < c.plantado_em + make_interval(secs => u.tempo_seg + greatest(u.tempo_seg * 2, 3600))
+         and now() < c.plantado_em + make_interval(secs => u.tempo_seg + fazenda_murcha_seg(u.tempo_seg, c.seco))
     loop
       exit when v_livre <= 0 or not fazenda_gastar_energia(p_jogador, 2);
       if v_seguro then
@@ -2889,7 +2913,7 @@ begin
 
     -- cercados encostados: coleta o produto (para o baú) e dá ração (do baú, se ele tiver; senão do celeiro)
     for m in
-      select a.id, a.alimentado_em, t.tempo_seg, t.produto, t.racao, t.racao_qtd, p.x as px, p.y as py
+      select a.id, a.alimentado_em, t.tempo_seg, t.produto, t.racao, fazenda_racao_qtd(t.racao_qtd) as racao_qtd, p.x as px, p.y as py
         from fazenda_animais a
         join fazenda_animais_tipos t on t.id = a.tipo
         join fazenda_construcoes p on p.jogador_id = p_jogador and p.tipo = 'cercado_' || a.tipo
@@ -3022,7 +3046,7 @@ begin
       select x.posicao, x.estado, x.cultura,
              coalesce(x.estado = 'plantado'
                and now() >= x.plantado_em + make_interval(secs => k.tempo_seg)
-               and now() < x.plantado_em + make_interval(secs => k.tempo_seg + greatest(k.tempo_seg * 2, 3600)), false) as maduro
+               and now() < x.plantado_em + make_interval(secs => k.tempo_seg + fazenda_murcha_seg(k.tempo_seg, x.seco)), false) as maduro
         from fazenda_canteiros x left join fazenda_culturas k on k.id = x.cultura
        where x.jogador_id = p_jogador and abs(x.x - r.x) <= r.raio and abs(x.y - r.y) <= r.raio
        order by x.posicao
@@ -3159,13 +3183,13 @@ begin
           -- fase 48: também o que murchou depois da última olhada dele (até 8 h): com a fazenda fechada ele
           -- teria colhido a tempo; o que murcha primeiro vai primeiro
           for c in
-            select cc.posicao, now() >= cc.plantado_em + make_interval(secs => k.tempo_seg + greatest(k.tempo_seg * 2, 3600)) as murcha
+            select cc.posicao, now() >= cc.plantado_em + make_interval(secs => k.tempo_seg + fazenda_murcha_seg(k.tempo_seg, cc.seco)) as murcha
               from fazenda_canteiros cc join fazenda_culturas k on k.id = cc.cultura
              where cc.jogador_id = p_jogador and cc.estado = 'plantado'
                and now() >= cc.plantado_em + make_interval(secs => k.tempo_seg)
-               and cc.plantado_em + make_interval(secs => k.tempo_seg + greatest(k.tempo_seg * 2, 3600))
+               and cc.plantado_em + make_interval(secs => k.tempo_seg + fazenda_murcha_seg(k.tempo_seg, cc.seco))
                    > greatest(a.atualizado_em, now() - make_interval(hours => fazenda_turno(p_jogador)::int))
-             order by cc.plantado_em + make_interval(secs => k.tempo_seg + greatest(k.tempo_seg * 2, 3600)) limit v_n
+             order by cc.plantado_em + make_interval(secs => k.tempo_seg + fazenda_murcha_seg(k.tempo_seg, cc.seco)) limit v_n
           loop
             if fazenda_bot_aplicar(p_jogador, case when c.murcha then 'colher_tarde' else 'colher' end, c.posicao, null, v_seguro) is not null then
               v_feito := v_feito + 1; v_log := fazenda_conta(v_log, 'colheu');
@@ -3231,7 +3255,7 @@ begin
             select cc.posicao from fazenda_canteiros cc left join fazenda_culturas k on k.id = cc.cultura
              where cc.jogador_id = p_jogador
                and (cc.estado = 'vazio'
-                    or (cc.estado = 'plantado' and now() >= cc.plantado_em + make_interval(secs => k.tempo_seg + greatest(k.tempo_seg * 2, 3600))))
+                    or (cc.estado = 'plantado' and now() >= cc.plantado_em + make_interval(secs => k.tempo_seg + fazenda_murcha_seg(k.tempo_seg, cc.seco))))
              order by cc.posicao limit v_n
           loop
             if fazenda_bot_aplicar(p_jogador, 'arar', c.posicao, null, v_seguro) is not null then
@@ -3286,7 +3310,7 @@ begin
           for c in
             select cc.posicao, cc.erva, cc.praga, cc.seco from fazenda_canteiros cc join fazenda_culturas k on k.id = cc.cultura
              where cc.jogador_id = p_jogador and cc.estado = 'plantado' and (cc.erva or cc.praga or cc.seco)
-               and now() < cc.plantado_em + make_interval(secs => k.tempo_seg + greatest(k.tempo_seg * 2, 3600))
+               and now() < cc.plantado_em + make_interval(secs => k.tempo_seg + fazenda_murcha_seg(k.tempo_seg, cc.seco))
              order by cc.plantado_em
           loop
             exit when v_feito >= v_n;
@@ -3303,7 +3327,7 @@ begin
 
         elsif v_n > 0 and a.funcao = 'animal' then
           for m in
-            select an.id, an.alimentado_em, t.tempo_seg, t.racao, t.racao_qtd from fazenda_animais an join fazenda_animais_tipos t on t.id = an.tipo
+            select an.id, an.alimentado_em, t.tempo_seg, t.racao, fazenda_racao_qtd(t.racao_qtd) as racao_qtd from fazenda_animais an join fazenda_animais_tipos t on t.id = an.tipo
              where an.jogador_id = p_jogador and an.tipo = a.alvo order by an.id
           loop
             exit when v_feito >= v_n;
@@ -3697,7 +3721,7 @@ begin
   if now() < v_maduro then
     raise exception 'nao_maduro';
   end if;
-  if now() >= v_maduro + make_interval(secs => greatest(k.tempo_seg * 2, 3600)) then
+  if now() >= v_maduro + make_interval(secs => fazenda_murcha_seg(k.tempo_seg, c.seco)) then
     raise exception 'murchou';
   end if;
   if fazenda_protegido(p_dono, 'alarme', c.x, c.y) and fazenda_alarme_ligado(p_dono) then
@@ -3885,7 +3909,7 @@ begin
   select * into c from fazenda_canteiros where jogador_id = p_dono and posicao = p_posicao for update;
   if not found or c.estado <> 'plantado' then raise exception 'nada_a_fazer'; end if;
   select * into k from fazenda_culturas where id = c.cultura;
-  if now() < c.plantado_em + make_interval(secs => k.tempo_seg + greatest(k.tempo_seg * 2, 3600)) then
+  if now() < c.plantado_em + make_interval(secs => k.tempo_seg + fazenda_murcha_seg(k.tempo_seg, c.seco)) then
     raise exception 'nada_a_fazer';   -- não está murcha
   end if;
   if (select count(*) from fazenda_visitas where ator_id = p_ator and dono_id = p_dono and tipo = 'salvar'
@@ -3928,7 +3952,7 @@ begin
   v_murcha := false;
   if c.cultura is not null then
     select * into k from fazenda_culturas where id = c.cultura;
-    v_murcha := c.estado = 'plantado' and now() >= c.plantado_em + make_interval(secs => k.tempo_seg + greatest(k.tempo_seg * 2, 3600));
+    v_murcha := c.estado = 'plantado' and now() >= c.plantado_em + make_interval(secs => k.tempo_seg + fazenda_murcha_seg(k.tempo_seg, c.seco));
   end if;
   if p_acao = 'limpar' then
     if not v_murcha then raise exception 'nada_a_fazer'; end if;
@@ -3998,7 +4022,7 @@ begin
     raise exception 'nada_a_fazer';
   end if;
   select * into k from fazenda_culturas where id = c.cultura;
-  if now() >= c.plantado_em + make_interval(secs => k.tempo_seg + greatest(k.tempo_seg * 2, 3600)) then
+  if now() >= c.plantado_em + make_interval(secs => k.tempo_seg + fazenda_murcha_seg(k.tempo_seg, c.seco)) then
     raise exception 'nada_a_fazer';
   end if;
   v_n := c.erva::int + c.praga::int + c.seco::int;
@@ -4168,7 +4192,7 @@ declare
   v_tem int;
   v_xp  int;
 begin
-  select a.tipo, a.alimentado_em, t.racao, t.racao_qtd, t.tempo_seg into r
+  select a.tipo, a.alimentado_em, t.racao, fazenda_racao_qtd(t.racao_qtd) as racao_qtd, t.tempo_seg into r
     from fazenda_animais a join fazenda_animais_tipos t on t.id = a.tipo
    where a.id = p_animal and a.jogador_id = p_dono
      for update of a;
@@ -4515,7 +4539,7 @@ declare
   r      record;
   v_tem  int;
 begin
-  select a.id, a.tipo, a.alimentado_em, t.produto, t.tempo_seg, t.racao, t.racao_qtd, k.xp as produto_xp
+  select a.id, a.tipo, a.alimentado_em, t.produto, t.tempo_seg, t.racao, fazenda_racao_qtd(t.racao_qtd) as racao_qtd, k.xp as produto_xp
     into r
     from fazenda_animais a
     join fazenda_animais_tipos t on t.id = a.tipo
@@ -5933,7 +5957,7 @@ begin
     -- cada 25 plantas (era 1 para todas)
     select count(*) into v_cap from fazenda_canteiros c join fazenda_culturas k on k.id = c.cultura
      where c.jogador_id = v_id and c.estado = 'plantado'
-       and now() >= c.plantado_em + make_interval(secs => k.tempo_seg + greatest(k.tempo_seg * 2, 3600));
+       and now() >= c.plantado_em + make_interval(secs => k.tempo_seg + fazenda_murcha_seg(k.tempo_seg, c.seco));
     if v_cap = 0 then raise exception 'nada_a_fazer'; end if;
     v_preco := (v_loja->>'preco')::int * ceil(v_cap / coalesce((v_loja->>'por')::numeric, v_cap))::int;
     if j.diamantes < v_preco then raise exception 'diamantes_insuficientes'; end if;
@@ -5941,7 +5965,7 @@ begin
        set plantado_em = now() - make_interval(secs => k.tempo_seg), erva = false, praga = false, seco = false, prox_evento = null
       from fazenda_culturas k
      where c.jogador_id = v_id and c.estado = 'plantado' and k.id = c.cultura
-       and now() >= c.plantado_em + make_interval(secs => k.tempo_seg + greatest(k.tempo_seg * 2, 3600));
+       and now() >= c.plantado_em + make_interval(secs => k.tempo_seg + fazenda_murcha_seg(k.tempo_seg, c.seco));
     update fazenda_jogadores set diamantes = diamantes - v_preco where id = v_id;
 
   elsif p_item = 'oficina' then
@@ -7577,6 +7601,9 @@ create table if not exists public.fazenda_murchas (
 );
 alter table public.fazenda_murchas enable row level security;
 revoke all on public.fazenda_murchas from anon, authenticated;
+alter table public.fazenda_murchas drop constraint if exists fazenda_murchas_motivo_check;   -- fase 121: e a seca
+alter table public.fazenda_murchas add constraint fazenda_murchas_motivo_check
+  check (motivo in ('sem_colhedor', 'descansando', 'fechada', 'nao_deu_conta', 'seca'));
 
 -- Registra o que está murcho e ainda não tem motivo. Roda dentro de fazenda_trabalhar, depois do
 -- colhedor e antes do lavrador (que ara as murchas).
@@ -7602,8 +7629,9 @@ begin
          end
     from fazenda_canteiros c
     join fazenda_culturas k on k.id = c.cultura
-    cross join lateral (select c.plantado_em + make_interval(secs => k.tempo_seg + greatest(k.tempo_seg * 2, 3600)) as em) m
+    cross join lateral (select c.plantado_em + make_interval(secs => k.tempo_seg + fazenda_murcha_seg(k.tempo_seg, c.seco)) as em) m
     cross join lateral (select case
+             when c.seco then 'seca'   -- fase 121: com seca, murcha na metade do tempo
              when not v_tem then 'sem_colhedor'
              when h.ultimo_descanso_de is not null and m.em >= h.ultimo_descanso_de and m.em < h.ultimo_descanso_ate then 'descansando'
              when m.em < now() - make_interval(hours => fazenda_turno(p_jogador)::int) then 'fechada'
@@ -8444,7 +8472,7 @@ returns jsonb language sql stable security definer set search_path = public as $
       select jsonb_agg(jsonb_build_object(
                'id', id, 'nome', nome, 'emoji', emoji, 'tempo_seg', tempo_seg,
                'custo', custo, 'venda', venda, 'rendimento', rendimento,
-               'xp', xp, 'nivel_min', nivel_min, 'tipo', tipo, 'estacao', estacao, 'so_ilha', so_ilha, 'so_dia', so_dia)   -- (fase 108; fase 115)
+               'xp', xp, 'nivel_min', nivel_min, 'tipo', tipo, 'estacao', estacao, 'estacao_boa', estacao_boa, 'so_ilha', so_ilha, 'so_dia', so_dia)   -- (fase 108; fase 115)
              order by ordem)
         from fazenda_culturas)
     when 'animais_tipos' then (select jsonb_agg(to_jsonb(t) order by t.ordem) from fazenda_animais_tipos t)
@@ -12029,3 +12057,49 @@ begin
 end;
 $$;
 grant execute on function public.fazenda_teste_entrar(text) to anon, authenticated;
+
+-- ------------------------------------------------------------
+-- Fase 121: as estações e o clima valendo mais no jogo (o clima já mexia: sol +1 na colheita, chuva rega,
+-- calor seca, ventania espalha praga, nublado não traz problema).
+-- • Seca: a planta madura com seca (sem regar) murcha na metade do tempo (fazenda_murcha_seg). A chuva rega
+--   só o que ainda cresce; a madura com seca precisa de rega na mão (ou do irrigador/aspersor antes).
+-- • Cada planta tem a estação boa (fazenda_culturas.estacao_boa): colhida nela, rende um quarto a mais
+--   (no mínimo +1). As de estação rendem mais quando colhidas ainda na estação delas.
+-- • Inverno: os bichos comem 1 ração a mais por refeição (fazenda_racao_qtd).
+-- Pode rodar este arquivo de novo.
+-- ------------------------------------------------------------
+alter table public.fazenda_culturas add column if not exists estacao_boa text;   -- fase 121: a estação em que a planta rende mais
+alter table public.fazenda_murchas drop constraint if exists fazenda_murchas_motivo_check;   -- fase 121: e a seca
+alter table public.fazenda_murchas add constraint fazenda_murchas_motivo_check
+  check (motivo in ('sem_colhedor', 'descansando', 'fechada', 'nao_deu_conta', 'seca'));
+
+-- fase 121: quanto tempo a planta madura aguenta antes de murchar: o dobro do tempo dela (no mínimo 1 h); com
+-- seca (sem regar), a metade disso (o tempo dela, no mínimo 30 min)
+create or replace function public.fazenda_murcha_seg(p_tempo int, p_seco boolean)
+returns int language sql immutable as $$
+  select case when coalesce(p_seco, false) then greatest(p_tempo, 1800) else greatest(p_tempo * 2, 3600) end;
+$$;
+
+-- fase 121: a ração de cada refeição: no inverno, os bichos comem 1 a mais
+create or replace function public.fazenda_racao_qtd(p_qtd int)
+returns int language sql stable as $$
+  select p_qtd + (fazenda_estacao_em(now()) = 'inverno')::int;
+$$;
+
+-- fase 121: o extra da colheita na estação da planta (um quarto do que ela rende, no mínimo 1)
+create or replace function public.fazenda_bonus_estacao(p_estacao_boa text, p_rendimento int)
+returns int language sql stable as $$
+  select case when p_estacao_boa is not null and p_estacao_boa = fazenda_estacao_em(now())
+              then greatest(1, round(p_rendimento * 0.25))::int else 0 end;
+$$;
+
+-- a estação boa de cada planta (as de estação rendem mais quando colhidas na estação delas)
+update public.fazenda_culturas k set estacao_boa = v.e
+  from (values ('alface', 'primavera'), ('girassol', 'primavera'), ('algodao', 'primavera'), ('cana_roxa', 'primavera'),
+               ('milho', 'verao'), ('tomate', 'verao'), ('cana', 'verao'), ('pimenta', 'verao'), ('abacaxi', 'verao'),
+               ('batata', 'outono'), ('abobora', 'outono'), ('uva', 'outono'),
+               ('cenoura', 'inverno'), ('cafe', 'inverno'), ('baunilha', 'inverno'), ('especiarias', 'inverno')) v(id, e)
+ where k.id = v.id;
+update public.fazenda_culturas set estacao_boa = estacao where estacao is not null;
+
+select public.fazenda_cache_montar();
