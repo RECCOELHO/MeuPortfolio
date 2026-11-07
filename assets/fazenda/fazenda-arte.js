@@ -108,6 +108,9 @@
        baixo é a ilha (para a câmera e para quem anda: atravessa de barco). */
     const ILHA = { x0: 0, x1: 64, y0: 49, y1: 90, morro: { x: 5, y: 55, w: 9, h: 11 }, vila: { x: 46, y: 53, w: 14, h: 13 } };
     const Y_ILHA = 45;
+    // mar a mais entre a fazenda e a ilha, só no desenho (as posições do servidor continuam as mesmas): a
+    // ilha aparece 16 quadrados mais para o sul
+    const MAR_ILHA = 16;
     // as ruas de terra da vila: a principal desce do cais, a do meio corta a vila e a de baixo vai até o portão
     const RUAS_ILHA = new Set();
     for (let y = 54; y <= 65; y++) RUAS_ILHA.add('50,' + y);
@@ -2744,7 +2747,7 @@
         let EST = estacao();   // muda junto com a estação do servidor (definirEstacao)
 
         // mundo inteiro em pixels do jogo (terreno + mata em volta)
-        const MW = (MAPA.w + MARGEM * 2) * T, MH_FAZENDA = (MAPA.h + MARGEM * 2) * T, MH_ILHA = (MARGEM + ILHA.y1 + 5) * T;
+        const MW = (MAPA.w + MARGEM * 2) * T, MH_FAZENDA = (MAPA.h + MARGEM * 2) * T, MH_ILHA = (MARGEM + ILHA.y1 + 5 + MAR_ILHA) * T;
         let MH = MH_FAZENDA;   // fase 106: com a ilha, o mundo vai até ela (crescerMundo)
         const mundo = document.createElement('canvas');
         mundo.width = MW; mundo.height = MH;
@@ -2790,7 +2793,8 @@
 
         /* ---- geometria (coordenadas do mundo, em pixels do jogo) ---- */
         const wx = (tx) => (MARGEM + tx) * T;
-        const wy = (ty) => (MARGEM + ty) * T;
+        const wy = (ty) => (MARGEM + ty + (ty >= Y_ILHA ? MAR_ILHA : 0)) * T;   // (da ilha para baixo, com o mar a mais)
+        const wyFazenda = (ty) => (MARGEM + ty) * T;   // o mar da fazenda (o navio fundeado na fila 43/45 é da fazenda)
         const listaCanteiros = () => canteirosFn() || [];
         function mapaCanteiros(lista) {
             const m = new Map();
@@ -2925,7 +2929,8 @@
             // fase 67: terreno que chega no litoral deixa descer até a areia e um pouco do mar (no
             // celular a tela é baixa e a praia sumia; no computador ela já aparecia)
             if (!naIlha && cx.y1 >= AREIA_Y && cx.y1 < MAPA.mar.y + 3) maxY = Math.max(maxY, wy(MAPA.mar.y + 3) + base - vh);
-            if (!naIlha && pierPronto && barcoInfo && filaNavio() > 40) maxY = Math.max(maxY, wy(filaNavio() + 2) + base - vh);   // fase 111: o navio fundeado
+            if (naIlha && barcoInfo) minY = Math.min(minY, wy(OBRAS_ILHA.cais.y - 3) - topo);   // (na ilha: dá para subir até o navio no cais)
+            if (!naIlha && pierPronto && barcoInfo && filaNavio() > 40) maxY = Math.max(maxY, wyFazenda(filaNavio() + 2) + base - vh);   // fase 111: o navio fundeado
             if (maxX < minX) minX = maxX = (minX + maxX) / 2;
             if (maxY < minY) minY = maxY = (minY + maxY) / 2;
             return { minX, maxX, minY, maxY };
@@ -3455,14 +3460,26 @@
         // Fase 111: o pesqueiro e o navio oceânico são grandes demais para o píer e tampavam a praia: ficam
         // fundeados mais longe (linha d'água na 43 e na 45), com a corrente da âncora descendo da proa.
         const filaNavio = () => { const nv = (barcoInfo && barcoInfo.nivel) || 1; return nv >= 5 ? 45 : nv >= 4 ? 43 : 40; };
-        const navioNoPier = (cv) => ({ x: wx(MAPA.pier.x + MAPA.pier.w) + 4 - cv.ml, y: wy(filaNavio()) + 11 - cv.agua });
-        const navioNaIlha = (cv) => ({ x: wx(OBRAS_ILHA.cais.x + OBRAS_ILHA.cais.w) + 4 - cv.ml, y: wy(OBRAS_ILHA.cais.y + 4) + 11 - cv.agua });   // fase 106
+        const navioNoPier = (cv) => ({ x: wx(MAPA.pier.x + MAPA.pier.w) + 4 - cv.ml, y: wyFazenda(filaNavio()) + 11 - cv.agua });
+        // fase 106: no cais da ilha (encostado na ponta do cais, no mar fundo: o casco não sobe na areia)
+        const navioNaIlha = (cv) => ({ x: wx(OBRAS_ILHA.cais.x + OBRAS_ILHA.cais.w) + 4 - cv.ml, y: wy(OBRAS_ILHA.cais.y + 2) + 11 - cv.agua });
+        /* a rota pela água: do píer desce para o mar aberto (no meio do mar entre a fazenda e a ilha), anda
+           até a altura do cais da ilha e chega nele (a volta é o mesmo caminho ao contrário) */
+        function rotaNavio(cv, ida) {
+            const a = navioNoPier(cv), d = navioNaIlha(cv), meio = (wyFazenda(MAPA.h + 1) + wy(Y_ILHA) - cv.agua) / 2;
+            const r = [a, { x: a.x, y: meio }, { x: d.x, y: meio }, d];
+            return ida ? r : r.reverse();
+        }
         // fase 106: atravessando o mar, o navio vai do píer até o cais da ilha (ou volta)
         function navioPos(cv) {
             if (viagem) {
                 const u = Math.min(1, (performance.now() - viagem.t0) / viagem.dur), e = u < 0.5 ? 2 * u * u : 1 - (-2 * u + 2) ** 2 / 2;
-                const a = viagem.ida ? navioNoPier(cv) : navioNaIlha(cv), b = viagem.ida ? navioNaIlha(cv) : navioNoPier(cv);
-                return { x: a.x + (b.x - a.x) * e, y: a.y + (b.y - a.y) * e + Math.sin(u * Math.PI) * T * 2 };
+                // pelo caminho da rota, na mesma velocidade o tempo todo (com a saída e a chegada suaves)
+                const r = rotaNavio(cv, viagem.ida), seg = r.slice(1).map((p, k) => Math.hypot(p.x - r[k].x, p.y - r[k].y)), total = seg.reduce((x, y) => x + y, 0) || 1;
+                let d = e * total, k = 0;
+                while (k < seg.length - 1 && d > seg[k]) { d -= seg[k]; k++; }
+                const f = seg[k] ? Math.min(1, d / seg[k]) : 1;
+                return { x: r[k].x + (r[k + 1].x - r[k].x) * f, y: r[k].y + (r[k + 1].y - r[k].y) * f, dir: Math.sign(r[k + 1].x - r[k].x) };
             }
             return lugar === 'ilha' ? navioNaIlha(cv) : navioNoPier(cv);
         }
@@ -3470,7 +3487,8 @@
             if (!barcoInfo || !pierPronto || zonasAtuais < 7) return;
             const cv = navioCanvas(barcoInfo), p = navioPos(cv), sobe = Math.round(Math.sin(tempo / 760) * 0.7);
             if (viagem) {   // a esteira atrás do navio
-                for (let k = 0; k < 14; k++) { q.fillStyle = k % 3 ? '#e8f2fb' : '#bcd8f2'; q.fillRect(Math.round(p.x + cv.casco.x0 - 4 - k * 3), Math.round(p.y + cv.agua - 1 - k * 1.2 + Math.sin(tempo / 120 + k) ), 3, 1); }
+                const volta = p.dir < 0, ex = volta ? cv.width - cv.casco.x0 + 1 : cv.casco.x0 - 4;   // (indo para a esquerda, a popa fica à direita)
+                for (let k = 0; k < 14; k++) { q.fillStyle = k % 3 ? '#e8f2fb' : '#bcd8f2'; q.fillRect(Math.round(p.x + ex + (volta ? k * 3 : -k * 3)), Math.round(p.y + cv.agua - 1 - k * 1.2 + Math.sin(tempo / 120 + k) ), 3, 1); }
             }
             // a sombra do casco na água e a espuma batendo, que não sobem junto
             const { x0, x1, fundo } = cv.casco;
@@ -3486,7 +3504,7 @@
                 const f = (tempo / 260 + x * 0.37) % 6;
                 if (f < 3) { q.fillStyle = f < 1.5 ? '#e8f2fb' : '#bcd8f2'; q.fillRect(p.x + x + (f < 1.5 ? 0 : 1), p.y + fundo[x] + 1, 2, 1); }
             }
-            pe.push({ img: cv, x: p.x, y: p.y + sobe, ordem: p.y + cv.agua, flip: false, bob: 0 });
+            pe.push({ img: cv, x: p.x, y: p.y + sobe, ordem: p.y + cv.agua, flip: p.dir < 0, bob: 0 });   // (indo para a esquerda, vira o navio)
         }
 
         function desenharPier() {
@@ -5925,7 +5943,9 @@
 
         function alvoEm(clientX, clientY) {
             const { x: px, y: py } = paraMundo(clientX, clientY);
-            const tx = Math.floor(px / T) - MARGEM, ty = Math.floor(py / T) - MARGEM;
+            const tx = Math.floor(px / T) - MARGEM;
+            let ty = Math.floor(py / T) - MARGEM;
+            if (ty >= Y_ILHA + MAR_ILHA) ty -= MAR_ILHA; else if (ty >= Y_ILHA) ty = Y_ILHA - 1;   // (o mar a mais: conta como mar)
             if (construcao.ativo) return dentroTerreno(tx, ty) ? { tx, ty } : null;
             if (visitante && !visitante.saindo && px >= visitante.x - 2 && px < visitante.x + T + 2 && py >= visitante.y - 22 && py < visitante.y + T) return 'visitante';
             const lista = [...atores.values()].sort((a, b) => b.y - a.y);
@@ -6235,7 +6255,7 @@
                 const para = { x: cam.x, y: cam.y };
                 if (!animar) { if (fim) fim(); precisaDesenhar = true; return; }
                 cam.x = de.x; cam.y = de.y;
-                viagem = { t0: performance.now(), dur: 3600, de, para, ida: destino === 'ilha', fim };
+                viagem = { t0: performance.now(), dur: 5200, de, para, ida: destino === 'ilha', fim };
             },
             viajando: () => !!viagem,
             navioCanvas,   // fase 104 (para a prévia e os testes)
