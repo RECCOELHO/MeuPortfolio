@@ -35,7 +35,8 @@
         historico: 'fazenda_historico', historicoVisto: 'fazenda_historico_visto',
         volMusica: 'fazenda_vol_musica', volEfeitos: 'fazenda_vol_efeitos', faixaMusica: 'fazenda_faixa_musica',
         novidades: 'fazenda_novidades', chatVisto: 'fazenda_chat_visto', chatSilencio: 'fazenda_chat_silencio',
-        calendarioVisto: 'fazenda_calendario_visto'
+        calendarioVisto: 'fazenda_calendario_visto',
+        tokenDono: 'fazenda_token_dono', codigoDono: 'fazenda_codigo_dono'   // fase 120: a sua conta guardada enquanto usa a de teste
     };
     const store = {
         get(k) { try { return localStorage.getItem(k); } catch { return null; } },
@@ -132,6 +133,7 @@
         arma_maxima: 'Essa arma já está no nível máximo.',
         sem_moedas: 'Moedas insuficientes para essa arma.',
         conta_banida: 'Esta fazenda foi suspensa por desrespeitar as regras do jogo.',
+        sem_conta_teste: 'Esta fazenda não tem conta de teste.',   // fase 120
         sem_permissao: 'Só os admins do jogo podem fazer isso.',
         // fase 69: o calendário
         calendario_hoje: 'Você já pegou o prêmio de hoje. Volte amanhã!',
@@ -4394,6 +4396,13 @@
         el.nivel.textContent = j.nivel;
         const btnAdmin = document.getElementById('btnAdmin');
         if (btnAdmin) btnAdmin.hidden = !j.admin;
+        const btnTeste = document.getElementById('btnTeste');   // fase 120: a conta de teste (ida e volta)
+        if (btnTeste) {
+            btnTeste.hidden = !(S.conta_teste || S.sou_teste);
+            const em = btnTeste.querySelector('em'); if (em) em.textContent = S.sou_teste ? 'Minha conta' : 'Teste';
+            btnTeste.setAttribute('aria-label', S.sou_teste ? 'Voltar para a sua conta' : `Entrar na conta de teste (${S.conta_teste || ''})`);
+        }
+        document.body.classList.toggle('conta-teste', !!S.sou_teste);
         const faixa = j.xp_proximo - j.xp_nivel;
         const prog = (j.xp - j.xp_nivel) / faixa;
         el.xpBar.style.width = `${j.trava ? 100 : Math.min(100, prog * 100)}%`;
@@ -8086,6 +8095,32 @@
         el.entradaErro.textContent = msg || '';
     }
 
+    /* fase 120: o botão da conta de teste. Na sua conta: pede uma sessão da de teste ao servidor (só o dono
+       dela recebe), guarda a sua sessão (e o código) no aparelho e troca. Na de teste: volta para a guardada. */
+    async function trocarContaTeste() {
+        if (!S || visita) return;
+        if (S.sou_teste) {
+            const t = store.get(LS.tokenDono);
+            if (!t) { toast('A sua conta não está guardada neste aparelho: use "Sair desta fazenda" e entre com o seu código.', 'erro'); return; }
+            if (!await perguntar('Voltar para a sua conta?', 'Voltar')) return;
+            store.set(LS.token, t);
+            const c = store.get(LS.codigoDono); if (c) store.set(LS.codigo, c); else store.del(LS.codigo);
+            store.del(LS.tokenDono); store.del(LS.codigoDono);
+            location.reload();
+            return;
+        }
+        if (!S.conta_teste) return;
+        if (!await perguntar(`Entrar na conta de teste (${S.conta_teste})? A sua fica guardada neste aparelho: o botão "Minha conta" volta para ela.`, 'Entrar')) return;
+        try {
+            const r = await rpc('fazenda_teste_entrar', { p_token: token });
+            store.set(LS.tokenDono, token);
+            const c = store.get(LS.codigo); if (c) store.set(LS.codigoDono, c);
+            store.del(LS.codigo);
+            store.set(LS.token, r.token);
+            location.reload();
+        } catch (e) { toast(esc(e.message), 'erro'); }
+    }
+    { const bt = document.getElementById('btnTeste'); if (bt) bt.addEventListener('click', trocarContaTeste); }
     function sair(apagarCodigo) {
         fecharMar();   // fase 62
         if (naIlha() && cena.irPara) cena.irPara('fazenda', null, false);   // fase 106
