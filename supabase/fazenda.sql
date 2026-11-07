@@ -188,6 +188,11 @@ create table if not exists public.fazenda_construcoes (
 alter table public.fazenda_culturas add column if not exists so_ilha boolean not null default false;
 alter table public.fazenda_itens add column if not exists so_ilha boolean not null default false;
 
+-- fase 111: o cachorro da ilha (a raça, o nome e quando chegou)
+alter table public.fazenda_jogadores add column if not exists cachorro_raca text;
+alter table public.fazenda_jogadores add column if not exists cachorro_nome text;
+alter table public.fazenda_jogadores add column if not exists cachorro_em timestamptz;
+
 -- Fase 4: construções grandes (casas 3x3). (x, y) é o canto de cima à esquerda.
 alter table public.fazenda_itens add column if not exists largura smallint not null default 1;
 alter table public.fazenda_itens add column if not exists altura smallint not null default 1;
@@ -1527,7 +1532,8 @@ begin
     update fazenda_jogadores
        set moedas = moedas + (select sum(fazenda_presente_nivel(n)) from generate_series(coalesce(j.nivel_premiado, 1) + 1, v_nivel) n),
            diamantes = diamantes + 5 * (v_nivel - coalesce(j.nivel_premiado, 1)),
-           nivel_premiado = v_nivel
+           nivel_premiado = v_nivel,
+           nivel_base = greatest(coalesce(nivel_base, 1), v_nivel)   -- fase 112: o nível que você alcançou não cai mais
      where id = p_jogador and nivel_premiado is not distinct from j.nivel_premiado;   -- fase 70: paga uma vez só
     select * into j from fazenda_jogadores where id = p_jogador;
   end if;
@@ -1594,7 +1600,9 @@ begin
       -- fase 106: a ilha (pode zarpar? quantas obras; do 45 em diante, a lista; o baú de hoje já foi aberto?)
       'ilha', jsonb_build_object('obras', coalesce(j.ilha_obras, 0), 'pode_ir', fazenda_ilha_pode(p_jogador, v_nivel),
                                  'bau_hoje', j.ilha_bau_dia = fazenda_hoje(), 'x', fazenda_ilha_x(p_jogador),
-                                 'partes', case when v_nivel >= 45 then fazenda_ilha_obras() end)
+                                 'partes', case when v_nivel >= 45 then fazenda_ilha_obras() end),
+      -- fase 111: o cachorro da ilha (null: ainda não escolheu)
+      'cachorro', case when j.cachorro_raca is not null then jsonb_build_object('raca', j.cachorro_raca, 'nome', j.cachorro_nome) end
     ),
     'zonas_venda', case when not v_omite then fazenda_zonas() end,
     'pacotes_diamantes', fazenda_pacotes_diamantes(),
@@ -1993,7 +2001,8 @@ begin
              + fazenda_tem_efeito(p_jogador, 'colheita')::int          -- colheitadeira
              + (fazenda_clima_agora() = 'sol')::int                      -- colheita no sol (fase 71: uma conta por chamada)
              + fazenda_protegido(p_jogador, 'adubo', c.x, c.y)::int     -- cogumelos, barril, colmeia
-             + c.adubado::int;                                          -- adubo do Seu Zé
+             + c.adubado::int                                           -- adubo do Seu Zé
+             + (c.y >= 45 and j.cachorro_raca is not null)::int;        -- fase 111: o cachorro da ilha
     if fazenda_protegido(p_jogador, 'sorte', c.x, c.y) and random() < 0.15 then
       v_qtd := v_qtd * 2;                                               -- alvo
     end if;
@@ -9412,7 +9421,8 @@ returns int language plpgsql stable security definer set search_path = public as
 begin
   return coalesce((select min(i.nivel_min) from fazenda_itens i
                     where fazenda_conta_nivel(i.categoria, i.id) and i.nivel_min < 60   -- fase 106: até o 60
-                      and not exists (select 1 from fazenda_construcoes c where c.jogador_id = p_jogador and c.tipo = i.id)), 60);
+                      and not exists (select 1 from fazenda_construcoes c where c.jogador_id = p_jogador and c.tipo = i.id)
+                      and not exists (select 1 from fazenda_deposito d where d.jogador_id = p_jogador and d.tipo = i.id)), 60);   -- fase 112: o guardado conta
 end;
 $$;
 
@@ -9422,7 +9432,8 @@ returns jsonb language plpgsql stable security definer set search_path = public 
 begin
   return coalesce((select jsonb_agg(i.id order by i.nivel_min, i.ordem) from fazenda_itens i
                     where fazenda_conta_nivel(i.categoria, i.id) and i.nivel_min <= p_nivel
-                      and not exists (select 1 from fazenda_construcoes c where c.jogador_id = p_jogador and c.tipo = i.id)), '[]'::jsonb);
+                      and not exists (select 1 from fazenda_construcoes c where c.jogador_id = p_jogador and c.tipo = i.id)
+                      and not exists (select 1 from fazenda_deposito d where d.jogador_id = p_jogador and d.tipo = i.id)), '[]'::jsonb);   -- fase 112
 end;
 $$;
 
@@ -11029,8 +11040,9 @@ begin
   if not fazenda_ilha_pode(v_id, v_nivel) then raise exception 'ilha_fechada'; end if;
   if coalesce(j.ilha_obras, 0) < 1 then raise exception 'ilha_sem_cais'; end if;
   if j.ilha_bau_dia = fazenda_hoje() then raise exception 'ilha_bau_hoje'; end if;
-  v_moeda := round((60000 + (v_nivel - 45) * 8000) * (0.6 + random() * 0.8))::int;
-  if random() < 0.25 then v_diam := 5 + floor(random() * 11)::int; end if;
+  v_moeda := round((60000 + (v_nivel - 45) * 8000) * (0.6 + random() * 0.8)
+                   * case when j.cachorro_raca is not null then 1.5 else 1 end)::int;   -- fase 111: o cachorro fareja
+  if random() < (case when j.cachorro_raca is not null then 1.0 / 3 else 0.25 end) then v_diam := 5 + floor(random() * 11)::int; end if;
   if random() < 1.0 / 12 then
     v_raro := (array['madeira_nobre', 'corda_naval', 'pedra_cantaria', 'ferro_forjado', 'perola_negra'])[1 + floor(random() * 5)::int];
     insert into fazenda_celeiro (jogador_id, item, quantidade) values (v_id, v_raro, 1)
@@ -11167,3 +11179,89 @@ revoke all on function public.fazenda_reserva_gastar(uuid, jsonb) from public, a
 -- mudança continua custando 20 mil. Quem já pintou fica com o que tem (sem vela = a de lona).
 -- Pode rodar este arquivo de novo.
 -- ------------------------------------------------------------
+
+-- ------------------------------------------------------------
+-- Fase 111: o cachorro da ilha. Quem chega na Ilha da Caveira Dourada (fazenda_ilha_pode) escolhe um
+-- cachorro, uma vez só, entre 10 (desenhos do Jessé), e dá o nome (2 a 20 letras, sem palavrão). O corgi
+-- marrom é o Churros, homenagem ao cachorro do 1º do ranking: ele não ganha outro nome.
+-- • O bônus, só na ilha, igual para todas as raças: os canteiros da ilha rendem +1 na colheita
+--   (fazenda_aplicar) e o baú do dia vem com +50% de moedas e diamante em 1 de cada 3 (fazenda_ilha_bau,
+--   era 1 de cada 4).
+-- • Depois, dá para trocar o nome de graça (menos o Churros); a raça fica.
+-- Pode rodar este arquivo de novo.
+-- ------------------------------------------------------------
+alter table public.fazenda_jogadores add column if not exists cachorro_raca text;
+alter table public.fazenda_jogadores add column if not exists cachorro_nome text;
+alter table public.fazenda_jogadores add column if not exists cachorro_em timestamptz;
+
+create or replace function public.fazenda_cachorros()
+returns jsonb language sql immutable as $$
+  select '["shiba", "pastor", "pug", "dalmata", "golden", "beagle", "yorkshire", "buldogue", "corgi", "churros"]'::jsonb;
+$$;
+
+create or replace function public.fazenda_cachorro_escolher(p_token text, p_raca text, p_nome text)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id   uuid := fazenda_auth(p_token);
+  j      record;
+  v_nome text := btrim(regexp_replace(coalesce(p_nome, ''), '\s+', ' ', 'g'));
+begin
+  if not (fazenda_cachorros() ? coalesce(p_raca, '')) then raise exception 'cachorro_raca_invalida'; end if;
+  select * into j from fazenda_jogadores where id = v_id for update;
+  if not fazenda_ilha_pode(v_id, fazenda_nivel_de(j.xp, j.nivel_trava)) then raise exception 'ilha_fechada'; end if;
+  if j.cachorro_raca is not null and j.cachorro_raca <> p_raca then raise exception 'cachorro_ja_tem'; end if;
+  if p_raca = 'churros' then
+    if j.cachorro_raca = 'churros' then raise exception 'cachorro_churros'; end if;   -- o Churros não troca de nome
+    v_nome := 'Churros';
+  else
+    if char_length(v_nome) not between 2 and 20 then raise exception 'cachorro_nome_invalido'; end if;
+    if fazenda_chat_palavrao(v_nome) then raise exception 'cachorro_palavrao'; end if;
+  end if;
+  update fazenda_jogadores set cachorro_raca = p_raca, cachorro_nome = v_nome, cachorro_em = coalesce(cachorro_em, now())
+   where id = v_id;
+  return jsonb_build_object('raca', p_raca, 'nome', v_nome, 'novo', j.cachorro_raca is null, 'estado', fazenda_estado(v_id));
+end;
+$$;
+
+revoke execute on function public.fazenda_cachorros() from public, anon, authenticated;
+grant execute on function public.fazenda_cachorro_escolher(text, text, text) to anon, authenticated;
+
+-- ------------------------------------------------------------
+-- Fase 112: ninguém cai de nível (de novo). A regra da fase 90 era "o nível de cada um não baixa", mas o piso
+-- (nivel_base) era o nível do dia da regra. Quando a fase 104 trouxe itens novos que contam para o nível
+-- (o ipê no 32 e as oficinas navais no 33, 36, 39 e 42) e a fase 106 refez a trava de todo mundo, quem já
+-- tinha passado desses níveis sem eles caiu até o piso antigo (ex.: do 45 para o 35). E guardar no
+-- depósito uma oficina que conta também derrubava o nível.
+-- • Quem caiu por causa desses itens volta para o maior nível que já tinha alcançado (e ganhado o presente:
+--   nivel_premiado), até onde o XP dá; daqui para frente, cada nível novo sobe o piso junto (fazenda_estado).
+-- • O que está guardado no depósito conta como seu na trava (fazenda_nivel_trava e fazenda_nivel_faltam), e
+--   guardar ou tirar do depósito refaz a trava (gatilho em fazenda_deposito).
+-- • Para passar do nível de agora, continua valendo ter o que falta (a regra votada).
+-- Pode rodar este arquivo de novo.
+-- ------------------------------------------------------------
+drop trigger if exists fazenda_trava_dep_ins on public.fazenda_deposito;
+create trigger fazenda_trava_dep_ins after insert on public.fazenda_deposito
+  referencing new table as novas for each statement execute function public.fazenda_trava_gatilho();
+drop trigger if exists fazenda_trava_dep_del on public.fazenda_deposito;
+create trigger fazenda_trava_dep_del after delete on public.fazenda_deposito
+  referencing old table as velhas for each statement execute function public.fazenda_trava_gatilho();
+
+-- quem caiu por causa dos itens da fase 104 (o ipê e as oficinas navais) volta para o maior nível que já tinha
+-- alcançado (e ganhado o presente), até onde o XP dá. Quem está segurado por um item antigo segue a regra.
+with novo as (
+  select j.id, least(coalesce(j.nivel_premiado, 1), public.fazenda_nivel(j.xp), 60,
+           -- a trava sem os itens da fase 104: o que os itens antigos deixam (estes continuam valendo)
+           coalesce((select min(i.nivel_min) from public.fazenda_itens i
+                      where public.fazenda_conta_nivel(i.categoria, i.id) and i.nivel_min < 60
+                        and i.id not in ('ipe', 'serraria_naval', 'forja', 'velaria', 'cartografia')
+                        and not exists (select 1 from public.fazenda_construcoes c where c.jogador_id = j.id and c.tipo = i.id)
+                        and not exists (select 1 from public.fazenda_deposito d where d.jogador_id = j.id and d.tipo = i.id)), 60)) as piso
+    from public.fazenda_jogadores j)
+update public.fazenda_jogadores j set nivel_base = n.piso
+  from novo n
+ where n.id = j.id and n.piso > greatest(coalesce(j.nivel_base, 1), public.fazenda_nivel_de(j.xp, j.nivel_trava));
+update public.fazenda_jogadores set nivel_trava = greatest(public.fazenda_nivel_trava(id), coalesce(nivel_base, 1))
+ where nivel_trava is distinct from greatest(public.fazenda_nivel_trava(id), coalesce(nivel_base, 1));

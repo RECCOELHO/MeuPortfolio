@@ -103,6 +103,11 @@
         ilha_pronta: 'Todas as obras da ilha já estão prontas!',
         ilha_sem_cais: 'Construa o cais primeiro: com ele pronto, dá para cavar o baú da praia.',
         ilha_bau_hoje: 'O baú de hoje já foi cavado. Amanhã tem outro no X da praia.',
+        cachorro_raca_invalida: 'Escolha um dos cachorros da lista.',   // fase 111
+        cachorro_ja_tem: 'Você já tem um cachorro na ilha (a raça não troca; o nome dá).',
+        cachorro_nome_invalido: 'O nome do cachorro precisa ter de 2 a 20 letras.',
+        cachorro_palavrao: 'Esse nome não dá. Escolha outro para o cachorro.',
+        cachorro_churros: 'O Churros é homenagem ao cachorro do 1º do ranking: o nome dele não muda.',
         // fase 95: a troca de nome
         apelido_palavrao: 'Esse nome não pode: tem palavrão.',
         apelido_igual: 'Esse já é o seu nome.',
@@ -1531,6 +1536,11 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-11-07-cachorro', data: '07/11', titulo: 'Um cachorro na ilha', itens: [
+            'Chegando na <b>Ilha da Caveira Dourada</b>, um cachorro quer morar com você: escolha entre <b>10</b> (shiba, pastor-alemão, pug, dálmata, golden, beagle, yorkshire, buldogue francês, corgi e o <b>Churros</b>) e dê o nome.',
+            'O <b>Churros</b>, o corgi marrom, é homenagem ao cachorro do 1º do ranking: ele vem com esse nome.',
+            'O bônus vale na ilha: os canteiros de lá rendem <b>+1</b> na colheita e o baú do dia vem com <b>+50% de moedas</b> (e diamante em 1 de cada 3). Ele passeia pela rua da vila: toque nele.',
+            'O pesqueiro e o navio oceânico agora ficam fundeados mais longe do píer, sem tampar a praia.'] },
         { id: '2026-11-07-bandeiras', data: '07/11', titulo: 'Bandeiras novas e velas coloridas', itens: [
             'Na pintura do barco (Melhorias do mar), <b>9 bandeiras novas</b>: âncora, lua, peixe, caveira dourada, arco-íris, listrada, fazendinha, coroa e raio.',
             'A bandeira agora fica <b>do tamanho do barco</b>: no pesqueiro e no navio oceânico ela é maior, com mais detalhe, e tremula no mastro.',
@@ -2457,6 +2467,7 @@
     // o que a cena precisa saber da ilha (null: o mundo fica só com a fazenda)
     function atualizarIlha() {
         if (!cena.definirIlha) return;
+        if (cena.definirCachorro) cena.definirCachorro(!visita && S && S.jogador.cachorro ? S.jogador.cachorro : null);   // fase 111
         const d = ilhaDe();
         if (!S || visita || !(d.pode_ir || (S.jogador.ilha_terrenos || 0) > 0)) { cena.definirIlha(null); }
         else {
@@ -2479,9 +2490,41 @@
         if (d.pode_ir) return `<p class="aviso">${itemDe(culturas.leme_dourado || { id: 'leme_dourado' }, 16)} A <b>Ilha da Caveira Dourada</b> está aberta: ${d.obras || 0} de 15 obras prontas${d.x ? ', e o baú de hoje está esperando num X da ilha' : ''}.</p>`;
         return `<p class="aviso">No nível 46, com o <b>kit de expedição</b> no barco (Melhorias do mar), o navio zarpa para a <b>Ilha da Caveira Dourada</b>.</p>`;
     }
+    /* ---------- Fase 111: o cachorro da ilha ----------
+       Quem chega na ilha escolhe um (uma vez só) entre os 10 desenhos do Jessé e dá o nome; o Churros (o corgi
+       marrom) é homenagem ao cachorro do 1º do ranking e vem com esse nome. O bônus vale só na ilha e é igual
+       para todos (fazenda_aplicar e fazenda_ilha_bau): +1 na colheita da ilha e o baú do dia mais rico. */
+    let caoEscolhido = null, caoNome = '';
+    const caoIco = (raca, px) => {
+        const u = window.FazendaCaes ? window.FazendaCaes.url(raca) : '';
+        return u ? `<img src="${u}" alt="" class="px" style="height:${px}px;width:auto;vertical-align:middle">` : ico('coracao', px);
+    };
+    const BONUS_CAO = 'Na ilha ele ajuda: os canteiros da ilha rendem <b>+1</b> na colheita e o baú do dia vem com <b>+50% de moedas</b> (e diamante em 1 de cada 3).';
+    function htmlCachorro() {
+        const F = window.FazendaCaes, c = S.jogador.cachorro;
+        if (!F) return '<p class="vazio-msg">Carregando...</p>';
+        if (c) {
+            const churros = c.raca === 'churros';
+            return `<div class="cao-meu"><img src="${F.url(c.raca)}" alt="" class="px"><p class="fala"><b>${esc(c.nome)}</b>, ${churros ? 'o corgi marrom' : 'seu ' + esc(F.nome(c.raca).toLowerCase())}, mora na ilha e passeia pela rua da vila. ${BONUS_CAO}</p></div>
+                ${churros ? '<p class="aviso">O Churros é homenagem ao cachorro do 1º do ranking: o nome dele não muda.</p>'
+                    : `<div class="cao-nome"><label>Trocar o nome <input type="text" maxlength="20" data-cao-nome value="${esc(caoNome || c.nome)}"></label><button type="button" class="botao verde" data-cao-salvar="${esc(c.raca)}">Salvar</button></div>`}`;
+        }
+        const sel = caoEscolhido;
+        const cards = F.ORDEM.map((id) => `<button type="button" class="cao-card${sel === id ? ' ativo' : ''}" data-cao="${id}" aria-pressed="${sel === id}"><img src="${F.url(id)}" alt="" class="px"><span>${id === 'churros' ? 'Churros' : esc(F.nome(id))}</span></button>`).join('');
+        return `<p class="fala">Um cachorro quer morar com você na Ilha da Caveira Dourada! Escolha um e dê o nome. ${BONUS_CAO}</p>
+            <div class="cao-grade">${cards}</div>
+            ${!sel ? '' : sel === 'churros' ? '<p class="aviso">O <b>Churros</b>, o corgi marrom, é homenagem ao cachorro do 1º do ranking: ele vem com esse nome, que não muda.</p>'
+                : `<div class="cao-nome"><label>Nome do ${esc(F.nome(sel).toLowerCase())} <input type="text" maxlength="20" data-cao-nome placeholder="2 a 20 letras" value="${esc(caoNome)}"></label></div>`}
+            <div class="rodape-painel"><span class="preco">A raça é uma vez só; o nome dá para trocar depois.</span><button type="button" class="botao verde" data-cao-salvar="${sel || ''}"${sel ? '' : ' disabled'}>${sel === 'churros' ? 'Levar o Churros' : 'Levar este'}</button></div>`;
+    }
     function htmlIlhaObras() {
         const d = ilhaDe(), j = S.jogador, lista = d.partes || [];
         if (!d.pode_ir) return `<p class="vazio-msg">A ilha abre no nível 46, com o kit de expedição no barco.</p>`;
+        const cao = j.cachorro;   // fase 111
+        const linhaCao = `<div class="lista"><div class="item"><span class="ico">${caoIco(cao ? cao.raca : 'golden', 36)}</span><span>
+                <span class="nome">${cao ? `Seu cachorro: ${esc(cao.nome)}` : 'Um cachorro para a ilha'}</span>
+                <span class="det"><span class="txt">${cao ? 'Os canteiros da ilha rendem +1 na colheita e o baú do dia vem mais rico.' : 'Escolha um cachorro: ele dá bônus na ilha.'}</span></span></span>
+                <button type="button" class="botao pequeno ${cao ? 'creme' : 'verde'}" data-painel-ir="cachorro">${cao ? 'Ver' : 'Escolher'}</button></div></div>`;
         const linhas = lista.map((o, k) => {
             const feita = k < (d.obras || 0), proxima = k === (d.obras || 0);
             const falta = Object.entries(o.itens || {}).some(([id, n]) => naCeleiro(id) < n);   // fase 109: o guardado conta
@@ -2498,7 +2541,7 @@
                     : `<button type="button" class="botao pequeno verde" data-ilha-construir="${esc(o.id)}"${pode ? '' : ' disabled'}>${ico('moeda', 14)} ${numero(o.moedas)}</button>`}
             </div>`;
         }).join('');
-        return `<p class="fala">A vila do porto vai sendo construída aos poucos: uma obra por nível, do 46 ao 60. Cada obra dá XP e aparece no lugar dela, na ilha.</p>
+        return `${linhaCao}<p class="fala">A vila do porto vai sendo construída aos poucos: uma obra por nível, do 46 ao 60. Cada obra dá XP e aparece no lugar dela, na ilha.</p>
             <div class="lista">${linhas}</div>
             <p class="aviso">Os materiais são os do píer e do barco: toras, tábuas, cravos, velas, cordas e cartas náuticas das oficinas e da feira, e os raros do mercador. Com o <b>cais</b> pronto, todo dia tem um <b>baú enterrado</b> num X da ilha (moedas, às vezes diamantes e um raro). Os <b>terrenos da ilha</b> (Loja → Terrenos, ou a placa no mapa) são para plantar e construir como na fazenda. As 15 obras prontas fincam a bandeira no morro.</p>
             <div class="rodape-painel"><button type="button" class="botao verde" data-ilha-ir>${naIlha() ? 'Ver a ilha' : 'Zarpar para a ilha'}</button></div>`;
@@ -2516,6 +2559,7 @@
         mostrarStatus(`${itemDe(culturas.leme_dourado || { id: 'leme_dourado' }, 18)} Zarpando para a Ilha da Caveira Dourada...`);
         cena.irPara('ilha', () => {
             atualizarIlha();
+            if (!S.jogador.cachorro && ilhaPode() && !painelAtual) setTimeout(() => { if (naIlha() && !painelAtual) abrirPainel('cachorro'); }, 900);   // fase 111
             const d = ilhaDe(), p = proximaObra();
             mostrarStatus(!(S.jogador.ilha_terrenos > 0) ? 'Chegou na ilha! Compre a Praia do Cais (a placa no mapa) para plantar e construir aqui.'
                 : d.x ? 'Tem um X na ilha hoje: toque nele para cavar o baú.'
@@ -3689,6 +3733,12 @@
         aoPier: () => { if (S && !painelAtual && !visita) abrirPainel('pier'); },   // fase 61
         aoBarco: () => { if (S && !painelAtual && !visita) { if (naIlha()) voltarDaIlha(); else abrirMar(); } },   // fase 62: o barco atracado leva para o alto-mar (fase 106: na ilha, de volta para a fazenda)
         aoIlhaX: () => { if (S && !painelAtual && !visita) cavarBauIlha(); },   // fase 106: o X do baú enterrado
+        aoCachorro: () => {   // fase 111: o cachorro da ilha
+            if (!S || painelAtual || visita || !S.jogador.cachorro) return;
+            som.tocar('clique');
+            mostrarStatus(`${caoIco(S.jogador.cachorro.raca, 22)} <b>${esc(S.jogador.cachorro.nome)}</b> abana o rabo! Au, au!`);
+            abrirPainel('cachorro');
+        },
         aoIlhaObra: () => { if (S && !painelAtual && !visita) abrirPainel('ilha'); },
         aoConstrucao: (x, y) => {
             if (!S || painelAtual) return;
@@ -5591,6 +5641,10 @@
         } else if (nome === 'ilha') {   // fase 106: as obras da ilha
             el.painelTitulo.innerHTML = `${itemDe(culturas.leme_dourado || { id: 'leme_dourado' }, 30)} Ilha da Caveira Dourada`;
             corpo.innerHTML = htmlIlhaObras();
+        } else if (nome === 'cachorro') {   // fase 111: o cachorro da ilha
+            const c = S.jogador.cachorro;
+            el.painelTitulo.innerHTML = c ? `${caoIco(c.raca, 30)} ${esc(c.nome)}` : `${caoIco(caoEscolhido || 'golden', 30)} Escolha seu cachorro`;
+            corpo.innerHTML = htmlCachorro();
         } else if (nome === 'ajudante') {   // fase 59
             const t = tipoAjudante(ajudanteAberto), h = meuAjudante(ajudanteAberto);
             if (!t || !h) { fecharPainel(); return; }
@@ -7383,6 +7437,27 @@
             visitar(vis.dataset.visitar || null);
             return;
         }
+        const caoCard = e.target.closest('[data-cao]');   // fase 111: marcar a raça
+        if (caoCard) { caoEscolhido = caoCard.dataset.cao; som.tocar('clique'); abrirPainel('cachorro', true); return; }
+        const caoSalvar = e.target.closest('[data-cao-salvar]');
+        if (caoSalvar && caoSalvar.dataset.caoSalvar) {
+            const raca = caoSalvar.dataset.caoSalvar, campo = el.painelCorpo.querySelector('[data-cao-nome]');
+            const nome = raca === 'churros' ? 'Churros' : ((campo && campo.value) || '').trim();
+            if (raca !== 'churros' && (nome.length < 2 || nome.length > 20)) { toast(ERROS.cachorro_nome_invalido, 'erro'); return; }
+            caoSalvar.disabled = true;
+            enfileirar([], async () => {
+                const r = await rpc('fazenda_cachorro_escolher', { p_token: token, p_raca: raca, p_nome: nome });
+                aplicarEstado(r.estado);
+                caoEscolhido = null; caoNome = '';
+                atualizarIlha();
+                if (r.novo) {
+                    som.tocar('festa');
+                    toast(`${caoIco(raca, 22)} <b>${esc(r.nome)}</b> agora mora na ilha! Os canteiros da ilha rendem +1 e o baú do dia vem mais rico.`, 'festa');
+                } else toast(`${caoIco(raca, 22)} Agora ele se chama <b>${esc(r.nome)}</b>.`);
+                if (painelAtual === 'cachorro') abrirPainel('cachorro', true);
+            }).finally(() => { caoSalvar.disabled = false; });
+            return;
+        }
         const ir = e.target.closest('[data-painel-ir]');
         if (ir) { abrirPainel(ir.dataset.painelIr); return; }
         // fase 69: o calendário
@@ -7612,6 +7687,7 @@
 
     // Controles de volume em tempo real (arrastar o slider)
     el.painelCorpo.addEventListener('input', (e) => {
+        if (e.target.matches && e.target.matches('[data-cao-nome]')) { caoNome = e.target.value; return; }   // fase 111 (não some quando o painel atualiza)
         if (e.target.id === 'rngVolMusica') {
             const val = Number(e.target.value) || 0;
             som.definirVolMusica(val);
