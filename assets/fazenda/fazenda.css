@@ -3442,3 +3442,13 @@ body.construindo .status {
 .cao-nome label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; flex: 1; min-width: 160px; }
 .cao-nome input { font: inherit; padding: 6px 8px; border: 2px solid #3f2631; border-radius: 4px; background: #fff; }
 @media (max-width: 420px) { .cao-meu { flex-direction: column; text-align: center; } }
+
+/* ---------- Fase 114: o recado particular, numa carta ---------- */
+.recado-carta {
+    background: #fffdf5; border: 2px solid #3f2631; border-radius: 6px; padding: 14px 16px; margin: 4px 0 12px;
+    box-shadow: 3px 3px 0 rgba(63, 38, 49, 0.18); line-height: 1.5;
+    background-image: repeating-linear-gradient(transparent 0 23px, rgba(121, 167, 232, 0.18) 23px 24px);
+}
+.recado-carta h3 { margin: 0 0 8px; font-size: 18px; }
+.recado-carta p { margin: 0 0 8px; }
+.recado-carta .recado-de { text-align: right; font-style: italic; }

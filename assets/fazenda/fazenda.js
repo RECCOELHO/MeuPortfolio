@@ -2755,6 +2755,36 @@
        na primeira chamada depois da virada (fazenda_semana_fechar). O painel busca o placar de agora
        (fazenda_evento); o estado traz o fim da semana, os prêmios novos (uma vez só) e os troféus. */
     let eventoDados = null, eventoPremios = [];
+    /* ---------- Fase 114: recados particulares (só o dono vê) ----------
+       Chegam no estado; a carta abre sozinha quando não tem outra janela aberta, e o recado conta como lido
+       assim que aparece (fica na tela até fechar). Os diamantes do recado já entraram no servidor. */
+    let recadosAbertos = [];
+    const recadosLidos = new Set();
+    function checarRecados(estado) {
+        const novos = (estado.recados || []).filter((r) => !recadosLidos.has(r.id));
+        if (!novos.length || visita) return;
+        novos.forEach((r) => recadosLidos.add(r.id));
+        recadosAbertos = recadosAbertos.concat(novos);
+        som.tocar('festa');
+        if (painelAtual) { if (!paineisDepois.includes('recado')) paineisDepois.push('recado'); }   // abre quando a janela de agora fechar
+        else abrirPainel('recado');
+    }
+    // o recado conta como lido quando a carta aparece
+    const recadosMarcados = new Set();
+    function marcarRecadosLidos() {
+        recadosAbertos.filter((r) => !recadosMarcados.has(r.id)).forEach((r) => {
+            recadosMarcados.add(r.id);
+            enfileirar([], async () => { await rpc('fazenda_recado_lido', { p_token: token, p_id: r.id }); });
+        });
+    }
+    function htmlRecados() {
+        return recadosAbertos.map((r) => `<div class="recado-carta">
+                <h3>${esc(r.titulo)}</h3>
+                <p>${esc(r.texto).replace(/\n/g, '<br>')}</p>
+                ${r.de ? `<p class="recado-de">— ${esc(r.de)}</p>` : ''}
+                ${r.diamantes ? `<p class="chips"><span class="chip">${ico('diamante', 14)} +${numero(r.diamantes)} diamantes (já estão com você)</span></p>` : ''}
+            </div>`).join('') + `<div class="rodape-painel"><span></span><button type="button" class="botao verde" data-fechar>Obrigado!</button></div>`;
+    }
     const CAT_ICONE = { ranking: 'trofeu_ouro', niveis: 'ampulheta_dourada', moedas: 'cofrinho_ouro', vendeu: 'balanca_ouro', comprou: 'sacola_ouro', convites: 'leme_dourado' };
     const ITENS_EVENTO = ['trofeu_ouro', 'trofeu_prata', 'trofeu_bronze', 'ampulheta_dourada', 'cofrinho_ouro', 'balanca_ouro', 'sacola_ouro'];
     // fase 93: usar o prêmio liga um bônus (horas; igual a fazenda_premios_efeitos no servidor)
@@ -4491,6 +4521,7 @@
         }
         if (!visita) checarNovidades(estado);   // fase 67
         if (!visita) checarCalendario(estado);   // fase 69: o prêmio de hoje (abre sozinho uma vez por dia)
+        checarRecados(estado);   // fase 114: recado particular
         // fase 63: prêmio novo do evento da semana (o servidor manda uma vez só)
         const novosEv = (estado.evento && estado.evento.novos) || [];
         if (novosEv.length) {
@@ -5629,6 +5660,10 @@
             corpo.innerHTML = `<p class="fala">Enquanto você estava fora, ${total === 1 ? '1 planta murchou' : `${total} plantas murcharam`} sem ninguém colher. O porquê:</p>
                 ${htmlMurchas(murchasNovas)}
                 <div class="rodape-painel"><span></span><button type="button" class="botao verde" data-fechar>Entendi</button></div>`;
+        } else if (nome === 'recado') {   // fase 114
+            el.painelTitulo.innerHTML = `${ico('coracao', 28)} ${recadosAbertos.length > 1 ? 'Recados para você' : 'Um recado para você'}`;
+            corpo.innerHTML = htmlRecados();
+            marcarRecadosLidos();
         } else if (nome === 'eventoPremio') {
             el.painelTitulo.innerHTML = `${itemDe(culturas.trofeu_ouro || { id: 'trofeu_ouro' }, 30)} Você ganhou!`;
             corpo.innerHTML = htmlEventoPremio();
