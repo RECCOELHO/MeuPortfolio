@@ -7136,6 +7136,7 @@ create table if not exists public.fazenda_semana_base (
   moedas_ganhas bigint not null
 );
 alter table public.fazenda_semana_base add column if not exists xp_pago bigint not null default 0;   -- fase 70
+alter table public.fazenda_semana_base add column if not exists nivel int;   -- fase 113: o nível da tela na foto
 create table if not exists public.fazenda_semana_premios (
   semana     timestamptz not null,
   categoria  text not null,
@@ -7168,7 +7169,7 @@ returns jsonb language sql immutable as $$
   select '{"fecha": "sexta às 22h", "diamantes": [30, 18, 10], "chance_item": 50, "convite_nivel": 10,
            "categorias": [
              {"id": "ranking",  "nome": "Ranking da semana",  "conta": "XP ganho na semana",            "itens": ["trofeu_ouro", "trofeu_prata", "trofeu_bronze"]},
-             {"id": "niveis",   "nome": "Mais níveis",        "conta": "níveis subidos na semana",      "itens": ["ampulheta_dourada"]},
+             {"id": "niveis",   "nome": "Mais níveis",        "conta": "níveis subidos na semana (o nível do jogo; conta nova, do 10 em diante)", "itens": ["ampulheta_dourada"]},
              {"id": "moedas",   "nome": "Mais moedas",        "conta": "moedas ganhas na semana",       "itens": ["cofrinho_ouro"]},
              {"id": "vendeu",   "nome": "Vendeu na barraca",  "conta": "moedas em vendas na feira",     "itens": ["balanca_ouro"]},
              {"id": "comprou",  "nome": "Comprou na barraca", "conta": "moedas em compras na feira",    "itens": ["sacola_ouro"]},
@@ -7185,7 +7186,10 @@ language sql stable security definer set search_path = public as $$
   -- outro lado conta no máximo 25% do total (duas contas vendendo uma para a outra não ganham sozinhas)
   select j.id, j.apelido, j.avatar, j.criado_em,
          (j.xp - coalesce(b.xp, 0) - (j.xp_pago - coalesce(b.xp_pago, 0)))::bigint,
-         (fazenda_nivel((j.xp - (j.xp_pago - coalesce(b.xp_pago, 0)))::int) - fazenda_nivel(coalesce(b.xp, 0)))::bigint,
+         -- fase 113: o nível da tela (com a trava; o XP comprado continua fora) menos o da foto; quem entrou na
+         -- semana não tem foto e conta do nível 10 em diante
+         greatest(0, fazenda_nivel_de((j.xp - (j.xp_pago - coalesce(b.xp_pago, 0)))::int, j.nivel_trava)
+                     - case when b.jogador_id is null then 10 else coalesce(b.nivel, fazenda_nivel_de(b.xp::int, j.nivel_trava)) end)::bigint,
          (j.moedas_ganhas - coalesce(b.moedas_ganhas, 0))::bigint,
          coalesce((select sum(least(t.v, ceil(t.total * 0.25))) from (
                     select sum(f.qtd::bigint * f.preco) as v, sum(sum(f.qtd::bigint * f.preco)) over () as total from fazenda_feira f
@@ -7271,10 +7275,10 @@ begin
     update fazenda_semanas set fechada_em = now() where fechada_em is null;
   end if;
   -- a foto do começo da semana nova
-  insert into fazenda_semana_base (jogador_id, semana, xp, moedas_ganhas, xp_pago)
-  select id, v_ini, xp, moedas_ganhas, xp_pago from fazenda_jogadores
+  insert into fazenda_semana_base (jogador_id, semana, xp, moedas_ganhas, xp_pago, nivel)
+  select id, v_ini, xp, moedas_ganhas, xp_pago, fazenda_nivel_de(xp, nivel_trava) from fazenda_jogadores
   on conflict (jogador_id) do update set semana = excluded.semana, xp = excluded.xp, moedas_ganhas = excluded.moedas_ganhas,
-                                          xp_pago = excluded.xp_pago;   -- (fase 70)
+                                          xp_pago = excluded.xp_pago, nivel = excluded.nivel;   -- (fase 70; fase 113: o nível)
   insert into fazenda_semanas (inicio) values (v_ini);
 end;
 $$;
@@ -11265,3 +11269,19 @@ update public.fazenda_jogadores j set nivel_base = n.piso
  where n.id = j.id and n.piso > greatest(coalesce(j.nivel_base, 1), public.fazenda_nivel_de(j.xp, j.nivel_trava));
 update public.fazenda_jogadores set nivel_trava = greatest(public.fazenda_nivel_trava(id), coalesce(nivel_base, 1))
  where nivel_trava is distinct from greatest(public.fazenda_nivel_trava(id), coalesce(nivel_base, 1));
+
+-- ------------------------------------------------------------
+-- Fase 113: "Mais níveis" conta o nível que aparece no jogo (escolha do Jessé). Antes contava pelo XP: quem
+-- estava preso no 45 com XP sobrando e subiu quando o máximo virou 60 (ou terminou o que faltava para
+-- passar de nível) via o nível subir e o evento não contava.
+-- • A foto da semana guarda o nível da tela (fazenda_semana_base.nivel); a conta é o nível da tela de agora
+--   menos o da foto (fazenda_semana_placar). O XP comprado com diamantes continua fora (o nível de agora é
+--   o do XP sem ele, com a trava).
+-- • Conta nova (sem foto, entrou na semana) conta do nível 10 em diante: os primeiros níveis são rápidos.
+-- • Esta semana já começou sem o nível na foto: ele é o nível que o XP da foto dá com a trava de hoje.
+-- Pode rodar este arquivo de novo.
+-- ------------------------------------------------------------
+alter table public.fazenda_semana_base add column if not exists nivel int;
+update public.fazenda_semana_base b set nivel = public.fazenda_nivel_de(b.xp::int, j.nivel_trava)
+  from public.fazenda_jogadores j
+ where j.id = b.jogador_id and b.nivel is null;
