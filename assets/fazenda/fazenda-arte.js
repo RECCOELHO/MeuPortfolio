@@ -228,7 +228,7 @@
         abacaxi:     { fases: [52, 53, 1161], murcho: 55, item: 1160, semente: 1160 },
         cana_roxa:   { fases: [52, 53, 1163], murcho: 55, item: 1162, semente: 1162 },
         especiarias: { fases: [52, 53, 1165], murcho: 55, item: 1164, semente: 1164 },
-        banana: { item: 1166 }, rapadura: { item: 1167 }, tempero_indias: { item: 1168 }, biscoito_bordo: { item: 1169 }, racao_marinheiro: { item: 1170 },
+        banana: { item: 1166 }, rapadura: { item: 1200 }, tempero_indias: { item: 1201 }, biscoito_bordo: { item: 1169 }, racao_marinheiro: { item: 1202 },   // fase 117: os desenhos do Jessé
         // sementes da estação (broto e meio do pacote; madura e fruta próprias)
         moranguinho: { fases: [52, 53, 1013], murcho: 55, item: 1014, semente: 1014 },
         melancia: { fases: [52, 53, 1015], murcho: 55, item: 1016, semente: 1016 },
@@ -2022,6 +2022,98 @@
     });
     Object.assign(INDICE_DESENHO, { 1195: 'tartaruga', 1196: 'papagaio', 1197: 'concha', 1198: 'pena_arara' });
     Object.assign(DESENHO_GRANDE, { 1195: 'tartaruga_g', 1196: 'papagaio_g' });
+    /* ---------- Fase 117: o Capitão do cais (desenhos do Jessé): ele, a rapadura, o tempero das Índias, a ração
+       de marinheiro e o baú dos prêmios. Na cena, a versão menor; nos ícones, o desenho inteiro. 1200 a 1204. */
+    Object.assign(DESENHO_BICHO, {
+        capitao_p: { pal: { a: '#22161e', b: '#84543f', c: '#772527', d: '#3a2726', e: '#f2e1d0', f: '#b8a69d', g: '#050201', h: '#bf8262', i: '#757673', j: '#979ea4', k: '#f4b289', l: '#cfd3db', m: '#efb14f' }, linhas: [
+            '......aaaaaaaa.....', '.....abbccbbcba....', '....abbddeeeeba....',
+            '...abddddbeefdba...', 'aaabbdddddeeeddbaa.', 'abbddddddefeebddbba',
+            'adddddddddddddddda.', 'addddgghhhhhghgda..', '.addgijhkkkkkkha...',
+            '..aiiibbggkkkha....', '..akbjhhggkkkba....', '..ahkjhhkfkhhha....',
+            '...abjllklllllla...', '....aijlllflllla...', '...acdjjllllllja...',
+            '..accccdjjjllja....', '.acccccbhefghgca...', '.ahbcdccmeedmchha..',
+            '.achmdcmmeeihcgia..', '.ahkkccmmdcdmciia..', '..akkgccmddgmcaaja.',
+            '...agdddaaagga..aa.', '....agba...aba.....', '....aaaa...aaa.....'] },
+        capitao_g: { pal: { a: '#757673', b: '#050201', c: '#3a2726', d: '#979ea4', e: '#84543f', f: '#772527', g: '#b8a69d', h: '#f2e1d0', i: '#bf8262', j: '#f4b289', k: '#cfd3db', l: '#efb14f' }, linhas: [
+            '..............abbbbb..cbbbd..........', '............bbbeeeeebbbbeecb.........', '...........cccffffffcfffffccc........',
+            '..........abfeeccccceeeecceebg.......', '.........bceeccccccccccccccceb.......', '........beeecccccchhchhhcheceb.......',
+            '.......cbefcccccccceghhhgacccecc.....', '......cbbecccccccccchhhhhccccebb.....', '.....bbbecccccccccccbhebhccccceeb....',
+            'bbbbbeeecccccccccccchhhhgccccceebbbbb', 'beeeecccccccccccccahcghhcheccccceeeeb', 'beeeeccccccccccccchhcghhcheccccceeeeb',
+            'bcccccccccccccccccccccccccccccccccccb', 'bccccccccccccccbbbbbbbbbbbbbcccccccb.', '.bcccccccccbbbciiiiiiiiebbcebbcccbc..',
+            '.bccccccccbbbbeiiiiiiiiabbiibbbccb...', '..bbccccbbaddiijjjjjjbbbjjjjibbbb....', '....bbbbbbbbbbbbbbbbbjjjjggggb.......',
+            '....dbbaaaaaeebbbbbbijjjjiiccb.......', '.....beaaddgiiebbbbbjjjjjefbbb.......', '.....bajjedgijibbbbbjjjjjjebjb.......',
+            '.....bijeedgijibbbbbjjjjjjebjb.......', '.....bijjeddjiiiigggjjjiiiiijb.......', '.....bijjiddkiijjjjjjjieiijjjb.......',
+            '......cbbeddkkgijjkkkkkkkkkkikcb.....', '.........badkkkkkkkkkeeeekkkkkcb.....', '........bbaddkkkkkkkgkkkkgkkkkcb.....',
+            '.......dbbaddkkkkkkkgkkkkgkkkkcb.....', '......cbffcbddddkkkkkkkkkkkkkdbb.....', '.....bcffffcbbcddkkkkkkkkkkkdb.......',
+            '....bcfffffffccbbddddkkkkdddbb.......', '....bfffffffffcbbddddkkkkdddbb.......', '....bcffffffffffibbbbbbbbbbbffbb.....',
+            '..bbffffffffffelibhhgkcbifccbfbb.....', '..bbileffccffffflbhhhgcblfffbiiib....', '..bbileffbcffffflbhhhgcbifffbiiib....',
+            '..bbffillbcffffllbhhhhabifffbffcb....', '..bbfffffbcffffflbcfffbbifffbcagb....', '..bbijjjjifffffllbcfffcblfffbaaabc...',
+            '..ccijjjjicfffellbcccccblfffbaaabb...', '....bjjjjbcffffflbccccbblfffbbbbddab.', '.....bbbbbbbbbbbbbbbbbccbbbbb....dab.',
+            '......aabbbcccccbbcaabbbbbbba...ccaa.', '........bbccccccbb...bbbbbbc....bb...', '.........bbbbbbbb.....cbfbd..........',
+            '.........bcffecb......cbebd..........', '.........bbcccbb......cbcbd..........', '.........bbbbbbb......cbbbd..........'] },
+        rapadura_p: { pal: { a: '#22161e', b: '#b16533', c: '#d8915b', d: '#8a4826', e: '#cf824b', f: '#6c3823' }, linhas: [
+            '.....aaaaa..', '...aabbbbbaa', '.aabbbbbbbca',
+            'abbbbbbbcdda', 'aeebbbecddda', 'addbebddbdda',
+            'afdfddddddda', 'afdfbddddfaa', 'afdfbfbfaa..',
+            'aaffbfaa....', '..aaaa......'] },
+        rapadura_g: { pal: { a: '#040400', b: '#b16533', c: '#d8915b', d: '#799574', e: '#cf824b', f: '#5e5f4c', g: '#24180b', h: '#8a4826', i: '#6c3823' }, linhas: [
+            '............aaaaa.......', '.........aaabcccbaaa....', '......daacbbbbbbbcefaad.',
+            '......gaacbbbbbbbebbaad.', '....aahebbbbbbbbbbbbbcaa', '.aaacbbbbbbbbbbbbbccchga',
+            'acbbbhbbbbbbbbbbccbhhhga', 'acbbbhbbbbbbbbbbcchhhhga', 'aieeebbhhbbbeccchhhhbhga',
+            'aihhhebbbbecbhhhhhhhhhga', 'aiihhhbbeebhhhhhbhhhhhga', 'aiiihhbbccbhhhhhbhhhhhga',
+            'aiiiihiichhhhhhhhhhhhiga', 'aiiihiiibhhhhhhhhhhhiiga', 'ahiiihiibhhhhhhhhiiiiaaa',
+            'ahiiihiibhhhhhhhhiiiiggg', 'aiiihiiiiiiibiiiiiaaa...', 'aiiiiiiibiiiiiiiaa......',
+            '.aagiiiibiiiiaaa........', '.aagiiiibiiiigaa........', '....aaiibhgaa...........',
+            '......gaaa..............'] },
+        tempero_p: { pal: { a: '#22161e', b: '#ab3519', c: '#ec8b3a', d: '#623a2b', e: '#c79d6e', f: '#9f7451', g: '#871f14' }, linhas: [
+            '....aaaa....', '...abbca....', '.aabbbccaaa.',
+            'adbbbbbccbea', 'afbbbbfgcbfa', 'aeefbbcceefa',
+            'affeeeeeefa.', 'affffffffffa', 'afefffffeffa',
+            'afffeeeeeefa', 'afffeeeefffa', '.afffeeefaa.',
+            '..aaaaaaa...'] },
+        tempero_g: { pal: { a: '#040300', b: '#1c290f', c: '#623a2b', d: '#ab3519', e: '#c79d6e', f: '#871f14', g: '#ec8b3a', h: '#9f7451', i: '#8fae87' }, linhas: [
+            '..........aaa...........', '........bbcdebbb........', '........aafdgaaa........',
+            '......aadgddfgdfa.......', '....aacdddddgfggfaaa....', '.bbchcfdgddgfdddfeccbb..',
+            '.aabdfddgddgfddffgdfaa..', 'aeccgdffddffgfggffffceaa', 'aeccfdddfgdfffffgfddceaa',
+            'aehhcfffddddfhffdfffhhaa', 'aheeccccdffdfggffcccehaa', 'ahhheehhccccccccceeehhaa',
+            '.acchheeeeeeeeeeehhhcai.', '.achhhheeeeeeeeeehhhha..', '.ahhcchhhhhhhhhhhccchai.',
+            'ahhhhhccccccccccchhhhhaa', 'ahhhehhhhhhhhhhheehhhhaa', 'ahhhhehheeeeeeeeeeeehhaa',
+            'ahhhhehheeeeeeeeeeeehhaa', 'ahhhhheeeeeeeeeeeehhhhaa', 'achhhhhheeeeeeeeehhhhcaa',
+            '.achhhhhhheeeeeehhhccac.', '.acchhhhhheeeeeehhhhca..', '..baachhhhhhhhhhhcaaa...',
+            '.....aaaaaaaaaaaaai.....', '.....iiiiiiiiiiiii......'] },
+        racao_p: { pal: { a: '#22161e', b: '#caa173', c: '#7e5842', d: '#b38962', e: '#a07552' }, linhas: [
+            '.aaaaaaa...', '.abcbbcba..', '.acbdebea..',
+            '..aeceba...', '..acccca...', '.aeeeeeea..',
+            'acbbebbcba.', 'aebbbdbcba.', 'adbbecbbbda',
+            'adbbbbbbbea', 'aebbbbbbeea', 'aeebbbbbea.',
+            '.aeeeeeea..', '..aaaaaa...'] },
+        racao_g: { pal: { a: '#030200', b: '#798d71', c: '#232412', d: '#caa173', e: '#7e5842', f: '#593424', g: '#a07552', h: '#b38962', i: '#40442f' }, linhas: [
+            '........aaaaa........', '..bcccccddddecccc....', '..baaaaaddddeaaaa....',
+            '..baddeffgeffddda....', '..baedddffffddgga....', '...baeddhegddefib....',
+            '....aegddehddeci.....', '.....acfheggfa.......', '....aefffffffeca.....',
+            '...ifeeeeeeeffeec....', '...aegggggggffgga....', '..bagghdddddgfhdgab..',
+            '.aeggddddfdddeffdgia.', '.aeghdddggggdhefdgfa.', '.aegddddfdffddeedgfa.',
+            'agggdddddfhddddddggga', 'aghdddddffffddddddhga', 'aghdddddgfehddddddhga',
+            'aghddddddfddddddddhga', 'aghddfhddfdddfhdddgga', 'agggddefdfddfddddggga',
+            'aggggdddffffddddgggga', 'aggggdddffffddddgggga', '.aeggghdddddddggggia.',
+            '...aggggggggggggeai..', '...bcccccccccccacb...', '....aaaaaaaaaaaaa....'] },
+        bau_p: { pal: { a: '#22161e', b: '#8b4f31', c: '#502114', d: '#d7933a', e: '#f8e189', f: '#f5b83e', g: '#c1762d', h: '#99956a' }, linhas: [
+            '.aaaaaaaaaaa..', 'abcdebbbbbbdaa', 'acbcdbbbbbbcfa',
+            'agbcghbbbbbbea', 'aggggbbbbbbbfa', 'abgcgfdgedgefa',
+            'acgggfegffddda', 'acbcgbbcffbbda', 'agbcghbbbbbbfa',
+            'aagcghbbbbbbfa', '..aagfefffffda', '....aaaaaaaaaa'] },
+        bau_g: { pal: { a: '#060100', b: '#d7933a', c: '#c1762d', d: '#f5b83e', e: '#f8e189', f: '#502114', g: '#8b4f31', h: '#99956a', i: '#233222' }, linhas: [
+            '....aaaaaaaaaaaaaaaaaaaa....', '..aabcdefgggggggggggfceea...', '.aggffcbefgggggggggggfbbeah.',
+            '.aggffgbeffggggggggggfgbeah.', 'acffggffbfggggggggggggffdah.', 'abffggffbdgfggggggggggffddaa',
+            'accgfgffcehfggggggggggggfeaa', 'accgffffcehfggggggggggggfeaa', 'afffcfffcdgfggggggggggggfdaa',
+            'acccfccccdgffffffffffffffdaa', 'acgfcfffcddbbbccbebbceedbdaa', 'acffcfffcdddddccdeddceedddaa',
+            'acfffcccffffffffdfddffffffaa', 'acffgfffcdddebcfdfddfbbbbbaa', 'acffffffcddgggffdbddfggggbaa',
+            'acfffgffcdgfffffddddfffffbaa', 'acffgfffcehfggggffffggggfdaa', 'acccfgffcehfggggggggggggfdaa',
+            '.aafcfffcehfggggggggggggfdaa', '.aaacfffcehfggggggggggggfdaa', '....accbcdcffffffffffffffbaa',
+            '.....aaacdddedddddddddddcbaa', '.......haaaaaaaaaaaaaaaaaaaa', '........iiiiiiiiiiiiiiiiiiii'] }
+    });
+    Object.assign(INDICE_DESENHO, { 1200: 'rapadura_p', 1201: 'tempero_p', 1202: 'racao_p', 1203: 'bau_p', 1204: 'capitao_p' });
+    Object.assign(DESENHO_GRANDE, { 1200: 'rapadura_g', 1201: 'tempero_g', 1202: 'racao_g', 1203: 'bau_g', 1204: 'capitao_g' });
     const cacheDesenho = new Map();
     function desenhoBicho(tipo) {
         if (cacheDesenho.has(tipo)) return cacheDesenho.get(tipo);
@@ -3038,6 +3130,7 @@
            Fica pronto num canvas (um por barco) e balança na água a cada quadro. ---- */
         let barcoInfo = null;   // { nivel, pecas, visual } (null: sem barco)
         let cachorroInfo = null;   // fase 111: { raca, nome } (o cachorro da ilha; null: sem cachorro)
+        let capitaoFaltam = null;   // fase 117: quantos pedidos do Capitão faltam hoje (null: sem Capitão na tela)
         const cacheNavio = new Map();
         const NAVIOS = {
             1: { L: 34, deck: 9, lado: 6, mastros: [], casco: '#9e5f34', remos: true },
@@ -3686,6 +3779,11 @@
             }
             const cao = cachorroNaIlha(tempo);   // fase 111: o cachorro passeia pela rua da vila
             if (cao) pe.push({ img: cao.img, x: cao.x, y: cao.y, ordem: cao.y + cao.img.height, flip: cao.flip, bob: cao.bob });
+            const cap = capitaoNaIlha(tempo);   // fase 117: o Capitão no pé do cais (e o balão do baú, se ainda tem pedido)
+            if (cap) {
+                pe.push({ img: cap.img, x: cap.x, y: cap.y, ordem: cap.y + cap.img.height, flip: false, bob: 0 });
+                if (cap.balao) pe.push({ img: cap.balao, x: cap.x + 9, y: cap.y - cap.balao.height + 2 + cap.sobe, ordem: cap.y + cap.img.height + 1, flip: false, bob: 0 });
+            }
             const prox = ilhaInfo.proxima && OBRAS_ILHA[ilhaInfo.proxima];
             if (prox) {   // a placa da próxima obra, pulando: tocar nela abre as obras
                 const px = wx(prox.x) + Math.round((prox.w * T) / 2) - 8, py = (ilhaInfo.proxima === 'cais' ? wy(prox.y + prox.h - 1) : wy(prox.y + prox.h - 1)) - 4 + (Math.floor(tempo / 400) % 2);
@@ -3705,6 +3803,25 @@
             else if (u < 17) { x = bx - (bx - ax) * ((u - 10) / 7); flip = false; }
             else { x = ax; flip = false; andando = false; }
             return { img, x: Math.round(x), y: pe - img.height, flip, bob: andando && Math.floor(tempo / 160) % 2 ? -1 : 0 };
+        }
+        /* fase 117: o Capitão fica no trapiche, logo à direita do pé do cais, balançando de leve (respira e olha
+           o mar). Quando ainda tem pedido hoje, um balão com o baú pula em cima dele. */
+        function capitaoNaIlha(tempo) {
+            if (capitaoFaltam == null || !ilhaInfo) return null;
+            const img = desenhoBicho('capitao_p'), x = wx(52) + 2, pe = wy(53) + T - 2;
+            const resp = Math.floor(tempo / 700) % 4 === 0 ? 1 : 0;
+            return { img, x, y: pe - img.height + resp, balao: capitaoFaltam > 0 ? balaoCapitao() : null, sobe: Math.floor(tempo / 450) % 2 ? -1 : 0 };
+        }
+        let balaoCap = null;
+        function balaoCapitao() {
+            if (balaoCap) return balaoCap;
+            const bau = desenhoBicho('bau_p'), w = bau.width + 6, h = bau.height + 6;
+            const c = document.createElement('canvas'); c.width = w; c.height = h + 4;
+            const g = c.getContext('2d'), R = (x, y, ww, hh, cor) => { g.fillStyle = cor; g.fillRect(x, y, ww, hh); };
+            R(1, 0, w - 2, h, '#3f2631'); R(0, 1, w, h - 2, '#3f2631'); R(1, 1, w - 2, h - 2, '#fff8e8');
+            R(3, h - 1, 4, 2, '#3f2631'); R(4, h - 1, 2, 1, '#fff8e8'); R(3, h + 1, 2, 2, '#3f2631');   // o rabinho do balão
+            g.drawImage(bau, 3, 3);
+            return (balaoCap = c);
         }
         function placaObraCanvas() {
             const c = document.createElement('canvas'); c.width = 16; c.height = 20;
@@ -5633,6 +5750,8 @@
             if (ilhaInfo && MH === MH_ILHA && ty >= Y_ILHA) {
                 const cao = cachorroNaIlha(performance.now());   // fase 111
                 if (cao && px >= cao.x - 3 && px < cao.x + cao.img.width + 3 && py >= cao.y - 4 && py < cao.y + cao.img.height + 2) return 'ilha-cachorro';
+                const cap = capitaoNaIlha(performance.now());   // fase 117: o Capitão (e o balão em cima dele)
+                if (cap && px >= cap.x - 3 && px < cap.x + cap.img.width + 6 && py >= cap.y - (cap.balao ? cap.balao.height : 4) && py < cap.y + cap.img.height + 2) return 'ilha-capitao';
                 if (ilhaInfo.x && Math.abs(px - wx(ilhaInfo.x.x) - T / 2) <= T * 0.9 && py >= wy(ilhaInfo.x.y) - T * 0.6 && py <= wy(ilhaInfo.x.y) + T * 1.2) return 'ilha-x';   // (um pouco maior que o X: dedo)
                 for (const id of [ilhaInfo.proxima, ...(ilhaInfo.feitas || [])]) {
                     const O = OBRAS_ILHA[id];
@@ -5784,6 +5903,7 @@
             else if (alvo === 'casa') { if (cb.aoCasa) cb.aoCasa(); }
             else if (alvo === 'ilha-x') { if (cb.aoIlhaX) cb.aoIlhaX(); }   // fase 106
             else if (alvo === 'ilha-cachorro') { if (cb.aoCachorro) cb.aoCachorro(); }   // fase 111
+            else if (alvo === 'ilha-capitao') { if (cb.aoCapitao) cb.aoCapitao(); }   // fase 117
             else if (alvo === 'ilha-obra') { if (cb.aoIlhaObra) cb.aoIlhaObra(); }   // fase 66: quem está dormindo na casa da fazenda
             else if (alvo === 'barco') { if (cb.aoBarco) cb.aoBarco(); else if (cb.aoPier) cb.aoPier(); }   // fase 62
             else if (typeof alvo === 'object' && alvo.construcao) { if (cb.aoConstrucao) cb.aoConstrucao(alvo.construcao.x, alvo.construcao.y); }
@@ -5898,6 +6018,7 @@
             definirBarco(info) { barcoInfo = info || null; limitarCamera(); precisaDesenhar = true; },   // fase 104: o navio no píer (fase 111: fundeado, a câmera desce até ele)
             definirCachorro(info) { cachorroInfo = info || null; precisaDesenhar = true; },   // fase 111: o cachorro da ilha
             definirEspecial(dia) { diaEspecial = dia || null; precisaDesenhar = true; },   // fase 115: 'namorados' no 11/11
+            definirCapitao(faltam) { capitaoFaltam = faltam == null ? null : faltam; precisaDesenhar = true; },   // fase 117: o Capitão do cais
             // fase 106: a ilha. info = null (sem ilha: o mundo volta ao tamanho da fazenda) ou
             // { feitas: [ids das obras prontas], proxima: id, x: {x, y} do baú do dia }
             definirIlha(info) {

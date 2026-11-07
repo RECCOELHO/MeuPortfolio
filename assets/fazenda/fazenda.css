@@ -3438,6 +3438,9 @@ body.construindo .status {
 .cao-card:focus-visible { outline: 3px solid #3b6fb6; outline-offset: 2px; }
 .cao-meu { display: flex; gap: 12px; align-items: center; }
 .cao-meu > img { width: 112px; height: auto; image-rendering: pixelated; flex-shrink: 0; }   /* (fase 115: só a imagem grande) */
+.cao-meu > .px-spr { flex-shrink: 0; }   /* fase 117: o Capitão */
+.lista .item.feito { opacity: 0.72; }
+.capitao-nota { font-size: 12px; opacity: 0.8; margin: 8px 0 0; }
 .cao-nome { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; margin: 8px 0; }
 .cao-nome label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; flex: 1; min-width: 160px; }
 .cao-nome input { font: inherit; padding: 6px 8px; border: 2px solid #3f2631; border-radius: 4px; background: #fff; }
