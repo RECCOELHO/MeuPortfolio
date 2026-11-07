@@ -1541,6 +1541,10 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-11-07-bichos-ilha', data: '07/11', titulo: 'A tartaruga e o papagaio da ilha', itens: [
+            'Dois bichos novos, só na ilha: a <b>tartaruga</b> (nível 47), que mora no tanque com laguinho, come abacaxi e traz <b>conchas</b> da praia; e o <b>papagaio</b> (52), que mora no viveiro com poleiro, come banana e solta <b>penas de arara</b>.',
+            'Os cercados da ilha têm a cerca nova, de postes e tábuas. Construa em Construir → Bichos, nos terrenos da ilha.',
+            'Na praia, as ondas e a espuma voltaram do lado do píer.'] },
         { id: '2026-11-07-namorados', data: '07/11', titulo: 'O Dia dos Namorados da Fazendinha (11/11)', itens: [
             'Todo <b>11 de novembro</b> é o Dia dos Namorados deste universo: pétalas caem pela fazenda o dia inteiro, de noite o <b>farol da ilha</b> desenha um coração no mar e o céu do alto-mar ganha uma <b>constelação</b>.',
             'Só nesse dia dá para plantar a flor <b>Viih</b> (até 11 por ano; cresce em 1h11). No celeiro, cada Viih que você colheu vira <b>1 diamante</b>; na feira, vende por ouro.'] },
@@ -3104,7 +3108,7 @@
 
     // fase 68: o reator deixou o bicho radioativo (meia hora dando o produto a cada 2 min, direto no celeiro)
     const radioativo = (a) => !!(a && a.radioativo_ate && Date.parse(a.radioativo_ate) > agora());
-    const FEMEA = new Set(['galinha', 'vaca', 'ovelha', 'cabra', 'bufala']);   // para os textos: "a vaca radioativa", "o porco radioativo"
+    const FEMEA = new Set(['galinha', 'vaca', 'ovelha', 'cabra', 'bufala', 'tartaruga']);   // para os textos: "a vaca radioativa", "o porco radioativo"
     function infoAnimal(a) {
         const t = tipoAnimal(a.tipo);
         if (!t) return { estado: 'produzindo' };
