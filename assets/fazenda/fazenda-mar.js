@@ -384,6 +384,35 @@
         const nuvens = (() => { const r = rng(5); return Array.from({ length: 4 }, () => ({ x: r(), y: 0.15 + r() * 0.5, w: 14 + Math.floor(r() * 16), v: 0.0015 + r() * 0.002 })); })();
         const sombras = (() => { const r = rng(3); return Array.from({ length: 8 }, () => ({ x: r(), y: r(), v: (0.004 + r() * 0.006) * (r() < 0.5 ? -1 : 1), f: r() * 6 })); })();
 
+        /* fase 115: no Dia dos Namorados da Fazendinha (11/11), de noite, uma constelação "R ♥ J" no céu: estrelas
+           ligadas por linhas fininhas, piscando devagar. Cada letra é uma lista de traços (de um ponto a outro). */
+        const CONSTELACAO = [
+            [[0, 0], [0, 8]], [[0, 0], [3, 0]], [[3, 0], [4, 1]], [[4, 1], [4, 3]], [[4, 3], [3, 4]], [[3, 4], [0, 4]], [[2, 4], [4, 8]],   // R
+            [[10, 2], [11, 1]], [[11, 1], [12, 1]], [[12, 1], [13, 2]], [[13, 2], [14, 1]], [[14, 1], [15, 1]], [[15, 1], [16, 2]],
+            [[16, 2], [16, 4]], [[16, 4], [13, 8]], [[13, 8], [10, 4]], [[10, 4], [10, 2]],   // ♥
+            [[20, 0], [26, 0]], [[23, 0], [23, 7]], [[23, 7], [22, 8]], [[22, 8], [20, 8]], [[20, 8], [19, 7]]   // J
+        ];
+        function constelacao(noite, hy) {
+            const k = 4, x0 = Math.round(LW * 0.42), y0 = Math.round(hy * 0.3), f = Math.min(1, (noite - 0.3) * 2);   // (abaixo dos botões do topo)
+            g.globalAlpha = 0.3 * f;
+            for (const [[ax, ay], [bx, by]] of CONSTELACAO) {   // as linhas
+                const n = Math.max(Math.abs(bx - ax), Math.abs(by - ay)) * k;
+                for (let i = 0; i <= n; i += 2) ret(x0 + (ax + (bx - ax) * i / n) * k, y0 + (ay + (by - ay) * i / n) * k, 1, 1, '#aab8ff');
+            }
+            const vistos = new Set();
+            for (const seg of CONSTELACAO) for (const [x, y] of seg) {   // as estrelas (uma em cada ponta)
+                const chave = x + ',' + y;
+                if (vistos.has(chave)) continue;
+                vistos.add(chave);
+                const brilho = 0.6 + 0.4 * Math.sin(t / 600 + x * 1.7 + y);
+                g.globalAlpha = f * brilho;
+                const cor = x >= 10 && x <= 16 ? '#ffb3d1' : '#ffffff';   // o coração, rosinha
+                ret(x0 + x * k, y0 + y * k, 2, 2, cor);
+                g.globalAlpha = f * brilho * 0.35;
+                ret(x0 + x * k - 1, y0 + y * k, 4, 2, cor); ret(x0 + x * k, y0 + y * k - 1, 2, 4, cor);
+            }
+            g.globalAlpha = 1;
+        }
         function desenharCeu(noite) {
             const hy = horizonte(), faixa = Math.ceil(hy / CEU_DIA.length);
             CEU_DIA.forEach((c, i) => ret(0, i * faixa, LW, faixa + 1, misturar(c, CEU_NOITE[i], noite)));
@@ -394,6 +423,7 @@
                     ret(s.x * LW, s.y * hy * 0.9, 1, 1, pisca);
                 }
                 g.globalAlpha = 1;
+                if (noite > 0.3 && op.especial && op.especial() === 'namorados') constelacao(noite, hy);   // fase 115
             }
             // o sol de dia, a lua de noite (os dois mudam devagar na virada)
             const cx = Math.round(LW * 0.82), cy = Math.round(hy * 0.32);

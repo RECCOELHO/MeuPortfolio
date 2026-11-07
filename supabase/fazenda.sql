@@ -208,6 +208,30 @@ create index if not exists fazenda_recados_jogador on public.fazenda_recados (jo
 alter table public.fazenda_recados enable row level security;
 revoke all on public.fazenda_recados from anon, authenticated;
 
+-- fase 115: a flor de um dia só (so_dia = 'MM-DD'): a Viih planta só no 11/11, 11 por jogador por ano
+alter table public.fazenda_culturas add column if not exists so_dia text;
+create table if not exists public.fazenda_viih_plantio (
+  jogador_id uuid not null references public.fazenda_jogadores(id) on delete cascade,
+  ano        int not null,
+  plantadas  int not null default 0,
+  primary key (jogador_id, ano)
+);
+alter table public.fazenda_viih_plantio enable row level security;
+revoke all on public.fazenda_viih_plantio from anon, authenticated;
+-- fase 115: recados que chegam todo ano no mesmo dia (mes_dia = 'MM-DD'), para um jogador só
+create table if not exists public.fazenda_recados_anuais (
+  id         bigint generated always as identity primary key,
+  jogador_id uuid not null references public.fazenda_jogadores(id) on delete cascade,
+  mes_dia    text not null,
+  titulo     text not null,
+  texto      text not null,
+  de         text,
+  diamantes  int not null default 0,
+  ultimo_ano int not null default 0
+);
+alter table public.fazenda_recados_anuais enable row level security;
+revoke all on public.fazenda_recados_anuais from anon, authenticated;
+
 -- Fase 4: construções grandes (casas 3x3). (x, y) é o canto de cima à esquerda.
 alter table public.fazenda_itens add column if not exists largura smallint not null default 1;
 alter table public.fazenda_itens add column if not exists altura smallint not null default 1;
@@ -1841,7 +1865,12 @@ begin
       perform set_config('fazenda.cat_ver', v_ver, true);
     end if;
   end if;
+  perform fazenda_recados_anuais_entregar(p_jogador);   -- fase 115: o recado do dia (todo ano)
   return v_json || jsonb_build_object('cat_ver', v_ver,
+    -- fase 115: hoje é o Dia dos Namorados da Fazendinha (11/11)? e quantas Viih ainda dá para plantar
+    'dia_especial', case when to_char(fazenda_hoje(), 'MM-DD') = '11-11' then 'namorados' end,
+    'viih_restam', greatest(0, 11 - coalesce((select v.plantadas from fazenda_viih_plantio v where v.jogador_id = p_jogador
+                                                and v.ano = extract(year from fazenda_hoje())::int), 0)),
     -- fase 114: os recados particulares ainda não lidos (só os seus: o estado é sempre o do próprio jogador)
     'recados', coalesce((select jsonb_agg(jsonb_build_object('id', r.id, 'titulo', r.titulo, 'texto', r.texto, 'de', r.de,
                                                              'diamantes', r.diamantes, 'em', r.criado_em) order by r.id)
@@ -1956,6 +1985,7 @@ begin
       raise exception 'cultura_invalida';
     end if;
     if k.so_ilha and c.y < 45 then raise exception 'so_na_ilha'; end if;   -- fase 108
+    if k.so_dia is not null then perform fazenda_so_dia_plantar(p_jogador, k.so_dia); end if;   -- fase 115: a Viih
     -- semente de outra estação só cresce no alcance de uma estufa elétrica
     v_fora := k.estacao is not null and k.estacao <> fazenda_estacao_em(now());
     v_estufa := fazenda_protegido(p_jogador, 'estufa', c.x, c.y);
@@ -1988,7 +2018,7 @@ begin
       perform fazenda_missao(p_jogador, 'plantar', 1);
       -- fase 57: fazenda completa: plantar também dá XP (fase 70: ele vem na colheita; plantar e arrancar
       -- em seguida virava XP sem fim)
-      update fazenda_jogadores set semente = k.id where id = p_jogador;
+      if k.so_dia is null then update fazenda_jogadores set semente = k.id where id = p_jogador; end if;   -- (fase 115: a Viih não)
     end if;
 
   elsif p_acao in ('erva', 'praga', 'seco') then
@@ -2028,6 +2058,7 @@ begin
     if j.colheita50_ate > now() then
       v_qtd := v_qtd + ceil(v_qtd / 2.0)::int;                          -- fase 93: balança de ouro (+50%)
     end if;
+    if k.so_dia is not null then v_qtd := k.rendimento; end if;        -- fase 115: a Viih, sem bônus
     insert into fazenda_celeiro (jogador_id, item, quantidade)
     values (p_jogador, k.id, v_qtd)
     on conflict (jogador_id, item)
@@ -3448,6 +3479,7 @@ begin
        and (p_item is null or ce.item = p_item)
        and (p_itens is null or ce.item = any(p_itens))   -- fase 74b
        and k.tipo <> 'raro'   -- fase 60: material raro só vende na feira
+       and k.so_dia is null   -- fase 115: a Viih vira diamante (fazenda_flor_vender)
        for update of ce
   loop
     v_qtd := least(coalesce(p_quantidade, r.livre), r.livre);
@@ -3609,6 +3641,7 @@ begin
     raise exception 'nao_maduro';
   end if;
   select * into k from fazenda_culturas where id = c.cultura;
+  if k.so_dia is not null then raise exception 'nada_pra_pegar'; end if;   -- fase 115: a Viih ninguém pega
   v_maduro := c.plantado_em + make_interval(secs => k.tempo_seg);
   if now() < v_maduro then
     raise exception 'nao_maduro';
@@ -3869,6 +3902,7 @@ begin
     if not found then raise exception 'cultura_invalida'; end if;
     if k.estacao is not null and k.estacao <> fazenda_estacao_em(now()) then raise exception 'fora_de_estacao'; end if;
     if k.so_ilha and c.y < 45 then raise exception 'so_na_ilha'; end if;   -- fase 108
+    if k.so_dia is not null then raise exception 'cultura_invalida'; end if;   -- fase 115: a Viih só na sua fazenda
     if (select fazenda_nivel_de(xp, nivel_trava) from fazenda_jogadores where id = p_ator) < k.nivel_min then raise exception 'nivel_insuficiente'; end if;
     perform fazenda_lote_gastar(p_ator, k.custo);   -- (fase 87: no Ajudar tudo, sai no fim, numa gravação só)
     update fazenda_canteiros
@@ -8322,6 +8356,9 @@ returns boolean language sql stable security definer set search_path = public as
   select coalesce((
     select c.estado = 'arado' and k.tipo = 'cultura' and fazenda_nivel_de(j.xp, j.nivel_trava) >= k.nivel_min and j.moedas >= k.custo
            and (k.estacao is null or k.estacao = fazenda_estacao_em(now()) or fazenda_protegido(p_jogador, 'estufa', c.x, c.y))
+           and (k.so_dia is null or (to_char(fazenda_hoje(), 'MM-DD') = k.so_dia   -- fase 115: a Viih só no dia, até 11
+                and coalesce((select v.plantadas from fazenda_viih_plantio v where v.jogador_id = p_jogador
+                               and v.ano = extract(year from fazenda_hoje())::int), 0) < 11))
       from fazenda_canteiros c, fazenda_culturas k, fazenda_jogadores j
      where c.jogador_id = p_jogador and c.posicao = p_posicao and k.id = p_cultura and j.id = p_jogador), false);
 $$;
@@ -8351,7 +8388,7 @@ returns jsonb language sql stable security definer set search_path = public as $
       select jsonb_agg(jsonb_build_object(
                'id', id, 'nome', nome, 'emoji', emoji, 'tempo_seg', tempo_seg,
                'custo', custo, 'venda', venda, 'rendimento', rendimento,
-               'xp', xp, 'nivel_min', nivel_min, 'tipo', tipo, 'estacao', estacao, 'so_ilha', so_ilha)   -- (fase 108)
+               'xp', xp, 'nivel_min', nivel_min, 'tipo', tipo, 'estacao', estacao, 'so_ilha', so_ilha, 'so_dia', so_dia)   -- (fase 108; fase 115)
              order by ordem)
         from fazenda_culturas)
     when 'animais_tipos' then (select jsonb_agg(to_jsonb(t) order by t.ordem) from fazenda_animais_tipos t)
@@ -11360,3 +11397,100 @@ $$;
 
 revoke execute on function public.fazenda_recado_enviar(text, text, text, int, text) from public, anon, authenticated;
 grant execute on function public.fazenda_recado_lido(text, bigint) to anon, authenticated;
+
+-- ------------------------------------------------------------
+-- Fase 115: o Dia dos Namorados da Fazendinha (11/11, todo ano).
+-- • A flor Viih (desenhos do Jessé): planta só no dia 11/11 (horário de Brasília), até 11 por jogador por
+--   ano; cresce em 1h11; cada canteiro dá 1 flor (sem bônus). No celeiro, cada Viih que você colheu vira
+--   1 diamante (fazenda_flor_vender); a que veio da feira não vira. Na feira, vende por ouro. O "Vender
+--   tudo" não leva, ninguém pega do vizinho e os ajudantes só plantam no dia.
+-- • O estado avisa quando é o dia (dia_especial) e quantas ainda dá para plantar (viih_restam); o jogo faz
+--   o resto: pétalas caindo na fazenda, o coração do farol no mar e a constelação no céu do alto-mar.
+-- • Recados que chegam todo ano no mesmo dia (fazenda_recados_anuais, mandados pelo SQL Editor): no dia, o
+--   recado entra na caixa do jogador (fase 114), com os diamantes.
+-- Pode rodar este arquivo de novo.
+-- ------------------------------------------------------------
+-- fase 115: a flor de um dia só (so_dia = 'MM-DD'): a Viih planta só no 11/11, 11 por jogador por ano
+alter table public.fazenda_culturas add column if not exists so_dia text;
+create table if not exists public.fazenda_viih_plantio (
+  jogador_id uuid not null references public.fazenda_jogadores(id) on delete cascade,
+  ano        int not null,
+  plantadas  int not null default 0,
+  primary key (jogador_id, ano)
+);
+alter table public.fazenda_viih_plantio enable row level security;
+revoke all on public.fazenda_viih_plantio from anon, authenticated;
+-- fase 115: recados que chegam todo ano no mesmo dia (mes_dia = 'MM-DD'), para um jogador só
+create table if not exists public.fazenda_recados_anuais (
+  id         bigint generated always as identity primary key,
+  jogador_id uuid not null references public.fazenda_jogadores(id) on delete cascade,
+  mes_dia    text not null,
+  titulo     text not null,
+  texto      text not null,
+  de         text,
+  diamantes  int not null default 0,
+  ultimo_ano int not null default 0
+);
+alter table public.fazenda_recados_anuais enable row level security;
+revoke all on public.fazenda_recados_anuais from anon, authenticated;
+
+insert into public.fazenda_culturas (id, nome, emoji, tempo_seg, custo, venda, rendimento, xp, nivel_min, ordem, tipo, so_dia) values
+  ('viih', 'Viih', '🌸', 4260, 1111, 11111, 1, 11, 1, 1, 'cultura', '11-11')
+on conflict (id) do update set
+  nome = excluded.nome, emoji = excluded.emoji, tempo_seg = excluded.tempo_seg, custo = excluded.custo, venda = excluded.venda,
+  rendimento = excluded.rendimento, xp = excluded.xp, nivel_min = excluded.nivel_min, ordem = excluded.ordem,
+  tipo = excluded.tipo, so_dia = excluded.so_dia;
+
+-- plantar a flor de um dia só: só no dia; a Viih, até 11 por ano
+create or replace function public.fazenda_so_dia_plantar(p_jogador uuid, p_dia text)
+returns void language plpgsql security definer set search_path = public as $$
+declare
+  v_n int;
+begin
+  if to_char(fazenda_hoje(), 'MM-DD') <> p_dia then raise exception 'so_no_dia'; end if;
+  insert into fazenda_viih_plantio (jogador_id, ano, plantadas) values (p_jogador, extract(year from fazenda_hoje())::int, 1)
+  on conflict (jogador_id, ano) do update set plantadas = fazenda_viih_plantio.plantadas + 1
+  returning plantadas into v_n;
+  if v_n > 11 then raise exception 'viih_limite'; end if;
+end;
+$$;
+
+-- vender a flor do dia no celeiro: 1 diamante cada (só a que você colheu; a da feira e a guardada ficam)
+create or replace function public.fazenda_flor_vender(p_token text, p_item text, p_quantidade int default null)
+returns jsonb language plpgsql security definer set search_path = public, extensions as $$
+declare
+  v_id   uuid := fazenda_auth(p_token);
+  v_livre int;
+  v_qtd  int;
+begin
+  if not exists (select 1 from fazenda_culturas where id = p_item and so_dia is not null) then raise exception 'item_invalido'; end if;
+  select ce.quantidade - ce.da_feira - coalesce((select r.quantidade from fazenda_reservas r where r.jogador_id = v_id and r.item = p_item), 0)
+    into v_livre from fazenda_celeiro ce where ce.jogador_id = v_id and ce.item = p_item for update;
+  v_qtd := least(coalesce(p_quantidade, v_livre), coalesce(v_livre, 0));
+  if v_qtd is null or v_qtd <= 0 then raise exception 'flor_da_feira'; end if;
+  update fazenda_celeiro set quantidade = quantidade - v_qtd where jogador_id = v_id and item = p_item;
+  update fazenda_jogadores set diamantes = diamantes + v_qtd where id = v_id;
+  return jsonb_build_object('diamantes', v_qtd, 'estado', fazenda_estado(v_id));
+end;
+$$;
+
+-- os recados do ano: no dia, entram na caixa do jogador (uma vez por ano), com os diamantes
+create or replace function public.fazenda_recados_anuais_entregar(p_jogador uuid)
+returns void language plpgsql security definer set search_path = public as $$
+declare
+  r record;
+  v_ano int := extract(year from fazenda_hoje())::int;
+begin
+  for r in select * from fazenda_recados_anuais
+            where jogador_id = p_jogador and mes_dia = to_char(fazenda_hoje(), 'MM-DD') and ultimo_ano < v_ano for update loop
+    insert into fazenda_recados (jogador_id, titulo, texto, de, diamantes) values (p_jogador, r.titulo, r.texto, r.de, r.diamantes);
+    if r.diamantes > 0 then update fazenda_jogadores set diamantes = diamantes + r.diamantes where id = p_jogador; end if;
+    update fazenda_recados_anuais set ultimo_ano = v_ano where id = r.id;
+  end loop;
+end;
+$$;
+
+revoke execute on function public.fazenda_so_dia_plantar(uuid, text), public.fazenda_recados_anuais_entregar(uuid) from public, anon, authenticated;
+grant execute on function public.fazenda_flor_vender(text, text, int) to anon, authenticated;
+
+select public.fazenda_cache_montar();
