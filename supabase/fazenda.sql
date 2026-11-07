@@ -1846,7 +1846,7 @@ begin
     'chat', jsonb_build_object(
       'ultimo', (select max(c.id) from fazenda_chat c join fazenda_jogadores p on p.id = c.jogador_id
                   where c.criado_em >= now() - make_interval(mins => (fazenda_chat_regras()->>'minutos')::int)
-                    and c.apagado_em is null and p.banido_em is null),
+                    and c.apagado_em is null and p.banido_em is null and (not p.teste or p.id = p_jogador)),   -- (fase 119)
       'reservas', coalesce((select jsonb_agg(jsonb_build_object('id', f.id, 'item', f.item, 'qtd', f.qtd, 'preco', f.preco,
                              'vendedor', v.apelido, 'ate', f.reservado_ate, 'nova', not f.reserva_vista) order by f.id)
                              from fazenda_feira f join fazenda_jogadores v on v.id = f.vendedor_id
@@ -4031,8 +4031,8 @@ begin
   return jsonb_build_object(
     -- mesmo critério de desempate da lista: quem chegou antes fica na frente
     'minha_posicao', (select count(*) + 1 from fazenda_jogadores
-                       where (xp > v_xp or (xp = v_xp and criado_em < v_desde)) and banido_em is null),
-    'total', (select count(*) from fazenda_jogadores where banido_em is null),
+                       where (xp > v_xp or (xp = v_xp and criado_em < v_desde)) and banido_em is null and not teste),   -- (fase 119: sem as contas de teste)
+    'total', (select count(*) from fazenda_jogadores where banido_em is null and not teste),
     'ranking', coalesce((
       select jsonb_agg(jsonb_build_object(
                'id', r.id, 'apelido', r.apelido, 'avatar', r.avatar, 'nivel', fazenda_nivel_de(r.xp, r.nivel_trava), 'xp', r.xp,
@@ -4042,7 +4042,7 @@ begin
                   where ce.jogador_id = r.id), 0),
                'eu', r.id = v_id)
              order by r.xp desc, r.criado_em)
-        from (select * from fazenda_jogadores where banido_em is null order by xp desc, criado_em limit 200) r), '[]'::jsonb)   -- (fase 53: eram 50)
+        from (select * from fazenda_jogadores where banido_em is null and (not teste or id = v_id) order by xp desc, criado_em limit 200) r), '[]'::jsonb)   -- (fase 53: eram 50)
   );
 end;
 $$;
@@ -4063,7 +4063,7 @@ begin
       from fazenda_jogadores j
      where j.id <> v_id
        and j.visto_em > now() - interval '30 days'
-       and j.banido_em is null
+       and j.banido_em is null and not j.teste   -- (fase 119: ninguém cai na conta de teste)
      order by (v_aband and j.visto_em < now() - interval '3 days') desc,
               exists (
                select 1 from fazenda_canteiros c join fazenda_culturas k on k.id = c.cultura
@@ -6176,6 +6176,7 @@ begin
                || case when f.reservado_para = v_id and f.reservado_ate > now() then jsonb_build_object('reservado_ate', f.reservado_ate) else '{}'::jsonb end as o
           from fazenda_feira f join fazenda_jogadores j on j.id = f.vendedor_id
          where f.vendido_em is null and f.vendedor_id <> v_id
+           and not j.teste   -- (fase 119: as ofertas da conta de teste ninguém vê)
            and f.criado_em >= now() - make_interval(hours => (v_r->>'horas')::int)
            and (f.reservado_para is null or f.reservado_para = v_id or f.reservado_ate <= now())
            and (p_item is null or f.item = p_item)
@@ -6184,6 +6185,7 @@ begin
     'itens', coalesce((
       select jsonb_agg(distinct f.item) from fazenda_feira f
        where f.vendido_em is null and f.vendedor_id <> v_id
+         and not exists (select 1 from fazenda_jogadores t where t.id = f.vendedor_id and t.teste)
          and f.criado_em >= now() - make_interval(hours => (v_r->>'horas')::int)
          and (f.reservado_para is null or f.reservado_para = v_id or f.reservado_ate <= now())), '[]'::jsonb),
     'compras_hoje', (select count(*) from fazenda_feira where comprador_id = v_id and vendido_em > now() - interval '1 day'));
@@ -6201,6 +6203,7 @@ alter table public.fazenda_jogadores drop constraint if exists fazenda_jogadores
 alter table public.fazenda_jogadores add constraint fazenda_jogadores_admin_check check (admin in ('dono', 'admin'));
 alter table public.fazenda_jogadores add column if not exists banido_em timestamptz;
 alter table public.fazenda_jogadores add column if not exists banido_motivo text;
+alter table public.fazenda_jogadores add column if not exists teste boolean not null default false;   -- fase 119: conta de teste (fora dos rankings, do evento, das visitas, do chat e da feira)
 create table if not exists public.fazenda_admin_log (
   id        bigint generated always as identity primary key,
   admin_id  uuid references public.fazenda_jogadores(id) on delete set null,
@@ -7303,7 +7306,7 @@ language sql stable security definer set search_path = public as $$
              and fazenda_nivel_de(a.xp, a.nivel_trava) >= (fazenda_evento_regras()->>'convite_nivel')::int)::bigint
     from fazenda_jogadores j
     left join fazenda_semana_base b on b.jogador_id = j.id and b.semana = p_semana
-   where j.banido_em is null
+   where j.banido_em is null and not j.teste   -- (fase 119: a conta de teste não entra no evento)
      -- fase 71: só quem jogou na semana (visto_em, com 1 h de folga), vendeu ou comprou na feira ou trouxe
      -- convite nela: quem não jogou tem tudo zerado (e o placar de todos pesava no fechamento e no Evento)
      and (j.visto_em >= p_desde - interval '1 hour'
@@ -7718,6 +7721,7 @@ begin
                  'pedido', case when c.item is not null then jsonb_build_object('item', c.item, 'qtd', c.qtd, 'preco', c.preco) end) as m
           from fazenda_chat c join fazenda_jogadores p on p.id = c.jogador_id
          where c.criado_em >= v_de and c.apagado_em is null and p.banido_em is null
+           and (not p.teste or p.id = v_id)   -- (fase 119: a conta de teste fala sozinha)
            and (p_depois is null or c.id > p_depois)
          order by c.id desc
          limit (v_r->>'mostrar')::int) x), '[]'::jsonb),
@@ -11926,3 +11930,67 @@ select public.fazenda_cache_montar();
 revoke execute on function public.fazenda_caverna_tesouros(), public.fazenda_ilha_pistas(uuid), public.fazenda_ilha_caca(uuid)
   from public, anon, authenticated;
 grant execute on function public.fazenda_ilha_pista(text, int), public.fazenda_caverna_explorar(text, int) to anon, authenticated;
+
+-- ------------------------------------------------------------
+-- Fase 119: a conta de teste do Jessé. Uma conta marcada como teste (fazenda_jogadores.teste) fica fora do
+-- ranking, do evento da semana, do sorteio das visitas, do chat (só ela vê o que escreve) e da feira (só ela
+-- vê o que anuncia). fazenda_teste_criar (só pelo SQL Editor: o jogo não chama) cria a conta, ou refaz a
+-- que já existe, com tudo liberado para chegar na ilha: nível 60, todos os terrenos (também os da ilha), o
+-- píer pronto, o barco com o kit de expedição, 50 milhões de moedas, 5 mil diamantes, os materiais das
+-- 15 obras e os produtos da ilha para o Capitão. Devolve o código de entrada, gerado no banco: só quem roda
+-- vê. Rodar de novo troca o código (o antigo para de funcionar).
+-- Pode rodar este arquivo de novo.
+-- ------------------------------------------------------------
+alter table public.fazenda_jogadores add column if not exists teste boolean not null default false;   -- fase 119: conta de teste (fora dos rankings, do evento, das visitas, do chat e da feira)
+
+create or replace function public.fazenda_teste_criar(p_apelido text)
+returns table (apelido text, codigo text)
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id     uuid;
+  v_teste  boolean;
+  v_codigo text := fazenda_codigo_recuperacao();
+begin
+  if char_length(coalesce(p_apelido, '')) not between 2 and 20 then raise exception 'O apelido precisa ter de 2 a 20 letras.'; end if;
+  select j.id, j.teste into v_id, v_teste from fazenda_jogadores j where j.apelido = p_apelido;
+  if v_id is not null and not v_teste then
+    raise exception 'Já existe um jogador de verdade chamado "%". Escolha outro apelido para a conta de teste. Nada foi mudado.', p_apelido;
+  end if;
+  if v_id is null then
+    insert into fazenda_jogadores (apelido, codigo_hash, convite, teste)
+    values (p_apelido, encode(digest(v_codigo, 'sha256'), 'hex'), fazenda_novo_convite(), true)
+    returning id into v_id;
+    insert into fazenda_canteiros (jogador_id, posicao, estado, x, y)
+    select v_id, g, 'arado', 9 + g, 4 from generate_series(0, 5) g;
+    insert into fazenda_construcoes (jogador_id, x, y, tipo, colhido_em) values (v_id, 8, 3, 'lampiao', now());
+    update fazenda_jogadores set ganhou_poste = true where id = v_id;
+  else
+    update fazenda_jogadores set codigo_hash = encode(digest(v_codigo, 'sha256'), 'hex') where id = v_id;
+    delete from fazenda_sessoes where jogador_id = v_id;   -- o código antigo e quem estava dentro saem
+  end if;
+  -- tudo liberado (o XP não passa pelo dobro e os presentes de nível não chovem de uma vez)
+  perform set_config('fazenda.xp_puro', '1', true);
+  update fazenda_jogadores
+     set teste = true, xp = greatest(xp, fazenda_xp_nivel(60)::int), nivel_premiado = 60, nivel_base = 60, nivel_trava = 60,
+         moedas = greatest(moedas, 50000000), diamantes = greatest(diamantes, 5000),
+         zonas = 7, direita = 3, ilha_terrenos = 3, pier_em = coalesce(pier_em, now())
+   where id = v_id;
+  perform set_config('fazenda.xp_puro', '', true);
+  insert into fazenda_melhorias (jogador_id, id, nivel)
+  values (v_id, 'barco', 4), (v_id, 'expedicao', 1), (v_id, 'motor', 3), (v_id, 'porao', 3), (v_id, 'rede', 2), (v_id, 'sonar', 3)
+  on conflict (jogador_id, id) do update set nivel = greatest(fazenda_melhorias.nivel, excluded.nivel);
+  -- os materiais das 15 obras (com folga) e os produtos da ilha (para o Capitão)
+  insert into fazenda_celeiro (jogador_id, item, quantidade)
+  select v_id, m.item, m.qtd
+    from (values ('tora', 100), ('tabua_naval', 300), ('cravo', 300), ('vela', 30), ('corda_naval', 10), ('carta_nautica', 20),
+                 ('madeira_nobre', 3), ('pedra_cantaria', 3), ('ferro_forjado', 3), ('leme_dourado', 2), ('ancora', 2), ('perola_negra', 3),
+                 ('abacaxi', 300), ('banana', 100), ('cana_roxa', 200), ('especiarias', 200), ('rapadura', 100), ('tempero_indias', 100),
+                 ('biscoito_bordo', 60), ('racao_marinheiro', 20), ('concha', 50), ('pena_arara', 50)) m(item, qtd)
+   where exists (select 1 from fazenda_culturas k where k.id = m.item)
+  on conflict (jogador_id, item) do update set quantidade = greatest(fazenda_celeiro.quantidade, excluded.quantidade);
+  return query select p_apelido, v_codigo;
+end;
+$$;
+revoke execute on function public.fazenda_teste_criar(text) from public, anon, authenticated;
