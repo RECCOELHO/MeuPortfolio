@@ -4754,8 +4754,10 @@
                 } else pe.push({ p: 'dungeon', i: VISITANTE_ARTE[visitante.tipo] || 86, x: visitante.x, y: visitante.y, flip: visitante.flip, bob: !vn && visitante.andando && Math.floor(tempo / 140) % 2 ? -1 : 0, nadando: vn });
             }
             desenharNavio(pe, tempo);   // fase 104: o navio no píer
+            estatuasHi.length = 0;
             pe.sort((a, b) => (a.ordem != null ? a.ordem : a.y) - (b.ordem != null ? b.ordem : b.y)).forEach((a) => {
                 const x = Math.round(a.x), y = Math.round(a.y) + a.bob;
+                if (a.i === 1230 && a.p === 'farm' && !a.grade) estatuaHiAntes(x, y);   // a estátua do Chico: guarda o que fica atrás dela
                 if (a.grade) {
                     a.grade.forEach((linha, dy) => linha.forEach((i, dx) => tile(q, i, x + dx * T, a.gy + dy * T, false, a.p)));
                     return;
@@ -4785,6 +4787,7 @@
                 fim();
             });
 
+            estatuasHiLer('antes');   // (com tudo o que fica na frente dela já desenhado)
             for (const m of naMaoPraia) if (A_ITEM_PRAIA[m.item] != null) miniTile(A_ITEM_PRAIA[m.item], m.x, m.y, 7);
             desenharMaquinas(lista, tempo);
             desenharSono(tempo);   // fase 66: os zzz das casas (e de quem dorme na sombra)
@@ -4907,7 +4910,9 @@
                     ctx.fillRect(0, 0, canvas.width, canvas.height);
                 }
             }
+            estatuasHiLer('depois');   // (com a noite e as luzes)
             ctx.drawImage(mundo, V.x0, V.y0, vW, vH, dx, dy, vW * k, vH * k);
+            desenharEstatuasHi(k, dx - V.x0 * k, dy - V.y0 * k);
             desenharClima(tempo, k);
         }
 
@@ -5073,6 +5078,63 @@
            Pétalas cor-de-rosa caem pela tela o dia todo; de noite, o farol da ilha (com a obra pronta) desenha
            um coração de luz no mar, ao norte da praia. */
         let diaEspecial = null;
+        /* A estátua do Velho Chico em alta resolução: o desenho inteiro do Jessé (54x86), mostrado no tamanho
+           do jogo (27x43) direto na tela, como uma foto reduzida, em vez de reduzir os pixels. O mundo continua
+           com a versão pequena (para a ordem de quem fica na frente e para a noite); na tela, por cima dela:
+           - o que estava atrás da estátua (lido antes de desenhá-la) e o desenho grande,
+           - escurecidos e iluminados como o mundo (a razão entre o depois e o antes da noite, pixel a pixel),
+           - sem os pixels onde alguém passou na frente (onde o mundo não bate com a versão pequena). */
+        const estatuasHi = [];
+        let estatuaLo = null, estatuaTmp = null;
+        function estatuaHiAntes(x, y) {
+            const lo = desenhoBicho('estatua_chico_p'), bx = Math.round(x + T / 2 - lo.width / 2), by = y + T - lo.height;
+            if (bx < 0 || by < 0 || bx + lo.width > MW || by + lo.height > MH) return;
+            estatuasHi.push({ bx, by, w: lo.width, h: lo.height, fundo: q.getImageData(bx, by, lo.width, lo.height) });
+        }
+        function estatuasHiLer(fase) {
+            for (const e of estatuasHi) e[fase] = q.getImageData(e.bx, e.by, e.w, e.h).data;
+        }
+        const telinha = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+        function desenharEstatuasHi(k, ox, oy) {
+            if (!estatuasHi.length) return;
+            const lo = desenhoBicho('estatua_chico_p'), hi = desenhoBicho('estatua_chico_g');
+            if (!estatuaLo) { const c = telinha(lo.width, lo.height), g = c.getContext('2d'); g.drawImage(lo, 0, 0); estatuaLo = g.getImageData(0, 0, lo.width, lo.height).data; }
+            for (const e of estatuasHi) {
+                if (!e.antes || !e.depois) continue;
+                const { w, h } = e, W2 = w * 2, H2 = h * 2, A = e.antes, D = e.depois, L = estatuaLo;
+                const mul = new ImageData(w, h), add = new ImageData(w, h), cob = new ImageData(w, h);
+                for (let i = 0; i < w * h * 4; i += 4) {
+                    if (L[i + 3] && (A[i] !== L[i] || A[i + 1] !== L[i + 1] || A[i + 2] !== L[i + 2])) cob.data[i + 3] = 255;   // alguém na frente
+                    for (let c = 0; c < 3; c++) {
+                        const f = A[i + c] ? D[i + c] / A[i + c] : 1;
+                        mul.data[i + c] = Math.min(255, Math.round(255 * f));
+                        add.data[i + c] = Math.max(0, D[i + c] - A[i + c]);
+                    }
+                    mul.data[i + 3] = add.data[i + 3] = 255;
+                }
+                const pedaco = (img) => { const c = telinha(w, h); c.getContext('2d').putImageData(img, 0, 0); return c; };
+                if (!estatuaTmp || estatuaTmp.width !== W2 || estatuaTmp.height !== H2) estatuaTmp = { c: telinha(W2, H2), m: telinha(W2, H2), width: W2, height: H2 };
+                const g = estatuaTmp.c.getContext('2d'), gm = estatuaTmp.m.getContext('2d'), hx = Math.round((W2 - hi.width) / 2), hy = H2 - hi.height;
+                g.imageSmoothingEnabled = gm.imageSmoothingEnabled = false;
+                // o que fica atrás + o desenho grande
+                g.globalCompositeOperation = 'source-over'; g.clearRect(0, 0, W2, H2);
+                g.drawImage(pedaco(e.fundo), 0, 0, W2, H2);
+                g.drawImage(hi, hx, hy);
+                // a noite e as luzes, como no mundo
+                g.globalCompositeOperation = 'multiply'; g.drawImage(pedaco(mul), 0, 0, W2, H2);
+                g.globalCompositeOperation = 'lighter'; g.drawImage(pedaco(add), 0, 0, W2, H2);
+                // só onde tem estátua (a pequena ou a grande) e ninguém na frente
+                gm.globalCompositeOperation = 'source-over'; gm.clearRect(0, 0, W2, H2);
+                gm.drawImage(lo, 0, 0, W2, H2); gm.drawImage(hi, hx, hy);
+                gm.globalCompositeOperation = 'destination-out'; gm.drawImage(pedaco(cob), 0, 0, W2, H2);
+                g.globalCompositeOperation = 'destination-in'; g.drawImage(estatuaTmp.m, 0, 0);
+                g.globalCompositeOperation = 'source-over';
+                ctx.save();
+                ctx.imageSmoothingEnabled = (k / 2) % 1 !== 0; ctx.imageSmoothingQuality = 'high';   // a foto reduzida (nítida quando a conta é exata)
+                ctx.drawImage(estatuaTmp.c, Math.round(ox + e.bx * k), Math.round(oy + e.by * k), Math.round(w * k), Math.round(h * k));
+                ctx.restore();
+            }
+        }
         function desenharPetalas(tempo) {
             const cores = ['#f6a1c8', '#e98bb5', '#fbd0e4', '#d96aa0'];
             for (let k = 0; k < 42; k++) {
