@@ -1550,6 +1550,8 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-11-07-estatua-chico', data: '07/11', titulo: 'A estátua nova do Velho Chico', itens: [
+            'A estátua do <b>Velho Chico, Pescador de Betinhas</b> ganhou um desenho novo: o pescador dourado com a vara, o peixe fisgado e o cesto, no pedestal de pedra. Quem já tem a estátua vê a nova na hora.'] },
         { id: '2026-11-07-tesouro', data: '07/11', titulo: 'O mapa do tesouro e a caverna da Caveira Dourada', itens: [
             'Todo dia na ilha tem uma <b>caça ao tesouro</b>: siga as 3 pistas (a <b>pedra da caveira</b>, a <b>garrafa com o bilhete</b> e a <b>pá fincada</b>). Cada uma dá um pedaço do mapa e moedas (às vezes diamantes). Com o mapa inteiro, o <b>X</b> aparece e o baú do dia é seu.',
             'A <b>caverna da Caveira Dourada</b>, no morro, abre com a 15ª obra. Uma vez por dia, escolha um túnel: um tesouro (moedas de ouro, cristal, esmeralda, rubi, cálice, coroa, ídolo ou a rara <b>Caveira Dourada</b>) e 3 diamantes.',
