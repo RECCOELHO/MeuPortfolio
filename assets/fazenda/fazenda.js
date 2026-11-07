@@ -481,7 +481,9 @@
             erro: () => { nota(170, 0, 0.12, 'sawtooth', 0.035); nota(120, 0.1, 0.16, 'sawtooth', 0.035); },
             festa: () => { [523, 659, 784, 1047].forEach((f, n) => nota(f, n * 0.09, 0.14)); },
             tiro: () => { nota(1400, 0, 0.04, 'square', 0.025); nota(900, 0.03, 0.05, 'square', 0.02); },   // fase 94
-            et: () => { nota(330, 0, 0.07, 'sawtooth', 0.035); nota(165, 0.06, 0.12, 'sawtooth', 0.03); }
+            et: () => { nota(330, 0, 0.07, 'sawtooth', 0.035); nota(165, 0.06, 0.12, 'sawtooth', 0.03); },
+            bauTreme: () => { nota(140, 0, 0.05, 'square', 0.04); nota(120, 0.07, 0.05, 'square', 0.04); },   // o baú do tesouro
+            bauAbre: () => { nota(392, 0, 0.08, 'triangle', 0.08); [784, 988, 1175, 1568].forEach((f, n) => nota(f, 0.08 + n * 0.07, 0.16)); }
         };
 
         return {
@@ -1550,6 +1552,8 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-11-07-bau-animado', data: '07/11', titulo: 'O baú se abre na sua frente', itens: [
+            'O baú enterrado do X e o baú do Capitão agora se abrem na tela: o baú cai, treme, abre com um clarão e os prêmios saem voando. Toque para pegar!'] },
         { id: '2026-11-07-estatua-chico', data: '07/11', titulo: 'A estátua nova do Velho Chico', itens: [
             'A estátua do <b>Velho Chico, Pescador de Betinhas</b> ganhou um desenho novo: o pescador dourado com a vara, o peixe fisgado e o cesto, no pedestal de pedra. Quem já tem a estátua vê a nova na hora.'] },
         { id: '2026-11-07-tesouro', data: '07/11', titulo: 'O mapa do tesouro e a caverna da Caveira Dourada', itens: [
@@ -2754,6 +2758,51 @@
             if (painelAtual === 'caverna') abrirPainel('caverna', true);
         }).finally(() => { if (botao) botao.disabled = false; });
     }
+    /* ---------- O baú se abrindo (o desenho do Jessé): cai, treme, abre com o clarão e os prêmios saem voando.
+       premios: [{ ico: html, txt }]. Toque (ou "Pegar!") fecha; devolve uma promessa para o que vem depois. ---------- */
+    function abrirBauAnim(titulo, premios) {
+        return new Promise((pronto) => {
+            const fechado = A.desenhoUrl ? A.desenhoUrl('bau_g') : '', aberto = A.desenhoUrl ? A.desenhoUrl('bau_tesouro') : '';
+            if (!fechado || !aberto) { pronto(); return; }
+            const quieto = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            const fundo = document.createElement('div');
+            fundo.className = 'bau-anim' + (quieto ? ' quieto' : '');
+            fundo.setAttribute('role', 'dialog'); fundo.setAttribute('aria-modal', 'true'); fundo.setAttribute('aria-label', titulo);
+            const n = premios.length;
+            fundo.innerHTML = `<div class="bau-palco">
+                    <p class="bau-titulo">${titulo}</p>
+                    <div class="bau-raios"></div><div class="bau-clarao"></div>
+                    <img class="bau-img bau-fechado" src="${fechado}" alt=""><img class="bau-img bau-aberto" src="${aberto}" alt="">
+                    ${premios.map((p, k) => `<div class="bau-premio" style="--x:${Math.round((k - (n - 1) / 2) * Math.min(96, 300 / Math.max(n, 1)))}px;--d:${k * 0.16}s">${p.ico}<span>${p.txt}</span></div>`).join('')}
+                    ${Array.from({ length: quieto ? 0 : 14 }, (_, k) => `<i class="bau-moedinha" style="--a:${Math.round(-160 + k * 23 + Math.random() * 14)}deg;--r:${Math.round(110 + Math.random() * 70)}px;--d:${(Math.random() * 0.25).toFixed(2)}s">${ico('moeda', 14)}</i>`).join('')}
+                    <button type="button" class="botao verde bau-pegar">Pegar!</button>
+                </div>`;
+            document.body.appendChild(fundo);
+            const timers = [];
+            let fim = false;
+            const fechar = () => { if (fim) return; fim = true; timers.forEach(clearTimeout); fundo.classList.add('saindo'); setTimeout(() => { fundo.remove(); pronto(); }, 220); };
+            const abrir = () => { if (fundo.classList.contains('aberto')) return; fundo.classList.add('aberto'); som.tocar('bauAbre'); setTimeout(() => { const b = fundo.querySelector('.bau-pegar'); if (b) b.focus(); }, 50); };
+            if (quieto) abrir();
+            else {
+                [450, 700, 950].forEach((t) => timers.push(setTimeout(() => som.tocar('bauTreme'), t)));
+                timers.push(setTimeout(abrir, 1250));
+            }
+            fundo.addEventListener('click', () => { if (!fundo.classList.contains('aberto')) { timers.forEach(clearTimeout); abrir(); } else if (Date.now() - aberto0 > 600) fechar(); });
+            const aberto0 = Date.now() + (quieto ? 0 : 1250);
+            const tecla = (e) => { if (e.key === 'Escape' || e.key === 'Enter') { e.preventDefault(); if (fundo.classList.contains('aberto')) fechar(); else abrir(); } };
+            document.addEventListener('keydown', tecla, true);
+            const tirar = new MutationObserver(() => { if (!document.body.contains(fundo)) { document.removeEventListener('keydown', tecla, true); tirar.disconnect(); } });
+            tirar.observe(document.body, { childList: true });
+        });
+    }
+    // os prêmios de um baú, para a animação
+    function premiosBau(moedas, diamantes, raro) {
+        const p = [];
+        if (moedas) p.push({ ico: ico('moeda', 40), txt: '+' + numero(moedas) });
+        if (diamantes) p.push({ ico: ico('diamante', 40), txt: '+' + diamantes });
+        if (raro) { const c = culturas[raro] || { id: raro, nome: raro }; p.push({ ico: itemDe(c, 44), txt: esc(c.nome) }); }
+        return p;
+    }
     function cavarBauIlha() {
         const d = ilhaDe();
         if (!d.obras) return toast(ERROS.ilha_sem_cais);
@@ -2763,8 +2812,9 @@
             const r = await rpc('fazenda_ilha_bau', { p_token: token });
             aplicarEstado(r.estado);
             const raro = r.raro ? culturas[r.raro] || { id: r.raro, nome: r.raro } : null;
-            toast(`Baú enterrado: ${moeda(numero(r.moedas))}${r.diamantes ? ` e ${r.diamantes} ${ico('diamante', 14)}` : ''}${raro ? ` e ${itemDe(raro, 18)} <b>${esc(raro.nome)}</b>` : ''}!`, 'festa');
-            som.tocar(r.diamantes || raro ? 'festa' : 'moeda');
+            abrirBauAnim('Baú enterrado!', premiosBau(r.moedas, r.diamantes, r.raro)).then(() => {   // a animação; o aviso fica no histórico
+                toast(`Baú enterrado: ${moeda(numero(r.moedas))}${r.diamantes ? ` e ${r.diamantes} ${ico('diamante', 14)}` : ''}${raro ? ` e ${itemDe(raro, 18)} <b>${esc(raro.nome)}</b>` : ''}!`, 'festa');
+            });
         });
     }
     // lançar e fisgar: na fila das ações (a busca de 60 s não passa por cima); o erro vira aviso
@@ -7712,7 +7762,8 @@
                 const c = culturas[r.item] || { id: r.item, nome: r.item };
                 som.tocar(r.bau ? 'festa' : 'moeda');
                 toast(`${itemDe(c, 18)} ${r.qtd}× ${esc(c.nome)} para o Capitão: ${ico('moeda', 14)} +${r.moedas.toLocaleString('pt-BR')} ${ico('xp', 14)} +${r.xp.toLocaleString('pt-BR')}${r.diamantes ? ` ${ico('diamante', 14)} +${r.diamantes}` : ''}`, 'festa');
-                if (r.bau) setTimeout(() => toast(`${spr(1203, 22)} O <b>baú do Capitão</b>! ${ico('diamante', 14)} +${r.bau.diamantes} e ${itemDe(culturas[r.bau.raro] || { id: r.bau.raro }, 18)} ${esc((culturas[r.bau.raro] || {}).nome || r.bau.raro)}`, 'festa'), 700);
+                if (r.bau) setTimeout(() => abrirBauAnim('O baú do Capitão!', premiosBau(0, r.bau.diamantes, r.bau.raro)).then(() =>
+                    toast(`${spr(1203, 22)} O <b>baú do Capitão</b>! ${ico('diamante', 14)} +${r.bau.diamantes} e ${itemDe(culturas[r.bau.raro] || { id: r.bau.raro }, 18)} ${esc((culturas[r.bau.raro] || {}).nome || r.bau.raro)}`, 'festa')), 700);
                 if (painelAtual === 'capitao') { capitaoDados = null; abrirPainel('capitao', true); carregarCapitao(); }
             }).finally(() => { capE.disabled = false; });
             return;
