@@ -256,6 +256,20 @@ alter table public.fazenda_capitao enable row level security;
 alter table public.fazenda_capitao_bau enable row level security;
 revoke all on public.fazenda_capitao, public.fazenda_capitao_bau from anon, authenticated;
 
+-- fase 118: a caça ao tesouro do dia (as 3 pistas antes do X) e a caverna da Caveira Dourada
+alter table public.fazenda_jogadores add column if not exists caca_dia date;
+alter table public.fazenda_jogadores add column if not exists caca_passo smallint not null default 0;
+alter table public.fazenda_jogadores add column if not exists caverna_dia date;
+create table if not exists public.fazenda_caverna (
+  jogador_id uuid not null references public.fazenda_jogadores(id) on delete cascade,
+  item       text not null,
+  vezes      int  not null default 0,
+  primeira   timestamptz not null default now(),
+  primary key (jogador_id, item)
+);
+alter table public.fazenda_caverna enable row level security;
+revoke all on public.fazenda_caverna from anon, authenticated;
+
 -- Fase 4: construções grandes (casas 3x3). (x, y) é o canto de cima à esquerda.
 alter table public.fazenda_itens add column if not exists largura smallint not null default 1;
 alter table public.fazenda_itens add column if not exists altura smallint not null default 1;
@@ -1663,6 +1677,12 @@ begin
       -- fase 106: a ilha (pode zarpar? quantas obras; do 45 em diante, a lista; o baú de hoje já foi aberto?)
       'ilha', jsonb_build_object('obras', coalesce(j.ilha_obras, 0), 'pode_ir', fazenda_ilha_pode(p_jogador, v_nivel),
                                  'bau_hoje', j.ilha_bau_dia = fazenda_hoje(), 'x', fazenda_ilha_x(p_jogador),
+                                 -- fase 118: a caça ao tesouro (quantas pistas já achou hoje e onde está a próxima)
+                                 'caca', fazenda_ilha_caca(p_jogador),
+                                 -- fase 118: a caverna (abre com a 15ª obra): já explorou hoje? e a coleção dos tesouros
+                                 'caverna', case when coalesce(j.ilha_obras, 0) >= 15 then jsonb_build_object(
+                                     'hoje', coalesce(j.caverna_dia = fazenda_hoje(), false),
+                                     'colecao', coalesce((select jsonb_object_agg(cv.item, cv.vezes) from fazenda_caverna cv where cv.jogador_id = p_jogador), '{}'::jsonb)) end,
                                  'partes', case when v_nivel >= 45 then fazenda_ilha_obras() end),
       -- fase 111: o cachorro da ilha (null: ainda não escolheu)
       'cachorro', case when j.cachorro_raca is not null then jsonb_build_object('raca', j.cachorro_raca, 'nome', j.cachorro_nome) end
@@ -11009,10 +11029,26 @@ set search_path = public, extensions
 as $$
 declare
   j record;
+begin
+  select ilha_obras, ilha_bau_dia, caca_dia, caca_passo into j from fazenda_jogadores where id = p_jogador;
+  if coalesce(j.ilha_obras, 0) < 1 or j.ilha_bau_dia = fazenda_hoje() then return null; end if;
+  -- fase 118: o X só aparece com o mapa inteiro (as 3 pistas de hoje)
+  if j.caca_dia is distinct from fazenda_hoje() or j.caca_passo < 3 then return null; end if;
+  return fazenda_ilha_x_pos(p_jogador);
+end;
+$$;
+
+-- fase 118: onde fica o X hoje (sem olhar se já pode cavar)
+create or replace function public.fazenda_ilha_x_pos(p_jogador uuid)
+returns jsonb
+language plpgsql stable security definer
+set search_path = public, extensions
+as $$
+declare
+  j record;
   v jsonb;
 begin
-  select ilha_terrenos, ilha_obras, ilha_bau_dia into j from fazenda_jogadores where id = p_jogador;
-  if coalesce(j.ilha_obras, 0) < 1 or j.ilha_bau_dia = fazenda_hoje() then return null; end if;
+  select ilha_terrenos into j from fazenda_jogadores where id = p_jogador;
   select jsonb_build_object('x', c.gx, 'y', c.gy) into v
     from (select gx, gy
             from jsonb_array_elements(fazenda_zonas()) z,
@@ -11129,6 +11165,7 @@ begin
   if not fazenda_ilha_pode(v_id, v_nivel) then raise exception 'ilha_fechada'; end if;
   if coalesce(j.ilha_obras, 0) < 1 then raise exception 'ilha_sem_cais'; end if;
   if j.ilha_bau_dia = fazenda_hoje() then raise exception 'ilha_bau_hoje'; end if;
+  if j.caca_dia is distinct from fazenda_hoje() or j.caca_passo < 3 then raise exception 'ilha_pistas'; end if;   -- fase 118
   v_moeda := round((60000 + (v_nivel - 45) * 8000) * (0.6 + random() * 0.8)
                    * case when j.cachorro_raca is not null then 1.5 else 1 end)::int;   -- fase 111: o cachorro fareja
   if random() < (case when j.cachorro_raca is not null then 1.0 / 3 else 0.25 end) then v_diam := 5 + floor(random() * 11)::int; end if;
@@ -11168,6 +11205,7 @@ update public.fazenda_jogadores set nivel_trava = greatest(public.fazenda_nivel_
 select public.fazenda_cache_montar();
 
 revoke execute on function public.fazenda_ilha_obras(), public.fazenda_ilha_pode(uuid, int), public.fazenda_ilha_x(uuid) from public, anon, authenticated;
+revoke execute on function public.fazenda_ilha_x_pos(uuid) from public, anon, authenticated;   -- fase 118
 grant execute on function public.fazenda_ilha_construir(text, text), public.fazenda_ilha_bau(text) to anon, authenticated;
 
 -- ------------------------------------------------------------
@@ -11694,3 +11732,197 @@ $$;
 revoke execute on function public.fazenda_capitao_itens(), public.fazenda_capitao_sorte(uuid, date, text), public.fazenda_capitao_gerar(uuid, int)
   from public, anon, authenticated;
 grant execute on function public.fazenda_capitao(text), public.fazenda_capitao_entregar(text, int) to anon, authenticated;
+
+-- ------------------------------------------------------------
+-- Fase 118: o mapa do tesouro e a caverna da Caveira Dourada (desenhos do Jessé).
+-- • A caça ao tesouro do dia: com o cais pronto, 3 pistas aparecem uma de cada vez pela ilha (a pedra da
+--   caveira, a garrafa com o bilhete e a pá fincada). Cavar cada uma dá um pedaço do mapa e umas moedas
+--   (às vezes diamantes); com os 3 pedaços o X aparece, e o baú do dia é o fim da caça.
+-- • A caverna: abre com a 15ª obra (a bandeira no morro). Uma vez por dia dá para explorar: um tesouro
+--   (moedas de ouro, cristal, esmeralda, rubi, cálice, coroa, ídolo ou a Caveira Dourada, a mais rara) e
+--   3 diamantes. Os tesouros vendem no celeiro. Achou os 8? A conquista "Tesouro da Caveira Dourada".
+-- Pode rodar este arquivo de novo.
+-- ------------------------------------------------------------
+-- fase 118: a caça ao tesouro do dia (as 3 pistas antes do X) e a caverna da Caveira Dourada
+alter table public.fazenda_jogadores add column if not exists caca_dia date;
+alter table public.fazenda_jogadores add column if not exists caca_passo smallint not null default 0;
+alter table public.fazenda_jogadores add column if not exists caverna_dia date;
+create table if not exists public.fazenda_caverna (
+  jogador_id uuid not null references public.fazenda_jogadores(id) on delete cascade,
+  item       text not null,
+  vezes      int  not null default 0,
+  primeira   timestamptz not null default now(),
+  primary key (jogador_id, item)
+);
+alter table public.fazenda_caverna enable row level security;
+revoke all on public.fazenda_caverna from anon, authenticated;
+
+insert into public.fazenda_culturas (id, nome, emoji, tempo_seg, custo, venda, rendimento, xp, nivel_min, ordem, tipo) values
+  ('moedas_ouro',     'Moedas de ouro',  '🪙', 1, 0,  30000, 1, 0, 60, 130, 'produto'),
+  ('cristal_azul',    'Cristal azul',    '🔷', 1, 0,  45000, 1, 0, 60, 131, 'produto'),
+  ('esmeralda',       'Esmeralda',       '🟢', 1, 0,  60000, 1, 0, 60, 132, 'produto'),
+  ('rubi',            'Rubi',            '🔴', 1, 0,  75000, 1, 0, 60, 133, 'produto'),
+  ('calice_ouro',     'Cálice de ouro',  '🏆', 1, 0,  90000, 1, 0, 60, 134, 'produto'),
+  ('coroa_pirata',    'Coroa pirata',    '👑', 1, 0, 120000, 1, 0, 60, 135, 'produto'),
+  ('idolo_dourado',   'Ídolo dourado',   '🗿', 1, 0, 150000, 1, 0, 60, 136, 'produto'),
+  ('caveira_dourada', 'Caveira Dourada', '💀', 1, 0, 300000, 1, 0, 60, 137, 'produto')
+on conflict (id) do update set
+  nome = excluded.nome, emoji = excluded.emoji, venda = excluded.venda, xp = excluded.xp,
+  nivel_min = excluded.nivel_min, ordem = excluded.ordem, tipo = excluded.tipo;
+
+insert into public.fazenda_conquistas_tipos (id, nome, descricao, medida, meta, recompensa, ordem) values
+  ('caverna_colecao', 'Tesouro da Caveira Dourada', 'Ache os 8 tesouros da caverna', 'caverna', 8, 500000, 39)
+on conflict (id) do update set nome = excluded.nome, descricao = excluded.descricao, medida = excluded.medida,
+  meta = excluded.meta, recompensa = excluded.recompensa, ordem = excluded.ordem;
+update public.fazenda_conquistas_tipos set diamantes = 150 where id = 'caverna_colecao';
+
+-- os tesouros da caverna e a chance de cada um (em 100)
+create or replace function public.fazenda_caverna_tesouros()
+returns jsonb language sql immutable as $$
+  select '[{"id": "moedas_ouro", "chance": 26}, {"id": "cristal_azul", "chance": 18}, {"id": "esmeralda", "chance": 15},
+           {"id": "rubi", "chance": 13}, {"id": "calice_ouro", "chance": 11}, {"id": "coroa_pirata", "chance": 8},
+           {"id": "idolo_dourado", "chance": 6}, {"id": "caveira_dourada", "chance": 3}]'::jsonb;
+$$;
+
+-- as 3 pistas de hoje: quadrados livres dos seus terrenos da ilha, sorteados por jogador e dia, longe do X
+-- (sem terreno, na areia da vila)
+create or replace function public.fazenda_ilha_pistas(p_jogador uuid)
+returns jsonb
+language plpgsql stable security definer
+set search_path = public, extensions
+as $$
+declare
+  j   record;
+  v_x jsonb := fazenda_ilha_x_pos(p_jogador);
+  v   jsonb;
+begin
+  select ilha_terrenos into j from fazenda_jogadores where id = p_jogador;
+  select jsonb_agg(jsonb_build_object('x', c.gx, 'y', c.gy)) into v
+    from (select gx, gy
+            from (select gx, gy
+                    from jsonb_array_elements(fazenda_zonas()) z,
+                         generate_series((z->>'x')::int, (z->>'x')::int + (z->>'w')::int - 1) gx,
+                         generate_series((z->>'y')::int, (z->>'y')::int + (z->>'h')::int - 1) gy
+                   where (z->>'n')::int between 11 and 10 + coalesce(j.ilha_terrenos, 0)
+                   order by md5(p_jogador::text || fazenda_hoje()::text || 'pista' || gx || ',' || gy)
+                   limit 60) c0
+           where not (gx = (v_x->>'x')::int and gy = (v_x->>'y')::int)
+             and not exists (select 1 from fazenda_canteiros k where k.jogador_id = p_jogador and k.x = c0.gx and k.y = c0.gy)
+             and not exists (select 1 from fazenda_construcoes k join fazenda_itens i on i.id = k.tipo
+                              where k.jogador_id = p_jogador and c0.gx >= k.x and c0.gx < k.x + i.largura
+                                and c0.gy >= k.y and c0.gy < k.y + i.altura)
+           limit 3) c;
+  if coalesce(jsonb_array_length(v), 0) < 3 then
+    v := '[{"x": 47, "y": 54}, {"x": 55, "y": 54}, {"x": 49, "y": 58}]'::jsonb;
+  end if;
+  return v;
+end;
+$$;
+
+-- a caça de hoje para o estado: { passo (0 a 3), pista: {n, x, y}, cavadas: [{x, y}] } (null sem o cais ou com o baú já aberto)
+create or replace function public.fazenda_ilha_caca(p_jogador uuid)
+returns jsonb
+language plpgsql stable security definer
+set search_path = public, extensions
+as $$
+declare
+  j       record;
+  v_passo int;
+  v_p     jsonb;
+begin
+  select ilha_obras, ilha_bau_dia, caca_dia, caca_passo into j from fazenda_jogadores where id = p_jogador;
+  if coalesce(j.ilha_obras, 0) < 1 or j.ilha_bau_dia = fazenda_hoje() then return null; end if;
+  v_passo := case when j.caca_dia = fazenda_hoje() then j.caca_passo else 0 end;
+  v_p := fazenda_ilha_pistas(p_jogador);
+  return jsonb_build_object('passo', v_passo,
+    'pista', case when v_passo < 3 then v_p->v_passo || jsonb_build_object('n', v_passo + 1) end,
+    'cavadas', (select coalesce(jsonb_agg(e order by k), '[]'::jsonb) from jsonb_array_elements(v_p) with ordinality q(e, k) where k <= v_passo));
+end;
+$$;
+
+-- cavar a pista p_n (a próxima): um pedaço do mapa, moedas (de 9,6 a 14,4 mil no 46; de 31 a 47 mil no 60) e,
+-- 1 em 5, de 1 a 3 diamantes. Com a 3ª, o X aparece.
+create or replace function public.fazenda_ilha_pista(p_token text, p_n int)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id    uuid := fazenda_auth(p_token);
+  j       record;
+  v_nivel int;
+  v_passo int;
+  v_moeda int;
+  v_diam  int := 0;
+begin
+  select * into j from fazenda_jogadores where id = v_id for update;
+  v_nivel := fazenda_nivel_de(j.xp, j.nivel_trava);
+  if not fazenda_ilha_pode(v_id, v_nivel) then raise exception 'ilha_fechada'; end if;
+  if coalesce(j.ilha_obras, 0) < 1 then raise exception 'ilha_sem_cais'; end if;
+  if j.ilha_bau_dia = fazenda_hoje() then raise exception 'ilha_bau_hoje'; end if;
+  v_passo := case when j.caca_dia = fazenda_hoje() then j.caca_passo else 0 end;
+  if p_n is distinct from v_passo + 1 or p_n > 3 then raise exception 'pista_ordem'; end if;
+  v_moeda := round((12000 + greatest(v_nivel - 45, 0) * 1500) * (0.8 + random() * 0.4))::int;
+  if random() < 0.2 then v_diam := 1 + floor(random() * 3)::int; end if;
+  update fazenda_jogadores set moedas = least(2147483647, moedas::bigint + v_moeda)::int, diamantes = diamantes + v_diam,
+         moedas_ganhas = moedas_ganhas - v_moeda,   -- (como o baú, não conta no evento das moedas)
+         caca_dia = fazenda_hoje(), caca_passo = p_n
+   where id = v_id;
+  return jsonb_build_object('n', p_n, 'moedas', v_moeda, 'diamantes', v_diam, 'estado', fazenda_estado(v_id));
+end;
+$$;
+
+-- explorar a caverna (1 vez por dia, com as 15 obras): um tesouro sorteado e 3 diamantes. p_canto é o canto
+-- que a pessoa escolheu (só para a cena). Os 8 tesouros achados: a conquista (500 mil e 150 diamantes).
+create or replace function public.fazenda_caverna_explorar(p_token text, p_canto int)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id    uuid := fazenda_auth(p_token);
+  j       record;
+  v_nivel int;
+  v_r     numeric := random() * 100;
+  v_soma  numeric := 0;
+  t       jsonb;
+  v_item  text;
+  v_vezes int;
+  c       record;
+  v_col   boolean := false;
+begin
+  select * into j from fazenda_jogadores where id = v_id for update;
+  v_nivel := fazenda_nivel_de(j.xp, j.nivel_trava);
+  if not fazenda_ilha_pode(v_id, v_nivel) then raise exception 'ilha_fechada'; end if;
+  if coalesce(j.ilha_obras, 0) < 15 then raise exception 'caverna_fechada'; end if;
+  if j.caverna_dia = fazenda_hoje() then raise exception 'caverna_hoje'; end if;
+  for t in select * from jsonb_array_elements(fazenda_caverna_tesouros()) loop
+    v_soma := v_soma + (t->>'chance')::numeric;
+    if v_item is null and v_r < v_soma then v_item := t->>'id'; end if;
+  end loop;
+  v_item := coalesce(v_item, 'moedas_ouro');
+  insert into fazenda_celeiro (jogador_id, item, quantidade) values (v_id, v_item, 1)
+  on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + 1;
+  insert into fazenda_caverna (jogador_id, item, vezes) values (v_id, v_item, 1)
+  on conflict (jogador_id, item) do update set vezes = fazenda_caverna.vezes + 1
+  returning vezes into v_vezes;
+  update fazenda_jogadores set diamantes = diamantes + 3, caverna_dia = fazenda_hoje() where id = v_id;
+  if (select count(*) from fazenda_caverna where jogador_id = v_id) >= jsonb_array_length(fazenda_caverna_tesouros()) then
+    insert into fazenda_conquistas (jogador_id, conquista) values (v_id, 'caverna_colecao') on conflict do nothing;
+    if found then
+      select * into c from fazenda_conquistas_tipos where id = 'caverna_colecao';
+      update fazenda_jogadores set moedas = least(2147483647, moedas::bigint + c.recompensa)::int, diamantes = diamantes + c.diamantes
+       where id = v_id;
+      v_col := true;
+    end if;
+  end if;
+  return jsonb_build_object('item', v_item, 'canto', p_canto, 'diamantes', 3, 'novo', v_vezes = 1, 'colecao', v_col,
+                            'estado', fazenda_estado(v_id));
+end;
+$$;
+
+select public.fazenda_cache_montar();
+
+revoke execute on function public.fazenda_caverna_tesouros(), public.fazenda_ilha_pistas(uuid), public.fazenda_ilha_caca(uuid)
+  from public, anon, authenticated;
+grant execute on function public.fazenda_ilha_pista(text, int), public.fazenda_caverna_explorar(text, int) to anon, authenticated;
