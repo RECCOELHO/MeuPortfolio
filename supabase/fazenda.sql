@@ -3659,6 +3659,12 @@ begin
     'max_canteiros', fazenda_max_canteiros(v_nivel),
     'zonas', j.zonas,
     'direita', j.direita,   -- fase 78
+    -- fase 125: o navio do vizinho (com o píer pronto): o nível, as peças e a pintura, para quem visita ver
+    'navio', case when j.pier_em is not null then jsonb_build_object(
+      'nivel', coalesce((fazenda_mar_item(p_dono, 'barco')->>'valor')::int, 1),
+      'pecas', (select jsonb_object_agg(x, coalesce((select m.nivel from fazenda_melhorias m where m.jogador_id = p_dono and m.id = x), 0))
+                  from unnest(array['motor', 'sonar', 'porao', 'rede', 'expedicao']) x),
+      'visual', coalesce(j.barco_visual, '{}'::jsonb)) end,
     -- fase 48: hoje o visitante ainda pode salvar até 2 plantas murchas e dar ração a até 10 bichos aqui
     'salvos_hoje', (select count(*) from fazenda_visitas where ator_id = p_ator and dono_id = p_dono and tipo = 'salvar'
                      and criado_em > now() - interval '1 day'),
@@ -4961,6 +4967,10 @@ begin
   perform fazenda_checar_lugar(v_id, fazenda_terrenos(j.zonas, j.direita) + 100 * j.ilha_terrenos, p_nx, p_ny, i.largura, i.altura, p_x, p_y);
   if i.categoria = 'praia' and not (p_ny >= 32 and p_ny + i.altura - 1 <= 36) then raise exception 'so_na_areia'; end if;   -- fase 73
   if i.so_ilha and p_ny < 45 then raise exception 'so_na_ilha'; end if;   -- fase 108
+  if i.id = 'fabrica_auto' and exists (select 1 from fazenda_construcoes where jogador_id = v_id and tipo = 'fabrica_auto'   -- fase 125
+                                       and not (x = p_x and y = p_y) and (y >= 45) = (p_ny >= 45)) then
+    raise exception 'fabrica_lado';
+  end if;
   update fazenda_construcoes set x = p_nx, y = p_ny
    where jogador_id = v_id and x = p_x and y = p_y;
   if not found then raise exception 'item_invalido'; end if;
@@ -6614,6 +6624,7 @@ returns int language sql immutable as $$
            when 'gerador_bio'  then p_limite + (p_nivel >= 21)::int + (p_nivel >= 24)::int + 2 * (p_nivel >= 28)::int   -- fase 78: 2, 3, 4 e 6
            when 'hidreletrica' then p_limite + (p_nivel >= 23)::int + (p_nivel >= 27)::int                                -- fase 78: 1, 2 e 3
            when 'reator'       then p_limite + (p_nivel >= 40)::int   -- fase 75: o 2º reator no nível 40
+           when 'fabrica_auto' then p_limite + (p_nivel >= 46)::int   -- fase 125: a 2ª fábrica automática, para a ilha
            else p_limite end;
 $$;
 
@@ -10479,6 +10490,10 @@ begin
   -- fase 73: o que é da praia só vai na areia do Litoral (y 32 a 36)
   if i.categoria = 'praia' and not (p_y >= 32 and p_y + i.altura - 1 <= 36) then raise exception 'so_na_areia'; end if;
   if i.so_ilha and p_y < 45 then raise exception 'so_na_ilha'; end if;   -- fase 108
+  -- fase 125: fábrica automática, no máximo uma de cada lado (uma na fazenda e uma na ilha)
+  if i.id = 'fabrica_auto' and exists (select 1 from fazenda_construcoes where jogador_id = v_id and tipo = 'fabrica_auto' and (y >= 45) = (p_y >= 45)) then
+    raise exception 'fabrica_lado';
+  end if;
   if i.limite is not null   -- fase 57: painel solar e turbina sobem com o nível
      and (select count(*) from fazenda_construcoes where jogador_id = v_id and tipo = i.id)
          >= fazenda_limite_maquina(i.id, i.limite, fazenda_nivel_de(j.xp, j.nivel_trava)) then
@@ -12157,3 +12172,10 @@ on conflict (id) do update set
 
 select public.fazenda_cache_montar();
 grant execute on function public.fazenda_caverna_explorar(text, int, boolean) to anon, authenticated;
+
+-- ------------------------------------------------------------
+-- Fase 125: a 2ª fábrica automática no nível 46, para automatizar a ilha (no máximo uma de cada lado: uma na
+-- fazenda e uma na ilha; a rede de canos encostada em cada uma leva e traz do celeiro), e o navio do vizinho
+-- aparece na visita (fazenda_vizinho manda o nível, as peças e a pintura dele).
+-- Pode rodar este arquivo de novo.
+-- ------------------------------------------------------------

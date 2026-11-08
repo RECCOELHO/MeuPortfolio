@@ -1050,7 +1050,7 @@
         // fase 74: a cabreira com o leite de cabra e o bufaleiro com o de búfala
         cabreira: { ...MOCA, ferramenta: 1148, visual: { cabelo: 1, pele: 2, roupa: 5, extra: 'lenco' } }, bufaleiro: { ...MOCO, ferramenta: 1149 },
         // fase 124: os cuidadores da ilha, com a concha e a pena de arara (desenhos do Jessé)
-        tartarugueiro: { ...MOCO, ferramenta: 1197 }, papagaieira: { ...MOCA, ferramenta: 1198, visual: { cabelo: 0, pele: 4, roupa: 4, extra: 'chapeu_palha' } }
+        tartarugueiro: { ...MOCO, desenho: { frente: 'juvenal_frente', passo: ['juvenal_passo1', 'juvenal_passo2'], retrato: 'juvenal_busto' } },   // o desenho do Jessé papagaieira: { ...MOCA, ferramenta: 1198, visual: { cabelo: 0, pele: 4, roupa: 4, extra: 'chapeu_palha' } }
     };
     // fase 68: os acessórios das moças (16 x 16, por cima do desenho, com as letras da PAL_PROPRIA)
     const ACESSORIOS = {
@@ -1087,6 +1087,8 @@
         return cv;
     }
     function htmlAjudante(tipo, px = 32) {
+        const d = (AJUDANTE_ARTE[tipo] || {}).desenho;   // o retrato do desenho do Jessé (o busto)
+        if (d) return `<span class="px-spr" style="width:${px}px;height:${px}px;background:none;display:inline-flex;align-items:flex-end;justify-content:center" aria-hidden="true"><img src="${desenhoBicho(d.retrato).url}" alt="" style="width:${px}px;height:auto;image-rendering:pixelated"></span>`;
         const c = ajudanteCanvas(tipo);
         return c ? `<span class="px-spr" style="background-image:url('${c.url || c.toDataURL()}');width:${px}px;height:${px}px;background-size:${px}px ${px}px;background-position:0 0" aria-hidden="true"></span>` : null;
     }
@@ -2173,6 +2175,17 @@
     });
     Object.assign(INDICE_DESENHO, { 1230: 'estatua_chico_p' });
     Object.assign(DESENHO_GRANDE, { 1230: 'estatua_chico_g' });
+    /* ---------- o Seu Juvenal, o tratador das tartarugas (desenho do Jessé): de frente, os 2 passos andando para a
+       direita (para a esquerda, espelha) e o busto (o retrato da Loja). */
+    Object.assign(DESENHO_BICHO, {
+        juvenal_frente_p: { pal: { a: '#22161e', b: '#bd7546', c: '#f6c17b', d: '#5d2e22', e: '#894832', f: '#060302', g: '#b0a6a0', h: '#faead0', i: '#dcc1a6', j: '#659549', k: '#f2bc3a', l: '#d0a176', m: '#8c7363' }, linhas: ['......aaaaaa.......', '.....abccccca......', '.....acccccca......', '...aadceeeeeeaa....', '.aabcbbffffbbccaa..', '.abbffeeeeeefebba..', '..affgdebbefeffa...', '...aegffbbffbea....', '....adebeebeba.....', '.....abbddbba......', '.a...afgbbgffaaaaa.', 'ahaaaiiffffifjffjfa', '.ahhhhhieeghfkkbba.', '.ahcehfhhhhhfkfkka.', '.afhblfhhghfffffda.', '.abfiefhhghfeddeba.', '..aaaffihehifeedaa.', '.....alllellmfaa...', '.....allfamlla.....', '.....adda.ada......', '.....adba.ada......', '....addda.adda.....', '.....aaa..aaaa.....'] },
+        juvenal_passo1_p: { pal: { a: '#22161e', b: '#f7c37d', c: '#bf7347', d: '#8c4531', e: '#040200', f: '#84797c', g: '#aaa5a5', h: '#2b1815', i: '#fce1b4', j: '#cd9e77', k: '#f8eddb', l: '#cebaa9', m: '#ae9b8c', n: '#91684e', o: '#5f3327' }, linhas: ['....aaaaaaa.....', '....abbbbbba....', '...acbbbbddeaaa.', '...acddddcbbbbba', '..adbbbceeeecaa.', 'aabceeeedddda...', 'aaaefffccddca...', '...acdgcdecca...', '...acdfccdcca...', '....ahgcccggeaaa', '....ahegggccijia', '...akklefeecbia.', '...akkkkkdedbia.', '..afmknkkkejbha.', '..addelkkkebha..', '...accekkkeea...', '...accelloja....', '...aeejjjnja....', '...anjjaanddaa..', '..acdja..adcooa.', '..acoa...adoea..', '...aca....aaa...', '....aa..........'] },
+        juvenal_passo2_p: { pal: { a: '#22161e', b: '#f6c378', c: '#c18652', d: '#8d452f', e: '#040200', f: '#703b2e', g: '#572d23', h: '#bf6843', i: '#ada39f', j: '#926049', k: '#867c7e', l: '#f9ecd9', m: '#eccfac', n: '#e79372', o: '#cba77c' }, linhas: ['.......aaaa.....', '.....aabbbba....', '....acbbbbbba...', '...accddddddeaaa', '...adfdbbbbcccaa', '.aabbcceeeeeea..', 'acccgeddhhhha...', '.aaefidhddhha...', '...afjhheehda...', '....afhhdhifeaa.', '....agkiihfhela.', '....ameeiiiemma.', '...alllieeenbma.', '...aliklljedmea.', '...aiffeliebea..', '...aghhhelemaa..', '...afehhheea....', '...ajoeeeooa....', '...ajooajjga....', '..ahdfa.aghhaa..', '.aghga...ahhgga.', '..aga.....agga..', '...aaa....aaa...'] },
+        juvenal_frente_g: { pal: { a: '#060302', b: '#bd7546', c: '#f6c17b', d: '#d0a176', e: '#894832', f: '#5d2e22', g: '#8c7363', h: '#b0a6a0', i: '#faead0', j: '#659549', k: '#dcc1a6', l: '#235828', m: '#3a743f', n: '#f2bc3a' }, linhas: ['.............aaaaaaaa...............', '...........aabccccccdaa.............', '..........abccccccccccba............', '.........abbccccccccccbba...........', '.........abccccccccccccba...........', '........abbbeeeeeeeeeebbba..........', '........afffeeeeeeeeeeeeea..........', '.....aaaabccccccccccccccdaaaa.......', '...aabcccbbbbbbbbbbbbbbbbcccbaa.....', '.aabccbbbbbeaaaaaaaaaaebbbbbccbaa...', '.adcbbbbgaaaeeeeeeeeeeaaaebbbbdda...', '..afbbdaageehhbbbbbbhheegaebbbfa....', '...aaaaaahegeeebbbbeeegehaaaaaa.....', '......aeehefaaebbbbeaafeheea........', '......aefhbiaabbbbbbaaibhfea........', '......abehbiaabbbbbbaaibheba........', '......aebfbeebbeeeebbeebebea........', '.......aaabbbbhhffhhbbbbaaa.........', '.........ahbbgfhhhhfgbbha...........', '.........aghhbbffffbbhhga.a.........', '..........aghhbbbbbbhhgahajaaa..aa..', 'aaa.aa..hakaaghhhhhhhaaaaajajaaalja.', 'aikaida.akkkaagghhhgaakajmjjahamjaaa', 'acbiikkaaaikihaaaaaahihkaljlaaaljjja', '.aiididiiiahiikeeeekiihkanbnabbnlma.', 'aiidiicbdiiaihkkeehhhikanbnbebnbba..', '.adiiicebciahiiikeiiikiabnbabnbnea..', '.acciccebdiiaiiiihiiiifanbnanbnbffa.', '.ackkicebdciaiiiihiiiiadaaaaaaaafba.', '.akaaiicbdciaiiiihiiiiafbdbdbdbdffa.', '..abbakideciaiiiihiiiiaeeffffeefbba.', '..aebbakkkeiakiiihiiiifebdedbefbeea.', '...aebbaaakafkkiihiiikkaeedebfbeea..', '....aaaa.aaaeeeeeeeeeeeeabedefbeaa..', '.........aggdddddbdddddggaaaaaaa....', '.........agddddgeeedddddga..........', '.........agddddgaaagddddga..........', '.........agddddga.agddddga..........', '..........affffaa.aaffffa...........', '..........aeeeea...aeeeea...........', '..........abbbea...aebbba...........', '.........affffba...abffffa..........', '........abbebfba...abfbebba.........', '........affffffa...affffffa.........', '........aaaaaaaa...aaaaaaaa.........'] },
+        juvenal_passo1_g: { pal: { a: '#040200', b: '#ae9b8c', c: '#bf7347', d: '#f7c37d', e: '#cd9e77', f: '#8c4531', g: '#91684e', h: '#84797c', i: '#aaa5a5', j: '#5f3327', k: '#fce1b4', l: '#f8eddb', m: '#2b1815', n: '#cebaa9' }, linhas: ['............aaaaaaaaa..........', '........baaacdddddddea.........', '........accddddddddddca........', '.......accddddddddddddca.......', '......acccdcddddddeffffa.......', '......accccdcffffffffffaaaaaaa.', '......acccffffffffccdddddddddda', '......affffffcdddddddccccccccga', '......affcdddddcccccccccccceaa.', '...aaacdddecccccaaaaaaaaagaa...', '.aacdddccccgaaaaffffffffaa.....', 'aeddccceaaaahhffffiibccca......', 'afcccgaahhhhhhfccbfffccca......', '.aaaaaahhjjiifcccffafccfa......', '......ahcccfifccfklacccca......', '......ahcffficcccllaccccca.....', '......ahccffhccccfffccccca.....', '......ahfccfhccccccccccja......', '.......ahmmfhiccccbjiiiia..aaaa', '........ahmfgiiccbccjjfjaaakeka', '........iammghiiiiicccccakekkea', '........aannaahiiiiiiiiakkkekka', '.......aallnnhamhiiiiiacdkkkea.', '.......alllllbnbjaaaaaefkdkkdda', '......anllllllblnffbaeffedkkkea', '......alllllnllhllflaeffdddkaa.', '.....ahbbbllglllllblaefedddmca.', '.....anlllniglllllllnaeddkmcca.', '.....afffffanllllllnladdemcga..', '.....afcccfanllllllblakaaffa...', '.....afccccfanlllllblaagfaa....', '......accccccannlllblaaaa......', '......afccccfannnnnhfja........', '.......afccccaffjjjjeeaa.......', '.......aafffaeeeeegeeeea.......', '......magaaaeeeegjgeejma.......', '......aaggeeeeegagggjffa.......', '.....aafjeeeeegaajgjffffaaaa...', '....aacffjeeega..aaffffcjjcfa..', '....ajccffjaaa....afffccjjjja..', '....ajccfja........afccjjjaa...', '....ajjjjjaa.......afjjjaaa....', '.....ajjccca........ajaaaa.....', '......ajjjja........aaaa.......', '.......aaaaa...................'] },
+        juvenal_passo2_g: { pal: { a: '#040200', b: '#c18652', c: '#f6c378', d: '#8d452f', e: '#703b2e', f: '#e79372', g: '#926049', h: '#572d23', i: '#bf6843', j: '#ada39f', k: '#867c7e', l: '#cba77c', m: '#f9ecd9', n: '#eccfac' }, linhas: ['............aaaaaaaaa..........', '.........aaabcccccccba.........', '........abbccccccccccba........', '.......abbccccccccccccba.......', '......abbbbcccccccbdddea.......', '......abbbccbddddddddddaaaaaaa.', '......abbbddddddddbbcccccccccca', '......addeeddbcccccccbbbbbbbbba', '.....aaddbcccccbbbbbbbbbbbbbaa.', '...aaabcccfbbbbbaaaaaaaaagaa...', '.aabcccbbbbgaaaaddddddddaa.....', 'abbbbbbbhaaadddiiiiiiiija......', 'aabbbgaakkkkddijjjiiiiiea......', '.aaaaaeeejjjdijddddiiiiaa......', '.....aeiiejdiielaaiiidmaa......', '.....addegjiiiimaaiiidiaa......', '.....adieekiiigmaaiiiidea......', '......aiiekiiiiddiiiheeia.aaa..', '.......ahekjiiiiiejjjjjbaaana..', '........aakkjjiijieeehijamffa..', '........ahhkkjjjjiiiibjaalmca..', '.......aannaakjjjjjjjjjannbna..', '.......ammmnnaakjjjjjaanfnnba..', '......anmmmmmkjaaaaaafffcnnna..', '......ammmmjmmjmdejafffgcnlna..', '.....anmmjjkmmmkngmafiggnaaa...', '.....anmjmmmkmmmmgmagddnhiia...', '......ajmheeehmmmjmagfnaidda...', '......ajediiiaaammjmaccaida....', '......ahdiiiiiiiamjmaniddaa....', '......aaddiiiiidamjmaedaa......', '......akaddiiiiiialjada........', '......aeeaaddiiidaeeaa.........', '......aggbaaddiiaallga.........', '......agglllaaaaellllea........', '.....aagllllllhggglllga........', '.....adhgllllhaaggbhhha........', '....aiddhellaa.aaghdiiaa.......', '...aiiidddhaa...aadiiiiaaaa....', '..ahiiiidaaa.....adiiiihhida...', '..ahhiihaa........aiiiihhhha...', '..aahhhha.........aaiidhhaa....', '...ahhiga..........aihhhaa.....', '....ahhhha.........aahaaa......', '.....aaaaa..........aaa........'] },
+        juvenal_busto: { pal: { a: '#020100', b: '#c4864b', c: '#f7c376', d: '#824127', e: '#261319', f: '#bf6841', g: '#934a34', h: '#877e80', i: '#653026', j: '#aaa4a5', k: '#867366', l: '#f8ecd9', m: '#e3ccb4', n: '#d0bcab' }, linhas: ['...................aaaaaaaaaaaaa..................', '...................aaaaaaaaaaaaa..................', '................aaabbccccccccbbaaaa...............', '...............aabccccccccccccccbdaa..............', '..............aebccccccccccccccccbbaa.............', '.............aabbcbccccccccccbccbcbbaa............', '............aabbcccbccccccccccbccbbbba............', '............aabbcbccccccccccccccbbbbba............', '...........aabbccbbdddddddddddbbccbbbbaa..........', '...........aabbddddddddddddddddddddbbbaa..........', '..........aaddddddddddddddddddddddddddaa..........', '..........aadddddfbbbcccccccbbbfddddddaa..........', '......aaaaaabcccccccccccccccccccccccfdaaaaaa......', '...aaaaaaaccccccbbbbbbbbbbbbbbbbbbccccccaaaaaa....', '.aaaaacccccbbbbbbbbbbbbbbbbbbbbbbbbbbbcccccbaaa...', '.aabccccbbbbbbbbggeeeeeeeeeeeeeegbbbbbbbbbccccaaa.', 'aaccbbbbbbbgggeeeegggggggggggggeeeegggbbbbbbcccbaa', 'aabbbbbbggggeegddgggggggggggdggggggeeeggggbbbbbbaa', '.aabbbbgggeehggghhhhffffffffhhhhhggghheegggbbbbbaa', '..aabbggggehhddhhhhhgffffffghhhhhhgghhhhegggbbbaa.', '...aaagfdaeijffggggggffffffgggddggffjjkieagfffaa..', '....aaaaaaffjffeeaaadffffffgdaaaeeffjjfffaaaaaa...', '......aaaafdjfdelaaafggffffdmaaaledfjjddfaaaaa....', '........aafijffllaaafdgfffffmaaallffjjddfaa.......', '........aafiiffllaaadfffffffmaaallffhddffaa.......', '........aaffdfgbbaaaiffffffffaaabbgfhidffaa.......', '.........aafdfffggffidgggdffffgggfffhiggaa........', '..........aadhfffffjjiiiihjjjfffffffkgaaa.........', '...........aaaffffjjjjjjjjjjijfffffjaaaa..........', '............aajfffjfijjjjjjiffjfffjjaa............', '............aajjffjffiiiiiifffjffjjhaa............', '............aaejjjjfffffffffffjjjjhaa.............', '..............akkjjjfffjjjfffjjjhhaaaa............', '..............aaahhjjjjjjjjjjjhheeeneaa...........', '.............aaaaakhjjjjjjjjjhheeennnmaa..........', '............aannneeejhjjhjjhheeenknn..maa.........', '...........aam..nkneeeeeeeeeeennnkn.....aa........', '..........aa....nklmiggdggggdnlllk......maa.......', '.........aan.....kllniddgdddnlllk........naa......', '.........aa......klllmdgffinllllk.........aa......', '........aa.......hlkkhngffinkkllj..n......naa.....', '........aa....n...hn..ndfdnnnnhh...nn......aa.....', '.......aan....k........niin...nn...nk.....jhaa....', '......aahhj..nk........nkn.........nkn..jjllaa....', '......aalllknkk.........k..........nknnkllllaa....', '......aallllkkn.........j.n........nnkjlllkiaa....', '.......aiillnkn.........j..........nnkmliiigaa....', '.......aggiinkn.........j..........nnkkiggggaa....', '......aaffggiin.........h..........nniigggffgaa...', '......aafffgiin.........h.n.......nnniigffffgaa...', '......aaffffiinn........h.........nnniigffffgaa...', '......aaffffiinnn.......h........nnnniigffffgaa...'] }
+    });
     /* ---------- o farol e a muralha da ilha (desenhos do Jessé): o farol listrado com a lâmpada acesa, nas pedras,
        e um pedaço da parede de pedra com musgo (a muralha repete o meio dele de cima a baixo). No tamanho do jogo. */
     Object.assign(DESENHO_BICHO, {
@@ -4283,7 +4296,7 @@
                 atores.set(h.id, {
                     dormir: h.dormir || null, dentro: !!(h.dormir && !h.dormir.sombra && h.dormir.ja),   // (já estava lá dentro quando a tela abriu)
                     id: h.id, tipo: h.tipo, i: arte.i, p: arte.p, ferramenta: arte.ferramenta, ferramentaP: arte.ferramentaP, area, x, y, tx: x, ty: y,
-                    visual: !!arte.visual, nivel: h.nivel || 1,   // fase 68: a moça com o jeito dela; o nível (raios do eletricista)
+                    visual: !!arte.visual, desenho: arte.desenho || null, nivel: h.nivel || 1,   // fase 68: a moça com o jeito dela; o nível (raios do eletricista)
                     flip: r() < 0.5, espera: r() * 2000, vel: 12, ajudante: true
                 });
             }
@@ -4788,6 +4801,14 @@
                 // fase 76: o pato nadando fica com metade do corpo dentro da água (fase 79: e todo mundo que entra nela)
                 const nadando = naAgua(a.x, a.y);
                 const vistaA = andando ? (a.vista = vistaDoPasso(a.tx - a.x, a.ty - a.y, a.vista)) : 'frente';   // fase 108
+                if (a.desenho) {   // o desenho do Jessé: de frente parado; andando, os 2 passos (para a esquerda, espelhados)
+                    const d = a.desenho, quadro = andando ? d.passo[Math.floor(tempo / 220) % 2] : d.frente;
+                    const lo = desenhoBicho(quadro + '_p'), hi = desenhoBicho(quadro + '_g');
+                    if (andando && Math.abs(a.tx - a.x) > 0.5) a.esq = a.tx < a.x;
+                    pe.push({ img: lo, hi: nadando ? null : hi, x: Math.round(a.x + T / 2 - lo.width / 2), y: Math.round(a.y + T - lo.height), ordem: a.y,
+                              flip: andando && !!a.esq, bob: andando || nadando ? 0 : bob, nadando });
+                    continue;
+                }
                 pe.push(a.visual ? { img: passoCanvas(ajudanteCanvas(a.tipo), nadando ? 0 : quadroPasso(andando, tempo, a.x * 13), vistaA), x: a.x, y: a.y, flip: vistaA === 'lado' ? a.flip : false, bob: andando || nadando ? 0 : bob, nadando }
                     : { p: a.p || 'farm', i: a.i, x: a.x, y: a.y, flip: a.flip, bob: nadando ? 0 : bob, nadando });
                 // ferramenta na mão do ajudante (do lado para onde ele olha; na água, a parte de baixo some junto)
@@ -4809,7 +4830,11 @@
             estatuasHi.length = 0;
             pe.sort((a, b) => (a.ordem != null ? a.ordem : a.y) - (b.ordem != null ? b.ordem : b.y)).forEach((a) => {
                 const x = Math.round(a.x), y = Math.round(a.y) + a.bob;
-                if (a.i === 1230 && a.p === 'farm' && !a.grade) estatuaHiAntes(x, y);   // a estátua do Chico: guarda o que fica atrás dela
+                if (a.i === 1230 && a.p === 'farm' && !a.grade) {   // a estátua do Chico: guarda o que fica atrás dela
+                    const lo = desenhoBicho('estatua_chico_p');
+                    hiAntes(lo, desenhoBicho('estatua_chico_g'), Math.round(x + T / 2 - lo.width / 2), y + T - lo.height, false);
+                }
+                if (a.hi && a.img) hiAntes(a.img, a.hi, x, y, !!a.flip);   // os desenhos grandes que andam (o Seu Juvenal)
                 if (a.grade) {
                     a.grade.forEach((linha, dy) => linha.forEach((i, dx) => tile(q, i, x + dx * T, a.gy + dy * T, false, a.p)));
                     return;
@@ -5136,12 +5161,12 @@
            - o que estava atrás da estátua (lido antes de desenhá-la) e o desenho grande,
            - escurecidos e iluminados como o mundo (a razão entre o depois e o antes da noite, pixel a pixel),
            - sem os pixels onde alguém passou na frente (onde o mundo não bate com a versão pequena). */
-        const estatuasHi = [];
-        let estatuaLo = null, estatuaTmp = null;
-        function estatuaHiAntes(x, y) {
-            const lo = desenhoBicho('estatua_chico_p'), bx = Math.round(x + T / 2 - lo.width / 2), by = y + T - lo.height;
+        const estatuasHi = [];   // (a estátua e os ajudantes com desenho grande: tudo o que vai em alta resolução)
+        let estatuaTmp = null;
+        const dadosLo = new WeakMap();   // os pixels da versão pequena de cada desenho
+        function hiAntes(lo, hi, bx, by, flip) {
             if (bx < 0 || by < 0 || bx + lo.width > MW || by + lo.height > MH) return;
-            estatuasHi.push({ bx, by, w: lo.width, h: lo.height, fundo: q.getImageData(bx, by, lo.width, lo.height) });
+            estatuasHi.push({ lo, hi, flip, bx, by, w: lo.width, h: lo.height, fundo: q.getImageData(bx, by, lo.width, lo.height) });
         }
         function estatuasHiLer(fase) {
             for (const e of estatuasHi) e[fase] = q.getImageData(e.bx, e.by, e.w, e.h).data;
@@ -5149,14 +5174,15 @@
         const telinha = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
         function desenharEstatuasHi(k, ox, oy) {
             if (!estatuasHi.length) return;
-            const lo = desenhoBicho('estatua_chico_p'), hi = desenhoBicho('estatua_chico_g');
-            if (!estatuaLo) { const c = telinha(lo.width, lo.height), g = c.getContext('2d'); g.drawImage(lo, 0, 0); estatuaLo = g.getImageData(0, 0, lo.width, lo.height).data; }
             for (const e of estatuasHi) {
                 if (!e.antes || !e.depois) continue;
-                const { w, h } = e, W2 = w * 2, H2 = h * 2, A = e.antes, D = e.depois, L = estatuaLo;
+                const { w, h, lo, hi, flip } = e, W2 = w * 2, H2 = h * 2, A = e.antes, D = e.depois;
+                if (!dadosLo.has(lo)) { const c = telinha(lo.width, lo.height), g = c.getContext('2d'); g.drawImage(lo, 0, 0); dadosLo.set(lo, g.getImageData(0, 0, lo.width, lo.height).data); }
+                const L = dadosLo.get(lo);
                 const mul = new ImageData(w, h), add = new ImageData(w, h), cob = new ImageData(w, h);
-                for (let i = 0; i < w * h * 4; i += 4) {
-                    if (L[i + 3] && (A[i] !== L[i] || A[i + 1] !== L[i + 1] || A[i + 2] !== L[i + 2])) cob.data[i + 3] = 255;   // alguém na frente
+                for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+                    const i = (y * w + x) * 4, l = (y * w + (flip ? w - 1 - x : x)) * 4;   // (espelhado: a coluna do outro lado)
+                    if (L[l + 3] && (A[i] !== L[l] || A[i + 1] !== L[l + 1] || A[i + 2] !== L[l + 2])) cob.data[i + 3] = 255;   // alguém na frente
                     for (let c = 0; c < 3; c++) {
                         const f = A[i + c] ? D[i + c] / A[i + c] : 1;
                         mul.data[i + c] = Math.min(255, Math.round(255 * f));
@@ -5167,17 +5193,21 @@
                 const pedaco = (img) => { const c = telinha(w, h); c.getContext('2d').putImageData(img, 0, 0); return c; };
                 if (!estatuaTmp || estatuaTmp.width !== W2 || estatuaTmp.height !== H2) estatuaTmp = { c: telinha(W2, H2), m: telinha(W2, H2), width: W2, height: H2 };
                 const g = estatuaTmp.c.getContext('2d'), gm = estatuaTmp.m.getContext('2d'), hx = Math.round((W2 - hi.width) / 2), hy = H2 - hi.height;
+                const desenha = (gg, img, x, y, ww, hh) => {   // (espelhado quando a versão pequena está espelhada)
+                    if (!flip) { gg.drawImage(img, x, y, ww, hh); return; }
+                    gg.save(); gg.translate(W2, 0); gg.scale(-1, 1); gg.drawImage(img, W2 - x - ww, y, ww, hh); gg.restore();
+                };
                 g.imageSmoothingEnabled = gm.imageSmoothingEnabled = false;
                 // o que fica atrás + o desenho grande
                 g.globalCompositeOperation = 'source-over'; g.clearRect(0, 0, W2, H2);
                 g.drawImage(pedaco(e.fundo), 0, 0, W2, H2);
-                g.drawImage(hi, hx, hy);
+                desenha(g, hi, hx, hy, hi.width, hi.height);
                 // a noite e as luzes, como no mundo
                 g.globalCompositeOperation = 'multiply'; g.drawImage(pedaco(mul), 0, 0, W2, H2);
                 g.globalCompositeOperation = 'lighter'; g.drawImage(pedaco(add), 0, 0, W2, H2);
-                // só onde tem estátua (a pequena ou a grande) e ninguém na frente
+                // só onde tem desenho (o pequeno ou o grande) e ninguém na frente
                 gm.globalCompositeOperation = 'source-over'; gm.clearRect(0, 0, W2, H2);
-                gm.drawImage(lo, 0, 0, W2, H2); gm.drawImage(hi, hx, hy);
+                desenha(gm, lo, 0, 0, W2, H2); desenha(gm, hi, hx, hy, hi.width, hi.height);
                 gm.globalCompositeOperation = 'destination-out'; gm.drawImage(pedaco(cob), 0, 0, W2, H2);
                 g.globalCompositeOperation = 'destination-in'; g.drawImage(estatuaTmp.m, 0, 0);
                 g.globalCompositeOperation = 'source-over';
