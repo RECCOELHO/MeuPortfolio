@@ -589,7 +589,9 @@
         const pulos = new Map();     // id → { sprite, t0 } (o peixe que alguém acabou de pegar)
         const vistosPegou = new Map();
         const telinha = document.createElement('canvas'), tg = telinha.getContext('2d');
-        const LONGE = 0.4;   // o tamanho de quem está lá no fundo
+        // o tamanho de quem está lá no fundo e onde cada um fica (no celular, menor e mais para a direita, longe do seu navio)
+        const estreita = () => LW < 220;
+        const longe = () => (estreita() ? 0.28 : 0.4);
         // o desenho de um dos outros (no tamanho de verdade): o navio dele (o mesmo do píer, virado como o seu),
         // ele na popa com a vara, a linha e a boia, e o peixe pulando; { c, w, wl (a linha d'água), cx (o meio) }
         function desenhoOutro(o, k, noite) {
@@ -634,13 +636,13 @@
             }
             return { c: telinha, w: telinha.width, h: telinha.height, wl, cx: (popa + direita) / 2 };
         }
-        const vagasX = [0.6, 0.76, 0.9];
+        const vagasX = () => (estreita() ? [0.8, 0.96, 0.66] : [0.6, 0.76, 0.9]);
         let lugares = [];
         function desenharOutros(noite) {
             lugares = [];
             outros.forEach((o, k) => {
                 const d = desenhoOutro(o, k, noite);
-                const W = d.w * LONGE, H = d.h * LONGE, cx = LW * vagasX[k] + Math.sin(t / 4200 + k * 2) * 2;
+                const LONGE = longe(), W = d.w * LONGE, H = d.h * LONGE, cx = LW * vagasX()[k] + Math.sin(t / 4200 + k * 2) * 2;
                 const wl = horizonte() + 5 + (k % 2) * 3 + Math.round(Math.sin(t / 900 + k) * 0.6);
                 const x = Math.round(cx - d.cx * LONGE), y = Math.round(wl - d.wl * LONGE);
                 g.save(); g.imageSmoothingEnabled = true; g.drawImage(d.c, x, y, W, H); g.restore();
@@ -667,7 +669,7 @@
             ctx.restore();
         }
         function definirOutros(lista) {
-            const novos = (lista || []).slice(0, vagasX.length).sort((a, b) => String(a.id).localeCompare(String(b.id)));
+            const novos = (lista || []).slice(0, 3).sort((a, b) => String(a.id).localeCompare(String(b.id)));
             for (const o of novos) {
                 if (o.pegou && o.peixe && vistosPegou.get(o.id) !== o.pegou) {
                     if (vistosPegou.has(o.id) || Date.now() - o.pegou < 8000) pulos.set(o.id, { sprite: op.sprite(o.peixe), t0: performance.now() });
