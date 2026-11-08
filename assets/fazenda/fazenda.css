@@ -3510,3 +3510,12 @@ body.conta-teste::after { content: 'CONTA DE TESTE'; position: fixed; left: 16px
 @keyframes bau-clarao { 0% { opacity: 0.95; transform: scale(1); } 100% { opacity: 0; transform: scale(9); } }
 @keyframes bau-voa { 0% { opacity: 1; transform: translate(-50%, 20px) scale(0.3); } 55% { opacity: 1; transform: translate(calc(-50% + var(--x) * 0.7), -190px) scale(1.1); } 100% { opacity: 1; transform: translate(calc(-50% + var(--x)), -150px) scale(1); } }
 @keyframes bau-moeda { 0% { opacity: 1; transform: rotate(var(--a)) translateY(0); } 70% { opacity: 1; } 100% { opacity: 0; transform: rotate(var(--a)) translateY(calc(var(--r) * -1)); } }
+
+/* fase 127: os selos ao lado do nome e a vaquinha do Google Play */
+.selo-nome { display: inline-block; font-size: 10px; font-weight: 800; line-height: 1.5; padding: 0 5px; border-radius: 3px; white-space: nowrap; vertical-align: 1px; margin-left: 2px; }
+.selo-live { background: #d9452f; color: #fff; }
+.selo-apoiador { background: #d6f2c9; color: #1f5a1a; }
+.vaquinha { background: #fff6dc; border: 2px solid #e8c56a; border-radius: 4px; padding: 10px 12px; margin: 0 0 14px; }
+.vaquinha-tit { margin: 0 0 8px; }
+.vaquinha .det { margin: 6px 0 0; }
+.vaquinha .aviso { margin: 8px 0 0; }

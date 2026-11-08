@@ -1569,6 +1569,10 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-11-08-iara-pedruu', data: '08/11', titulo: 'A Dona Iara, o selo do Pedruu e a vaquinha do Google Play', itens: [
+            'A <b>Dona Iara</b>, a cuidadora dos papagaios, ganhou o desenho dela: chapéu de palha com flor, o papagaio no ombro e as penas na mão.',
+            'Homenagem ao <b>Pedruu</b>, o primeiro a fazer live da Fazendinha: o selo <span class="selo-nome selo-live">🎥 1ª live</span> ao lado do nome, no ranking, no chat e na visita. Valeu, Pedruu!',
+            '<b>Vaquinha: Fazendinha no Google Play.</b> Na Loja → Diamantes tem a barra da meta: toda compra de diamantes ajuda a pagar a conta do Google para o jogo virar app na loja. Quem comprar ganha o selo <span class="selo-nome selo-apoiador">🌱 Apoiador</span>, para sempre.'] },
         { id: '2026-11-08-junto', data: '08/11', titulo: 'Jogando junto e colher já no pomar e nos bichos', itens: [
             'No <b>alto-mar</b>, quem está pescando na mesma hora aparece lá no fundo, no navio dele: dá para ver a boia afundar e o peixe pulando quando ele pega.',
             'Na <b>visita</b>, se o dono estiver jogando, você vê ele andando pela fazenda (com o nome em cima) e ele vê você chegando pela porteira. Na faixa da visita aparece se ele está online.',
@@ -5508,7 +5512,7 @@
         offset = Date.parse(v.agora) - Date.now();
         document.body.classList.add('visitando');
         el.faixaVisita.hidden = false;
-        el.visitaApelido.textContent = v.apelido;
+        el.visitaApelido.innerHTML = esc(v.apelido) + htmlSelos(v.selos);   // fase 127: os selos
         el.visitaNivel.textContent = v.nivel;
         atualizarFaixaVisita();
         el.acoesVisita.hidden = false;
@@ -5997,7 +6001,7 @@
                 <div class="perfil-avatar">
                     ${A.htmlAvatar(S.jogador.avatar, 64)}
                     <div>
-                        <p>Fazendeiro(a): <b>${esc(S.jogador.apelido)}</b> · Nível ${S.jogador.nivel}${S.criado_em ? ` · desde ${desde(S.criado_em)}` : ''}</p>
+                        <p>Fazendeiro(a): <b>${esc(S.jogador.apelido)}</b>${htmlSelos(S.jogador.selos)} · Nível ${S.jogador.nivel}${S.criado_em ? ` · desde ${desde(S.criado_em)}` : ''}</p>
                         <button type="button" class="botao pequeno verde" data-avatar-editar>Personalizar avatar</button>
                         ${boasVindas ? '' : `<button type="button" class="botao pequeno creme" data-trocar-nome>Trocar nome · ${ico('diamante', 12)} ${APELIDO_PRECO}</button>`}
                         ${trocandoNome ? `<span class="trocar-nome"><input id="novoApelido" type="text" maxlength="20" autocomplete="off" value="${esc(S.jogador.apelido)}" aria-label="Novo nome">
@@ -6555,6 +6559,32 @@
        Mercado Pago traz a pessoa de volta em fazenda.html?compra=ID e avisa a função, que
        credita os diamantes. Os pacotes e preços vêm do servidor (estado.pacotes_diamantes). */
     const reais = (v) => 'R$ ' + Number(v).toFixed(2).replace('.', ',');
+    /* fase 127: os selos ao lado do nome. "live": o Pedruu, o primeiro a fazer live da Fazendinha; "apoiador": quem
+       comprou diamantes na vaquinha do Google Play */
+    const SELOS = {
+        live: { txt: '🎥 1ª live', dica: 'O primeiro a fazer live da Fazendinha' },
+        apoiador: { txt: '🌱 Apoiador', dica: 'Ajudou a colocar a Fazendinha no Google Play' }
+    };
+    const htmlSelos = (selos) => (selos || []).filter((k) => SELOS[k]).map((k) => ` <span class="selo-nome selo-${k}" title="${esc(SELOS[k].dica)}">${SELOS[k].txt}</span>`).join('');
+    // fase 127: a vaquinha do Google Play (na loja de diamantes); vem do servidor quando a aba abre
+    let vaquinha = null, vaquinhaEm = 0;
+    function htmlVaquinha() {
+        if (!vaquinha) {
+            if (Date.now() - vaquinhaEm > 60000) {
+                vaquinhaEm = Date.now();
+                rpc('fazenda_vaquinha', {}).then((v) => { vaquinha = v; if (painelAtual === 'loja' && abaLoja === 'diamantes') abrirPainel('loja', true); }).catch(() => {});
+            }
+            return '';
+        }
+        const meta = Number(vaquinha.meta) || 1, tem = Number(vaquinha.arrecadado) || 0, pct = Math.min(100, Math.round(tem / meta * 100));
+        const eu = (S.jogador.selos || []).includes('apoiador');
+        return `<div class="vaquinha">
+            <p class="vaquinha-tit">🌱 Vaquinha: <b>${esc(vaquinha.titulo || 'Fazendinha no Google Play')}</b></p>
+            <span class="barra-prog"><i style="width:${pct}%"></i></span>
+            <p class="det">${tem >= meta ? '<b>Meta batida!</b> Obrigado a todo mundo que ajudou.' : `<b>${reais(tem)}</b> de ${reais(meta)} · ${vaquinha.apoiadores || 0} apoiador${vaquinha.apoiadores === 1 ? '' : 'es'}`}</p>
+            <p class="aviso">Para a Fazendinha chegar na loja do Google Play é preciso pagar a conta de desenvolvedor do Google. Toda compra de diamantes daqui até a meta ajuda, e quem comprar ganha o selo <span class="selo-nome selo-apoiador">🌱 Apoiador</span> ao lado do nome, para sempre.${eu ? ' <b>Você já é apoiador(a): obrigado!</b>' : ''}</p>
+        </div>`;
+    }
     /* ---------- O que fazer com os diamantes (fase 43; preços vêm de estado.loja_diamantes) ---------- */
     const lojaD = () => (S && S.loja_diamantes) || null;
     const ativoAte = (iso) => (iso && Date.parse(iso) > agora() ? iso : null);
@@ -6845,7 +6875,7 @@
         if (!eu) acoes.push(`<button type="button" data-visitar="${esc(m.jogador)}">visitar</button>`, `<button type="button" data-chat-silenciar="${esc(m.jogador)}">silenciar</button>`);
         if (eu || chat.admin) acoes.push(`<button type="button" data-chat-apagar="${m.id}">apagar</button>`);
         return `<div class="chat-msg${eu ? ' eu' : ''}">
-            <div class="chat-quem">${A.htmlAvatar(m.avatar, 20)} <b>${esc(m.apelido)}</b><small>nv ${m.nivel}${m.admin ? ' · admin' : ''} · ${tempoAtras(m.em)}</small><span class="chat-acoes">${acoes.join('')}</span></div>
+            <div class="chat-quem">${A.htmlAvatar(m.avatar, 20)} <b>${esc(m.apelido)}</b>${htmlSelos(m.selos)}<small>nv ${m.nivel}${m.admin ? ' · admin' : ''} · ${tempoAtras(m.em)}</small><span class="chat-acoes">${acoes.join('')}</span></div>
             ${m.texto ? `<div class="chat-texto">${esc(m.texto)}</div>` : ''}${m.pedido ? htmlPedidoChat(m, eu) : ''}
         </div>`;
     }
@@ -7019,7 +7049,7 @@
         const usar = htmlUsarDiamantes();
         if (!pacotes.length && !usar) return '<p class="vazio-msg">Os diamantes chegam em breve.</p>';
         return `<p>Você tem <b>${S.jogador.diamantes || 0}</b> ${ico('diamante', 14)}. Ganha 5 a cada nível${ANUNCIO.ligado ? ' e 1 por anúncio' : ''}.</p>
-            ${htmlVales()}${usar}${htmlLojaRaros()}${pacotes.length ? `<h3 class="secao-titulo">Comprar diamantes</h3>` : ''}
+            ${pacotes.length ? htmlVaquinha() : ''}${htmlVales()}${usar}${htmlLojaRaros()}${pacotes.length ? `<h3 class="secao-titulo">Comprar diamantes</h3>` : ''}
             <div class="lista">` + pacotes.map((p) => `<div class="item">
                 <span class="ico">${ico('diamante', 36)}</span>
                 <span><span class="nome">${p.diamantes} diamantes</span><span class="det">${p.bonus ? `<span class="bonus-txt">+${p.bonus} de bônus</span>` : ''}<span>${lojaD() ? `dá para ${Math.floor(p.diamantes / lojaD().cafe.preco)} cafés dos ajudantes (${lojaD().cafe.horas} h cada)` : ''}</span></span></span>
@@ -7214,7 +7244,7 @@
                     <div class="rank${j.eu ? ' eu' : ''}">
                         <span class="pos">${n + 1}º</span>
                         <span style="min-width:0">
-                            <span class="nome">${A.htmlAvatar(j.avatar, 24)} ${esc(j.apelido)}${j.eu ? ' (você)' : ''}</span>
+                            <span class="nome">${A.htmlAvatar(j.avatar, 24)} ${esc(j.apelido)}${htmlSelos(j.selos)}${j.eu ? ' (você)' : ''}</span>
                             <span class="det"><span>Nível ${j.nivel}</span><span>${j.xp} ${ico('xp', 13)}</span><span>${moeda(j.patrimonio)}</span></span>
                         </span>
                         ${j.eu ? '<span></span>' : `<button type="button" class="botao pequeno creme" data-visitar="${esc(j.id)}">Visitar</button>`}

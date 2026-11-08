@@ -44,6 +44,7 @@ create table if not exists public.fazenda_jogadores (
 alter table public.fazenda_jogadores add column if not exists ilha_obras smallint not null default 0;
 alter table public.fazenda_jogadores add column if not exists ilha_bau_dia date;
 alter table public.fazenda_jogadores add column if not exists ilha_terrenos smallint not null default 0;
+alter table public.fazenda_jogadores add column if not exists selos text[] not null default '{}';   -- fase 127: os selos especiais ao lado do nome (live: a 1ª live do jogo)
 alter table public.fazenda_jogadores add column if not exists inativo_em timestamptz;   -- fase 126: conta parada (some do ranking e das visitas até entrar de novo)
 
 -- Um jogador pode ter várias sessões (um token por aparelho)
@@ -1664,6 +1665,7 @@ begin
     'jogador', jsonb_build_object(
       'id', j.id,
       'apelido', j.apelido,
+      'selos', fazenda_selos(j.id),   -- fase 127
       'avatar', j.avatar,
       'avatares', j.avatares,
       'avatar_precos', fazenda_avatar_precos(),
@@ -3657,6 +3659,7 @@ begin
     'agora', now(),
     'id', j.id,
     'apelido', j.apelido,
+    'selos', fazenda_selos(p_dono),   -- fase 127
     'avatar', j.avatar,
     'nivel', v_nivel,
     'max_canteiros', fazenda_max_canteiros(v_nivel),
@@ -4079,7 +4082,7 @@ begin
     'total', (select count(*) from fazenda_jogadores where banido_em is null and not teste and inativo_em is null),
     'ranking', coalesce((
       select jsonb_agg(jsonb_build_object(
-               'id', r.id, 'apelido', r.apelido, 'avatar', r.avatar, 'nivel', fazenda_nivel_de(r.xp, r.nivel_trava), 'xp', r.xp,
+               'id', r.id, 'apelido', r.apelido, 'avatar', r.avatar, 'selos', fazenda_selos(r.id), 'nivel', fazenda_nivel_de(r.xp, r.nivel_trava), 'xp', r.xp,
                'patrimonio', r.moedas + coalesce((
                  select sum(ce.quantidade * k.venda)
                    from fazenda_celeiro ce join fazenda_culturas k on k.id = ce.item
@@ -7794,7 +7797,7 @@ begin
     'admin', j.admin is not null,
     'mensagens', coalesce((
       select jsonb_agg(m order by (m->>'id')::bigint) from (
-        select jsonb_build_object('id', c.id, 'jogador', c.jogador_id, 'apelido', p.apelido, 'avatar', p.avatar,
+        select jsonb_build_object('id', c.id, 'jogador', c.jogador_id, 'apelido', p.apelido, 'avatar', p.avatar, 'selos', fazenda_selos(p.id),
                  'nivel', fazenda_nivel_de(p.xp, p.nivel_trava), 'admin', p.admin, 'texto', c.texto, 'em', c.criado_em,
                  'pedido', case when c.item is not null then jsonb_build_object('item', c.item, 'qtd', c.qtd, 'preco', c.preco) end) as m
           from fazenda_chat c join fazenda_jogadores p on p.id = c.jogador_id
@@ -12321,3 +12324,41 @@ $$;
 revoke execute on function public.fazenda_preco_agora(double precision), public.fazenda_inativar_parados(timestamptz, timestamptz)
   from public, anon, authenticated;
 grant execute on function public.fazenda_presenca(text, text, real, real, text, text) to anon, authenticated;
+
+-- ------------------------------------------------------------
+-- Fase 127: a homenagem ao Pedruu (o primeiro a fazer live da Fazendinha): o selo "1ª live" ao lado do nome (o
+-- enfeite Estúdio de Live vem depois, com o desenho do Jessé); e a vaquinha do Google Play: toda compra de diamantes desde 08/11 ajuda
+-- a pagar a conta de desenvolvedor do Google, e quem comprou ganha o selo Apoiador.
+-- Pode rodar este arquivo de novo.
+-- ------------------------------------------------------------
+
+-- a vaquinha: desde quando conta e quanto falta (R$)
+create or replace function public.fazenda_vaquinha_regras()
+returns jsonb language sql immutable as $$
+  select '{"titulo": "Fazendinha no Google Play", "desde": "2026-11-08T00:00:00-03:00", "meta": 150}'::jsonb;
+$$;
+
+-- os selos de um jogador: os que ele ganhou (live) e o de apoiador (comprou diamantes na vaquinha)
+create or replace function public.fazenda_selos(p_jogador uuid)
+returns text[] language sql stable security definer set search_path = public as $$
+  select coalesce(j.selos, '{}'::text[])
+         || case when exists (select 1 from fazenda_compras c
+                               where c.jogador_id = j.id and c.status = 'aprovada'
+                                 and coalesce(c.pago_em, c.criado_em) >= (fazenda_vaquinha_regras()->>'desde')::timestamptz)
+                 then array['apoiador'] else '{}'::text[] end
+    from fazenda_jogadores j where j.id = p_jogador;
+$$;
+
+-- quanto a vaquinha já juntou (público: aparece na loja de diamantes)
+create or replace function public.fazenda_vaquinha()
+returns jsonb language sql stable security definer set search_path = public as $$
+  select fazenda_vaquinha_regras() || jsonb_build_object(
+    'arrecadado', coalesce(sum(c.valor), 0),
+    'apoiadores', count(distinct c.jogador_id))
+    from fazenda_compras c
+   where c.status = 'aprovada' and coalesce(c.pago_em, c.criado_em) >= (fazenda_vaquinha_regras()->>'desde')::timestamptz;
+$$;
+
+
+revoke execute on function public.fazenda_selos(uuid) from public, anon, authenticated;
+grant execute on function public.fazenda_vaquinha() to anon, authenticated;
