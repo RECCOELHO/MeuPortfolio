@@ -45,7 +45,22 @@ alter table public.fazenda_jogadores add column if not exists ilha_obras smallin
 alter table public.fazenda_jogadores add column if not exists ilha_bau_dia date;
 alter table public.fazenda_jogadores add column if not exists ilha_terrenos smallint not null default 0;
 alter table public.fazenda_jogadores add column if not exists selos text[] not null default '{}';   -- fase 127: os selos especiais ao lado do nome (live: a 1ª live do jogo)
-alter table public.fazenda_jogadores add column if not exists inativo_em timestamptz;   -- fase 126: conta parada (some do ranking e das visitas até entrar de novo)
+alter table public.fazenda_jogadores add column if not exists inativo_em timestamptz;
+alter table public.fazenda_jogadores add column if not exists canhoes_dia date;   -- fase 130: o presente dos canhões de festa
+
+-- fase 130: o número da obra da ilha (1 a 15, na ordem de fazenda_ilha_obras) e se o jogador já tem ela.
+-- (Aqui em cima porque as funções em sql que usam isto precisam dela pronta.)
+create or replace function public.fazenda_obra_n(p_id text)
+returns int language sql immutable as $$
+  select case p_id when 'cais' then 1 when 'trapiche' then 2 when 'armazem' then 3 when 'muralha' then 4 when 'taverna' then 5
+                   when 'portao' then 6 when 'farol' then 7 when 'vigia' then 8 when 'mercado' then 9 when 'toldo' then 10
+                   when 'ancora' then 11 when 'canhoes' then 12 when 'sereia' then 13 when 'cartografo' then 14 when 'bandeira' then 15 end;
+$$;
+create or replace function public.fazenda_obra_tem(p_jogador uuid, p_id text)
+returns boolean language sql stable security definer set search_path = public as $$
+  select coalesce((select ilha_obras from fazenda_jogadores where id = p_jogador), 0) >= fazenda_obra_n(p_id);
+$$;
+   -- fase 126: conta parada (some do ranking e das visitas até entrar de novo)
 
 -- Um jogador pode ter várias sessões (um token por aparelho)
 create table if not exists public.fazenda_sessoes (
@@ -1506,7 +1521,9 @@ declare
   v_tipo   int;
   i        int;
   v_ce     text;
+  v_vigia  boolean;
 begin
+  v_vigia := fazenda_obra_tem(p_jogador, 'vigia');   -- fase 130: a cabana do vigia
   -- chovendo agora: a chuva rega tudo (some a seca dos canteiros)
   if fazenda_clima_agora() = 'chuva' then   -- (fase 71: uma conta por chamada)
     update fazenda_canteiros c set seco = false from fazenda_culturas k   -- (fase 121: só o que ainda cresce)
@@ -1538,7 +1555,8 @@ begin
       -- o aspersor elétrico evita qualquer um, gastando 2 ⚡
       if v_tipo = 0 and not v_erva and not fazenda_protegido(p_jogador, 'erva', r.x, r.y) then
         if not fazenda_aspersor(p_jogador, r.x, r.y) then v_erva := true; end if;
-      elsif v_tipo = 1 and not v_praga and not fazenda_protegido(p_jogador, 'praga', r.x, r.y) then
+      elsif v_tipo = 1 and not v_praga and not fazenda_protegido(p_jogador, 'praga', r.x, r.y)
+            and not (r.y >= 45 and v_vigia and random() < 0.5) then   -- fase 130: o vigia espanta metade
         if not fazenda_aspersor(p_jogador, r.x, r.y) then v_praga := true; end if;
       elsif v_tipo = 2 and not v_seco and not fazenda_protegido(p_jogador, 'seco', r.x, r.y) then
         if not fazenda_aspersor(p_jogador, r.x, r.y) then v_seco := true; end if;
@@ -1707,7 +1725,7 @@ begin
       'beleza', fazenda_beleza(p_jogador),
       'bonus_venda', fazenda_bonus_venda(p_jogador),
       -- fase 106: a ilha (pode zarpar? quantas obras; do 45 em diante, a lista; o baú de hoje já foi aberto?)
-      'ilha', jsonb_build_object('obras', coalesce(j.ilha_obras, 0), 'pode_ir', fazenda_ilha_pode(p_jogador, v_nivel),
+      'ilha', jsonb_build_object('obras', coalesce(j.ilha_obras, 0), 'canhoes_hoje', coalesce(j.canhoes_dia = fazenda_hoje(), false), 'pode_ir', fazenda_ilha_pode(p_jogador, v_nivel),
                                  'bau_hoje', j.ilha_bau_dia = fazenda_hoje(), 'x', fazenda_ilha_x(p_jogador),
                                  -- fase 118: a caça ao tesouro (quantas pistas já achou hoje e onde está a próxima)
                                  'caca', fazenda_ilha_caca(p_jogador),
@@ -2002,7 +2020,7 @@ begin
   if c.cultura is not null then
     select * into k from fazenda_culturas where id = c.cultura;
     v_maduro := c.plantado_em + make_interval(secs => k.tempo_seg);
-    v_murcho := v_maduro + make_interval(secs => fazenda_murcha_seg(k.tempo_seg, c.seco));
+    v_murcho := v_maduro + make_interval(secs => fazenda_murcha_seg(k.tempo_seg, c.seco, c.y, c.jogador_id));
   end if;
 
   -- fase 48: o ajudante que colhe trabalha "atrasado" quando a fazenda estava fechada: o que murchou
@@ -2026,7 +2044,7 @@ begin
       update fazenda_jogadores set diamantes = diamantes - v_preco where id = p_jogador;
       c.erva := false; c.praga := false; c.seco := false;
       v_maduro := now();
-      v_murcho := now() + make_interval(secs => fazenda_murcha_seg(k.tempo_seg, c.seco));
+      v_murcho := now() + make_interval(secs => fazenda_murcha_seg(k.tempo_seg, c.seco, c.y, c.jogador_id));
     end if;
     p_acao := 'colher';
   end if;
@@ -2138,6 +2156,7 @@ begin
              + fazenda_protegido(p_jogador, 'adubo', c.x, c.y)::int     -- cogumelos, barril, colmeia
              + c.adubado::int                                           -- adubo do Seu Zé
              + (c.y >= 45 and j.cachorro_raca is not null)::int         -- fase 111: o cachorro da ilha
+             + (c.y >= 45 and coalesce(j.ilha_obras, 0) >= fazenda_obra_n('sereia'))::int   -- fase 130: a estátua da sereia
              + fazenda_bonus_estacao(k.estacao_boa, k.rendimento);     -- fase 121: na estação dela, rende mais
     if fazenda_protegido(p_jogador, 'sorte', c.x, c.y) and random() < 0.15 then
       v_qtd := v_qtd * 2;                                               -- alvo
@@ -2907,7 +2926,7 @@ begin
         join fazenda_culturas u on u.id = c.cultura
        where c.estado = 'plantado'
          and now() >= c.plantado_em + make_interval(secs => u.tempo_seg)
-         and now() < c.plantado_em + make_interval(secs => u.tempo_seg + fazenda_murcha_seg(u.tempo_seg, c.seco))
+         and now() < c.plantado_em + make_interval(secs => u.tempo_seg + fazenda_murcha_seg(u.tempo_seg, c.seco, c.y, c.jogador_id))
     loop
       exit when v_livre <= 0 or not fazenda_gastar_energia(p_jogador, 2);
       if v_seguro then
@@ -3058,7 +3077,7 @@ begin
       select x.posicao, x.estado, x.cultura,
              coalesce(x.estado = 'plantado'
                and now() >= x.plantado_em + make_interval(secs => k.tempo_seg)
-               and now() < x.plantado_em + make_interval(secs => k.tempo_seg + fazenda_murcha_seg(k.tempo_seg, x.seco)), false) as maduro
+               and now() < x.plantado_em + make_interval(secs => k.tempo_seg + fazenda_murcha_seg(k.tempo_seg, x.seco, x.y, x.jogador_id)), false) as maduro
         from fazenda_canteiros x left join fazenda_culturas k on k.id = x.cultura
        where x.jogador_id = p_jogador and abs(x.x - r.x) <= r.raio and abs(x.y - r.y) <= r.raio
        order by x.posicao
@@ -3183,6 +3202,7 @@ begin
     v_seg := extract(epoch from now() - a.atualizado_em)::real
            + case when v_cafe_ate is null then 0
                   else greatest(extract(epoch from least(now(), v_cafe_ate) - greatest(a.atualizado_em, v_cafe_de))::real, 0) end;
+    if fazenda_obra_tem(p_jogador, 'taverna') then v_seg := v_seg * 1.25; end if;   -- fase 130: a taverna
     v_cred := least(a.credito + v_seg / 3600 * fazenda_ritmo(a.nivel), fazenda_ritmo(a.nivel) * fazenda_turno(p_jogador));
     v_n := least(floor(v_cred), floor(a.energia / v_custo + 0.001))::int;   -- fase 59: e o que a energia deixa
 
@@ -3195,13 +3215,13 @@ begin
           -- fase 48: também o que murchou depois da última olhada dele (até 8 h): com a fazenda fechada ele
           -- teria colhido a tempo; o que murcha primeiro vai primeiro
           for c in
-            select cc.posicao, now() >= cc.plantado_em + make_interval(secs => k.tempo_seg + fazenda_murcha_seg(k.tempo_seg, cc.seco)) as murcha
+            select cc.posicao, now() >= cc.plantado_em + make_interval(secs => k.tempo_seg + fazenda_murcha_seg(k.tempo_seg, cc.seco, cc.y, cc.jogador_id)) as murcha
               from fazenda_canteiros cc join fazenda_culturas k on k.id = cc.cultura
              where cc.jogador_id = p_jogador and cc.estado = 'plantado'
                and now() >= cc.plantado_em + make_interval(secs => k.tempo_seg)
-               and cc.plantado_em + make_interval(secs => k.tempo_seg + fazenda_murcha_seg(k.tempo_seg, cc.seco))
+               and cc.plantado_em + make_interval(secs => k.tempo_seg + fazenda_murcha_seg(k.tempo_seg, cc.seco, cc.y, cc.jogador_id))
                    > greatest(a.atualizado_em, now() - make_interval(hours => fazenda_turno(p_jogador)::int))
-             order by cc.plantado_em + make_interval(secs => k.tempo_seg + fazenda_murcha_seg(k.tempo_seg, cc.seco)) limit v_n
+             order by cc.plantado_em + make_interval(secs => k.tempo_seg + fazenda_murcha_seg(k.tempo_seg, cc.seco, cc.y, cc.jogador_id)) limit v_n
           loop
             if fazenda_bot_aplicar(p_jogador, case when c.murcha then 'colher_tarde' else 'colher' end, c.posicao, null, v_seguro) is not null then
               v_feito := v_feito + 1; v_log := fazenda_conta(v_log, 'colheu');
@@ -3267,7 +3287,7 @@ begin
             select cc.posicao from fazenda_canteiros cc left join fazenda_culturas k on k.id = cc.cultura
              where cc.jogador_id = p_jogador
                and (cc.estado = 'vazio'
-                    or (cc.estado = 'plantado' and now() >= cc.plantado_em + make_interval(secs => k.tempo_seg + fazenda_murcha_seg(k.tempo_seg, cc.seco))))
+                    or (cc.estado = 'plantado' and now() >= cc.plantado_em + make_interval(secs => k.tempo_seg + fazenda_murcha_seg(k.tempo_seg, cc.seco, cc.y, cc.jogador_id))))
              order by cc.posicao limit v_n
           loop
             if fazenda_bot_aplicar(p_jogador, 'arar', c.posicao, null, v_seguro) is not null then
@@ -3322,7 +3342,7 @@ begin
           for c in
             select cc.posicao, cc.erva, cc.praga, cc.seco from fazenda_canteiros cc join fazenda_culturas k on k.id = cc.cultura
              where cc.jogador_id = p_jogador and cc.estado = 'plantado' and (cc.erva or cc.praga or cc.seco)
-               and now() < cc.plantado_em + make_interval(secs => k.tempo_seg + fazenda_murcha_seg(k.tempo_seg, cc.seco))
+               and now() < cc.plantado_em + make_interval(secs => k.tempo_seg + fazenda_murcha_seg(k.tempo_seg, cc.seco, cc.y, cc.jogador_id))
              order by cc.plantado_em
           loop
             exit when v_feito >= v_n;
@@ -3546,6 +3566,7 @@ declare
   r       record;
   v_qtd   int;
   v_ganho int := 0;
+  v_ilha  int;   -- fase 130
   v_valor numeric := 0;   -- valor que conta para o XP (sem o bônus de beleza)
   v_xp    int;
   v_feira int;
@@ -3558,11 +3579,13 @@ begin
     raise exception 'quantidade_invalida';
   end if;
 
+  -- fase 130: o armazém do porto e o mercado pirata: os produtos da ilha vendem +10% cada
+  v_ilha := 10 * fazenda_obra_tem(v_id, 'armazem')::int + 10 * fazenda_obra_tem(v_id, 'mercado')::int;
   -- o que está reservado para os animais fica no celeiro
   for r in
     select ce.item, ce.quantidade - coalesce(rs.quantidade, 0) as livre, ce.da_feira,
            case when k.id = 'velho_chico' then fazenda_preco_chico(v_nivel) else k.venda end as venda,   -- fase 107
-           k.tipo, k.nivel_min
+           k.tipo, k.nivel_min, (k.so_ilha or fazenda_capitao_itens() ? ce.item) as da_ilha   -- fase 130
       from fazenda_celeiro ce
       join fazenda_culturas k on k.id = ce.item
       left join fazenda_reservas rs on rs.jogador_id = ce.jogador_id and rs.item = ce.item
@@ -3580,7 +3603,7 @@ begin
     v_feira := least(v_qtd, r.da_feira);
     update fazenda_celeiro set quantidade = quantidade - v_qtd, da_feira = da_feira - v_feira
      where jogador_id = v_id and item = r.item;
-    v_ganho := v_ganho + v_qtd * r.venda;
+    v_ganho := v_ganho + v_qtd * r.venda + case when r.da_ilha and v_ilha > 0 then (v_qtd * r.venda * v_ilha) / 100 else 0 end;   -- fase 130
     -- XP da venda: só os produtos (oficinas, bichos, lago, pomar); a planta já deu XP na colheita (fase 41)
     v_valor := v_valor + case when r.tipo <> 'cultura' then (v_qtd - v_feira) * r.venda else 0 end;
     v_sem_xp := v_sem_xp + case when r.tipo <> 'cultura' then v_feira else 0 end;
@@ -3740,12 +3763,13 @@ begin
     raise exception 'nao_maduro';
   end if;
   select * into k from fazenda_culturas where id = c.cultura;
+  if c.y >= 45 and fazenda_obra_tem(p_dono, 'portao') then raise exception 'portao_ilha'; end if;   -- fase 130: o portão de ferro
   if k.so_dia is not null then raise exception 'nada_pra_pegar'; end if;   -- fase 115: a Viih ninguém pega
   v_maduro := c.plantado_em + make_interval(secs => k.tempo_seg);
   if now() < v_maduro then
     raise exception 'nao_maduro';
   end if;
-  if now() >= v_maduro + make_interval(secs => fazenda_murcha_seg(k.tempo_seg, c.seco)) then
+  if now() >= v_maduro + make_interval(secs => fazenda_murcha_seg(k.tempo_seg, c.seco, c.y, c.jogador_id)) then
     raise exception 'murchou';
   end if;
   if fazenda_protegido(p_dono, 'alarme', c.x, c.y) and fazenda_alarme_ligado(p_dono) then
@@ -3934,7 +3958,7 @@ begin
   select * into c from fazenda_canteiros where jogador_id = p_dono and posicao = p_posicao for update;
   if not found or c.estado <> 'plantado' then raise exception 'nada_a_fazer'; end if;
   select * into k from fazenda_culturas where id = c.cultura;
-  if now() < c.plantado_em + make_interval(secs => k.tempo_seg + fazenda_murcha_seg(k.tempo_seg, c.seco)) then
+  if now() < c.plantado_em + make_interval(secs => k.tempo_seg + fazenda_murcha_seg(k.tempo_seg, c.seco, c.y, c.jogador_id)) then
     raise exception 'nada_a_fazer';   -- não está murcha
   end if;
   if (select count(*) from fazenda_visitas where ator_id = p_ator and dono_id = p_dono and tipo = 'salvar'
@@ -3977,7 +4001,7 @@ begin
   v_murcha := false;
   if c.cultura is not null then
     select * into k from fazenda_culturas where id = c.cultura;
-    v_murcha := c.estado = 'plantado' and now() >= c.plantado_em + make_interval(secs => k.tempo_seg + fazenda_murcha_seg(k.tempo_seg, c.seco));
+    v_murcha := c.estado = 'plantado' and now() >= c.plantado_em + make_interval(secs => k.tempo_seg + fazenda_murcha_seg(k.tempo_seg, c.seco, c.y, c.jogador_id));
   end if;
   if p_acao = 'limpar' then
     if not v_murcha then raise exception 'nada_a_fazer'; end if;
@@ -4047,7 +4071,7 @@ begin
     raise exception 'nada_a_fazer';
   end if;
   select * into k from fazenda_culturas where id = c.cultura;
-  if now() >= c.plantado_em + make_interval(secs => k.tempo_seg + fazenda_murcha_seg(k.tempo_seg, c.seco)) then
+  if now() >= c.plantado_em + make_interval(secs => k.tempo_seg + fazenda_murcha_seg(k.tempo_seg, c.seco, c.y, c.jogador_id)) then
     raise exception 'nada_a_fazer';
   end if;
   v_n := c.erva::int + c.praga::int + c.seco::int;
@@ -6009,7 +6033,7 @@ begin
     -- cada 25 plantas (era 1 para todas)
     select count(*) into v_cap from fazenda_canteiros c join fazenda_culturas k on k.id = c.cultura
      where c.jogador_id = v_id and c.estado = 'plantado'
-       and now() >= c.plantado_em + make_interval(secs => k.tempo_seg + fazenda_murcha_seg(k.tempo_seg, c.seco));
+       and now() >= c.plantado_em + make_interval(secs => k.tempo_seg + fazenda_murcha_seg(k.tempo_seg, c.seco, c.y, c.jogador_id));
     if v_cap = 0 then raise exception 'nada_a_fazer'; end if;
     v_preco := (v_loja->>'preco')::int * ceil(v_cap / coalesce((v_loja->>'por')::numeric, v_cap))::int;
     if j.diamantes < v_preco then raise exception 'diamantes_insuficientes'; end if;
@@ -6017,7 +6041,7 @@ begin
        set plantado_em = now() - make_interval(secs => k.tempo_seg), erva = false, praga = false, seco = false, prox_evento = null
       from fazenda_culturas k
      where c.jogador_id = v_id and c.estado = 'plantado' and k.id = c.cultura
-       and now() >= c.plantado_em + make_interval(secs => k.tempo_seg + fazenda_murcha_seg(k.tempo_seg, c.seco));
+       and now() >= c.plantado_em + make_interval(secs => k.tempo_seg + fazenda_murcha_seg(k.tempo_seg, c.seco, c.y, c.jogador_id));
     update fazenda_jogadores set diamantes = diamantes - v_preco where id = v_id;
 
   elsif p_item = 'oficina' then
@@ -7111,7 +7135,7 @@ returns jsonb language sql stable security definer set search_path = public as $
            'cesto', case when m.i is not null then
                       jsonb_build_object('desde', j.marinheiro_em, 'intervalo', (m.i->>'intervalo')::int, 'max', (m.i->>'max')::int) end,
            'peixes', (select jsonb_agg(jsonb_build_object('id', t.peixe, 'chance', t.chance))
-                        from fazenda_mar_peixes((b.i->>'valor')::int, (v.i->>'valor')::int + fazenda_melhoria(p_jogador, 'sonar')::int) t),
+                        from fazenda_mar_peixes((b.i->>'valor')::int, (v.i->>'valor')::int + fazenda_melhoria(p_jogador, 'sonar')::int + fazenda_obra_tem(p_jogador, 'farol')::int) t),
            'regras', fazenda_mar_regras(),
            'perola', fazenda_mar_perola(p_jogador),                  -- fase 65: o sonar acha mais pérola
            'visual', coalesce(j.barco_visual, '{}'::jsonb)) end
@@ -7148,7 +7172,7 @@ begin
   update fazenda_jogadores
      set mar_em = greatest(coalesce(mar_em, now() - v_cheio), now() - v_cheio) + make_interval(secs => (v_b->>'intervalo')::int)
    where id = v_id;
-  v_peixe := fazenda_mar_sortear((v_b->>'valor')::int, (v_v->>'valor')::int + fazenda_melhoria(v_id, 'sonar')::int);   -- fase 65: o sonar
+  v_peixe := fazenda_mar_sortear((v_b->>'valor')::int, (v_v->>'valor')::int + fazenda_melhoria(v_id, 'sonar')::int + fazenda_obra_tem(v_id, 'farol')::int);   -- fase 65: o sonar
   v_espera := (v_g->>'mordida_min')::int + floor(random() * ((v_g->>'mordida_max')::int - (v_g->>'mordida_min')::int))::int;
   select x.o into v_tam from jsonb_array_elements(fazenda_mar_tabela()) with ordinality as x(p, o) where x.p->>'id' = v_peixe;
   insert into fazenda_mar_lances (jogador_id, peixe, perola, mordida_em, janela_ms)
@@ -7229,7 +7253,7 @@ begin
   v_n := fazenda_mar_contar(v_id, 'marinheiro');
   if v_n <= 0 then raise exception 'cesto_mar_vazio'; end if;
   for v_k in 1..v_n loop
-    v_p := fazenda_mar_sortear((v_b->>'valor')::int, (v_v->>'valor')::int + fazenda_melhoria(v_id, 'sonar')::int);   -- fase 65: o sonar
+    v_p := fazenda_mar_sortear((v_b->>'valor')::int, (v_v->>'valor')::int + fazenda_melhoria(v_id, 'sonar')::int + fazenda_obra_tem(v_id, 'farol')::int);   -- fase 65: o sonar
     v_peixes := jsonb_set(v_peixes, array[v_p], to_jsonb(coalesce((v_peixes->>v_p)::int, 0) + 1));
     if random() < 1.0 / fazenda_mar_perola(v_id) then v_perolas := v_perolas + 1; end if;
   end loop;
@@ -7683,7 +7707,7 @@ begin
          end
     from fazenda_canteiros c
     join fazenda_culturas k on k.id = c.cultura
-    cross join lateral (select c.plantado_em + make_interval(secs => k.tempo_seg + fazenda_murcha_seg(k.tempo_seg, c.seco)) as em) m
+    cross join lateral (select c.plantado_em + make_interval(secs => k.tempo_seg + fazenda_murcha_seg(k.tempo_seg, c.seco, c.y, c.jogador_id)) as em) m
     cross join lateral (select case
              when c.seco then 'seca'   -- fase 121: com seca, murcha na metade do tempo
              when not v_tem then 'sem_colhedor'
@@ -9286,6 +9310,7 @@ begin
             select cc.posicao, cc.cultura, cc.x, cc.y from fazenda_canteiros cc
              where cc.jogador_id = p_jogador and cc.estado = 'plantado' and cc.plantado_em < v_t + interval '36 minutes'
                and random() < v_chance and not fazenda_protegido(p_jogador, 'estufa', cc.x, cc.y)
+               and not (cc.y >= 45 and fazenda_obra_tem(p_jogador, 'muralha'))   -- fase 130: a muralha segura a ilha
                for update),
           feito as (
             update fazenda_canteiros cc
@@ -11162,21 +11187,21 @@ $$;
 create or replace function public.fazenda_ilha_obras()
 returns jsonb language sql immutable as $$
   select '[
-    {"n": 1,  "id": "cais",       "nivel": 46, "nome": "Cais de madeira",      "moedas": 400000,  "itens": {"tora": 12, "madeira_nobre": 1},       "descricao": "Onde o navio atraca. Com ele pronto, dá para cavar o baú da praia."},
-    {"n": 2,  "id": "trapiche",   "nivel": 47, "nome": "Trapiche",             "moedas": 500000,  "itens": {"tabua_naval": 20},                    "descricao": "A passarela do cais até a areia."},
-    {"n": 3,  "id": "armazem",    "nivel": 48, "nome": "Armazém do porto",     "moedas": 600000,  "itens": {"tabua_naval": 30, "tora": 10},         "descricao": "Para guardar a carga do navio."},
-    {"n": 4,  "id": "muralha",    "nivel": 49, "nome": "Muralha de pedra",     "moedas": 700000,  "itens": {"tabua_naval": 20, "pedra_cantaria": 1}, "descricao": "Segura o mar nos dias de ressaca."},
-    {"n": 5,  "id": "taverna",    "nivel": 50, "nome": "Taverna",              "moedas": 800000,  "itens": {"tabua_naval": 30, "cravo": 20},        "descricao": "Onde os marujos contam as histórias da ilha."},
-    {"n": 6,  "id": "portao",     "nivel": 51, "nome": "Portão de ferro",      "moedas": 900000,  "itens": {"cravo": 20, "ferro_forjado": 1},      "descricao": "A entrada do porto."},
-    {"n": 7,  "id": "farol",      "nivel": 52, "nome": "Farol",                "moedas": 1000000, "itens": {"leme_dourado": 1, "tabua_naval": 15},  "descricao": "Com o espelho dourado que guia os navios de noite."},
-    {"n": 8,  "id": "vigia",      "nivel": 53, "nome": "Cabana do vigia",      "moedas": 1100000, "itens": {"tora": 20, "cravo": 20},               "descricao": "Lá de cima dá para ver o mar todo."},
-    {"n": 9,  "id": "mercado",    "nivel": 54, "nome": "Mercado pirata",       "moedas": 1200000, "itens": {"corda_naval": 2, "vela": 2},          "descricao": "As barracas de lona da praça."},
-    {"n": 10, "id": "toldo",      "nivel": 55, "nome": "Toldo da praça",       "moedas": 1400000, "itens": {"vela": 6},                            "descricao": "Sombra feita de velas velhas."},
-    {"n": 11, "id": "ancora",     "nivel": 56, "nome": "Âncora gigante",       "moedas": 1600000, "itens": {"ancora": 1, "cravo": 30},             "descricao": "O enfeite da praça, de um navio afundado."},
-    {"n": 12, "id": "canhoes",    "nivel": 57, "nome": "Canhões de festa",     "moedas": 1800000, "itens": {"cravo": 40, "carta_nautica": 1},      "descricao": "Três canhões que só soltam confete."},
-    {"n": 13, "id": "sereia",     "nivel": 58, "nome": "Estátua da sereia",    "moedas": 2000000, "itens": {"perola_negra": 1, "tabua_naval": 20}, "descricao": "Dourada, com olhos de pérola."},
-    {"n": 14, "id": "cartografo", "nivel": 59, "nome": "Casa do cartógrafo",   "moedas": 2200000, "itens": {"carta_nautica": 5, "tabua_naval": 20},"descricao": "Com os mapas das próximas ilhas."},
-    {"n": 15, "id": "bandeira",   "nivel": 60, "nome": "Bandeira no morro",    "moedas": 2500000, "itens": {"carta_nautica": 4, "vela": 4},        "descricao": "A ilha é sua: a bandeira no alto do morro."}
+    {"n": 1,  "id": "cais",       "nivel": 46, "nome": "Cais de madeira",      "moedas": 400000,  "itens": {"tora": 12, "madeira_nobre": 1},       "descricao": "Onde o navio atraca. Com ele pronto, dá para cavar o baú da praia.", "efeito": "Libera o baú do X e a caça ao tesouro."},
+    {"n": 2,  "id": "trapiche",   "nivel": 47, "nome": "Trapiche",             "moedas": 500000,  "itens": {"tabua_naval": 20},                    "descricao": "A passarela do cais até a areia.", "efeito": "O Capitão paga +20% nas entregas."},
+    {"n": 3,  "id": "armazem",    "nivel": 48, "nome": "Armazém do porto",     "moedas": 600000,  "itens": {"tabua_naval": 30, "tora": 10},         "descricao": "Para guardar a carga do navio.", "efeito": "Os produtos da ilha vendem +10% no celeiro."},
+    {"n": 4,  "id": "muralha",    "nivel": 49, "nome": "Muralha de pedra",     "moedas": 700000,  "itens": {"tabua_naval": 20, "pedra_cantaria": 1}, "descricao": "Segura o mar nos dias de ressaca.", "efeito": "O furacão não arranca a plantação da ilha."},
+    {"n": 5,  "id": "taverna",    "nivel": 50, "nome": "Taverna",              "moedas": 800000,  "itens": {"tabua_naval": 30, "cravo": 20},        "descricao": "Onde os marujos contam as histórias da ilha.", "efeito": "Os ajudantes trabalham 25% mais rápido (na fazenda e na ilha)."},
+    {"n": 6,  "id": "portao",     "nivel": 51, "nome": "Portão de ferro",      "moedas": 900000,  "itens": {"cravo": 20, "ferro_forjado": 1},      "descricao": "A entrada do porto.", "efeito": "Ninguém pega dos canteiros da ilha, nem com a luva do Perks."},
+    {"n": 7,  "id": "farol",      "nivel": 52, "nome": "Farol",                "moedas": 1000000, "itens": {"leme_dourado": 1, "tabua_naval": 15},  "descricao": "Com o espelho dourado que guia os navios de noite.", "efeito": "+50% de chance de peixe raro no alto-mar."},
+    {"n": 8,  "id": "vigia",      "nivel": 53, "nome": "Cabana do vigia",      "moedas": 1100000, "itens": {"tora": 20, "cravo": 20},               "descricao": "Lá de cima dá para ver o mar todo.", "efeito": "Metade das pragas nos canteiros da ilha."},
+    {"n": 9,  "id": "mercado",    "nivel": 54, "nome": "Mercado pirata",       "moedas": 1200000, "itens": {"corda_naval": 2, "vela": 2},          "descricao": "As barracas de lona da praça.", "efeito": "Os produtos da ilha vendem mais +10% (com o armazém, +20%)."},
+    {"n": 10, "id": "toldo",      "nivel": 55, "nome": "Toldo da praça",       "moedas": 1400000, "itens": {"vela": 6},                            "descricao": "Sombra feita de velas velhas.", "efeito": "A planta da ilha demora o dobro para murchar."},
+    {"n": 11, "id": "ancora",     "nivel": 56, "nome": "Âncora gigante",       "moedas": 1600000, "itens": {"ancora": 1, "cravo": 30},             "descricao": "O enfeite da praça, de um navio afundado.", "efeito": "+1 diamante no baú do X, todo dia."},
+    {"n": 12, "id": "canhoes",    "nivel": 57, "nome": "Canhões de festa",     "moedas": 1800000, "itens": {"cravo": 40, "carta_nautica": 1},      "descricao": "Três canhões que só soltam confete.", "efeito": "1 vez por dia, toque neles: confete e um presente."},
+    {"n": 13, "id": "sereia",     "nivel": 58, "nome": "Estátua da sereia",    "moedas": 2000000, "itens": {"perola_negra": 1, "tabua_naval": 20}, "descricao": "Dourada, com olhos de pérola.", "efeito": "+1 na colheita de cada canteiro da ilha."},
+    {"n": 14, "id": "cartografo", "nivel": 59, "nome": "Casa do cartógrafo",   "moedas": 2200000, "itens": {"carta_nautica": 5, "tabua_naval": 20},"descricao": "Com os mapas das próximas ilhas.", "efeito": "Uma seta mostra a próxima pista, e as pistas dão o dobro de moedas."},
+    {"n": 15, "id": "bandeira",   "nivel": 60, "nome": "Bandeira no morro",    "moedas": 2500000, "itens": {"carta_nautica": 4, "vela": 4},        "descricao": "A ilha é sua: a bandeira no alto do morro.", "efeito": "Abre a caverna da Caveira Dourada."}
   ]'::jsonb;
 $$;
 
@@ -11262,6 +11287,7 @@ begin
   v_moeda := round((60000 + (v_nivel - 45) * 8000) * (0.6 + random() * 0.8)
                    * case when j.cachorro_raca is not null then 1.5 else 1 end)::int;   -- fase 111: o cachorro fareja
   if random() < (case when j.cachorro_raca is not null then 1.0 / 3 else 0.25 end) then v_diam := 5 + floor(random() * 11)::int; end if;
+  v_diam := v_diam + fazenda_obra_tem(v_id, 'ancora')::int;   -- fase 130: a âncora gigante
   if random() < 1.0 / 12 then
     v_raro := (array['madeira_nobre', 'corda_naval', 'pedra_cantaria', 'ferro_forjado', 'perola_negra'])[1 + floor(random() * 5)::int];
     insert into fazenda_celeiro (jogador_id, item, quantidade) values (v_id, v_raro, 1)
@@ -11769,13 +11795,15 @@ declare
   v_id    uuid := fazenda_auth_ler(p_token);
   j       record;
   v_nivel int;
+  v_mult  numeric;
 begin
   select * into j from fazenda_jogadores where id = v_id;
   v_nivel := fazenda_nivel_de(j.xp, j.nivel_trava);
+  v_mult := case when coalesce(j.ilha_obras, 0) >= fazenda_obra_n('trapiche') then 1.2 else 1 end;   -- fase 130: o trapiche
   if not fazenda_ilha_pode(v_id, v_nivel) then raise exception 'ilha_fechada'; end if;
   perform fazenda_capitao_gerar(v_id, v_nivel);
   return jsonb_build_object(
-    'pedidos', coalesce((select jsonb_agg(jsonb_build_object('slot', c.slot, 'item', c.item, 'qtd', c.qtd, 'moedas', c.moedas, 'xp', c.xp,
+    'pedidos', coalesce((select jsonb_agg(jsonb_build_object('slot', c.slot, 'item', c.item, 'qtd', c.qtd, 'moedas', round(c.moedas * v_mult)::int, 'xp', c.xp,
                                                              'diamantes', c.diamantes, 'feito', c.feito_em is not null,
                                                              'tem', greatest(0, coalesce(ce.quantidade, 0) - coalesce(rs.quantidade, 0))) order by c.slot)
                            from fazenda_capitao c
@@ -11795,17 +11823,19 @@ declare
   v_livre int;
   v_bau   jsonb;
   v_raro  text;
+  v_moedas int;
 begin
   select * into c from fazenda_capitao where jogador_id = v_id and dia = fazenda_hoje() and slot = p_slot for update;
   if not found then raise exception 'capitao_sem_pedido'; end if;
   if c.feito_em is not null then raise exception 'capitao_ja_entregue'; end if;
+  v_moedas := round(c.moedas * case when fazenda_obra_tem(v_id, 'trapiche') then 1.2 else 1 end)::int;   -- fase 130: o trapiche
   select ce.quantidade - coalesce((select r.quantidade from fazenda_reservas r where r.jogador_id = v_id and r.item = c.item), 0)
     into v_livre from fazenda_celeiro ce where ce.jogador_id = v_id and ce.item = c.item for update;
   if coalesce(v_livre, 0) < c.qtd then raise exception 'capitao_falta'; end if;
   update fazenda_celeiro set quantidade = quantidade - c.qtd, da_feira = greatest(0, least(da_feira, quantidade - c.qtd))
    where jogador_id = v_id and item = c.item;
   update fazenda_capitao set feito_em = now() where jogador_id = v_id and dia = c.dia and slot = c.slot;
-  update fazenda_jogadores set moedas = least(2147483647, moedas::bigint + c.moedas)::int, xp = xp + c.xp, diamantes = diamantes + c.diamantes
+  update fazenda_jogadores set moedas = least(2147483647, moedas::bigint + v_moedas)::int, xp = xp + c.xp, diamantes = diamantes + c.diamantes
    where id = v_id;
   -- os 3 entregues: o baú do Capitão (10 diamantes e um raro do píer, sorteado como no mercador)
   if not exists (select 1 from fazenda_capitao where jogador_id = v_id and dia = c.dia and feito_em is null)
@@ -11817,7 +11847,7 @@ begin
     on conflict (jogador_id, item) do update set quantidade = fazenda_celeiro.quantidade + 1;
     v_bau := jsonb_build_object('diamantes', 10, 'raro', v_raro);
   end if;
-  return jsonb_build_object('item', c.item, 'qtd', c.qtd, 'moedas', c.moedas, 'xp', c.xp, 'diamantes', c.diamantes, 'bau', v_bau,
+  return jsonb_build_object('item', c.item, 'qtd', c.qtd, 'moedas', v_moedas, 'xp', c.xp, 'diamantes', c.diamantes, 'bau', v_bau,
                             'estado', fazenda_estado(v_id));
 end;
 $$;
@@ -11956,6 +11986,7 @@ begin
   v_passo := case when j.caca_dia = fazenda_hoje() then j.caca_passo else 0 end;
   if p_n is distinct from v_passo + 1 or p_n > 3 then raise exception 'pista_ordem'; end if;
   v_moeda := round((12000 + greatest(v_nivel - 45, 0) * 1500) * (0.8 + random() * 0.4))::int;
+  if fazenda_obra_tem(v_id, 'cartografo') then v_moeda := v_moeda * 2; end if;   -- fase 130: a casa do cartógrafo
   if random() < 0.2 then v_diam := 1 + floor(random() * 3)::int; end if;
   update fazenda_jogadores set moedas = least(2147483647, moedas::bigint + v_moeda)::int, diamantes = diamantes + v_diam,
          moedas_ganhas = moedas_ganhas - v_moeda,   -- (como o baú, não conta no evento das moedas)
@@ -12425,3 +12456,51 @@ begin
   perform cron.unschedule(jobid) from cron.job where jobname = 'fazenda_limpeza';
   perform cron.schedule('fazenda_limpeza', '17 7 * * *', 'select public.fazenda_limpeza()');   -- todo dia às 4h17 (Brasília)
 end $$;
+
+-- ------------------------------------------------------------
+-- Fase 130: cada obra da ilha faz alguma coisa (o efeito vai escrito no cartão dela, em fazenda_ilha_obras):
+-- trapiche (Capitão +20%), armazém e mercado (produtos da ilha +10% cada), muralha (o furacão não arranca a
+-- plantação da ilha), taverna (ajudantes 25% mais rápidos), portão (ninguém pega da ilha), farol (+50% de peixe
+-- raro), vigia (metade das pragas na ilha), toldo (a planta da ilha demora o dobro para murchar), âncora (+1
+-- diamante no baú do X), canhões (presente 1 vez por dia), sereia (+1 na colheita da ilha) e cartógrafo (seta
+-- na próxima pista e o dobro de moedas nelas). O cais e a bandeira já tinham o deles.
+-- Pode rodar este arquivo de novo.
+-- ------------------------------------------------------------
+
+-- o toldo da praça: na ilha (y >= 45), a planta demora o dobro para murchar (só olha a obra quando o canteiro é da ilha)
+create or replace function public.fazenda_murcha_seg(p_tempo int, p_seco boolean, p_y int, p_dono uuid)
+returns int language sql stable set search_path = public as $$
+  select fazenda_murcha_seg(p_tempo, p_seco) * case when p_y >= 45 and fazenda_obra_tem(p_dono, 'toldo') then 2 else 1 end;
+$$;
+
+-- os canhões de festa: 1 vez por dia, um presente (moedas, ou diamantes 3 em cada 10 vezes)
+create or replace function public.fazenda_ilha_canhoes(p_token text)
+returns jsonb
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_id    uuid := fazenda_auth(p_token);
+  j       record;
+  v_nivel int;
+  v_moeda int := 0;
+  v_diam  int := 0;
+begin
+  select * into j from fazenda_jogadores where id = v_id for update;
+  if coalesce(j.ilha_obras, 0) < fazenda_obra_n('canhoes') then raise exception 'canhoes_fechado'; end if;
+  if j.canhoes_dia = fazenda_hoje() then raise exception 'canhoes_hoje'; end if;
+  v_nivel := fazenda_nivel_de(j.xp, j.nivel_trava);
+  if random() < 0.3 then v_diam := 3 + floor(random() * 5)::int;
+  else v_moeda := round((30000 + greatest(v_nivel - 45, 0) * 4000) * (0.7 + random() * 0.6))::int;
+  end if;
+  update fazenda_jogadores set canhoes_dia = fazenda_hoje(), diamantes = diamantes + v_diam,
+         moedas = least(2147483647, moedas::bigint + v_moeda)::int,
+         moedas_ganhas = moedas_ganhas - v_moeda   -- (como o baú, não conta no evento das moedas)
+   where id = v_id;
+  return jsonb_build_object('moedas', v_moeda, 'diamantes', v_diam, 'estado', fazenda_estado(v_id));
+end;
+$$;
+
+revoke execute on function public.fazenda_obra_n(text), public.fazenda_obra_tem(uuid, text),
+  public.fazenda_murcha_seg(int, boolean, int, uuid) from public, anon, authenticated;
+grant execute on function public.fazenda_ilha_canhoes(text) to anon, authenticated;

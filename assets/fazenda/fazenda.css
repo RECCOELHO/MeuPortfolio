@@ -3519,3 +3519,7 @@ body.conta-teste::after { content: 'CONTA DE TESTE'; position: fixed; left: 16px
 .vaquinha-tit { margin: 0 0 8px; }
 .vaquinha .det { margin: 6px 0 0; }
 .vaquinha .aviso { margin: 8px 0 0; }
+
+/* fase 130: o efeito de cada obra da ilha, no cartão dela */
+.efeito-obra { color: #7a4a12; }
+.efeito-obra b { font-weight: 800; }
