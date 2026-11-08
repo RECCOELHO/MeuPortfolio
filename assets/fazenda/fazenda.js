@@ -1569,6 +1569,9 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-11-08-sem-guardar', data: '08/11', titulo: 'O Guardar saiu do Construir (por enquanto)', itens: [
+            'Para o jogo parar de travar, o botão <b>Guardar</b> do Construir saiu por enquanto: guardar e colocar de novo muitas vezes estava pesando o servidor. O que você já guardou continua no depósito (📦 na barra) e sai <b>de graça</b> quando você coloca.',
+            'Para mudar algo de lugar, use <b>Mover</b> (ou segure o item por 3 s).'] },
         { id: '2026-11-08-iara-pedruu', data: '08/11', titulo: 'A Dona Iara, o selo do Pedruu e a vaquinha do Google Play', itens: [
             'A <b>Dona Iara</b>, a cuidadora dos papagaios, ganhou o desenho dela: chapéu de palha com flor, o papagaio no ombro e as penas na mão.',
             'Homenagem ao <b>Pedruu</b>, o primeiro a fazer live da Fazendinha: o selo <span class="selo-nome selo-live">🎥 1ª live</span> ao lado do nome, no ranking, no chat e na visita. Valeu, Pedruu!',
@@ -4253,7 +4256,7 @@
             return mostrarStatus(it ? `${A.htmlItem(c.tipo, 22)} Toque para escolher ${esc(it.nome.toLowerCase())} e depois o novo lugar.` : 'Toque num item para mover.');
         }
         const sel = tipoItem(constr.tipo);
-        if (c) return mostrarStatus(`${A.htmlItem(c.tipo, 22)} ${esc(it ? it.nome : c.tipo)}. ${it && it.descricao ? esc(it.descricao) + ' ' : ''}Toque nele para mudar de lugar, ou use Guardar (vai para o depósito) ou Vender.`);
+        if (c) return mostrarStatus(`${A.htmlItem(c.tipo, 22)} ${esc(it ? it.nome : c.tipo)}. ${it && it.descricao ? esc(it.descricao) + ' ' : ''}Toque nele para mudar de lugar, ou use Vender.`);
         if (sel && sel.id === 'canteiro') return mostrarStatus(`${A.htmlItem('canteiro', 22)} Toque para colocar um canteiro (sobram ${canteirosLivres()}).`);
         mostrarStatus(sel ? `${A.htmlItem(sel.id, 22)} Toque para colocar ${esc(sel.nome.toLowerCase())} (${noDeposito(sel.id) ? `${ico('caixa', 14)} do depósito, de graça: tem ${noDeposito(sel.id)}` : cercadoGratis(sel) ? 'de graça' : moeda(sel.custo)}).` : 'Escolha um item na barra de baixo.');
     }
