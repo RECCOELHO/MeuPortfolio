@@ -5583,7 +5583,8 @@
             }
             presencaIndo = false;
         }
-        const espera = presencaFalhas ? 30000 : onde === 'mar' ? 4000 : visita || presencaOutros.length ? 5000 : 15000;
+        // fase 128: menos vezes (no mar 6 s, na visita 8 s, em casa com visita 10 s e sozinho 30 s)
+        const espera = presencaFalhas ? 60000 : onde === 'mar' ? 6000 : visita ? 8000 : presencaOutros.length ? 10000 : 30000;
         presencaRelogio = setTimeout(pingPresenca, espera);
     }
     function aplicarPresenca(onde, r) {
