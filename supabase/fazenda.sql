@@ -12261,6 +12261,17 @@ create index if not exists fazenda_presenca_onde on public.fazenda_presenca (ond
 alter table public.fazenda_presenca enable row level security;
 revoke all on public.fazenda_presenca from anon, authenticated;
 
+-- fase 128: quem é o dono do token, sem entrar na fila do jogador (a presença só diz onde ele está, não mexe
+-- em nada dele; antes ela esperava a ação em andamento terminar e, com o disco lento, travava junto)
+create or replace function public.fazenda_auth_leve(p_token text)
+returns uuid language sql stable security definer set search_path = public, extensions as $$
+  select s.jogador_id
+    from fazenda_sessoes s join fazenda_jogadores j on j.id = s.jogador_id
+   where p_token is not null and length(p_token) >= 32
+     and s.token_hash = encode(digest(p_token, 'sha256'), 'hex')
+     and j.banido_em is null;
+$$;
+
 create or replace function public.fazenda_presenca(p_token text, p_onde text, p_x real default null, p_y real default null,
                                                    p_acao text default null, p_peixe text default null)
 returns jsonb
@@ -12268,10 +12279,11 @@ language plpgsql security definer
 set search_path = public, extensions
 as $$
 declare
-  v_id   uuid := fazenda_auth(p_token);
+  v_id   uuid := fazenda_auth_leve(p_token);   -- fase 128: sem a fila do jogador
   v_onde text;
   v_dono uuid;
 begin
+  if v_id is null then raise exception 'token_invalido'; end if;
   if p_onde is null or p_onde = 'sair' then
     delete from fazenda_presenca where jogador_id = v_id;
     return jsonb_build_object('outros', '[]'::jsonb);
@@ -12296,7 +12308,10 @@ begin
           now())
   on conflict (jogador_id) do update
     set onde = excluded.onde, x = excluded.x, y = excluded.y, acao = excluded.acao,
-        peixe = coalesce(excluded.peixe, p.peixe), pegou_em = coalesce(excluded.pegou_em, p.pegou_em), visto_em = now();
+        peixe = coalesce(excluded.peixe, p.peixe), pegou_em = coalesce(excluded.pegou_em, p.pegou_em), visto_em = now()
+    -- fase 128: só grava se mudou alguma coisa (ou a cada 20 s, para continuar aparecendo)
+    where p.onde is distinct from excluded.onde or p.x is distinct from excluded.x or p.y is distinct from excluded.y
+       or p.acao is distinct from excluded.acao or excluded.peixe is not null or p.visto_em < now() - interval '20 seconds';
 
   return jsonb_build_object(
     'outros', coalesce((select jsonb_agg(q) from (
@@ -12310,14 +12325,14 @@ begin
                              from unnest(array['motor', 'sonar', 'porao', 'rede', 'expedicao']) x),
                  'visual', coalesce(j.barco_visual, '{}'::jsonb)) end as navio
           from fazenda_presenca p join fazenda_jogadores j on j.id = p.jogador_id
-         where p.onde = v_onde and p.jogador_id <> v_id and p.visto_em > now() - interval '25 seconds'
+         where p.onde = v_onde and p.jogador_id <> v_id and p.visto_em > now() - interval '45 seconds'
            and j.banido_em is null
          order by (p.jogador_id = v_dono) desc, p.visto_em desc
          limit case when v_onde = 'mar' then 3 else 8 end) q), '[]'::jsonb),
     -- na visita: onde o dono está agora (casa = na fazenda dele, mar, fora = visitando alguém; null = fora do jogo)
     'dono', case when v_dono is not null and v_dono <> v_id then
       (select case when p.onde = 'mar' then 'mar' when p.onde = v_dono::text then 'casa' else 'fora' end
-         from fazenda_presenca p where p.jogador_id = v_dono and p.visto_em > now() - interval '25 seconds') end);
+         from fazenda_presenca p where p.jogador_id = v_dono and p.visto_em > now() - interval '45 seconds') end);
 end;
 $$;
 
@@ -12362,3 +12377,11 @@ $$;
 
 revoke execute on function public.fazenda_selos(uuid) from public, anon, authenticated;
 grant execute on function public.fazenda_vaquinha() to anon, authenticated;
+
+-- ------------------------------------------------------------
+-- Fase 128: a presença (quem joga junto) mais leve: não entra mais na fila de chamadas do jogador e só grava
+-- quando alguma coisa mudou. O jogo também avisa menos vezes (em casa, a cada 30 s).
+-- Pode rodar este arquivo de novo.
+-- ------------------------------------------------------------
+
+revoke execute on function public.fazenda_auth_leve(text) from public, anon, authenticated;

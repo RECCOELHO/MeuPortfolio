@@ -2821,6 +2821,7 @@
         let alcance = null;                                // alcance de um item tocado: { x, y, raio, ate }
         const SEGURAR_MS = 3000;                           // segurar 3 s num item: pega para mudar de lugar
         let segurando = null;                              // { alvo, t0, cx, cy, id, timer }
+        let vistaHi = null, hiLigado = true, mediaDesenho = 0;   // fase 128: a alta resolução (ver hiAntes)
         let ignorarCliqueAte = 0;                          // o clique que vem depois de segurar não vale
         const atores = new Map();
         const fazendeiro = { x: 0, y: 0, tx: 0, ty: 0, flip: false, passo: 0 };
@@ -4812,7 +4813,11 @@
             if (movendo || agora - ultimoDesenho >= 1000 / 24) {
                 ultimoDesenho = agora;
                 precisaDesenhar = false;
+                const ti = performance.now();
                 desenhar(agora - t0);
+                // fase 128: o aparelho está sofrendo (média acima de 30 ms por quadro com desenho grande na tela)? desliga a alta resolução
+                mediaDesenho = mediaDesenho * 0.95 + (performance.now() - ti) * 0.05;
+                if (hiLigado && estatuasHi.length && mediaDesenho > 30) hiLigado = false;
             }
             requestAnimationFrame(quadroAnim);
         }
@@ -4938,6 +4943,7 @@
             }
             desenharNavio(pe, tempo);   // fase 104: o navio no píer
             estatuasHi.length = 0;
+            vistaHi = V;   // fase 128: só o que está na tela ganha a alta resolução
             pe.sort((a, b) => (a.ordem != null ? a.ordem : a.y) - (b.ordem != null ? b.ordem : b.y)).forEach((a) => {
                 const x = Math.round(a.x), y = Math.round(a.y) + a.bob;
                 if (a.i === 1230 && a.p === 'farm' && !a.grade) {   // a estátua do Chico: guarda o que fica atrás dela
@@ -5275,8 +5281,13 @@
         const estatuasHi = [];   // (a estátua e os ajudantes com desenho grande: tudo o que vai em alta resolução)
         let estatuaTmp = null;
         const dadosLo = new WeakMap();   // os pixels da versão pequena de cada desenho
+        /* fase 128: cada desenho grande lê a tela 3 vezes por quadro (getImageData), o que pesa no celular. Agora só
+           para o que aparece na tela (antes, o Juvenal passeando na ilha pesava mesmo com você na fazenda) e, se o
+           aparelho estiver demorando para desenhar, a alta resolução desliga sozinha (fica o desenho pequeno). */
         function hiAntes(lo, hi, bx, by, flip, f = 2) {   // (f: quantas vezes o grande é maior que o pequeno; a Dona Iara é 3)
+            if (!hiLigado) return;
             if (bx < 0 || by < 0 || bx + lo.width > MW || by + lo.height > MH) return;
+            if (vistaHi && (bx + lo.width < vistaHi.x0 || bx > vistaHi.x1 || by + lo.height < vistaHi.y0 || by > vistaHi.y1)) return;
             estatuasHi.push({ lo, hi, flip, bx, by, f: f || 2, w: lo.width, h: lo.height, fundo: q.getImageData(bx, by, lo.width, lo.height) });
         }
         function estatuasHiLer(fase) {
