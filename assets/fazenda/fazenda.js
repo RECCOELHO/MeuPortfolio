@@ -242,6 +242,7 @@
         cesto_vazio: 'O cesto ainda está vazio: o Bira tira um peixe a cada 30 minutos.',
         limite_canteiros: 'Você já usou todos os seus canteiros. Suba de nível ou compre terrenos para ter mais.',
         limite_maquina: 'Você já tem essa máquina (uma basta para a fazenda toda).',
+        fabrica_lado: 'Já tem uma fábrica automática deste lado. Pode ter uma na fazenda e uma na ilha (a da ilha a partir do nível 46).',   // fase 125
         melhoria_max: 'Essa melhoria já está no máximo.',
         ajudante_descansando: 'Esse ajudante já está descansando (ou não precisa).',
         pier_pronto: 'O seu píer já está pronto.',
@@ -597,10 +598,13 @@
     };
     function atualizarTerreno() {
         cena.definirTerreno({ zonas: zonasDaTela(), direita: direitaDaTela(), ilha: visita ? 0 : (S && S.jogador.ilha_terrenos) || 0, venda: proximasZonas().map((z) => z.n) });
-        cena.definirPier(!visita && !!(S && S.pier && S.pier.pronto));   // fase 61
+        // fase 125: na visita, o píer e o navio do vizinho (o servidor manda o nível, as peças e a pintura dele)
+        const nv = visita && visita.navio;
+        cena.definirPier(visita ? !!nv : !!(S && S.pier && S.pier.pronto));   // fase 61
         // fase 104: o navio atracado (o nível do barco, as peças e a pintura)
-        if (cena.definirBarco) cena.definirBarco(!visita && S && S.pier && S.pier.pronto
-            ? { nivel: (S.mar && S.mar.barco && S.mar.barco.valor) || 1, pecas: pecasMar(), visual: visualBarco() } : null);
+        if (cena.definirBarco) cena.definirBarco(visita
+            ? (nv ? { nivel: nv.nivel || 1, pecas: nv.pecas || {}, visual: { casco: 'padrao', faixa: 'padrao', vela: 'padrao', bandeira: 'padrao', ...(nv.visual || {}) } } : null)
+            : S && S.pier && S.pier.pronto ? { nivel: (S.mar && S.mar.barco && S.mar.barco.valor) || 1, pecas: pecasMar(), visual: visualBarco() } : null);
         atualizarIlha();   // fase 106
     }
     /* ---------- Estação e clima (vêm do servidor: o mesmo dia para todo mundo) ---------- */
@@ -1563,6 +1567,10 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-11-08-juvenal-fabrica', data: '08/11', titulo: 'Seu Juvenal, a fábrica na ilha e o navio dos vizinhos', itens: [
+            'O <b>Seu Juvenal</b>, o tratador das tartarugas, ganhou o desenho dele: anda pela ilha de chapéu de palha, com a concha e o cesto de abacaxis.',
+            'Do nível 46, dá para ter uma <b>2ª fábrica automática</b>, na ilha: a rede de canos encostada nela leva e traz do celeiro e automatiza as oficinas de lá (uma na fazenda e uma na ilha).',
+            'Visitando um vizinho, agora você vê o <b>navio</b> dele no píer, com a pintura e as peças que ele colocou.'] },
         { id: '2026-11-08-cuidadores-ilha', data: '08/11', titulo: 'Cuidadores na ilha e a caverna com mais explorações', itens: [
             'Chegaram dois cuidadores para os bichos da ilha: <b>Seu Juvenal</b> (tartarugas, nível 47) e <b>Dona Iara</b> (papagaios, nível 52). Eles dão a ração e juntam as conchas e as penas. Contrate na Loja → Ajudantes.',
             'Na <b>caverna</b>, depois da exploração de graça do dia, dá para explorar até <b>mais 2 vezes</b> por <b>10 diamantes</b> cada. E agora aparece quanto falta para a de graça voltar (à meia-noite).'] },
@@ -4161,7 +4169,8 @@
         : id === 'turbina' ? Math.max(0, Math.min(n, 29) - 17) + Math.max(0, Math.floor((n - 29) / 2))
         : id === 'gerador_bio' ? (n >= 21) + (n >= 24) + 2 * (n >= 28)
         : id === 'hidreletrica' ? (n >= 23) + (n >= 27)
-        : id === 'reator' ? +(n >= 40) : 0);
+        : id === 'reator' ? +(n >= 40)
+        : id === 'fabrica_auto' ? +(n >= 46) : 0);   // fase 125: a 2ª fábrica automática, para a ilha
     const proximoNivelMaquina = (it) => {
         if (!['painel_solar', 'turbina', 'gerador_bio', 'hidreletrica', 'reator'].includes(it.id)) return null;
         const base = (it.limite || 0) - limiteMaquina(it.id, 0, S.jogador.nivel);
