@@ -2922,8 +2922,11 @@
                 // ajudantes da lavoura andam em volta dos canteiros
                 const l = listaCanteiros();
                 if (l.length) {
-                    const xs = l.map((c) => c.x), ys = l.map((c) => c.y);
-                    return { x0: wx(Math.min(...xs) - 1), y0: wy(Math.min(...ys)), x1: wx(Math.max(...xs) + 1), y1: wy(Math.max(...ys) + 1) };
+                    // a fazenda e a ilha cada uma no seu retângulo (antes era um só, com o mar no meio, e eles andavam na água)
+                    const caixa = (cs) => { if (!cs.length) return null; const xs = cs.map((c) => c.x), ys = cs.map((c) => c.y);
+                        return { x0: wx(Math.min(...xs) - 1), y0: wy(Math.min(...ys)), x1: wx(Math.max(...xs) + 1), y1: wy(Math.max(...ys) + 1) }; };
+                    const faz = caixa(l.filter((c) => c.y < Y_ILHA)), ilh = MH === MH_ILHA ? caixa(l.filter((c) => c.y >= Y_ILHA)) : null;
+                    return { ...(faz || ilh), fazenda: faz, ilha: ilh };
                 }
                 return { x0: wx(MAPA.campo.x), y0: wy(MAPA.campo.y), x1: wx(MAPA.campo.x + 5), y1: wy(MAPA.campo.y + 1) };
             }
@@ -4317,9 +4320,12 @@
                 return alvo;
             }
             let melhor = null, folga = -1;
+            // a lavoura na fazenda e na ilha: fica do lado em que está e, de vez em quando, atravessa (de barquinho)
+            const lados = a.area.fazenda && a.area.ilha, naIlhaA = regiao(a.y) === 'ilha';
+            const caixa = lados ? ((Math.random() < 0.12) !== naIlhaA ? a.area.ilha : a.area.fazenda) : a.area;
             const nada = (a.tipo === 'pato' || a.tipo === 'tartaruga') && !a.ajudante;   // fase 74b: só o pato vai para a água (fase 116: e a tartaruga)
             for (let k = 0, validos = 0; k < 12 && validos < (a.ajudante ? 1 : 6); k++) {
-                const x = a.area.x0 + Math.random() * (a.area.x1 - a.area.x0), y = a.area.y0 + Math.random() * (a.area.y1 - a.area.y0);
+                const x = caixa.x0 + Math.random() * (caixa.x1 - caixa.x0), y = caixa.y0 + Math.random() * (caixa.y1 - caixa.y0);
                 if (!nada && aguaEm(x, y) && k < 11) continue;
                 validos++;
                 let perto = Infinity;
@@ -4332,14 +4338,71 @@
             return melhor;
         }
 
+        /* ---- a travessia de barquinho: quem tem que ir para o outro lado anda até a areia do lado do píer (ou
+           do cais da ilha), entra no barquinho a remo e vai pelo mar (desce, atravessa e sobe, como o navio) ---- */
+        function pontosTravessia(ida) {
+            const P = MAPA.pier, C = OBRAS_ILHA.cais, xf = wx(P.x - 1), xi = wx(C.x - 2);
+            const meio = (wyFazenda(MAPA.h + 1) + wy(Y_ILHA)) / 2;
+            const praiaF = { x: xf, y: wy(MAPA.mar.y) - 12 }, aguaF = { x: xf, y: wy(MAPA.mar.y) + 4 };
+            const aguaI = { x: xi, y: wy(ILHA.y0) - 14 }, praiaI = { x: xi, y: wy(ILHA.y0) + 10 };
+            const r = [praiaF, aguaF, { x: xf, y: meio }, { x: xi, y: meio }, aguaI, praiaI];
+            return ida ? r : r.reverse();
+        }
+        function iniciarTravessia(a, tx, ty) {
+            if (MH !== MH_ILHA) return false;
+            const pts = pontosTravessia(regiao(a.y) === 'fazenda');
+            a.barco = { destino: { x: tx, y: ty }, pts, k: 0 };
+            return true;
+        }
+        // devolve true enquanto está atravessando (o resto do mover espera)
+        function travessia(a, dt) {
+            const b = a.barco, alvo = b.pts[b.k];
+            if (b.k === 0) {   // andando até a areia, do lado do embarque
+                a.tx = alvo.x; a.ty = alvo.y;
+                const ex = passoSeco(a, Math.max(a.vel, 30), dt);
+                if (Math.abs(ex) > 0.2) a.flip = ex < 0;
+                if (Math.hypot(alvo.x - a.x, alvo.y - a.y) < 1) { b.k = 1; a.x = b.pts[1].x; a.y = b.pts[1].y; a.emBarco = true; }
+                return true;
+            }
+            if (b.k < b.pts.length - 1) {   // remando pelo mar
+                const p = b.pts[b.k + 1], dx = p.x - a.x, dy = p.y - a.y, d = Math.hypot(dx, dy), passo = 42 * dt / 1000;
+                if (Math.abs(dx) > 0.5) a.flip = dx < 0;
+                if (d <= passo) { a.x = p.x; a.y = p.y; b.k++; } else { a.x += dx / d * passo; a.y += dy / d * passo; }
+                if (b.k === b.pts.length - 2) {   // chegou na beira: desce na areia e segue para onde ia
+                    const fim = b.pts[b.pts.length - 1];
+                    a.x = fim.x; a.y = fim.y; a.emBarco = false; a.barco = null;
+                    a.tx = b.destino.x; a.ty = b.destino.y;
+                }
+                precisaDesenhar = true;
+                return true;
+            }
+            a.emBarco = false; a.barco = null;
+            return false;
+        }
+        let atorTeste = null;   // (para os testes)
+        const barquinhoCv = [];
+        function barquinhoCanvas(rema) {   // o barquinho a remo (28 x 12), visto de lado, com o remo em 2 posições
+            if (barquinhoCv[rema]) return barquinhoCv[rema];
+            const c = document.createElement('canvas'); c.width = 28; c.height = 12;
+            const g = c.getContext('2d'), R = (x, y, w, h, cor) => { g.fillStyle = cor; g.fillRect(x, y, w, h); };
+            R(0, 1, 24, 2, '#3f2631'); R(1, 3, 22, 3, '#3f2631'); R(3, 6, 18, 2, '#3f2631'); R(6, 8, 12, 1, '#3f2631');   // o contorno
+            R(1, 2, 22, 1, '#d79a5c'); R(2, 3, 20, 2, '#a8683a'); R(4, 5, 16, 2, '#8a5230'); R(7, 7, 10, 1, '#6e3f24');   // o casco de madeira
+            R(2, 4, 20, 1, '#c98a50'); R(11, 2, 2, 5, '#6e3f24');   // a faixa e o banco
+            for (let k = 0; k < 6; k++) R(19 + k + rema * 2, 1 + k + (rema ? 0 : 1), 1, 1, '#6e3f24');   // o remo, entrando na água
+            R(24 + rema * 2, 6 + (rema ? 0 : 1), 3, 2, '#8a5230');
+            return (barquinhoCv[rema] = c);
+        }
+
         function mover(dt) {
             for (const a of atores.values()) {
+                if (a.ajudante && a.barco) { if (travessia(a, dt)) continue; }   // atravessando de barquinho
                 if (a.v && a.v.estado !== 'produzindo') continue;   // esperando o toque
                 // fase 66: indo dormir: anda até a porta da casa e entra; na sombra, fica parado
                 if (a.ajudante && a.dormir) {
                     if (a.dormir.sombra || a.dentro) continue;
                     const px = wx(a.dormir.x), py = wy(a.dormir.y) + 2, ddx = px - a.x, ddy = py - a.y, dd = Math.hypot(ddx, ddy);
                     if (dd < 1) { a.dentro = true; a.x = px; a.y = py; a.tx = px; a.ty = py; precisaDesenhar = true; continue; }
+                    if (regiao(py) !== regiao(a.y) && iniciarTravessia(a, px, py)) continue;   // a casa fica do outro lado: de barquinho
                     a.tx = px; a.ty = py;
                     const ex = passoSeco(a, 30, dt);   // fase 74b: até a casa sem entrar na água
                     if (Math.abs(ex) > 0.2) a.flip = ex < 0;
@@ -4380,7 +4443,10 @@
                     a.ty = p.y;
                     continue;
                 }
-                if (regiao(a.ty) !== regiao(a.y)) { a.x = a.tx; a.y = a.ty; continue; }   // fase 106: o outro lado do mar
+                if (regiao(a.ty) !== regiao(a.y)) {   // fase 106: o outro lado do mar (o ajudante vai de barquinho)
+                    if (!(a.ajudante && iniciarTravessia(a, a.tx, a.ty))) { a.x = a.tx; a.y = a.ty; }
+                    continue;
+                }
                 const ex = passoSeco(a, a.vel, dt);   // (fase 79: todo mundo pode entrar na água)
                 // os sprites do pacote olham para a direita: espelha quando anda para a esquerda
                 if (Math.abs(ex) > 0.2) a.flip = ex < 0;
@@ -4800,6 +4866,18 @@
                 const bob = (parado && Math.floor(tempo / 600) % 2) || (andando && Math.floor(tempo / 140) % 2) ? -1 : 0;
                 // fase 76: o pato nadando fica com metade do corpo dentro da água (fase 79: e todo mundo que entra nela)
                 const nadando = naAgua(a.x, a.y);
+                if (a.emBarco) {   // atravessando: no barquinho, balançando, com o remo
+                    const balanco = Math.round(Math.sin(tempo / 260 + a.x / 9)), rema = Math.floor(tempo / 320) % 2, cv = barquinhoCanvas(rema);
+                    if (a.desenho) {
+                        const lo = desenhoBicho(a.desenho.frente + '_p'), hi = desenhoBicho(a.desenho.frente + '_g');
+                        pe.push({ img: lo, hi, x: Math.round(a.x + T / 2 - lo.width / 2), y: Math.round(a.y + T - lo.height) + 3 + balanco, ordem: a.y, flip: !!a.flip, bob: 0 });
+                    } else if (a.visual) pe.push({ img: passoCanvas(ajudanteCanvas(a.tipo), 0, 'lado'), x: a.x, y: a.y + 3 + balanco, ordem: a.y, flip: !!a.flip, bob: 0 });
+                    else pe.push({ p: a.p || 'farm', i: a.i, x: a.x, y: a.y + 3 + balanco, ordem: a.y, flip: !!a.flip, bob: 0 });
+                    const bx = Math.round(a.x + T / 2 - 12), by = Math.round(a.y + T - 2) + balanco;
+                    q.fillStyle = '#e8f2fb'; q.fillRect(bx - 2 - rema * 2, by + 7, 4, 1); q.fillRect(bx + 22 + rema * 2, by + 7, 4, 1);   // a espuma
+                    pe.push({ img: cv, x: bx, y: by, ordem: a.y + 0.5, flip: !!a.flip, bob: 0 });
+                    continue;
+                }
                 const vistaA = andando ? (a.vista = vistaDoPasso(a.tx - a.x, a.ty - a.y, a.vista)) : 'frente';   // fase 108
                 if (a.desenho) {   // o desenho do Jessé: de frente parado; andando, os 2 passos (para a esquerda, espelhados)
                     const d = a.desenho, quadro = andando ? d.passo[Math.floor(tempo / 220) % 2] : d.frente;
@@ -6333,6 +6411,15 @@
                 viagem = { t0: performance.now(), dur: 5200, de, para, ida: destino === 'ilha', fim };
             },
             viajando: () => !!viagem,
+            // (para os testes) o primeiro ajudante da lavoura atravessa de barquinho para o outro lado
+            testeTravessia() {
+                const a = [...atores.values()].find((b) => b.ajudante && b.area && b.area.fazenda && b.area.ilha && !b.barco);
+                if (!a) return false;
+                const c = regiao(a.y) === 'ilha' ? a.area.fazenda : a.area.ilha;
+                atorTeste = a;
+                return iniciarTravessia(a, (c.x0 + c.x1) / 2, (c.y0 + c.y1) / 2);
+            },
+            testeAtor: () => atorTeste && { x: atorTeste.x / T - MARGEM, y: atorTeste.y / T - MARGEM, barco: !!atorTeste.emBarco, k: atorTeste.barco ? atorTeste.barco.k : null },
             navioCanvas,   // fase 104 (para a prévia e os testes)
             pausar(sim) { pausada = !!sim; if (!pausada) precisaDesenhar = true; },   // fase 62
             // avatar do fazendeiro que anda na fazenda (null = o do pacote)

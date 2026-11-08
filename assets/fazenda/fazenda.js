@@ -1567,6 +1567,8 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-11-08-barquinho', data: '08/11', titulo: 'Os ajudantes vão de barquinho', itens: [
+            'Quando um ajudante vai trabalhar do outro lado do mar, ele não some mais: anda até a praia, entra num <b>barquinho a remo</b> e atravessa até a ilha (ou volta para a fazenda).'] },
         { id: '2026-11-08-juvenal-fabrica', data: '08/11', titulo: 'Seu Juvenal, a fábrica na ilha e o navio dos vizinhos', itens: [
             'O <b>Seu Juvenal</b>, o tratador das tartarugas, ganhou o desenho dele: anda pela ilha de chapéu de palha, com a concha e o cesto de abacaxis.',
             'Do nível 46, dá para ter uma <b>2ª fábrica automática</b>, na ilha: a rede de canos encostada nela leva e traz do celeiro e automatiza as oficinas de lá (uma na fazenda e uma na ilha).',
