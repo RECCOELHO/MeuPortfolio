@@ -3174,7 +3174,7 @@ begin
       a.energia := 100; a.credito := 0; a.atualizado_em := a.descanso_ate;
     end if;
     -- com o jogador na fazenda a semeadora descansa (o tempo online não conta para ela)
-    if a.funcao = 'plantar' and coalesce((select carregado_antes > now() - interval '2 minutes' from fazenda_jogadores where id = p_jogador), false) then
+    if a.funcao = 'plantar' and coalesce((select carregado_antes > now() - interval '4 minutes' from fazenda_jogadores where id = p_jogador), false) then
       update fazenda_ajudantes set atualizado_em = now() where jogador_id = p_jogador and tipo = a.tipo;
       continue;
     end if;
@@ -3430,6 +3430,11 @@ begin
      where token_hash = current_setting('fazenda.sessao', true)
        and (leve is not true or cat_ver is distinct from nullif(p_cat, ''));
     perform set_config('fazenda.leve', '1', true), set_config('fazenda.cat_ver', p_cat, true);
+  end if;
+  -- fase 129: buscou de novo em menos de 50 s (outra aba, outro aparelho, a volta da aba escondida)? Só o estado, sem
+  -- rodar de novo o trabalho dos ajudantes, das oficinas e do clima (cada rodada grava no disco, e o disco estava no limite)
+  if exists (select 1 from fazenda_jogadores where id = v_id and carregado_em > now() - interval '50 seconds') then
+    return fazenda_estado(v_id);
   end if;
   -- carregado_antes = o carregar anterior: se foi há menos de 2 minutos, a fazenda está aberta (a Dona Rosa descansa)
   update fazenda_jogadores set carregado_antes = carregado_em, carregado_em = now() where id = v_id;
@@ -12385,3 +12390,38 @@ grant execute on function public.fazenda_vaquinha() to anon, authenticated;
 -- ------------------------------------------------------------
 
 revoke execute on function public.fazenda_auth_leve(text) from public, anon, authenticated;
+
+-- ------------------------------------------------------------
+-- Fase 129: menos gravação no disco. A busca automática da fazenda (fazenda_carregar) não refaz o trabalho se buscou
+-- há menos de 50 s; o jogo busca de 90 em 90 s (era 60); e uma limpeza por dia apaga o que ninguém mais vê (as visitas
+-- com mais de 30 dias e o histórico do relógio do banco com mais de 3 dias).
+-- Pode rodar este arquivo de novo.
+-- ------------------------------------------------------------
+create or replace function public.fazenda_limpeza()
+returns int
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  v_n int;
+begin
+  delete from fazenda_visitas where criado_em < now() - interval '30 days';   -- (o jogo só usa as de hoje e as 20 últimas)
+  get diagnostics v_n = row_count;
+  begin
+    delete from cron.job_run_details where end_time < now() - interval '3 days';
+  exception when others then null;   -- (sem permissão no histórico do pg_cron: segue)
+  end;
+  return v_n;
+end;
+$$;
+revoke execute on function public.fazenda_limpeza() from public, anon, authenticated;
+
+do $$
+begin
+  if not exists (select 1 from pg_extension where extname = 'pg_cron') then
+    raise notice 'Fase 129: sem o pg_cron, a limpeza diária não foi agendada (rode select public.fazenda_limpeza() de vez em quando).';
+    return;
+  end if;
+  perform cron.unschedule(jobid) from cron.job where jobname = 'fazenda_limpeza';
+  perform cron.schedule('fazenda_limpeza', '17 7 * * *', 'select public.fazenda_limpeza()');   -- todo dia às 4h17 (Brasília)
+end $$;
