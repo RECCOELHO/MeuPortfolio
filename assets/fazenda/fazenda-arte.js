@@ -3645,6 +3645,21 @@
         const naAreiaDaIlha = (tx, ty) => naIlhaPx(wx(tx) + T / 2, wy(ty) + T / 2) && !naIlhaPx(wx(tx) + T / 2, wy(ty) + T / 2, 'grama');
         const regiao = (py) => (MH === MH_ILHA && py >= wy(Y_ILHA) ? 'ilha' : 'fazenda');
 
+        /* fase 130: a ilha só carrega quando alguém vai até ela (o Zarpar). Antes, quem tinha ilha carregava o mundo
+           inteiro (a imagem do mapa quase 2x maior na memória do celular) mesmo jogando só na fazenda; agora ela entra
+           no começo da viagem de ida e sai no fim da viagem de volta. */
+        let ilhaCarregada = false;
+        function carregarIlha() {
+            if (MH === MH_ILHA || !ilhaInfo) return;
+            ilhaCarregada = true;
+            crescerMundo(true); montarFundo(); limitarCamera(); sincronizarRolagem();
+        }
+        function descarregarIlha() {
+            if (MH !== MH_ILHA || lugar === 'ilha' || viagem) return;
+            ilhaCarregada = false;
+            crescerMundo(false); montarFundo(); limitarCamera(); sincronizarRolagem();
+            precisaDesenhar = true;
+        }
         function crescerMundo(com) {
             const alvo = com ? MH_ILHA : MH_FAZENDA;
             if (MH === alvo) return false;
@@ -4793,8 +4808,9 @@
                 cam.x = c.x; cam.y = c.y;
                 precisaDesenhar = true;
                 if (u >= 1) {
-                    const fim = viagem.fim;
+                    const fim = viagem.fim, voltou = !viagem.ida;
                     viagem = null;
+                    if (voltou) descarregarIlha();   // fase 130: de volta na fazenda, a ilha sai da memória
                     limitarCamera(); sincronizarRolagem();
                     if (fim) fim();
                 }
@@ -4850,7 +4866,7 @@
             const m = mapaConstrucoes(todas);   // (os vizinhos de cerca e cano vêm da lista toda)
             const lista = todas.filter((c) => naTela(c.x, c.y));
             const pe = [];   // coisas "em pé", ordenadas pela altura
-            if (MH === MH_ILHA) desenharIlhaViva(tempo, pe);   // fase 106
+            if (MH === MH_ILHA && V.y1 > wy(Y_ILHA) - 4 * T) desenharIlhaViva(tempo, pe);   // fase 106 (fase 130: só com a ilha na tela)
             const pares = paresOficinas(todas);   // fase 106: duas oficinas iguais lado a lado viram uma só
             const atlasCasas = (atlasDaEstacao && atlasDaEstacao.casas) || atlas.casas;
             for (const c of lista) {
@@ -4891,8 +4907,11 @@
             });
 
             const naMaoPraia = pessoasDaPraia(todas, tempo, pe, naTela);   // fase 108: a praia viva
+            // fase 130: quem está longe da tela não é desenhado (os bichos e os ajudantes continuam andando, só não pintam)
+            const longe = (px, py) => px < V.x0 - 3 * T || px > V.x1 + T || py < V.y0 - T || py > V.y1 + 3 * T;
             for (const a of atores.values()) {
                 if (a.dentro) continue;   // fase 66: dormindo dentro da casa
+                if (longe(a.x, a.y)) continue;
                 const parado = a.v && a.v.estado !== 'produzindo';
                 const andando = a.ajudante && Math.hypot(a.tx - a.x, a.ty - a.y) > 0.5;
                 const bob = (parado && Math.floor(tempo / 600) % 2) || (andando && Math.floor(tempo / 140) % 2) ? -1 : 0;
@@ -4928,7 +4947,7 @@
             const vistaF = andando ? fazendeiro.vista || 'frente' : 'frente';   // parado, olha para a tela
             pe.push({ img: passoCanvas(avatarCanvas(avatarAtual), fazNada ? 0 : quadroPasso(andando, tempo), vistaF), x: fazendeiro.x, y: fazendeiro.y, flip: vistaF === 'lado' && fazendeiro.flip, bob: 0, nadando: fazNada });   // fase 107/108: o passo e a direção
             for (const o of outros.values()) {   // fase 126: o dono e as visitas
-                if (o.y + T > MH) continue;
+                if (o.y + T > MH || longe(o.x, o.y)) continue;
                 const oa = o.passo > 0, on = naAgua(o.x, o.y), ov = oa ? o.vista || 'frente' : 'frente';
                 pe.push({ img: passoCanvas(avatarCanvas(o.avatar), on ? 0 : quadroPasso(oa, tempo, o.semente), ov), x: o.x, y: o.y, flip: ov === 'lado' && o.flip, bob: 0, nadando: on });
             }
@@ -6450,16 +6469,18 @@
             // { feitas: [ids das obras prontas], proxima: id, x: {x, y} do baú do dia }
             definirIlha(info) {
                 const antes = ilhaInfo ? (ilhaInfo.feitas || []).join() : null;
-                const cresceu = crescerMundo(!!info);
                 ilhaInfo = info || null;
+                if (!info) ilhaCarregada = false;
+                const cresceu = crescerMundo(!!info && (ilhaCarregada || lugar === 'ilha'));   // fase 130: só se já foi para lá
                 if (!info && lugar === 'ilha') lugar = 'fazenda';
-                if (cresceu || (info && (info.feitas || []).join() !== antes)) { montarFundo(); limitarCamera(); sincronizarRolagem(); }
+                if (cresceu || (info && MH === MH_ILHA && (info.feitas || []).join() !== antes)) { montarFundo(); limitarCamera(); sincronizarRolagem(); }
                 precisaDesenhar = true;
             },
             lugar: () => lugar,
             // vai para a ilha ou volta para a fazenda: o navio atravessa o mar e a câmera vai junto (fim: ao chegar)
             irPara(destino, fim, animar = true) {
-                if (destino === lugar || (destino === 'ilha' && MH !== MH_ILHA)) { if (fim) fim(); return; }
+                if (destino === lugar || (destino === 'ilha' && !ilhaInfo)) { if (fim) fim(); return; }
+                if (destino === 'ilha') carregarIlha();   // fase 130: a ilha entra agora
                 const de = { x: cam.x, y: cam.y };
                 lugar = destino;
                 const C = OBRAS_ILHA.cais;
@@ -6468,11 +6489,12 @@
                 ajustarEscala();
                 if (destino === 'ilha') focar(wx(C.x + 1), wy(C.y + C.h + 2)); else focar(wx(MAPA.pier.x + 2), wy(MAPA.pier.y));
                 const para = { x: cam.x, y: cam.y };
-                if (!animar) { if (fim) fim(); precisaDesenhar = true; return; }
+                if (!animar) { if (destino === 'fazenda') descarregarIlha(); if (fim) fim(); precisaDesenhar = true; return; }
                 cam.x = de.x; cam.y = de.y;
                 viagem = { t0: performance.now(), dur: 5200, de, para, ida: destino === 'ilha', fim };
             },
             viajando: () => !!viagem,
+            alturaMundo: () => MH,   // (para os testes: com a ilha carregada, o mundo é mais alto)
             // (para os testes) o primeiro ajudante da lavoura atravessa de barquinho para o outro lado
             testeTravessia() {
                 const a = [...atores.values()].find((b) => b.ajudante && b.area && b.area.fazenda && b.area.ilha && !b.barco);
