@@ -1048,7 +1048,9 @@
         // fase 43: a operária leva uma caixa e o eletricista uma engrenagem (do pacote da fábrica)
         operaria: { ...MOCA, ferramenta: 73, ferramentaP: 'factory', visual: { cabelo: 0, pele: 3, roupa: 2, extra: 'capacete' } }, eletricista: { ...MOCO, ferramenta: 1120 },   // o alicate
         // fase 74: a cabreira com o leite de cabra e o bufaleiro com o de búfala
-        cabreira: { ...MOCA, ferramenta: 1148, visual: { cabelo: 1, pele: 2, roupa: 5, extra: 'lenco' } }, bufaleiro: { ...MOCO, ferramenta: 1149 }
+        cabreira: { ...MOCA, ferramenta: 1148, visual: { cabelo: 1, pele: 2, roupa: 5, extra: 'lenco' } }, bufaleiro: { ...MOCO, ferramenta: 1149 },
+        // fase 124: os cuidadores da ilha, com a concha e a pena de arara (desenhos do Jessé)
+        tartarugueiro: { ...MOCO, ferramenta: 1197 }, papagaieira: { ...MOCA, ferramenta: 1198, visual: { cabelo: 0, pele: 4, roupa: 4, extra: 'chapeu_palha' } }
     };
     // fase 68: os acessórios das moças (16 x 16, por cima do desenho, com as letras da PAL_PROPRIA)
     const ACESSORIOS = {

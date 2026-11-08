@@ -109,6 +109,7 @@
         ilha_pistas: 'Antes do X, ache as 3 pistas do mapa do tesouro na ilha.',
         caverna_fechada: 'A caverna abre com a 15ª obra: a bandeira no alto do morro.',
         caverna_hoje: 'Você já explorou a caverna hoje. Volte amanhã!',
+        caverna_extra_limite: 'Hoje você já usou as 2 explorações extras. A caverna abre de graça à meia-noite.',   // fase 124
         capitao_falta: 'Ainda não tem o bastante no celeiro para esse pedido (o que está guardado para os bichos ou o navio não conta).',   // fase 117
         capitao_ja_entregue: 'Esse pedido já foi entregue hoje.',
         capitao_sem_pedido: 'O Capitão já trocou os pedidos (virou o dia). Abra de novo.',
@@ -1562,6 +1563,9 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-11-08-cuidadores-ilha', data: '08/11', titulo: 'Cuidadores na ilha e a caverna com mais explorações', itens: [
+            'Chegaram dois cuidadores para os bichos da ilha: <b>Seu Juvenal</b> (tartarugas, nível 47) e <b>Dona Iara</b> (papagaios, nível 52). Eles dão a ração e juntam as conchas e as penas. Contrate na Loja → Ajudantes.',
+            'Na <b>caverna</b>, depois da exploração de graça do dia, dá para explorar até <b>mais 2 vezes</b> por <b>10 diamantes</b> cada. E agora aparece quanto falta para a de graça voltar (à meia-noite).'] },
         { id: '2026-11-07-raros', data: '07/11', titulo: 'Materiais raros sem limite', itens: [
             'Na Loja → Diamantes, os <b>materiais raros</b> não têm mais o limite de 2 por semana: compre quantos quiser. Em troca, cada um custa 3x mais (pérola negra 15 💎, madeira nobre 30 💎, âncora 90 💎).'] },
         { id: '2026-11-07-xp-equilibrio', data: '07/11', titulo: 'O XP mais equilibrado', itens: [
@@ -2746,11 +2750,13 @@
             return `<div class="cav-tesouro${n ? '' : ' falta'}" title="${esc(n ? `${c.nome}: achou ${n}` : 'Ainda não achou')}">${itemDe(c, 34)}<span>${n ? esc(c.nome) : '???'}</span>${n ? `<em>×${n}</em>` : ''}</div>`;
         }).join('');
         const achado = cavernaAchado && culturas[cavernaAchado];
+        // fase 124: depois da de graça, até 2 a mais por dia com diamantes
+        const preco = cav.extra_preco || 10, restam = Math.max(0, (cav.extras_max || 0) - (cav.extras || 0)), extraPode = cav.hoje && restam > 0;
         return `<canvas class="cav-cena px" width="240" height="150" data-caverna-cena></canvas>
             ${achado ? `<p class="aviso">${itemDe(achado, 24)} Você achou <b>${esc(achado.nome)}</b>! Vende no celeiro por ${moeda(numero(achado.venda))}. +3 ${ico('diamante', 14)}</p>`
-                : cav.hoje ? '<p class="fala">Você já explorou a caverna hoje. As tochas apagam à noite e acendem amanhã: volte para outro tesouro!</p>'
+                : cav.hoje ? `<p class="fala">Você já explorou hoje. A exploração de graça volta à meia-noite: <b data-caverna-relogio>${fmtTempo(ateMeiaNoite())}</b>.${extraPode ? ` Ou explore de novo agora por <b>${preco} ${ico('diamante', 13)}</b> (${restam === 1 ? 'resta 1 hoje' : `restam ${restam} hoje`}).` : ''}</p>`
                 : '<p class="fala">Três túneis escuros... Escolha um para explorar. Cada dia, um tesouro e <b>3 diamantes</b>.</p>'}
-            ${cav.hoje ? '' : `<div class="cav-tuneis">${['da esquerda', 'do meio', 'da direita'].map((t, k) => `<button type="button" class="botao verde" data-caverna-tunel="${k + 1}">Túnel ${t}</button>`).join('')}</div>`}
+            ${!cav.hoje || extraPode ? `<div class="cav-tuneis">${['da esquerda', 'do meio', 'da direita'].map((t, k) => `<button type="button" class="botao ${cav.hoje ? 'creme' : 'verde'}" data-caverna-tunel="${k + 1}"${cav.hoje ? ` data-extra="1"${(S.jogador.diamantes || 0) < preco ? ' disabled' : ''}` : ''}>Túnel ${t}${cav.hoje ? ` · ${preco} ${ico('diamante', 12)}` : ''}</button>`).join('')}</div>` : ''}
             <h3 class="cav-titulo">Os tesouros da caverna (${achou}/8)</h3>
             <div class="cav-grade">${grade}</div>
             <p class="capitao-nota">Os tesouros vendem no celeiro. Achou os 8? A conquista <b>Tesouro da Caveira Dourada</b>: ${moeda('500 mil')} e 150 ${ico('diamante', 12)}. A Caveira Dourada é a mais rara.</p>`;
@@ -2761,21 +2767,28 @@
             const cv = painelAtual === 'caverna' && el.painelCorpo.querySelector('[data-caverna-cena]');
             if (!cv || !A.cavernaCena) return;
             A.cavernaCena(cv, t, { escolha: cavernaEscolha, achado: cavernaAchado });
+            const rel = el.painelCorpo.querySelector('[data-caverna-relogio]');   // fase 124: o relógio até a meia-noite
+            if (rel) { const txt = fmtTempo(ateMeiaNoite()); if (rel.textContent !== txt) rel.textContent = txt; }
             cavernaAnim = requestAnimationFrame(passo);
         };
         cavernaAnim = requestAnimationFrame(passo);
     }
-    function explorarCaverna(canto, botao) {
+    // quanto falta para a meia-noite de Brasília (UTC−3), quando o dia do jogo vira (fazenda_hoje)
+    function ateMeiaNoite() {
+        const t = agora(), d = new Date(t - 3 * 3600e3);
+        return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1) + 3 * 3600e3 - t;
+    }
+    function explorarCaverna(canto, botao, extra) {
         if (botao) botao.disabled = true;
         cavernaEscolha = canto;
         som.tocar('clique');
         enfileirar([], async () => {
-            const r = await rpc('fazenda_caverna_explorar', { p_token: token, p_canto: canto });
+            const r = await rpc('fazenda_caverna_explorar', extra ? { p_token: token, p_canto: canto, p_extra: true } : { p_token: token, p_canto: canto });
             aplicarEstado(r.estado);
             cavernaAchado = r.item;
             const c = culturas[r.item] || { id: r.item, nome: r.item };
             som.tocar('festa');
-            toast(`${itemDe(c, 22)} Na caverna: <b>${esc(c.nome)}</b>${r.novo ? ' (novo na coleção!)' : ''} e +3 ${ico('diamante', 14)}`, 'festa');
+            toast(`${itemDe(c, 22)} Na caverna: <b>${esc(c.nome)}</b>${r.novo ? ' (novo na coleção!)' : ''} e +3 ${ico('diamante', 14)}${r.pago ? ` (a exploração custou ${r.pago} ${ico('diamante', 14)})` : ''}`, 'festa');
             if (r.colecao) setTimeout(() => toast(`${spr(1212, 24)} <b>Tesouro da Caveira Dourada!</b> Você achou os 8 tesouros: +${moeda('500 mil')} e +150 ${ico('diamante', 14)}`, 'festa'), 900);
             if (painelAtual === 'caverna') abrirPainel('caverna', true);
         }).finally(() => { if (botao) botao.disabled = false; });
@@ -7775,7 +7788,7 @@
             return;
         }
         const tunel = e.target.closest('[data-caverna-tunel]');   // fase 118: explorar um túnel da caverna
-        if (tunel) { explorarCaverna(Number(tunel.dataset.cavernaTunel), tunel); return; }
+        if (tunel) { explorarCaverna(Number(tunel.dataset.cavernaTunel), tunel, tunel.dataset.extra === '1'); return; }
         const capE = e.target.closest('[data-capitao-entregar]');   // fase 117: entregar um pedido do Capitão
         if (capE) {
             const slot = Number(capE.dataset.capitaoEntregar);

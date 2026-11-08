@@ -271,6 +271,10 @@ create table if not exists public.fazenda_caverna (
 alter table public.fazenda_caverna enable row level security;
 revoke all on public.fazenda_caverna from anon, authenticated;
 
+-- fase 124: as explorações extras da caverna (com diamantes), quantas hoje
+alter table public.fazenda_jogadores add column if not exists caverna_extra smallint not null default 0;
+alter table public.fazenda_jogadores add column if not exists caverna_extra_dia date;
+
 -- Fase 4: construções grandes (casas 3x3). (x, y) é o canto de cima à esquerda.
 alter table public.fazenda_itens add column if not exists largura smallint not null default 1;
 alter table public.fazenda_itens add column if not exists altura smallint not null default 1;
@@ -1705,6 +1709,9 @@ begin
                                  -- fase 118: a caverna (abre com a 15ª obra): já explorou hoje? e a coleção dos tesouros
                                  'caverna', case when coalesce(j.ilha_obras, 0) >= 15 then jsonb_build_object(
                                      'hoje', coalesce(j.caverna_dia = fazenda_hoje(), false),
+                                     -- fase 124: as explorações extras de hoje (com diamantes) e quanto custa
+                                     'extras', case when j.caverna_extra_dia = fazenda_hoje() then j.caverna_extra else 0 end,
+                                     'extras_max', 2, 'extra_preco', 10,
                                      'colecao', coalesce((select jsonb_object_agg(cv.item, cv.vezes) from fazenda_caverna cv where cv.jogador_id = p_jogador), '{}'::jsonb)) end,
                                  'partes', case when v_nivel >= 45 then fazenda_ilha_obras() end),
       -- fase 111: o cachorro da ilha (null: ainda não escolheu)
@@ -11910,7 +11917,8 @@ $$;
 
 -- explorar a caverna (1 vez por dia, com as 15 obras): um tesouro sorteado e 3 diamantes. p_canto é o canto
 -- que a pessoa escolheu (só para a cena). Os 8 tesouros achados: a conquista (500 mil e 150 diamantes).
-create or replace function public.fazenda_caverna_explorar(p_token text, p_canto int)
+drop function if exists public.fazenda_caverna_explorar(text, int);   -- fase 124: agora com p_extra
+create or replace function public.fazenda_caverna_explorar(p_token text, p_canto int, p_extra boolean default false)
 returns jsonb
 language plpgsql security definer
 set search_path = public, extensions
@@ -11926,12 +11934,23 @@ declare
   v_vezes int;
   c       record;
   v_col   boolean := false;
+  v_pago  int := 0;
+  v_ext   int;
 begin
   select * into j from fazenda_jogadores where id = v_id for update;
   v_nivel := fazenda_nivel_de(j.xp, j.nivel_trava);
   if not fazenda_ilha_pode(v_id, v_nivel) then raise exception 'ilha_fechada'; end if;
   if coalesce(j.ilha_obras, 0) < 15 then raise exception 'caverna_fechada'; end if;
-  if j.caverna_dia = fazenda_hoje() then raise exception 'caverna_hoje'; end if;
+  if j.caverna_dia = fazenda_hoje() then
+    -- fase 124: já explorou hoje: até 2 a mais, 10 diamantes cada
+    if not coalesce(p_extra, false) then raise exception 'caverna_hoje'; end if;
+    v_ext := case when j.caverna_extra_dia = fazenda_hoje() then j.caverna_extra else 0 end;
+    if v_ext >= 2 then raise exception 'caverna_extra_limite'; end if;
+    if j.diamantes < 10 then raise exception 'diamantes_insuficientes'; end if;
+    v_pago := 10;
+    update fazenda_jogadores set diamantes = diamantes - 10, caverna_extra = v_ext + 1, caverna_extra_dia = fazenda_hoje() where id = v_id;
+    insert into fazenda_diamantes_usos (jogador_id, item, diamantes) values (v_id, 'caverna', 10);
+  end if;
   for t in select * from jsonb_array_elements(fazenda_caverna_tesouros()) loop
     v_soma := v_soma + (t->>'chance')::numeric;
     if v_item is null and v_r < v_soma then v_item := t->>'id'; end if;
@@ -11952,7 +11971,7 @@ begin
       v_col := true;
     end if;
   end if;
-  return jsonb_build_object('item', v_item, 'canto', p_canto, 'diamantes', 3, 'novo', v_vezes = 1, 'colecao', v_col,
+  return jsonb_build_object('item', v_item, 'canto', p_canto, 'diamantes', 3, 'pago', v_pago, 'novo', v_vezes = 1, 'colecao', v_col,
                             'estado', fazenda_estado(v_id));
 end;
 $$;
@@ -11961,7 +11980,7 @@ select public.fazenda_cache_montar();
 
 revoke execute on function public.fazenda_caverna_tesouros(), public.fazenda_ilha_pistas(uuid), public.fazenda_ilha_caca(uuid)
   from public, anon, authenticated;
-grant execute on function public.fazenda_ilha_pista(text, int), public.fazenda_caverna_explorar(text, int) to anon, authenticated;
+grant execute on function public.fazenda_ilha_pista(text, int) to anon, authenticated;
 
 -- ------------------------------------------------------------
 -- Fase 119: a conta de teste do Jessé. Uma conta marcada como teste (fazenda_jogadores.teste) fica fora do
@@ -12119,3 +12138,22 @@ select public.fazenda_cache_montar();
 -- (1 diamante a cada 10 mil do valor, vezes 3: pérola negra 15, madeira nobre 30, âncora 90).
 -- Pode rodar este arquivo de novo.
 -- ------------------------------------------------------------
+
+-- ------------------------------------------------------------
+-- Fase 124: os cuidadores da tartaruga e do papagaio (Seu Juvenal, nível 47, e Dona Iara, nível 52: dão a
+-- ração e juntam as conchas e as penas, como os outros cuidadores) e a caverna com mais explorações: depois
+-- da do dia, até 2 a mais por dia pagando 10 diamantes cada (a do dia continua de graça; vira à meia-noite).
+-- Pode rodar este arquivo de novo.
+-- ------------------------------------------------------------
+-- fase 124: as explorações extras da caverna (com diamantes), quantas hoje
+alter table public.fazenda_jogadores add column if not exists caverna_extra smallint not null default 0;
+alter table public.fazenda_jogadores add column if not exists caverna_extra_dia date;
+insert into public.fazenda_ajudantes_tipos (id, nome, papel, funcao, alvo, custo, nivel_min, descricao, ordem) values
+  ('tartarugueiro', 'Seu Juvenal', 'Tratador de tartarugas', 'animal', 'tartaruga', 60000, 47, 'Dá o abacaxi e junta as conchas das tartarugas. Cada nível deixa os bichos dele mais rápidos: −10% por nível no tempo, até −50% no 5 (soma com o feno).', 15),
+  ('papagaieira',   'Dona Iara',   'Cuidadora de papagaios', 'animal', 'papagaio',  80000, 52, 'Dá a banana e junta as penas dos papagaios. Cada nível deixa os bichos dela mais rápidos: −10% por nível no tempo, até −50% no 5 (soma com o feno).', 16)
+on conflict (id) do update set
+  nome = excluded.nome, papel = excluded.papel, funcao = excluded.funcao, alvo = excluded.alvo,
+  custo = excluded.custo, nivel_min = excluded.nivel_min, descricao = excluded.descricao, ordem = excluded.ordem;
+
+select public.fazenda_cache_montar();
+grant execute on function public.fazenda_caverna_explorar(text, int, boolean) to anon, authenticated;
