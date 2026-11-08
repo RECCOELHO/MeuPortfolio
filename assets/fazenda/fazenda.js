@@ -25,8 +25,8 @@
         if (alt && /^(localhost|127\.0\.0\.1)$/.test(location.hostname)) API = alt;
     } catch { /* ignora */ }
 
-    const POLL_MS = 60000;   // de quanto em quanto a fazenda aberta busca o estado (cada busca grava no banco)
-    const POLL_PARADO_MS = 300000;   // aba aberta e ninguém mexe há 5 min: busca de 5 em 5 min
+    const POLL_MS = 90000;   // de quanto em quanto a fazenda aberta busca o estado (cada busca grava no banco; fase 129: era 60 s)
+    const POLL_PARADO_MS = 600000;   // aba aberta e ninguém mexe há 5 min: busca de 10 em 10 min (fase 129: era 5)
 
     /* ---------- Armazenamento local (protegido) ---------- */
     const LS = {
