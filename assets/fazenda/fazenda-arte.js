@@ -2810,6 +2810,8 @@
         let ignorarCliqueAte = 0;                          // o clique que vem depois de segurar não vale
         const atores = new Map();
         const fazendeiro = { x: 0, y: 0, tx: 0, ty: 0, flip: false, passo: 0 };
+        // fase 126: quem mais está nesta fazenda agora (o dono e as visitas), andando para onde o servidor disse
+        const outros = new Map();
         const t0 = performance.now();
 
         /* ---- geometria (coordenadas do mundo, em pixels do jogo) ---- */
@@ -4462,6 +4464,17 @@
                     if (visitante.saindo) visitante = null;
                 }
             }
+            for (const o of outros.values()) {   // fase 126: os outros jogadores andam até onde estão de verdade
+                const od = Math.hypot(o.tx - o.x, o.ty - o.y);
+                if (od > 14 * T || regiao(o.ty) !== regiao(o.y)) { o.x = o.tx; o.y = o.ty; }
+                if (od > 0.5) {
+                    o.vista = vistaDoPasso(o.tx - o.x, o.ty - o.y, o.vista);
+                    const ex = passoSeco(o, 56, dt);
+                    if (Math.abs(ex) > 0.2) o.flip = ex < 0;
+                    o.passo += dt;
+                    precisaDesenhar = true;
+                } else o.passo = 0;
+            }
             if (regiao(fazendeiro.ty) !== regiao(fazendeiro.y)) { fazendeiro.x = fazendeiro.tx; fazendeiro.y = fazendeiro.ty; }   // fase 106
             const dx = fazendeiro.tx - fazendeiro.x, dy = fazendeiro.ty - fazendeiro.y, d = Math.hypot(dx, dy);
             if (d > 0.5) fazendeiro.vista = vistaDoPasso(dx, dy, fazendeiro.vista);   // fase 108
@@ -4895,6 +4908,11 @@
             const andando = fazendeiro.passo > 0, fazNada = naAgua(fazendeiro.x, fazendeiro.y);
             const vistaF = andando ? fazendeiro.vista || 'frente' : 'frente';   // parado, olha para a tela
             pe.push({ img: passoCanvas(avatarCanvas(avatarAtual), fazNada ? 0 : quadroPasso(andando, tempo), vistaF), x: fazendeiro.x, y: fazendeiro.y, flip: vistaF === 'lado' && fazendeiro.flip, bob: 0, nadando: fazNada });   // fase 107/108: o passo e a direção
+            for (const o of outros.values()) {   // fase 126: o dono e as visitas
+                if (o.y + T > MH) continue;
+                const oa = o.passo > 0, on = naAgua(o.x, o.y), ov = oa ? o.vista || 'frente' : 'frente';
+                pe.push({ img: passoCanvas(avatarCanvas(o.avatar), on ? 0 : quadroPasso(oa, tempo, o.semente), ov), x: o.x, y: o.y, flip: ov === 'lado' && o.flip, bob: 0, nadando: on });
+            }
             if (lago && lagoNaTela()) pe.push({ p: 'factory', i: 120, x: wx(LAGO.x) + 1, y: wy(LAGO.y + 2), flip: false, bob: Math.floor(tempo / 700) % 2 ? -1 : 0 });
             if (visitante) {
                 const vn = naAgua(visitante.x, visitante.y), vcv = visitanteCanvas(VISITANTE_ARTE[visitante.tipo] || 86);
@@ -5068,6 +5086,7 @@
             estatuasHiLer('depois');   // (com a noite e as luzes)
             ctx.drawImage(mundo, V.x0, V.y0, vW, vH, dx, dy, vW * k, vH * k);
             desenharEstatuasHi(k, dx - V.x0 * k, dy - V.y0 * k);
+            desenharNomesOutros(k, dx - V.x0 * k, dy - V.y0 * k);   // fase 126
             desenharClima(tempo, k);
         }
 
@@ -5250,6 +5269,24 @@
             for (const e of estatuasHi) e[fase] = q.getImageData(e.bx, e.by, e.w, e.h).data;
         }
         const telinha = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+        // fase 126: a plaquinha com o nome de quem mais está na fazenda (nítida, já na tela); o dono, com a coroinha
+        function desenharNomesOutros(k, ox, oy) {
+            if (!outros.size) return;
+            const fonte = Math.round(Math.max(10 * dpr, 2.4 * k));
+            ctx.save();
+            ctx.font = `700 ${fonte}px system-ui, sans-serif`;
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            for (const o of outros.values()) {
+                if (o.y + T > MH) continue;
+                const nome = (o.dono ? '★ ' : '') + String(o.apelido || '').slice(0, 20);
+                const cx = ox + (o.x + T / 2) * k, cy = oy + (o.y - 5) * k, w = ctx.measureText(nome).width + fonte;
+                ctx.fillStyle = o.dono ? 'rgba(122, 74, 18, .85)' : 'rgba(28, 22, 40, .72)';
+                ctx.beginPath(); (ctx.roundRect ? ctx.roundRect(cx - w / 2, cy - fonte * 0.75, w, fonte * 1.5, fonte * 0.75) : ctx.rect(cx - w / 2, cy - fonte * 0.75, w, fonte * 1.5)); ctx.fill();
+                ctx.fillStyle = o.dono ? '#ffe08a' : '#ffffff';
+                ctx.fillText(nome, cx, cy + 1);
+            }
+            ctx.restore();
+        }
         function desenharEstatuasHi(k, ox, oy) {
             if (!estatuasHi.length) return;
             for (const e of estatuasHi) {
@@ -6424,6 +6461,21 @@
             pausar(sim) { pausada = !!sim; if (!pausada) precisaDesenhar = true; },   // fase 62
             // avatar do fazendeiro que anda na fazenda (null = o do pacote)
             definirAvatar(cfg) { avatarAtual = cfg || null; },
+            // fase 126: onde você está (em quadrados do mundo, para os outros verem) e quem mais está aqui
+            posicao: () => ({ x: Math.round((fazendeiro.tx / T - MARGEM) * 100) / 100, y: Math.round((fazendeiro.ty / T - MARGEM) * 100) / 100 }),
+            definirOutros(lista) {
+                const vistos = new Set();
+                for (const o of lista || []) {
+                    if (o.x == null || o.y == null) continue;
+                    vistos.add(o.id);
+                    const tx = (MARGEM + Number(o.x)) * T, ty = (MARGEM + Number(o.y)) * T;
+                    let a = outros.get(o.id);
+                    if (!a) { a = { x: tx, y: ty, flip: false, passo: 0, semente: Math.random() * 999 }; outros.set(o.id, a); }
+                    Object.assign(a, { tx, ty, apelido: o.apelido, avatar: o.avatar || null, dono: !!o.dono });
+                }
+                for (const id of [...outros.keys()]) if (!vistos.has(id)) outros.delete(id);
+                precisaDesenhar = true;
+            },
             // visita na porteira ({ tipo, item }) ou null (ela vai embora andando)
             definirVisitante(v) {
                 if (!v) {
@@ -6486,6 +6538,12 @@
                 fazendeiro.tx = wx(MAPA.fazendeiro.x);
                 fazendeiro.ty = wy(MAPA.fazendeiro.y);
             },
+            // fase 126: na visita, você chega pela porteira e para do lado da casa (o dono fica no lugar dele)
+            chegarVisita() {
+                fazendeiro.x = wx(PORTEIRA.x); fazendeiro.y = wy(PORTEIRA.y);
+                this.voltarVisita();
+            },
+            voltarVisita() { fazendeiro.tx = wx(MAPA.fazendeiro.x + 2); fazendeiro.ty = wy(MAPA.fazendeiro.y + 1); },   // (o lugar do dono fica livre)
             // fase 106: onde um quadrado do mapa aparece na tela (o meio dele)
             telaDoTile(tx, ty) { return { x: (wx(tx) + T / 2 - cam.x) * escala, y: (wy(ty) + T / 2 - cam.y) * escala }; },
             telaDoCanteiro(p) {

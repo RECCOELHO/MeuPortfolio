@@ -174,6 +174,8 @@
         moedas_insuficientes: 'Moedas insuficientes.',
         sem_ajudante: 'Esse ajudante não trabalha mais na sua fazenda.',
         diamantes_insuficientes: 'Faltam diamantes. Você ganha 5 a cada nível.',
+        nao_alimentado: 'Esse bicho está com fome: dê a ração antes.',
+        lugar_invalido: 'Lugar inválido.',
         limite_diario: 'Hoje já foram os 3 pacotes de XP. Amanhã tem mais!',
         xp_maximo: 'Você já está no nível máximo.',
         energia_cheia: 'As baterias já estão cheias.',
@@ -1567,6 +1569,10 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-11-08-junto', data: '08/11', titulo: 'Jogando junto e colher já no pomar e nos bichos', itens: [
+            'No <b>alto-mar</b>, quem está pescando na mesma hora aparece lá no fundo, no navio dele: dá para ver a boia afundar e o peixe pulando quando ele pega.',
+            'Na <b>visita</b>, se o dono estiver jogando, você vê ele andando pela fazenda (com o nome em cima) e ele vê você chegando pela porteira. Na faixa da visita aparece se ele está online.',
+            'No <b>pomar</b>, toque num pé que ainda não está pronto: dá para colher já com diamante. Nos <b>bichos</b> também: o que está produzindo fica pronto na hora (um ou todos de uma vez). 1 diamante a cada 4 h que faltam.'] },
         { id: '2026-11-08-barquinho', data: '08/11', titulo: 'Os ajudantes vão de barquinho', itens: [
             'Quando um ajudante vai trabalhar do outro lado do mar, ele não some mais: anda até a praia, entra num <b>barquinho a remo</b> e atravessa até a ilha (ou volta para a fazenda).'] },
         { id: '2026-11-08-juvenal-fabrica', data: '08/11', titulo: 'Seu Juvenal, a fábrica na ilha e o navio dos vizinhos', itens: [
@@ -2520,6 +2526,7 @@
                 return `${r.qtd > 1 ? `${r.qtd}× ` : ''}${k.nome}! +${r.xp} XP · vale ${k.venda.toLocaleString('pt-BR')} moedas${r.qtd > 1 ? ' cada (porão!)' : ''}${r.perola ? ' · e veio uma pérola negra!' : ''}`;
             },
             pegou: (r) => {
+                presencaPeixe = r.peixe; setTimeout(pingPresenca, 100);   // fase 126: quem está pescando junto vê o peixe pulando
                 const k = culturas[r.peixe] || { id: r.peixe, nome: r.peixe };
                 if (r.perola || r.peixe === 'marlim') {
                     som.tocar('festa');
@@ -2531,6 +2538,7 @@
             zarpar: () => { fecharMar(); abrirIlha(); },   // fase 106: o navio sai do mar e vai para a ilha
             sair: fecharMar
         });
+        setTimeout(pingPresenca, 300);   // fase 126
     }
     function fecharMar() {
         if (!mar) return;
@@ -2539,6 +2547,7 @@
         cena.pausar(false);
         document.body.classList.remove('no-mar');
         if (painelAtual === 'mar') fecharPainel();
+        setTimeout(pingPresenca, 300);   // fase 126
     }
 
     /* ---------- Fase 106: a Ilha da Caveira Dourada ----------
@@ -3942,7 +3951,11 @@
         if (c && PRAIA_REGRAS.vendedores[c.tipo] && !visita) return recolherPraia(c);   // fase 97
         const p = c && infoProducao(c);
         if (!p) return;
-        if (p.falta > 0) return mostrarStatus(`${A.htmlItem(c.tipo, 22)} ${esc(p.it.nome)}: as próximas ${esc(p.produto.nome.toLowerCase())}s ficam prontas em ${fmtTempo(p.falta)}.`);
+        if (p.falta > 0) {
+            mostrarStatus(`${A.htmlItem(c.tipo, 22)} ${esc(p.it.nome)}: as próximas ${esc(p.produto.nome.toLowerCase())}s ficam prontas em ${fmtTempo(p.falta)}.`);
+            if (!visita && lojaD()) { produtorAberto = { x, y }; abrirPainel('produtorAgora'); }   // fase 126: colher já com diamante
+            return;
+        }
         c.colhido_em = new Date(agora()).toISOString();   // some o balão na hora
         som.tocar('colher');
         enfileirar([], async () => {
@@ -3952,6 +3965,29 @@
             descreverConstrucao(x, y);   // agora mostra quando fica pronta de novo
         });   // erro (ex.: ainda não está pronta) vai para tratarErro, que recarrega
     }
+
+    // fase 126: colher já no pomar (e no que mais produz sozinho), com diamante
+    let produtorAberto = null;
+    const precoAgoraMs = (ms) => (horasAgora() ? Math.max(1, Math.ceil(ms / (horasAgora() * 3600000))) : 1);
+    function colherProdutorJa() {
+        const alvo = produtorAberto, c = alvo && (S.construcoes || []).find((k) => k.x === alvo.x && k.y === alvo.y);
+        const p = c && infoProducao(c);
+        fecharPainel();
+        if (!p) return;
+        const preco = p.falta > 0 ? precoAgoraMs(p.falta) : 0;
+        if ((S.jogador.diamantes || 0) < preco) return toast(ERROS.diamantes_insuficientes, 'erro');
+        c.colhido_em = new Date(agora()).toISOString();
+        som.tocar('colher');
+        enfileirar([], async () => {
+            const r = await rpc('fazenda_coletar', { p_token: token, p_x: c.x, p_y: c.y, p_agora: true });
+            flutuarTile(c.x, c.y, `+${r.qtd} ${itemDe(p.produto, 20)}${r.diamantes ? ` −${r.diamantes} ${ico('diamante', 14)}` : ''}`);
+            aplicarEstado(r.estado);
+            descreverConstrucao(c.x, c.y);
+        });
+    }
+    // fase 126: coletar já dos bichos que estão produzindo, com diamante
+    let bichoAberto = null;
+    const bichosProduzindo = () => (S.animais || []).map((a) => ({ a, i: infoAnimal(a) })).filter((x) => x.i.estado === 'produzindo' && x.i.resta);
 
     // o alcance de um item colocado aparece marcado no chão por uns segundos
     function mostrarAlcanceDe(x, y) {
@@ -4688,6 +4724,9 @@
         } else if (i.estado === 'pronto') {
             cena.irAteAnimal(id);
             executarAnimal('coletar', [id]);
+        } else if (i.estado === 'produzindo' && i.resta && lojaD()) {   // fase 126: coletar já com diamante
+            bichoAberto = id;
+            abrirPainel('bichoAgora');
         }
     }
 
@@ -4696,14 +4735,15 @@
         ids.forEach((id) => { antes[id] = S.animais.find((x) => x.id === id); });
         return enfileirar([], async () => {
             const r = await emLotes(ids, LOTE_BICHOS, (lote) => rpc('fazenda_animal', { p_token: token, p_acao: acao, p_ids: lote }));
-            if (r.feitos) som.tocar(acao === 'coletar' ? 'colher' : 'cuidar');
+            const coleta = acao === 'coletar' || acao === 'agora';   // fase 126: agora = coletar já com diamante
+            if (r.feitos) som.tocar(coleta ? 'colher' : 'cuidar');
             ids.forEach((id, n) => {
                 const a = antes[id], t = a && tipoAnimal(a.tipo);
                 if (!t) return;
                 const depois = r.estado.animais.find((x) => x.id === id);
                 const mudou = depois && depois.alimentado_em !== a.alimentado_em;
                 if (!mudou) return;
-                const html = acao === 'coletar'
+                const html = coleta
                     ? `+1 ${itemDe(culturas[t.produto], 20)} +${culturas[t.produto].xp} ${ico('xp', 16)}`
                     : `−${t.racao_qtd} ${itemDe(culturas[t.racao], 20)}`;
                 setTimeout(() => {
@@ -5000,7 +5040,7 @@
         const execucao = fila.then(tarefa).catch(tratarErro).finally(() => {
             pendentes--;
             posicoes.forEach((p) => pendentesPos.delete(p));
-            if (!pendentes) voltaFazendeiro = setTimeout(() => cena.voltarParaCasa(), 6000);
+            if (!pendentes) voltaFazendeiro = setTimeout(() => (visita && cena.voltarVisita ? cena.voltarVisita() : cena.voltarParaCasa()), 6000);   // (fase 126: na visita, do lado do dono)
         });
         fila = execucao;
         return execucao;
@@ -5459,7 +5499,10 @@
         atualizarGalinheiro();
         atualizarFeiraMapa();
         atualizarVisitante();
-        cena.definirAvatar(v.avatar);
+        // fase 126: na visita você anda com o seu boneco; o dono (se estiver jogando) aparece onde ele está
+        const trocouDono = !presencaDe || presencaDe !== v.id;
+        cena.definirAvatar(S.jogador.avatar);
+        if (trocouDono) { cena.definirOutros([]); if (cena.chegarVisita) cena.chegarVisita(); presencaDono = null; presencaDe = v.id; setTimeout(pingPresenca, 300); }
         const va = document.getElementById('visitaAvatar');
         if (va) va.innerHTML = A.htmlAvatar(v.avatar, 28);
         offset = Date.parse(v.agora) - Date.now();
@@ -5480,7 +5523,9 @@
         const sq = S && S.social && S.social.sequencia && Date.parse(S.social.sequencia.ate) > agora() ? S.social.sequencia : null;
         // fase 85: o XP de ajuda do dia (até o teto vale cheio; fase 122: depois, só as moedas). Fase 86: sem as 30 ajudas por fazenda
         const ah = S && S.social && S.social.ajuda_hoje;
-        ex.innerHTML = (visita.abandonada ? ' <span class="chip-abandonada">Abandonada: +25% XP</span>' : '')
+        const on = { casa: 'Na fazenda agora', mar: 'Pescando no alto-mar', fora: 'Online, visitando alguém' }[presencaDono];   // fase 126
+        ex.innerHTML = (on ? ` <span class="chip-online"><i></i>${on}</span>` : '')
+            + (visita.abandonada ? ' <span class="chip-abandonada">Abandonada: +25% XP</span>' : '')
             + (ah ? ` <span class="chip-sequencia"${ah.xp >= ah.teto ? ' style="background:#e9c8b8;color:#5a2a1a"' : ''}>XP de ajuda hoje: ${Math.round(Math.min(100, ah.xp / Math.max(1, ah.teto) * 100))}%${ah.xp >= ah.teto ? ' (acabou: agora só moedas)' : ''}</span>` : '')
             + (sq && sq.n > 1 ? ` <span class="chip-sequencia">Sequência x${sq.n}: +${Math.round(sq.bonus * 100)}%</span>` : '');
     }
@@ -5509,12 +5554,61 @@
         } catch { /* a próxima busca acerta */ }
     }
 
+    /* ---------- fase 126: quem está jogando junto ----------
+       A cada poucos segundos o jogo conta ao servidor onde você está (no alto-mar, ou numa fazenda: a sua ou a
+       que está visitando, com o lugar do boneco) e recebe quem mais está ali: no mar, os barcos lá no fundo; na
+       fazenda, os bonecos com o nome em cima. Quem fecha o jogo some em uns 25 s. Com a aba escondida, não avisa. */
+    let presencaRelogio = null, presencaIndo = false, presencaPeixe = null, presencaDono = null, presencaDe = null, presencaFalhas = 0;
+    let presencaOutros = [];
+    const presencaVistos = new Set();
+    const presencaLugar = () => (!S || !token ? null : mar ? 'mar' : visita ? visita.id : S.jogador.id);
+    async function pingPresenca() {
+        clearTimeout(presencaRelogio);
+        if (presencaIndo) { presencaRelogio = setTimeout(pingPresenca, 1000); return; }
+        const onde = presencaLugar();
+        if (onde && !document.hidden && presencaFalhas < 5) {
+            presencaIndo = true;
+            const pos = onde !== 'mar' && cena.posicao ? cena.posicao() : null;
+            try {
+                const r = await rpc('fazenda_presenca', { p_token: token, p_onde: onde, p_x: pos ? pos.x : null, p_y: pos ? pos.y : null,
+                    p_acao: onde === 'mar' && mar && mar.acao ? mar.acao() : null, p_peixe: presencaPeixe });
+                presencaPeixe = null; presencaFalhas = 0;
+                if (presencaLugar() === onde) aplicarPresenca(onde, r);
+            } catch (e) {
+                presencaFalhas++;   // (o banco ainda sem a fase 126, ou sem internet: tenta mais devagar e depois desiste)
+            }
+            presencaIndo = false;
+        }
+        const espera = presencaFalhas ? 30000 : onde === 'mar' ? 4000 : visita || presencaOutros.length ? 5000 : 15000;
+        presencaRelogio = setTimeout(pingPresenca, espera);
+    }
+    function aplicarPresenca(onde, r) {
+        presencaOutros = (r && r.outros) || [];
+        if (onde === 'mar') { if (mar && mar.definirOutros) mar.definirOutros(presencaOutros); return; }
+        cena.definirOutros(presencaOutros);
+        if (visita) {
+            const antes = presencaDono;
+            presencaDono = r.dono || null;
+            if (antes !== presencaDono) atualizarFaixaVisita();
+            return;
+        }
+        // na sua fazenda: avisa quem acabou de chegar
+        for (const o of presencaOutros) {
+            if (presencaVistos.has(o.id)) continue;
+            presencaVistos.add(o.id);
+            toast(`${A.htmlAvatar(o.avatar, 22)} <b>${esc(o.apelido)}</b> está visitando a sua fazenda agora!`);
+        }
+        for (const id of [...presencaVistos]) if (!presencaOutros.some((o) => o.id === id)) presencaVistos.delete(id);
+    }
+    document.addEventListener('visibilitychange', () => { if (!document.hidden && S) setTimeout(pingPresenca, 200); });
+
     function voltarCasa() {
         visita = null;
         atualizarTerreno();
         atualizarGalinheiro();
         atualizarFeiraMapa();
         if (S) cena.definirAvatar(S.jogador.avatar);
+        cena.definirOutros([]); presencaDono = null; presencaDe = null; setTimeout(pingPresenca, 300);   // fase 126
         document.body.classList.remove('visitando');
         el.faixaVisita.hidden = true;
         el.acoesVisita.hidden = true;
@@ -5861,6 +5955,39 @@
                     <div class="rodape-painel"><span></span><button type="button" class="botao verde" data-canteiro="colher">Colher</button></div>`;
             } else {
                 corpo.innerHTML = '<p>Esse canteiro não tem nada crescendo agora.</p>';
+            }
+        } else if (nome === 'produtorAgora') {   // fase 126
+            const c = produtorAberto && (S.construcoes || []).find((k) => k.x === produtorAberto.x && k.y === produtorAberto.y);
+            const p = c && infoProducao(c), diam = S.jogador.diamantes || 0;
+            el.painelTitulo.innerHTML = p ? `${A.htmlItem(c.tipo, 32)} ${esc(p.it.nome)}` : 'Pomar';
+            if (!p || p.falta <= 0) corpo.innerHTML = `<p>${p ? 'Pronto para colher: toque no pé.' : 'Esse pé não está mais aqui.'}</p>`;
+            else {
+                const pa = precoAgoraMs(p.falta), prog = Math.max(0, Math.min(1, 1 - p.falta / (p.it.produz_seg * 1000)));
+                corpo.innerHTML = `
+                    <span class="barra-prog"><i style="width:${Math.round(prog * 100)}%"></i></span>
+                    <p class="canteiro-falta">${p.it.produz_qtd ? `${p.it.produz_qtd}× ` : ''}${itemDe(p.produto, 18)} ${esc((p.produto.nome || '').toLowerCase())} · pronto em <b>${fmtTempo(p.falta)}</b></p>
+                    <div class="menu-canteiro">
+                        <button type="button" class="botao verde" data-produtor-agora${diam < pa ? ' disabled' : ''}>${ico('diamante', 18)} Colher já · ${pa} diamante${pa === 1 ? '' : 's'}</button>
+                        <p class="aviso">As frutas ficam prontas na hora e vão para o celeiro${horasAgora() ? `: 1 ${ico('diamante', 14)} a cada ${horasAgora()} h que faltam` : ''}. Você tem <b>${diam}</b> ${ico('diamante', 14)}.</p>
+                        ${diam < pa && (S.pacotes_diamantes || []).length ? `<button type="button" class="botao creme" data-ir-diamantes>${ico('diamante', 18)} Comprar diamantes</button>` : ''}
+                    </div>`;
+            }
+        } else if (nome === 'bichoAgora') {   // fase 126
+            const a = (S.animais || []).find((x) => x.id === bichoAberto), i = a && infoAnimal(a), diam = S.jogador.diamantes || 0;
+            const t = a && tipoAnimal(a.tipo), produto = t && culturas[t.produto];
+            el.painelTitulo.innerHTML = a ? `${spr(A.ANIMAL[a.tipo], 32)} ${esc(t ? t.nome : a.tipo)}` : 'Bicho';
+            if (!i || i.estado !== 'produzindo') corpo.innerHTML = `<p>${i && i.estado === 'pronto' ? 'Pronto: toque no bicho para coletar.' : 'Esse bicho não está produzindo agora.'}</p>`;
+            else {
+                const pa = precoAgoraMs(i.resta), todos = bichosProduzindo(), total = todos.reduce((s2, x) => s2 + precoAgoraMs(x.i.resta), 0);
+                corpo.innerHTML = `
+                    <span class="barra-prog"><i style="width:${Math.round((i.prog || 0) * 100)}%"></i></span>
+                    <p class="canteiro-falta">${produto ? `${itemDe(produto, 18)} ${esc(produto.nome.toLowerCase())}` : ''} · pronto em <b>${fmtTempo(i.resta)}</b></p>
+                    <div class="menu-canteiro">
+                        <button type="button" class="botao verde" data-bicho-agora="um"${diam < pa ? ' disabled' : ''}>${ico('diamante', 18)} Coletar já · ${pa} diamante${pa === 1 ? '' : 's'}</button>
+                        ${todos.length > 1 ? `<button type="button" class="botao creme" data-bicho-agora="todos"${diam < total ? ' disabled' : ''}>${ico('diamante', 18)} Coletar já os ${todos.length} bichos produzindo · ${total} diamantes</button>` : ''}
+                        <p class="aviso">O que o bicho está produzindo fica pronto na hora e vai para o celeiro${horasAgora() ? `: 1 ${ico('diamante', 14)} a cada ${horasAgora()} h que faltam (no mínimo 1 por bicho)` : ''}. Você tem <b>${diam}</b> ${ico('diamante', 14)}.</p>
+                        ${diam < pa && (S.pacotes_diamantes || []).length ? `<button type="button" class="botao creme" data-ir-diamantes>${ico('diamante', 18)} Comprar diamantes</button>` : ''}
+                    </div>`;
             }
         } else if (nome === 'conta') {
             el.painelTitulo.innerHTML = boasVindas ? `${spr(83, 32)} Bem-vindo(a) à fazenda!` : `${A.htmlAvatar(S.jogador.avatar, 32)} Perfil`;
@@ -7628,6 +7755,15 @@
             abrirPainel('loja');
             return;
         }
+        if (e.target.closest('[data-produtor-agora]')) { colherProdutorJa(); return; }   // fase 126
+        const bichoJa = e.target.closest('[data-bicho-agora]');
+        if (bichoJa) {
+            const ids = bichoJa.dataset.bichoAgora === 'todos' ? bichosProduzindo().map((x) => x.a.id) : [bichoAberto];
+            fecharPainel();
+            if (ids.length === 1) cena.irAteAnimal(ids[0]);
+            executarAnimal('agora', ids);
+            return;
+        }
         const menuC = e.target.closest('[data-canteiro]');   // (fase 48: 'arar' vem do menu da murcha)
         if (menuC) {
             const p = menuCanteiro, o = menuC.dataset.canteiro;
@@ -8187,6 +8323,7 @@
 
     function mostrarFazenda() {
         el.entrada.classList.remove('aberto');
+        setTimeout(pingPresenca, 1500);   // fase 126: quem está jogando junto
         el.hud.hidden = el.barra.hidden = el.status.hidden = false;
         const est = { primavera: 'Primavera', verao: 'Verão', outono: 'Outono', inverno: 'Inverno' }[A.estacao()];
         mostrarStatus(`${est} na fazenda! Toque num canteiro para cuidar dele. Arraste para ver o terreno.`);

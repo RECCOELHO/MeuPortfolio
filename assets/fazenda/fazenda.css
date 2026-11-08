@@ -3193,6 +3193,10 @@ body.construindo .status {
 .faixa-extra { display: inline-flex; gap: 4px; flex-wrap: wrap; margin-left: 4px; }
 .chip-abandonada, .chip-sequencia { font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 3px; white-space: nowrap; }
 .chip-abandonada { background: #f3d36b; color: #5a3a14; }
+.chip-online { font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 3px; white-space: nowrap; background: #d6f2c9; color: #1f5a1a; }   /* fase 126 */
+.chip-online i { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #3cbf3c; margin-right: 4px; vertical-align: 0; animation: chip-online-pisca 1.6s ease-in-out infinite; }
+@keyframes chip-online-pisca { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .chip-online i { animation: none; } }
 .chip-sequencia { background: #6ee68c; color: #1f4d2b; }
 
 /* fase 88: o que falta ter para passar de nível fica marcado na paleta de construir */
