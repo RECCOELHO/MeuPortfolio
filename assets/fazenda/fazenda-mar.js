@@ -581,6 +581,106 @@
             }
         }
 
+        /* ---------- fase 126: quem está pescando junto ----------
+           Os outros jogadores que estão no alto-mar agora aparecem lá no fundo, perto do horizonte: o barco
+           de cada um (pela metade, mais clarinho, como quem está longe), a pessoa com a vara, a boia (que afunda
+           quando morde) e o peixe pulando quando alguém pega. O nome vai numa plaquinha em cima. */
+        let outros = [];             // [{ id, apelido, avatar, acao, peixe, pegou, navio: { nivel, pecas, visual } }]
+        const pulos = new Map();     // id → { sprite, t0 } (o peixe que alguém acabou de pegar)
+        const vistosPegou = new Map();
+        const telinha = document.createElement('canvas'), tg = telinha.getContext('2d');
+        // o tamanho de quem está lá no fundo e onde cada um fica (no celular, menor e mais para a direita, longe do seu navio)
+        const estreita = () => LW < 220;
+        const longe = () => (estreita() ? 0.28 : 0.4);
+        // o desenho de um dos outros (no tamanho de verdade): o navio dele (o mesmo do píer, virado como o seu),
+        // ele na popa com a vara, a linha e a boia, e o peixe pulando; { c, w, wl (a linha d'água), cx (o meio) }
+        function desenhoOutro(o, k, noite) {
+            const info = { nivel: ((o.navio || {}).nivel | 0) || 1, pecas: (o.navio || {}).pecas || {}, visual: (o.navio || {}).visual || {} };
+            const cv = op.navio ? op.navio(info) : null;
+            let wl, conves, popa, direita;
+            if (cv && cv.casco) {
+                telinha.width = cv.width + 60; telinha.height = cv.height + 30;
+                tg.imageSmoothingEnabled = false;
+                tg.save(); tg.translate(cv.width, 30); tg.scale(-1, 1); tg.drawImage(daNoite(cv, noite), 0, 0); tg.restore();
+                wl = 30 + cv.agua; conves = 30 + cv.conves;
+                popa = cv.width - 1 - (cv.casco.x0 + Math.round((cv.casco.x1 - cv.casco.x0) * 0.1)); direita = cv.width;
+            } else {   // (sem o navio desenhado: o barco de antes)
+                const n = Math.max(1, Math.min(5, info.nivel)), b = BARCOS[n];
+                telinha.width = b.w + 60; telinha.height = 90;
+                tg.imageSmoothingEnabled = false;
+                wl = 76; pintarBarco(tg, 2, wl, n, { visual: info.visual, pecas: info.pecas, noite, t });
+                conves = wl - b.h; popa = 2 + b.pe; direita = 2 + b.w;
+            }
+            // a pessoa, um pouco maior que o "certo" (senão some de tão longe)
+            const av = A.avatarCanvas(o.avatar);
+            if (av) tg.drawImage(daNoite(av, noite), popa - 14, conves - 26, 24, 24);
+            const mx = popa + 8, my = conves - 12, px = popa + 30, py = conves - 40;
+            tg.fillStyle = '#8a4a2b';
+            for (let i = 0; i <= 20; i++) tg.fillRect(Math.round(mx + (px - mx) * i / 20), Math.round(my + (py - my) * i / 20), 2, 2);
+            const bx = Math.min(telinha.width - 6, direita + 40);
+            if (o.acao === 'esperando' || o.acao === 'mordendo') {
+                const afunda = o.acao === 'mordendo' ? 3 + (Math.floor(t / 120) % 2) * 2 : (Math.floor(t / 600) % 2) * 2;
+                tg.fillStyle = 'rgba(255,255,255,.85)';
+                for (let i = 0; i <= 24; i++) { const f = i / 24; tg.fillRect(Math.round(px + (bx - px) * f), Math.round(py + (wl + 2 - py) * f + Math.sin(f * Math.PI) * 6), 2, 2); }
+                tg.fillStyle = '#e8434a'; tg.fillRect(bx - 3, wl + afunda, 6, 4);
+                if (o.acao === 'mordendo' && Math.floor(t / 150) % 2) { tg.fillStyle = '#ffffff'; tg.fillRect(bx - 1, wl - 22, 4, 10); tg.fillRect(bx - 1, wl - 9, 4, 4); }
+            }
+            const pu = pulos.get(o.id);
+            if (pu) {   // o peixe que acabou de pegar pula do mar para o barco
+                const f = (performance.now() - pu.t0) / 1300;
+                if (f >= 1) pulos.delete(o.id);
+                else {
+                    const fx = bx + (popa - bx) * f, fy = wl - 10 - Math.sin(f * Math.PI) * 50;
+                    tg.save(); tg.translate(Math.round(fx), Math.round(fy)); tg.scale(2, 2); A.desenharTile(tg, pu.sprite, -8, -8, true); tg.restore();
+                }
+            }
+            return { c: telinha, w: telinha.width, h: telinha.height, wl, cx: (popa + direita) / 2 };
+        }
+        const vagasX = () => (estreita() ? [0.8, 0.96, 0.66] : [0.6, 0.76, 0.9]);
+        let lugares = [];
+        function desenharOutros(noite) {
+            lugares = [];
+            outros.forEach((o, k) => {
+                const d = desenhoOutro(o, k, noite);
+                const LONGE = longe(), W = d.w * LONGE, H = d.h * LONGE, cx = LW * vagasX()[k] + Math.sin(t / 4200 + k * 2) * 2;
+                const wl = horizonte() + 5 + (k % 2) * 3 + Math.round(Math.sin(t / 900 + k) * 0.6);
+                const x = Math.round(cx - d.cx * LONGE), y = Math.round(wl - d.wl * LONGE);
+                g.save(); g.imageSmoothingEnabled = true; g.drawImage(d.c, x, y, W, H); g.restore();
+                lugares[k] = { cx, topo: y + 14 };
+            });
+        }
+        // as plaquinhas com o nome, já na tela (nítidas, por cima do desenho ampliado)
+        function desenharNomes() {
+            if (!outros.length) return;
+            const k = escala * dpr, fonte = Math.round(Math.max(10 * dpr, 2.6 * k));
+            ctx.save();
+            ctx.font = `700 ${fonte}px system-ui, sans-serif`;
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            outros.forEach((o, i) => {
+                const L = lugares[i];
+                if (!L) return;
+                const cx = L.cx * k, cy = Math.max(fonte, (L.topo - 4) * k);
+                const nome = String(o.apelido || '').slice(0, 20), w = ctx.measureText(nome).width + fonte;
+                ctx.fillStyle = 'rgba(28, 22, 40, .72)';
+                ctx.beginPath(); (ctx.roundRect ? ctx.roundRect(cx - w / 2, cy - fonte * 0.75, w, fonte * 1.5, fonte * 0.75) : ctx.rect(cx - w / 2, cy - fonte * 0.75, w, fonte * 1.5)); ctx.fill();
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText(nome, cx, cy + 1);
+            });
+            ctx.restore();
+        }
+        function definirOutros(lista) {
+            const novos = (lista || []).slice(0, 3).sort((a, b) => String(a.id).localeCompare(String(b.id)));
+            for (const o of novos) {
+                if (o.pegou && o.peixe && vistosPegou.get(o.id) !== o.pegou) {
+                    if (vistosPegou.has(o.id) || Date.now() - o.pegou < 8000) pulos.set(o.id, { sprite: op.sprite(o.peixe), t0: performance.now() });
+                    vistosPegou.set(o.id, o.pegou);
+                }
+            }
+            outros = novos;
+        }
+        // o que você está fazendo agora (para os outros verem): parado, esperando ou mordendo
+        const acaoAgora = () => (estado === 'lancando' || estado === 'esperando' ? 'esperando' : estado === 'mordendo' || estado === 'puxando' ? 'mordendo' : 'parado');
+
         function desenharLinha(ponta) {
             if (!alvo || estado === 'parado') return;
             const agora = performance.now();
@@ -675,6 +775,7 @@
             if (nivelBarco() >= 5) desenharIlha(noite);
             gaivotas(noite);
             desenharMar(noite);
+            desenharOutros(noite);   // fase 126: lá no fundo
             desenharMarinheiro(noite);
             const ponta = desenharBarco(noite);
             desenharLinha(ponta);
@@ -682,6 +783,7 @@
 
             ctx.imageSmoothingEnabled = false;
             ctx.drawImage(buf, 0, 0, LW, LH, 0, 0, LW * escala * dpr, LH * escala * dpr);
+            desenharNomes();
             requestAnimationFrame(quadro);
         }
         requestAnimationFrame(quadro);
@@ -690,6 +792,8 @@
 
         return {
             atualizar() { pintarTopo(); pintarDica(); },
+            definirOutros,   // fase 126
+            acao: acaoAgora,
             fechar() {
                 vivo = false;
                 clearInterval(relogio);
