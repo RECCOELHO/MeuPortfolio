@@ -3974,13 +3974,13 @@
                 if ((k / 2 + Math.floor(tempo / 400)) % 5 < 2) { q.fillStyle = '#bcd8f2'; q.fillRect(Math.round(x + (nx / n) * (vai + 3)), Math.round(y + (ny / n) * (vai + 3) * 0.7), 2, 1); }
             }
             if (!ilhaInfo) return;
+            desenharCanhoesFesta(tempo);   // fase 130 (fora da caça: depois do baú cavado eles continuam)
             const caca = ilhaInfo.caca;   // fase 118: a caça ao tesouro (os buracos das pistas cavadas e a pista de agora)
             if (caca) {
                 for (const c of caca.cavadas || []) {
                     const b = desenhoBicho(naAreiaDaIlha(c.x, c.y) ? 'buraco_areia_p' : 'buraco_grama_p');
                     q.drawImage(b, Math.round(wx(c.x) + T / 2 - b.width / 2), wy(c.y) + T - b.height);
                 }
-                desenharCanhoesFesta(tempo);   // fase 130
                 const p = pistaNaIlha(tempo);
                 if (p) {
                     q.fillStyle = 'rgba(40, 24, 10, 0.25)'; q.fillRect(p.x + 1, p.chao - 2, p.img.width - 2, 3);
