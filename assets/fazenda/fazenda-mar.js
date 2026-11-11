@@ -384,7 +384,7 @@
         const nuvens = (() => { const r = rng(5); return Array.from({ length: 4 }, () => ({ x: r(), y: 0.15 + r() * 0.5, w: 14 + Math.floor(r() * 16), v: 0.0015 + r() * 0.002 })); })();
         const sombras = (() => { const r = rng(3); return Array.from({ length: 8 }, () => ({ x: r(), y: r(), v: (0.004 + r() * 0.006) * (r() < 0.5 ? -1 : 1), f: r() * 6 })); })();
 
-        /* fase 115: no Dia dos Namorados da Fazendinha (11/11), de noite, uma constelação "R ♥ J" no céu: estrelas
+        /* fase 115: no Dia dos Namorados da Fazendinha (25/01), de noite, uma constelação "R ♥ J" no céu: estrelas
            ligadas por linhas fininhas, piscando devagar. Cada letra é uma lista de traços (de um ponto a outro). */
         const CONSTELACAO = [
             [[0, 0], [0, 8]], [[0, 0], [3, 0]], [[3, 0], [4, 1]], [[4, 1], [4, 3]], [[4, 3], [3, 4]], [[3, 4], [0, 4]], [[2, 4], [4, 8]],   // R

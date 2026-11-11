@@ -249,7 +249,7 @@
         pipoca:   { fases: [1010, 1010, 1010], murcho: 1010, item: 1010, semente: 1010 },
         bolo:     { fases: [1011, 1011, 1011], murcho: 1011, item: 1011, semente: 1011 },
         salada:   { fases: [1012, 1012, 1012], murcho: 1012, item: 1012, semente: 1012 },
-        viih:     { fases: [1192, 1193, 1191], murcho: 1194, item: 1191, semente: 1190 }   // fase 115: a flor do 11/11
+        viih:     { fases: [1192, 1193, 1191], murcho: 1194, item: 1191, semente: 1190 }   // fase 115: a flor do 25/01
     };
     const CULTURA_PADRAO = CULTURAS.alface;
     const ANIMAL = { galinha: 122, vaca: 121, ovelha: 120, porco: 1000, pato: 1001, coelho: 1002, cabra: 1146, bufala: 1147,   // (fase 74: cabra e búfala)
@@ -5006,7 +5006,7 @@
             desenharRaios(tempo);   // fase 68: as faíscas do eletricista
             const escuro = faseDoDia(relogio()).n;
             if (escuro > 0) desenharNoite(todas, tempo, escuro);   // (as luzes saem da lista toda: a camada fica guardada)   // balões e sinais vêm depois: ficam claros
-            if (diaEspecial === 'namorados') { desenharCoracaoFarol(tempo, escuro); desenharPetalas(tempo); }   // fase 115: o 11/11
+            if (diaEspecial === 'namorados') { desenharCoracaoFarol(tempo, escuro); desenharPetalas(tempo); }   // fase 115: o 25/01
             desenharRadiacao(tempo);   // fase 68: o bicho radioativo (brilha também de noite)
             if (visitante && !visitante.andando && !visitante.saindo) {   // balão com o pedido, pulando
                 const bx = Math.round(visitante.x) - 2, by = Math.round(visitante.y) - 21 + (Math.floor(tempo / 350) % 2);
@@ -5287,7 +5287,7 @@
             }
             q.restore();
         }
-        /* ---- fase 115: o Dia dos Namorados da Fazendinha (11/11) ----
+        /* ---- fase 115: o Dia dos Namorados da Fazendinha (25/01) ----
            Pétalas cor-de-rosa caem pela tela o dia todo; de noite, o farol da ilha (com a obra pronta) desenha
            um coração de luz no mar, ao norte da praia. */
         let diaEspecial = null;
@@ -6463,7 +6463,7 @@
             definirPier(pronto) { if (!!pronto === pierPronto) return; pierPronto = !!pronto; montarFundo(); precisaDesenhar = true; },   // fase 61
             definirBarco(info) { barcoInfo = info || null; limitarCamera(); precisaDesenhar = true; },   // fase 104: o navio no píer (fase 111: fundeado, a câmera desce até ele)
             definirCachorro(info) { cachorroInfo = info || null; precisaDesenhar = true; },   // fase 111: o cachorro da ilha
-            definirEspecial(dia) { diaEspecial = dia || null; precisaDesenhar = true; },   // fase 115: 'namorados' no 11/11
+            definirEspecial(dia) { diaEspecial = dia || null; precisaDesenhar = true; },   // fase 115: 'namorados' no 25/01
             definirCapitao(faltam) { capitaoFaltam = faltam == null ? null : faltam; precisaDesenhar = true; },   // fase 117: o Capitão do cais
             // fase 106: a ilha. info = null (sem ilha: o mundo volta ao tamanho da fazenda) ou
             // { feitas: [ids das obras prontas], proxima: id, x: {x, y} do baú do dia }
