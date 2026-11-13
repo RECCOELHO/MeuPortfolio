@@ -175,6 +175,9 @@
         sem_ajudante: 'Esse ajudante não trabalha mais na sua fazenda.',
         diamantes_insuficientes: 'Faltam diamantes. Você ganha 5 a cada nível.',
         nao_alimentado: 'Esse bicho está com fome: dê a ração antes.',
+        portao_ilha: 'O portão de ferro do porto protege os canteiros da ilha: ninguém pega deles.',
+        canhoes_hoje: 'Os canhões de festa já soltaram o presente de hoje. Amanhã tem mais!',
+        canhoes_fechado: 'Os canhões de festa são a 12ª obra da ilha.',
         lugar_invalido: 'Lugar inválido.',
         limite_diario: 'Hoje já foram os 3 pacotes de XP. Amanhã tem mais!',
         xp_maximo: 'Você já está no nível máximo.',
@@ -1306,7 +1309,8 @@
         if (!k) return { fase: 'arado' };   // semente que o jogo ainda não conhece (catálogo atrasado): não quebra a tela
         const inicio = Date.parse(c.plantado_em);
         const maduro = inicio + k.tempo_seg * 1000;
-        const murcho = maduro + (c.seco ? Math.max(k.tempo_seg, 1800) : Math.max(k.tempo_seg * 2, 3600)) * 1000;   // fase 121: com seca, murcha na metade do tempo
+        const toldo = c.y >= 45 && (((visita ? visita.ilha_obras : ilhaDe().obras) || 0) >= 10);   // fase 130: o toldo da praça (10ª obra)
+        const murcho = maduro + (c.seco ? Math.max(k.tempo_seg, 1800) : Math.max(k.tempo_seg * 2, 3600)) * 1000 * (toldo ? 2 : 1);   // fase 121: com seca, murcha na metade do tempo
         const t = agora();
         const probs = ['erva', 'praga', 'seco'].filter((p) => c[p]);
         const base = { k, probs, maduro, murcho };
@@ -1569,6 +1573,10 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-11-08-obras-efeitos', data: '08/11', titulo: 'As obras da ilha agora fazem alguma coisa', itens: [
+            'Cada obra da ilha ganhou um efeito, escrito no cartão dela (Ilha → Obras): o <b>trapiche</b> faz o Capitão pagar +20%; o <b>armazém</b> e o <b>mercado</b>, os produtos da ilha venderem +10% cada; a <b>muralha</b> segura o furacão na ilha; a <b>taverna</b> deixa os ajudantes 25% mais rápidos; o <b>portão</b> não deixa ninguém pegar da ilha.',
+            'O <b>farol</b> dá +50% de chance de peixe raro no alto-mar; a <b>cabana do vigia</b> espanta metade das pragas da ilha; com o <b>toldo</b>, a planta da ilha demora o dobro para murchar; a <b>âncora</b> põe +1 diamante no baú do X; a <b>sereia</b> dá +1 na colheita da ilha.',
+            'Os <b>canhões de festa</b>: toque neles 1 vez por dia para uma chuva de confete e um presente. A <b>casa do cartógrafo</b> põe uma seta na próxima pista do mapa do tesouro, e as pistas dão o dobro de moedas.'] },
         { id: '2026-11-08-sem-guardar', data: '08/11', titulo: 'O Guardar saiu do Construir (por enquanto)', itens: [
             'Para o jogo parar de travar, o botão <b>Guardar</b> do Construir saiu por enquanto: guardar e colocar de novo muitas vezes estava pesando o servidor. O que você já guardou continua no depósito (📦 na barra) e sai <b>de graça</b> quando você coloca.',
             'Para mudar algo de lugar, use <b>Mover</b> (ou segure o item por 3 s).'] },
@@ -2578,7 +2586,8 @@
         else {
             const feitas = (d.partes || []).slice(0, d.obras || 0).map((o) => o.id);
             const p = proximaObra();
-            cena.definirIlha({ feitas, proxima: p && S.jogador.nivel >= p.nivel ? p.id : null, x: d.x || null, caca: d.caca || null });   // (fase 118: as pistas)
+            cena.definirIlha({ feitas, proxima: p && S.jogador.nivel >= p.nivel ? p.id : null, x: d.x || null, caca: d.caca || null,   // (fase 118: as pistas)
+                               canhoes: feitas.includes('canhoes') && !d.canhoes_hoje, cartografo: feitas.includes('cartografo') });   // fase 130
         }
         const b = el.btnIlha;
         if (b) {
@@ -2673,6 +2682,7 @@
                 <span>
                     <span class="nome">${o.n}. ${esc(o.nome)} <small class="qtd">nível ${o.nivel}</small></span>
                     <span class="det"><span class="txt">${esc(o.descricao || '')}</span></span>
+                    ${o.efeito ? `<span class="det"><span class="txt efeito-obra">${ico('brilho', 12)} <b>${esc(o.efeito)}</b></span></span>` : ''}
                     ${proxima ? `<span class="det materiais">${htmlMateriais(o.itens)}</span>` : ''}
                 </span>
                 ${feita ? `<span class="preco">${ico('check', 14)} Pronta</span>`
@@ -4095,6 +4105,16 @@
             abrirPainel('cachorro');
         },
         aoIlhaObra: () => { if (S && !painelAtual && !visita) abrirPainel('ilha'); },
+        aoCanhoes: () => {   // fase 130: o presente do dia dos canhões de festa
+            if (!S || painelAtual || visita) return;
+            som.tocar('festa');
+            if (cena.confeteCanhoes) cena.confeteCanhoes();
+            enfileirar([], async () => {
+                const r = await rpc('fazenda_ilha_canhoes', { p_token: token });
+                aplicarEstado(r.estado);
+                toast(`${ico('brilho', 18)} Os canhões de festa soltaram confete e um presente: ${r.diamantes ? `<b>${r.diamantes}</b> ${ico('diamante', 14)}` : moeda(numero(r.moedas))}! Amanhã tem mais.`, 'festa');
+            });
+        },
         aoCapitao: () => { if (S && !painelAtual && !visita) { som.tocar('clique'); abrirPainel('capitao'); } },   // fase 117
         aoConstrucao: (x, y) => {
             if (!S || painelAtual) return;
