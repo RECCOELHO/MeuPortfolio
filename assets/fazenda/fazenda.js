@@ -947,6 +947,8 @@
         if (alvo < hoje) alvo = Date.UTC(a + 1, 0, 25);
         return Math.round((alvo - hoje) / 86400000);
     }
+    // fase 131: a Viih só aparece na loja no dia e quando faltam menos de 30 dias para o 25/01
+    const naLojaAgora = (k) => !k.so_dia || (S && S.dia_especial === 'namorados') || diasAte2501() < 30;
     const podeEscolher = (k) => (daEstacao(k) || temEstufa()) && diaDaFlor(k);
 
     /* ---------- Convites: link ?convite=CODIGO; quem entra e quem chamou ganham moedas ----------
@@ -1584,7 +1586,7 @@
         { id: '2026-11-13-namorados-2501', data: '13/11', titulo: 'O Dia dos Namorados da Fazendinha agora é 25/01', itens: [
             'A festa mudou de data: agora é todo <b>25 de janeiro</b>. Nesse dia caem pétalas pela fazenda, de noite o <b>farol da ilha</b> desenha um coração no mar e o céu do alto-mar ganha uma <b>constelação</b>.',
             'A flor <b>Viih</b> ganhou os números do 25/01: cresce em <b>25 min 01 s</b>, a semente custa <b>2501</b>, dá <b>25 de XP</b> e cada um planta até <b>25 por ano</b>. No celeiro, cada Viih continua virando <b>1 diamante</b> (ou venda na feira por 25001 de ouro).',
-            'Na loja, a Viih mostra quantos dias faltam para o próximo 25/01.'] },
+            'A Viih aparece na loja quando faltar menos de 30 dias para o 25/01, com a contagem dos dias.'] },
         { id: '2026-11-08-obras-efeitos', data: '08/11', titulo: 'As obras da ilha agora fazem alguma coisa', itens: [
             'Cada obra da ilha ganhou um efeito, escrito no cartão dela (Ilha → Obras): o <b>trapiche</b> faz o Capitão pagar +20%; o <b>armazém</b> e o <b>mercado</b>, os produtos da ilha venderem +10% cada; a <b>muralha</b> segura o furacão na ilha; a <b>taverna</b> deixa os ajudantes 25% mais rápidos; o <b>portão</b> não deixa ninguém pegar da ilha.',
             'O <b>farol</b> dá +50% de chance de peixe raro no alto-mar; a <b>cabana do vigia</b> espanta metade das pragas da ilha; com o <b>toldo</b>, a planta da ilha demora o dobro para murchar; a <b>âncora</b> põe +1 diamante no baú do X; a <b>sereia</b> dá +1 na colheita da ilha.',
@@ -6415,7 +6417,7 @@
 
     /* ---- conteúdo da loja e das missões ---- */
     function htmlLojaSementes() {
-        return '<div class="lista">' + S.culturas.filter((k) => k.tipo === 'cultura').map((k) => {   // (fase 60: nem produto nem raro)
+        return '<div class="lista">' + S.culturas.filter((k) => k.tipo === 'cultura' && naLojaAgora(k)).map((k) => {   // (fase 60: nem produto nem raro; fase 131: a Viih só perto do 25/01)
             const travada = k.nivel_min > S.jogador.nivel || !podeEscolher(k);
             const lucro = k.venda * k.rendimento - k.custo;
             return `<button type="button" class="item${k.id === semente ? ' selecionada' : ''}${travada ? ' travada' : ''}" data-semente="${esc(k.id)}" ${travada ? 'aria-disabled="true"' : ''}>
