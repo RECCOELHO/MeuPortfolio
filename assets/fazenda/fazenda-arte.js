@@ -3974,6 +3974,7 @@
                 if ((k / 2 + Math.floor(tempo / 400)) % 5 < 2) { q.fillStyle = '#bcd8f2'; q.fillRect(Math.round(x + (nx / n) * (vai + 3)), Math.round(y + (ny / n) * (vai + 3) * 0.7), 2, 1); }
             }
             if (!ilhaInfo) return;
+            desenharCanhoesFesta(tempo);   // fase 130 (fora da caça: depois do baú cavado eles continuam)
             const caca = ilhaInfo.caca;   // fase 118: a caça ao tesouro (os buracos das pistas cavadas e a pista de agora)
             if (caca) {
                 for (const c of caca.cavadas || []) {
@@ -3985,6 +3986,12 @@
                     q.fillStyle = 'rgba(40, 24, 10, 0.25)'; q.fillRect(p.x + 1, p.chao - 2, p.img.width - 2, 3);
                     pe.push({ img: p.img, x: p.x, y: p.y, ordem: p.chao, flip: false, bob: 0 });
                     if (Math.floor(tempo / 300) % 3) icone(q, 'brilho', p.x + p.img.width - 2, p.y - 6 - (Math.floor(tempo / 150) % 2));
+                    if (ilhaInfo.cartografo) {   // fase 130: a casa do cartógrafo aponta a pista
+                        const ax = Math.round(p.x + p.img.width / 2), ay = p.y - 14 - Math.round(Math.abs(Math.sin(tempo / 260)) * 4);
+                        q.fillStyle = '#3f2631'; q.fillRect(ax - 4, ay - 1, 9, 6); q.fillRect(ax - 2, ay + 5, 5, 2); q.fillRect(ax - 1, ay + 7, 3, 1);
+                        q.fillStyle = '#ffd75e'; q.fillRect(ax - 3, ay, 7, 4); q.fillRect(ax - 1, ay + 4, 3, 2); q.fillRect(ax, ay + 6, 1, 1);
+                        q.fillStyle = '#fff6c8'; q.fillRect(ax - 2, ay, 2, 1);
+                    }
                 }
             }
             if (ilhaInfo.x) {   // o X do baú enterrado: duas tábuas vermelhas cruzadas, brilhando
@@ -4024,6 +4031,26 @@
         /* fase 117: o Capitão fica no trapiche, logo à direita do pé do cais, balançando de leve (respira e olha
            o mar). Quando ainda tem pedido hoje, um balão com o baú pula em cima dele. */
         // fase 118: a pista de agora (1: a pedra da caveira; 2: a garrafa com o bilhete; 3: a pá fincada), pulando
+        // fase 130: os canhões de festa: brilham quando o presente de hoje ainda não saiu; o toque solta confete
+        let confetes = [];
+        function desenharCanhoesFesta(tempo) {
+            const O = OBRAS_ILHA.canhoes;
+            if (ilhaInfo && ilhaInfo.canhoes) {
+                const bx = wx(O.x + 1) + 4, by = wy(O.y) - 12 - (Math.floor(tempo / 300) % 2);
+                q.fillStyle = '#3f2631'; q.fillRect(bx - 1, by - 1, 10, 10);
+                q.fillStyle = '#ffffff'; q.fillRect(bx, by, 8, 8);
+                q.fillStyle = '#d9452f'; q.fillRect(bx + 3, by + 1, 2, 4); q.fillRect(bx + 3, by + 6, 2, 1);
+            }
+            if (!confetes.length) return;
+            const agora = performance.now(), cores = ['#d9452f', '#ffd75e', '#4e974c', '#3b6fb6', '#e98b9b', '#ffffff'];
+            confetes = confetes.filter((c) => agora - c.t0 < c.vida);
+            for (const c of confetes) {
+                const t = (agora - c.t0) / 1000;
+                q.fillStyle = cores[c.cor];
+                q.fillRect(Math.round(c.x + c.vx * t), Math.round(c.y + c.vy * t + 60 * t * t), 2, Math.floor(agora / 90 + c.cor) % 2 ? 2 : 1);
+            }
+            precisaDesenhar = true;
+        }
         function pistaNaIlha(tempo) {
             const p = ilhaInfo && ilhaInfo.caca && ilhaInfo.caca.pista;
             if (!p) return null;
@@ -6197,6 +6224,10 @@
                 if (pista && px >= pista.x - 6 && px < pista.x + pista.img.width + 6 && py >= pista.y - 8 && py < pista.chao + 5) return 'ilha-pista';
                 if (cavernaRet && px >= cavernaRet.x + 14 && px < cavernaRet.x + cavernaRet.w - 14 && py >= cavernaRet.y + 8 && py < cavernaRet.y + cavernaRet.h - 4) return 'ilha-caverna';
                 if (ilhaInfo.x && Math.abs(px - wx(ilhaInfo.x.x) - T / 2) <= T * 0.9 && py >= wy(ilhaInfo.x.y) - T * 0.6 && py <= wy(ilhaInfo.x.y) + T * 1.2) return 'ilha-x';   // (um pouco maior que o X: dedo)
+                if (ilhaInfo.canhoes) {   // fase 130: o presente do dia dos canhões de festa
+                    const O = OBRAS_ILHA.canhoes;
+                    if (tx >= O.x && ty >= O.y - 1 && tx < O.x + O.w && ty < O.y + O.h) return 'ilha-canhoes';
+                }
                 for (const id of [ilhaInfo.proxima, ...(ilhaInfo.feitas || [])]) {
                     const O = OBRAS_ILHA[id];
                     if (O && id !== 'cais' && tx >= O.x && ty >= O.y - 1 && tx < O.x + O.w && ty < O.y + O.h) return 'ilha-obra';
@@ -6350,6 +6381,7 @@
             else if (alvo === 'ilha-caverna') { if (cb.aoCaverna) cb.aoCaverna(cavernaAberta()); }   // fase 118
             else if (alvo === 'ilha-cachorro') { if (cb.aoCachorro) cb.aoCachorro(); }   // fase 111
             else if (alvo === 'ilha-capitao') { if (cb.aoCapitao) cb.aoCapitao(); }   // fase 117
+            else if (alvo === 'ilha-canhoes') { if (cb.aoCanhoes) cb.aoCanhoes(); }   // fase 130
             else if (alvo === 'ilha-obra') { if (cb.aoIlhaObra) cb.aoIlhaObra(); }   // fase 66: quem está dormindo na casa da fazenda
             else if (alvo === 'barco') { if (cb.aoBarco) cb.aoBarco(); else if (cb.aoPier) cb.aoPier(); }   // fase 62
             else if (typeof alvo === 'object' && alvo.construcao) { if (cb.aoConstrucao) cb.aoConstrucao(alvo.construcao.x, alvo.construcao.y); }
@@ -6494,6 +6526,15 @@
                 viagem = { t0: performance.now(), dur: 5200, de, para, ida: destino === 'ilha', fim };
             },
             viajando: () => !!viagem,
+            // fase 130: a chuva de confete dos canhões de festa
+            confeteCanhoes() {
+                const O = OBRAS_ILHA.canhoes, agora = performance.now();
+                for (let k = 0; k < 70; k++) {
+                    const a = -Math.PI / 2 + (Math.random() - 0.5) * 1.6, v = 40 + Math.random() * 70;
+                    confetes.push({ x: wx(O.x) + 6 + (k % 3) * 16, y: wy(O.y) + 2, vx: Math.cos(a) * v, vy: Math.sin(a) * v, cor: k % 6, t0: agora + (k % 3) * 120, vida: 1800 + Math.random() * 600 });
+                }
+                precisaDesenhar = true;
+            },
             alturaMundo: () => MH,   // (para os testes: com a ilha carregada, o mundo é mais alto)
             // (para os testes) o primeiro ajudante da lavoura atravessa de barquinho para o outro lado
             testeTravessia() {
