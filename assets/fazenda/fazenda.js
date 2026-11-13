@@ -114,7 +114,7 @@
         capitao_ja_entregue: 'Esse pedido já foi entregue hoje.',
         capitao_sem_pedido: 'O Capitão já trocou os pedidos (virou o dia). Abra de novo.',
         so_no_dia: 'A Viih só pode ser plantada no dia 25/01, o Dia dos Namorados da Fazendinha.',   // fase 115
-        viih_limite: 'Você já plantou as 11 Viih deste ano. Ano que vem, no 25/01, tem mais.',
+        viih_limite: 'Você já plantou as 25 Viih deste ano. Ano que vem, no 25/01, tem mais.',
         flor_da_feira: 'Só a Viih que você colheu vira diamante (a que veio da feira, ou a guardada, não).',
         cachorro_ja_tem: 'Você já tem um cachorro na ilha (a raça não troca; o nome dá).',
         cachorro_nome_invalido: 'O nome do cachorro precisa ter de 2 a 20 letras.',
@@ -575,7 +575,7 @@
     }
 
     function fmtDuracao(seg) {
-        if (seg < 3600) return `${Math.round(seg / 60)} min`;
+        if (seg < 3600) return seg % 60 ? `${Math.floor(seg / 60)} min ${String(seg % 60).padStart(2, '0')} s` : `${Math.round(seg / 60)} min`;   // fase 131: 25 min 01 s
         if (seg < 86400) {
             const h = Math.floor(seg / 3600), m = Math.round((seg % 3600) / 60);
             return m ? `${h} h ${m} min` : `${h} h`;
@@ -937,8 +937,16 @@
         const it = tipoItem(m.tipo);
         return it && it.efeito === 'estufa' && Math.abs(m.x - c.x) <= it.raio && Math.abs(m.y - c.y) <= it.raio;
     });
-    // fase 115: a flor de um dia só (a Viih): só no 25/01 e enquanto restar das 11 do ano
+    // fase 115: a flor de um dia só (a Viih): só no 25/01 e enquanto restar das 25 do ano (fase 131)
     const diaDaFlor = (k) => !k.so_dia || (S && S.dia_especial === 'namorados' && (S.viih_restam || 0) > 0);
+    // fase 131: quantos dias faltam para o próximo 25/01 (no horário de Brasília)
+    function diasAte2501() {
+        const [a, m, d] = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }).split('-').map(Number);
+        const hoje = Date.UTC(a, m - 1, d);
+        let alvo = Date.UTC(a, 0, 25);
+        if (alvo < hoje) alvo = Date.UTC(a + 1, 0, 25);
+        return Math.round((alvo - hoje) / 86400000);
+    }
     const podeEscolher = (k) => (daEstacao(k) || temEstufa()) && diaDaFlor(k);
 
     /* ---------- Convites: link ?convite=CODIGO; quem entra e quem chamou ganham moedas ----------
@@ -1573,6 +1581,10 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-11-13-namorados-2501', data: '13/11', titulo: 'O Dia dos Namorados da Fazendinha agora é 25/01', itens: [
+            'A festa mudou de data: agora é todo <b>25 de janeiro</b>. Nesse dia caem pétalas pela fazenda, de noite o <b>farol da ilha</b> desenha um coração no mar e o céu do alto-mar ganha uma <b>constelação</b>.',
+            'A flor <b>Viih</b> ganhou os números do 25/01: cresce em <b>25 min 01 s</b>, a semente custa <b>2501</b>, dá <b>25 de XP</b> e cada um planta até <b>25 por ano</b>. No celeiro, cada Viih continua virando <b>1 diamante</b> (ou venda na feira por 25001 de ouro).',
+            'Na loja, a Viih mostra quantos dias faltam para o próximo 25/01.'] },
         { id: '2026-11-08-obras-efeitos', data: '08/11', titulo: 'As obras da ilha agora fazem alguma coisa', itens: [
             'Cada obra da ilha ganhou um efeito, escrito no cartão dela (Ilha → Obras): o <b>trapiche</b> faz o Capitão pagar +20%; o <b>armazém</b> e o <b>mercado</b>, os produtos da ilha venderem +10% cada; a <b>muralha</b> segura o furacão na ilha; a <b>taverna</b> deixa os ajudantes 25% mais rápidos; o <b>portão</b> não deixa ninguém pegar da ilha.',
             'O <b>farol</b> dá +50% de chance de peixe raro no alto-mar; a <b>cabana do vigia</b> espanta metade das pragas da ilha; com o <b>toldo</b>, a planta da ilha demora o dobro para murchar; a <b>âncora</b> põe +1 diamante no baú do X; a <b>sereia</b> dá +1 na colheita da ilha.',
@@ -1627,7 +1639,7 @@
             'Na praia, as ondas e a espuma voltaram do lado do píer.'] },
         { id: '2026-11-07-namorados', data: '07/11', titulo: 'O Dia dos Namorados da Fazendinha (25/01)', itens: [
             'Todo <b>25 de janeiro</b> é o Dia dos Namorados deste universo: pétalas caem pela fazenda o dia inteiro, de noite o <b>farol da ilha</b> desenha um coração no mar e o céu do alto-mar ganha uma <b>constelação</b>.',
-            'Só nesse dia dá para plantar a flor <b>Viih</b> (até 11 por ano; cresce em 1h11). No celeiro, cada Viih que você colheu vira <b>1 diamante</b>; na feira, vende por ouro.'] },
+            'Só nesse dia dá para plantar a flor <b>Viih</b> (até 25 por ano; cresce em 25 min 01 s). No celeiro, cada Viih que você colheu vira <b>1 diamante</b>; na feira, vende por ouro.'] },
         { id: '2026-11-07-niveis', data: '07/11', titulo: 'Ninguém cai de nível e o "Mais níveis" do jeito que você vê', itens: [
             'Quem tinha caído de nível quando chegaram o ipê e as oficinas navais voltou para o nível que já tinha. Daqui para frente, o nível que você alcançou não cai mais, e o que está guardado no depósito conta para passar de nível.',
             'No evento, <b>Mais níveis</b> agora conta o nível que aparece no jogo (o XP comprado com diamantes continua fora). Conta nova conta do nível 10 em diante.'] },
@@ -3072,8 +3084,8 @@
     function htmlNamorados() {
         const k = culturas.viih || { id: 'viih', nome: 'Viih' };
         return `<div class="cao-meu"><span>${spr(A.cultura('viih').item, 96)}</span>
-            <p class="fala">Hoje, <b>25/01</b>, é o <b>Dia dos Namorados</b> deste universo! Só hoje dá para plantar a flor <b>${esc(k.nome)}</b>: até 11 por ano, ela cresce em 1h11. Cada ${esc(k.nome)} que você colher vira <b>1 ${ico('diamante', 14)}</b> no celeiro, ou venda na feira por ouro.</p></div>
-            <p class="aviso">Repare: pétalas caindo pela fazenda; de noite, o farol da ilha desenha um coração no mar; e no céu do alto-mar aparece uma constelação. Restam ${S.viih_restam || 0} de 11 para plantar hoje.</p>
+            <p class="fala">Hoje, <b>25/01</b>, é o <b>Dia dos Namorados</b> deste universo! Só hoje dá para plantar a flor <b>${esc(k.nome)}</b>: até 25 por ano, ela cresce em 25 min 01 s. Cada ${esc(k.nome)} que você colher vira <b>1 ${ico('diamante', 14)}</b> no celeiro, ou venda na feira por ouro.</p></div>
+            <p class="aviso">Repare: pétalas caindo pela fazenda; de noite, o farol da ilha desenha um coração no mar; e no céu do alto-mar aparece uma constelação. Restam ${S.viih_restam || 0} de 25 para plantar hoje.</p>
             <div class="rodape-painel"><button type="button" class="botao creme" data-painel-ir="loja">Ver a semente</button><button type="button" class="botao verde" data-fechar>Que lindo!</button></div>`;
     }
     function htmlRecados() {
@@ -6409,7 +6421,7 @@
             return `<button type="button" class="item${k.id === semente ? ' selecionada' : ''}${travada ? ' travada' : ''}" data-semente="${esc(k.id)}" ${travada ? 'aria-disabled="true"' : ''}>
                 <span class="ico${k.nivel_min <= S.jogador.nivel && travada ? ' fora' : ''}">${k.nivel_min > S.jogador.nivel ? ico('cadeado', 28) : spr(A.cultura(k.id).item, 44)}</span>
                 <span>
-                    <span class="nome">${esc(k.nome)}${novos.selo('c:' + k.id, k.nivel_min <= S.jogador.nivel)}${k.so_ilha ? ' <small class="tag-estacao agora">só na ilha</small>' : ''}${k.estacao_boa && !k.so_dia ? (bonusEstacao(k) ? ` <small class="tag-estacao agora">rende +${bonusEstacao(k)} agora!</small>` : ` <small class="tag-estacao">rende mais ${naEstacao(k.estacao_boa)}</small>`) : ''}${k.so_dia ? ` <small class="tag-estacao${diaDaFlor(k) ? ' agora' : ''}">${S.dia_especial === 'namorados' ? `hoje! restam ${S.viih_restam || 0} de 11` : 'só no 25/01'}</small>` : ''}${k.estacao ? ` <small class="tag-estacao${daEstacao(k) ? ' agora' : temEstufa() ? ' estufa' : ''}">${daEstacao(k) ? 'da estação!' : temEstufa() ? 'só na estufa' : 'só ' + naEstacao(k.estacao) + (faltaParaEstacao(k.estacao) ? ' · em ' + fmtTempo(faltaParaEstacao(k.estacao)) : '')}</small>` : ''}</span>
+                    <span class="nome">${esc(k.nome)}${novos.selo('c:' + k.id, k.nivel_min <= S.jogador.nivel)}${k.so_ilha ? ' <small class="tag-estacao agora">só na ilha</small>' : ''}${k.estacao_boa && !k.so_dia ? (bonusEstacao(k) ? ` <small class="tag-estacao agora">rende +${bonusEstacao(k)} agora!</small>` : ` <small class="tag-estacao">rende mais ${naEstacao(k.estacao_boa)}</small>`) : ''}${k.so_dia ? ` <small class="tag-estacao${diaDaFlor(k) ? ' agora' : ''}">${S.dia_especial === 'namorados' ? `hoje! restam ${S.viih_restam || 0} de 25` : `só no 25/01 · faltam ${diasAte2501()} dias`}</small>` : ''}${k.estacao ? ` <small class="tag-estacao${daEstacao(k) ? ' agora' : temEstufa() ? ' estufa' : ''}">${daEstacao(k) ? 'da estação!' : temEstufa() ? 'só na estufa' : 'só ' + naEstacao(k.estacao) + (faltaParaEstacao(k.estacao) ? ' · em ' + fmtTempo(faltaParaEstacao(k.estacao)) : '')}</small>` : ''}</span>
                     <span class="det">
                         <span>cresce em ${fmtDuracao(k.tempo_seg)}</span>
                         <span>+${k.xp} ${ico('xp', 13)} por colheita</span>
