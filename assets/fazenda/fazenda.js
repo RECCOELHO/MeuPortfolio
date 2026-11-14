@@ -5549,7 +5549,9 @@
         offset = Date.parse(v.agora) - Date.now();
         document.body.classList.add('visitando');
         el.faixaVisita.hidden = false;
-        el.visitaApelido.innerHTML = esc(v.apelido) + htmlSelos(v.selos);   // fase 127: os selos
+        el.visitaApelido.textContent = v.apelido;
+        const vs = document.getElementById('visitaSelos');   // fase 127: os selos (fase 132: fora do nome, que encolhe com "…" no celular)
+        if (vs) vs.innerHTML = htmlSelos(v.selos);
         el.visitaNivel.textContent = v.nivel;
         atualizarFaixaVisita();
         el.acoesVisita.hidden = false;
