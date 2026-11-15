@@ -2215,6 +2215,80 @@ body.construindo .status {
     flex-shrink: 0;
 }
 
+/* fase 132: o selo fica fora do nome (o nome encolhe com "…", o selo não). No computador é uma linha só;
+   no celular são duas: o nome e o selo em cima, o nível e os avisos embaixo. */
+.faixa-l1,
+.faixa-l2 {
+    display: contents;
+}
+
+.faixa-selos {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+}
+
+.faixa-selos:empty {
+    display: none;
+}
+
+.faixa-selos .selo-nome {
+    margin-left: 0;
+}
+
+/* no computador, quem cede lugar são os avisos (quebram de linha), não o apelido */
+.faixa-nome {
+    flex-shrink: 0;
+    max-width: 280px;
+}
+
+.faixa-extra {
+    flex: 0 1 auto;
+    min-width: 0;
+}
+
+@media (max-width: 760px) {
+    .faixa-txt {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 2px;
+    }
+
+    .faixa-l1,
+    .faixa-l2 {
+        display: flex;
+        align-items: center;
+        gap: 3px 5px;
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .faixa-l2 {
+        flex-wrap: wrap;
+    }
+
+    .faixa-nome {
+        flex-shrink: 1;
+        max-width: none;
+    }
+
+    .faixa-l2 .faixa-extra {
+        display: contents;
+    }
+
+    .faixa-ponto {
+        display: none;
+    }
+}
+
+@media (max-width: 480px) {
+    /* tela estreita: só o apelido, para sobrar lugar para o selo */
+    .faixa-pre {
+        display: none;
+    }
+}
+
 .faixa-visita .botao {
     flex-shrink: 0;
 }
