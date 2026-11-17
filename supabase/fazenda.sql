@@ -9661,16 +9661,22 @@ end;
 $$;
 
 -- a trava se refaz sozinha quando entra ou sai uma construção (por qualquer caminho: construir, desmanchar,
--- tempestade, bots...). Só grava quando muda.
+-- tempestade, bots...). Só grava quando muda. Fase 134: o nível de antes da mudança vira o piso (não cai).
 create or replace function public.fazenda_trava_gatilho()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
   if tg_op = 'DELETE' then
-    update fazenda_jogadores j set nivel_trava = greatest(fazenda_nivel_trava(j.id), j.nivel_base)
-     where j.id in (select distinct jogador_id from velhas) and j.nivel_trava is distinct from greatest(fazenda_nivel_trava(j.id), j.nivel_base);
+    update fazenda_jogadores j
+       set nivel_base = greatest(coalesce(j.nivel_base, 1), fazenda_nivel_de(j.xp, j.nivel_trava)),
+           nivel_trava = greatest(fazenda_nivel_trava(j.id), coalesce(j.nivel_base, 1), fazenda_nivel_de(j.xp, j.nivel_trava))
+     where j.id in (select distinct jogador_id from velhas)
+       and j.nivel_trava is distinct from greatest(fazenda_nivel_trava(j.id), coalesce(j.nivel_base, 1), fazenda_nivel_de(j.xp, j.nivel_trava));
   else
-    update fazenda_jogadores j set nivel_trava = greatest(fazenda_nivel_trava(j.id), j.nivel_base)
-     where j.id in (select distinct jogador_id from novas) and j.nivel_trava is distinct from greatest(fazenda_nivel_trava(j.id), j.nivel_base);
+    update fazenda_jogadores j
+       set nivel_base = greatest(coalesce(j.nivel_base, 1), fazenda_nivel_de(j.xp, j.nivel_trava)),
+           nivel_trava = greatest(fazenda_nivel_trava(j.id), coalesce(j.nivel_base, 1), fazenda_nivel_de(j.xp, j.nivel_trava))
+     where j.id in (select distinct jogador_id from novas)
+       and j.nivel_trava is distinct from greatest(fazenda_nivel_trava(j.id), coalesce(j.nivel_base, 1), fazenda_nivel_de(j.xp, j.nivel_trava));
   end if;
   return null;
 end;
@@ -12504,3 +12510,16 @@ $$;
 revoke execute on function public.fazenda_obra_n(text), public.fazenda_obra_tem(uuid, text),
   public.fazenda_murcha_seg(int, boolean, int, uuid) from public, anon, authenticated;
 grant execute on function public.fazenda_ilha_canhoes(text) to anon, authenticated;
+
+-- ------------------------------------------------------------
+-- fase 134: o nível que você tem não cai quando sai uma construção (o gatilho acima) e quem está abaixo do maior
+-- nível que já alcançou (e ganhou o presente) volta para ele, até onde o XP dá. Só sobe; rodar de novo não muda nada.
+-- ------------------------------------------------------------
+update public.fazenda_jogadores j
+   set nivel_base = greatest(coalesce(j.nivel_base, 1), public.fazenda_nivel_de(j.xp, j.nivel_trava),
+                             least(coalesce(j.nivel_premiado, 1), public.fazenda_nivel(j.xp), 60))
+ where greatest(coalesce(j.nivel_base, 1), public.fazenda_nivel_de(j.xp, j.nivel_trava),
+                least(coalesce(j.nivel_premiado, 1), public.fazenda_nivel(j.xp), 60)) > coalesce(j.nivel_base, 1);
+update public.fazenda_jogadores
+   set nivel_trava = greatest(nivel_trava, public.fazenda_nivel_trava(id), coalesce(nivel_base, 1))
+ where greatest(nivel_trava, public.fazenda_nivel_trava(id), coalesce(nivel_base, 1)) > nivel_trava;
