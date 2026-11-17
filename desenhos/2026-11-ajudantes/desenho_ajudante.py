@@ -71,6 +71,38 @@ def reduz_rgba(src, f):
             out[j, i, :3] = cores[((cores - m) ** 2).sum(1).argmin()]; out[j, i, 3] = 255
     return out
 
+def reduz_p(x0, y0, x1, y1, w, h):
+    """o pequeno (o do mundo, 1/3 do grande), direto da folha, no jeito de pixel art: contorno escuro contínuo em
+    volta, os traços escuros (olhos, cinto, dobras) mantidos e o resto com a cor média do pedaço (na paleta da folha)"""
+    reg = A[y0:y1, x0:x1].astype(np.float64); m = fg[y0:y1, x0:x1]
+    H, W = m.shape
+    ys = np.linspace(0, H, h + 1); xs = np.linspace(0, W, w + 1)
+    lum = reg @ np.array([0.299, 0.587, 0.114])
+    escuroPx = lum < 60
+    cob = np.zeros((h, w)); cor = np.zeros((h, w, 3)); tracado = np.zeros((h, w), bool); fracEsc = np.zeros((h, w))
+    for j in range(h):
+        a0, a1 = int(round(ys[j])), max(int(round(ys[j])) + 1, int(round(ys[j + 1])))
+        for i in range(w):
+            b0, b1 = int(round(xs[i])), max(int(round(xs[i])) + 1, int(round(xs[i + 1])))
+            bm = m[a0:a1, b0:b1]; cob[j, i] = bm.mean()
+            if not bm.any(): continue
+            px = reg[a0:a1, b0:b1][bm]; esc = escuroPx[a0:a1, b0:b1][bm]; fracEsc[j, i] = esc.sum() / bm.size
+            if esc.mean() >= 0.35: tracado[j, i] = True; cor[j, i] = px[esc].mean(0)
+            else: cor[j, i] = px[~esc].mean(0) if (~esc).any() else px.mean(0)
+    dentro = cob >= float(__import__('os').environ.get('COB', 0.33))
+    viz = np.zeros_like(dentro)
+    viz[1:, :] |= ~dentro[:-1, :]; viz[:-1, :] |= ~dentro[1:, :]; viz[:, 1:] |= ~dentro[:, :-1]; viz[:, :-1] |= ~dentro[:, 1:]
+    viz[0, :] = viz[-1, :] = True; viz[:, 0] = viz[:, -1] = True
+    borda = dentro & viz
+    lumP = PAL @ np.array([0.299, 0.587, 0.114]); contorno = PAL[lumP.argmin()]
+    out = np.zeros((h, w, 4))
+    for j in range(h):
+        for i in range(w):
+            if not dentro[j, i]: continue
+            c = contorno if (borda[j, i] and fracEsc[j, i] >= 0.12) else PAL[((PAL - cor[j, i]) ** 2).sum(1).argmin()]
+            out[j, i, :3] = c; out[j, i, 3] = 255
+    return out
+
 def paleta(rgba, n=26):
     op = rgba[..., 3] > 0
     px = [tuple(int(c) for c in p) for p in rgba[op][:, :3]]
@@ -86,7 +118,7 @@ for nome, (a0, b0, a1, b1) in zip(['frente', 'passo1', 'passo2'], caixas[:3]):
     w = int(round((a1 - a0) * k)); w += (-w) % F
     h = int(round((b1 - b0) * k)); h += (-h) % F
     g_ = reduz(a0, b0, a1, b1, w, h)
-    p_ = reduz_rgba(g_, F)
+    p_ = reduz_p(a0, b0, a1, b1, w // F, h // F)
     for suf, arr in (('_g', g_), ('_p', p_)):
         pal, lin = paleta(arr)
         saida[f'{pref}_{nome}{suf}'] = dict(pal=pal, linhas=lin)
