@@ -1583,6 +1583,10 @@
        vê uma vez o resumo do que mudou desde a última vez (o que já viu fica guardado no aparelho).
        Quem acabou de criar a fazenda não vê as antigas. Dá para reler em Ajuda → Novidades. ---- */
     const NOVIDADES = [
+        { id: '2026-11-16-ajudantes-desenhos', data: '16/11', titulo: 'A Dona Cida, o Seu Zé, o Tião, a Nina e o Bento ganharam desenho novo', itens: [
+            'Mais cinco ajudantes ganharam o desenho deles, no mesmo capricho da Dona Iara: a <b>Dona Cida</b> (granjeira) com a cesta de ovos, o <b>Seu Zé</b> (lavrador) com a enxada, o <b>Tião</b> (jardineiro) com o regador, a <b>Nina</b> (coelheira) com o coelhinho e a cenoura e o <b>Bento</b> (vaqueiro) com o balde de leite e o laço.',
+            'Eles andam pela fazenda em <b>alta definição</b>, de dia e de noite, e o retrato deles aparece nos Funcionários e na Loja.',
+            'A alta definição ficou mais leve para o celular: com vários ajudantes desenhados na tela ao mesmo tempo, o jogo continua nítido.'] },
         { id: '2026-11-13-namorados-2501', data: '13/11', titulo: 'O Dia dos Namorados da Fazendinha agora é 25/01', itens: [
             'A festa mudou de data: agora é todo <b>25 de janeiro</b>. Nesse dia caem pétalas pela fazenda, de noite o <b>farol da ilha</b> desenha um coração no mar e o céu do alto-mar ganha uma <b>constelação</b>.',
             'A flor <b>Viih</b> ganhou os números do 25/01: cresce em <b>25 min 01 s</b>, a semente custa <b>2501</b>, dá <b>25 de XP</b> e cada um planta até <b>25 por ano</b>. No celeiro, cada Viih continua virando <b>1 diamante</b> (ou venda na feira por 25001 de ouro).',
